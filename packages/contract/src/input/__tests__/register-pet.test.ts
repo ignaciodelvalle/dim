@@ -15,7 +15,9 @@
 
 import { describe, expect, it } from "vitest";
 
+import { PET_COLOR_MAX, PET_NAME_MAX } from "../pet-profile-edit.ts";
 import {
+  MAX_ESTIMATED_WEIGHT_KG,
   MAX_PET_AGE_MONTHS,
   MAX_PET_AGE_YEARS,
   REGISTER_PET_INPUT_CODES,
@@ -97,6 +99,199 @@ describe("registerPetInputSchema — the minimum", () => {
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
     expect(firstRegisterPetInputCode(parsed.error)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2-alta-asentar-01 — the weight
+// ---------------------------------------------------------------------------
+//
+// `estimatedWeightKg` was `optionalText`: any string, unparsed, handed to a
+// `numeric(5, 2)` column by the repository. The column was the validator and its
+// refusals arrived as 500s.
+describe("registerPetInputSchema — the estimated weight", () => {
+  it("accepts the es-AR decimal comma and normalises it to a dot", () => {
+    // THE DEFECT. `inputMode="decimal"` puts a comma under an Argentine thumb;
+    // "12,5" reached `numeric(5, 2)` verbatim as `invalid input syntax for type
+    // numeric`, which the route answered as `pet_registration_failed` 500 →
+    // "Volvé a intentar en unos minutos" → a retry that re-sent the same body
+    // and failed identically, with nothing naming the weight field.
+    expect(registerPetInputSchema.parse({ ...MINIMAL, estimatedWeightKg: "12,5" })).toMatchObject({
+      estimatedWeightKg: "12.5",
+    });
+  });
+
+  it("refuses a weight the column cannot hold instead of letting it overflow", () => {
+    // `numeric field value out of range` — the same 500 by the other door.
+    for (const weight of ["1000", "1234,5", "99999"]) {
+      const parsed = registerPetInputSchema.safeParse({ ...MINIMAL, estimatedWeightKg: weight });
+      expect(parsed.success).toBe(false);
+      if (parsed.success) continue;
+      expect(firstRegisterPetInputCode(parsed.error)).toBe("WEIGHT_INVALID");
+    }
+  });
+
+  it("refuses a value that ROUNDS past the column's ceiling", () => {
+    // `numeric(5, 2)` rounds to two decimals BEFORE it checks the precision, so
+    // 999.999 becomes 1000.00 and overflows. Checking the typed value rather
+    // than the rounded one would let exactly this through.
+    expect(
+      registerPetInputSchema.safeParse({ ...MINIMAL, estimatedWeightKg: "999.999" }).success,
+    ).toBe(false);
+    expect(
+      registerPetInputSchema.safeParse({
+        ...MINIMAL,
+        estimatedWeightKg: String(MAX_ESTIMATED_WEIGHT_KG),
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses a value that ROUNDS TO ZERO in the column (L2-9)", () => {
+    // The other end of the same rounding. `'0.001'::numeric(5,2)` is `0.00` —
+    // measured against the live Postgres — so a guard that reads the TYPED
+    // value sees 0.001 > 0, accepts, and stores zero kilos as a fact about an
+    // animal. Every one of these is a positive number that the column flattens.
+    for (const weight of ["0.001", "0.004", "0,001", "0.0049", ".004"]) {
+      const parsed = registerPetInputSchema.safeParse({ ...MINIMAL, estimatedWeightKg: weight });
+      expect(parsed.success, `${weight} rounds to 0.00`).toBe(false);
+      if (parsed.success) continue;
+      expect(firstRegisterPetInputCode(parsed.error)).toBe("WEIGHT_INVALID");
+    }
+    // NON-VACUITY: the smallest value the column CAN hold still passes, so this
+    // is a floor at the column's resolution and not a new minimum weight.
+    expect(
+      registerPetInputSchema.safeParse({ ...MINIMAL, estimatedWeightKg: "0.01" }).success,
+    ).toBe(true);
+    expect(
+      registerPetInputSchema.safeParse({ ...MINIMAL, estimatedWeightKg: "0.005" }).success,
+    ).toBe(true);
+  });
+
+  it("refuses text that is not a weight, rather than posting it into a numeric column", () => {
+    for (const weight of ["gordito", "12 kg", "12.5.6", "-5", "0", "1e3"]) {
+      expect(
+        registerPetInputSchema.safeParse({ ...MINIMAL, estimatedWeightKg: weight }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("does not invent a weight nobody typed", () => {
+    // Only the comma is rewritten. Collapsing internal spaces would turn "1 2"
+    // into twelve kilos, which is worse than a refusal — the owner cannot see
+    // the difference to check it.
+    expect(registerPetInputSchema.safeParse({ ...MINIMAL, estimatedWeightKg: "1 2" }).success).toBe(
+      false,
+    );
+  });
+
+  // NON-VACUITY: the gate must not be refusing ordinary weights.
+  it("leaves every plausible weight untouched", () => {
+    for (const weight of ["0.4", "3", "12.5", "45", "150", "999.99"]) {
+      expect(registerPetInputSchema.parse({ ...MINIMAL, estimatedWeightKg: weight })).toMatchObject(
+        { estimatedWeightKg: weight },
+      );
+    }
+  });
+
+  it("accepts a NUMBER, which a JSON client has no reason to quote", () => {
+    expect(registerPetInputSchema.parse({ ...MINIMAL, estimatedWeightKg: 12.5 })).toMatchObject({
+      estimatedWeightKg: "12.5",
+    });
+  });
+
+  it("keeps blank and absent meaning not stated", () => {
+    expect(
+      registerPetInputSchema.parse({ ...MINIMAL, estimatedWeightKg: "  " }).estimatedWeightKg,
+    ).toBeNull();
+    expect(registerPetInputSchema.parse(MINIMAL).estimatedWeightKg).toBeNull();
+  });
+
+  it("sits above the RECORDED-weight gate, because the two bound different things", () => {
+    // `record-event.ts`'s MAX_WEIGHT_KG (120) is a data-quality opinion about a
+    // measurement. This one is the column, and `species` includes `other` — a
+    // cerdo vietnamita of 150 kg is a real registration.
+    expect(MAX_ESTIMATED_WEIGHT_KG).toBe(999.99);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2-alta-asentar-09 / -11 — the two rules the name door was missing
+// ---------------------------------------------------------------------------
+describe("registerPetInputSchema — the name", () => {
+  it("refuses a name made only of invisible characters", () => {
+    // A zero-width space is `Cf`, not `White_Space`: it survives trim(), clears
+    // `min(1)`, and renders as NOTHING on the credential and the public /p page.
+    // The rule existed on `completeIdentityInputSchema` and nowhere else.
+    for (const name of ["​", "​​", "‮", "​ ‍"]) {
+      const parsed = registerPetInputSchema.safeParse({ ...MINIMAL, name });
+      expect(parsed.success).toBe(false);
+      if (parsed.success) continue;
+      expect(firstRegisterPetInputCode(parsed.error)).toBe("NAME_INVALID");
+    }
+  });
+
+  it("still refuses U+FEFF, which trim() eats before the shape rule sees it", () => {
+    // Measured, and the reason the case above does not list it: ECMAScript's
+    // WhiteSpace set includes <ZWNBSP> (U+FEFF), so `.trim()` removes it and the
+    // refusal is `NAME_REQUIRED`. Same outcome by a different door — recorded so
+    // nobody "fixes" the shape rule to cover a character it never receives.
+    const parsed = registerPetInputSchema.safeParse({ ...MINIMAL, name: "﻿" });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(firstRegisterPetInputCode(parsed.error)).toBe("NAME_REQUIRED");
+  });
+
+  it("refuses a name with a bidi override buried in it", () => {
+    expect(registerPetInputSchema.safeParse({ ...MINIMAL, name: "Pam‮pa" }).success).toBe(false);
+  });
+
+  it("refuses a name with no letter in it", () => {
+    expect(registerPetInputSchema.safeParse({ ...MINIMAL, name: "12345" }).success).toBe(false);
+    expect(registerPetInputSchema.safeParse({ ...MINIMAL, name: "---" }).success).toBe(false);
+  });
+
+  // NON-VACUITY: the rules ban what cannot be part of a name, not a list
+  // somebody thought of.
+  it.each(["Pampa", "Ñandú", "María José", "O'Connor", "Pampa III", "小白", "Rex-2"])(
+    "accepts %s",
+    (name) => {
+      expect(registerPetInputSchema.safeParse({ ...MINIMAL, name }).success).toBe(true);
+    },
+  );
+
+  it("caps a NEW name at the same number the edit door uses", () => {
+    // A2-alta-asentar-11: alta accepted 90 characters and then Editar refused to
+    // re-save the same string with "máximo 80 caracteres" — two doors onto one
+    // column disagreeing about what fits in it.
+    const long = "a".repeat(PET_NAME_MAX + 1);
+    const parsed = registerPetInputSchema.safeParse({ ...MINIMAL, name: long });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(firstRegisterPetInputCode(parsed.error)).toBe("NAME_TOO_LONG");
+    expect(
+      registerPetInputSchema.safeParse({ ...MINIMAL, name: "a".repeat(PET_NAME_MAX) }).success,
+    ).toBe(true);
+  });
+
+  it("caps the colour at the edit door's number too", () => {
+    const parsed = registerPetInputSchema.safeParse({
+      ...MINIMAL,
+      color: "a".repeat(PET_COLOR_MAX + 1),
+    });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(firstRegisterPetInputCode(parsed.error)).toBe("COLOR_TOO_LONG");
+  });
+
+  it("reports the name's codes before the rest of the form's", () => {
+    // The order is the contract: one message, and the one nearest the top of the
+    // form. A name that is both too long AND unwritable is still a name problem.
+    expect(REGISTER_PET_INPUT_CODES.indexOf("NAME_INVALID")).toBeLessThan(
+      REGISTER_PET_INPUT_CODES.indexOf("SPECIES_REQUIRED"),
+    );
+    expect(REGISTER_PET_INPUT_CODES.indexOf("WEIGHT_INVALID")).toBeGreaterThan(
+      REGISTER_PET_INPUT_CODES.indexOf("LOCALITY_REQUIRED"),
+    );
   });
 });
 

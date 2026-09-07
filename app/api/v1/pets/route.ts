@@ -56,6 +56,12 @@
 //     the web (an inline "¿es la misma?" prompt) and therefore soft here; the
 //     client already holds the list from `GET /api/v1/me/pets` and can name the
 //     pet it matched without this response disclosing which one.
+//     THE SCAN SKIPS THE PET THIS REQUEST'S OWN KEY CREATED (A2-alta-asentar-04).
+//     It runs before `registerPet`, so without that exclusion a retry after the
+//     client's 10 s timeout — the case the key exists for — was answered 409
+//     about the pet the phone had just created, and the replay 201 below was
+//     unreachable. The ordering is not the bug and was not changed: a refused
+//     registration should still cost the cheapest possible work.
 //   · PPP CLASSIFICATION — jurisdiction-aware, so the flag stored on the pet is
 //     the one that province's rules produce, not the one a national list guesses.
 //
@@ -314,7 +320,17 @@ export async function POST(request: Request) {
   let resolution: PreWriteResolution;
   try {
     resolution = await withDbBudgetOrThrow(
-      resolvePreWrite(parsed, { ownerUserId: userId, duplicateOverride: input.duplicateOverride }),
+      resolvePreWrite(parsed, {
+        ownerUserId: userId,
+        duplicateOverride: input.duplicateOverride,
+        // A2-alta-asentar-04: the dedupe scan must not report THIS key's own pet
+        // as a duplicate, or a retry after the client's 10 s timeout is answered
+        // with "ya tenés una mascota llamada…" instead of the replay 201.
+        clientIdempotencyKey: idempotencyKey,
+        // A2-alta-asentar-03: the row the person actually tapped, when the
+        // client is new enough to say which one it was.
+        localityIndecId: input.localityIndecId,
+      }),
       RESOLVE_BUDGET_MS,
       "api-v1-pets-resolve",
     );
@@ -582,14 +598,22 @@ type PreWriteResolution = {
  */
 async function resolvePreWrite(
   parsed: ParsedPet,
-  ctx: { ownerUserId: string; duplicateOverride: boolean },
+  ctx: {
+    ownerUserId: string;
+    duplicateOverride: boolean;
+    clientIdempotencyKey: string;
+    localityIndecId: string | null;
+  },
 ): Promise<PreWriteResolution> {
   const normalized = await normalizeLocationForWrite(
     {
       province: parsed.jurisdictionProvince,
       provinceCode: null,
       locality: parsed.jurisdictionLocality,
-      localityIndecId: null,
+      // A2-alta-asentar-03. When the client sends the id of the row it showed
+      // the person, THAT row is what gets stored — not the alphabetically first
+      // department among the homonyms sharing the name.
+      localityIndecId: ctx.localityIndecId,
       lat: null,
       lng: null,
       address: null,
@@ -611,6 +635,10 @@ async function resolvePreWrite(
       name: resolved.name,
       species: resolved.species,
       sex: resolved.sex,
+      // The pet this very key already created is a REPLAY, not a duplicate. See
+      // the parameter's own docblock — this is A2-alta-asentar-04, and without
+      // it the retry the endpoint promises is safe answers 409.
+      excludeClientIdempotencyKey: ctx.clientIdempotencyKey,
     });
     if (duplicate) {
       return { parsed: resolved, potentiallyDangerousBreed: false, duplicateSuspected: true };

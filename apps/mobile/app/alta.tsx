@@ -24,6 +24,7 @@
 // igual" answer to a 409. See `pets/idempotency.ts`; the reasoning is long and
 // the failure it prevents is a duplicate animal in somebody's account.
 
+import { PET_COLOR_MAX, PET_NAME_MAX } from "@dim/contract/input";
 import { breedsForSpecies } from "@dim/contract/reference";
 import { useNavigation, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -225,9 +226,16 @@ function StepBody({
         // No explicit `accessibilityLabel`: it repeated the visible label and,
         // before the kit's `accessibleName` fix (CA-M1), took ", obligatorio"
         // with it — a required field that announced nothing about being one.
+        // `maxLength` is the CAP THE SERVER ENFORCES (PET_NAME_MAX), so the
+        // field cannot accept a name the confirm step will refuse. Safe to
+        // truncate here in a way `EditarMascota`'s field is not: that one
+        // pre-fills a stored value that may legitimately be longer, and a
+        // `maxLength` under it silently rewrites the animal's name. This form
+        // starts empty.
         <TextField
           autoFocus
           label="Nombre"
+          maxLength={PET_NAME_MAX}
           onChangeText={(name) => patch({ name })}
           placeholder="Pampa"
           required
@@ -268,7 +276,15 @@ function StepBody({
           provinceCode={draft.provinceCode}
           localityName={draft.localityName}
           onSelect={(selection) =>
-            patch({ provinceCode: selection.provinceCode, localityName: selection.localityName })
+            patch({
+              provinceCode: selection.provinceCode,
+              localityName: selection.localityName,
+              // A2-alta-asentar-03: WHICH San Martín. The picker shows the
+              // department so the person can tell two homonyms apart; without
+              // the id the server resolved the NAME and stored the
+              // alphabetically first department regardless of the row tapped.
+              localityIndecId: selection.localityIndecId,
+            })
           }
         />
       );
@@ -302,16 +318,34 @@ function StepBody({
           <TextField
             accessibilityLabel="Color"
             label="Color"
+            maxLength={PET_COLOR_MAX}
             onChangeText={(color) => patch({ color })}
             placeholder="Atigrado, negro, blanco y marrón…"
             value={draft.color}
           />
+          {/* NO `maxLength`, and this field is the reason the rule above has a
+              condition on it (L2-10). The cap here was `String(999.99).length`,
+              six — the widest string the column can hold. `Nombre` argues two
+              lines up that truncating is only safe where it cannot rewrite what
+              somebody meant, and a DECIMAL is exactly where it can: `123,456`
+              became `123,45`, a different weight, still plausible, with nothing
+              on screen to show that four hundred and fifty-six grams had been
+              cut off. No cap can be safe here — every one of them leaves a
+              prefix that parses. `WEIGHT_INVALID` from the contract says no out
+              loud instead, which is the same trade `RecuperarScreen` makes for
+              the one-time code.
+
+              The placeholder shows the COMMA on purpose — `inputMode="decimal"`
+              puts one under an Argentine thumb, the contract normalises it to a
+              dot, and an example with a point would be teaching the wrong habit
+              for the sake of the database. */}
           <TextField
             accessibilityLabel="Peso aproximado en kilos"
             inputMode="decimal"
             label="Peso aproximado (kg)"
             mono
             onChangeText={(estimatedWeightKg) => patch({ estimatedWeightKg })}
+            placeholder="12,5"
             value={draft.estimatedWeightKg}
           />
           <Field label="¿Cómo llegó a tu casa?">

@@ -25,22 +25,37 @@ export const LOCALITIES_STALE_AFTER_MS = 60 * 60_000;
  * This is a STRICT subset of `LocalitySearchResult` (lib/infra/ar-localidades),
  * and the omissions are the point:
  *   · no `id` — the `ar_localities` uuid is the app's structural FK
- *     (migration 0147) and a client has no use for it. The write endpoint
- *     re-resolves `(province, locality)` against the catalogue itself, so a
- *     client that held the uuid could not shortcut anything by sending it;
+ *     (migration 0147) and a client has no use for it. `indecId` is the
+ *     PUBLISHED identifier and travels instead, for the reason below;
  *   · no `matchKind` — an internal ranking signal for the server's own ORDER BY;
  *     shipping it invites a client to re-sort and disagree with the server about
  *     which result is best.
  *
  * `provinceCode` and `localityName` are the two strings `POST /api/v1/pets`
- * takes back verbatim. That round-trip is the contract: a client never TYPES a
- * locality, it picks one from here and sends both halves back, and the write
- * endpoint re-resolves the pair against the INDEC catalogue before storing it.
+ * takes back verbatim. That round-trip WAS the whole contract and it was not
+ * enough (A2-alta-asentar-03): the INDEC catalogue ships 68 (province, name)
+ * collisions, the picker disambiguates them by showing the DEPARTMENT, and the
+ * server's name lookup then resolved the pair to the alphabetically first
+ * department regardless of the row the person tapped. `indecId` is what closes
+ * it — the identifier INDEC itself publishes, stable across a rename of the
+ * display name, and the thing a client sends back so the server resolves the row
+ * that was actually chosen.
+ *
  * The CODE travels rather than `provinceName` because a display name can be
  * re-spelled by a catalogue update while `AR-C` cannot — `provinceName` is here
  * for the client to RENDER, not to send back.
  */
 export type LocalityV1 = {
+  /**
+   * INDEC's own locality identifier. Send it back on a write and the server
+   * resolves THIS row rather than guessing between homonyms — see above.
+   *
+   * NULLABLE, because the column is: `ar_localities.indec_id` is not populated
+   * for every row. A client sends what it was given and omits the field when it
+   * is null; the server falls back to the (province, name) pair, which is the
+   * behaviour every client had before this field existed.
+   */
+  indecId: string | null;
   /** Canonical INDEC locality name, e.g. "Villa Crespo", "San Carlos de Bariloche". */
   localityName: string;
   /** URL-safe slug, stable across renames of the display name. */

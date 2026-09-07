@@ -60,6 +60,7 @@ import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-us
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { createClientFromBearer } from "@/lib/supabase/bearer";
+import { ADOPTION_APPLICATION_RATE_LIMITED_COPY } from "@/src/modules/adoption/application/adoption-application-limits";
 import {
   buildAdoptionDetailClosed,
   buildAdoptionDetailListed,
@@ -279,7 +280,34 @@ export async function POST(request: Request, context: { params: Promise<{ petTok
   }
 
   if (!result.ok) {
-    // ONE CODE FOR EVERY DOMAIN REFUSAL, and the coarseness is argued in
+    // ONE EXCEPTION FIRST, AND IT IS NOT A REFUSAL (A5-ciudadanas-02). The
+    // use-case spends the applicant's own budget and reports an exhausted one as
+    // one more `{ ok: false }`, so a 429 came back through this door as
+    // `adoption_application_refused` 409 — which the app renders as "El refugio
+    // no pudo tomar tu postulación. Volvé a la ficha para ver por qué." Three
+    // things are wrong with that sentence and only one of them is tone: it
+    // blames the SHELTER for a limit the registry imposed, it sends the person
+    // back to a ficha whose `canApply` is still true and still offers
+    // "Postularme", and every retry spends more of the budget that is the actual
+    // problem. The real answer — wait — is never said.
+    //
+    // IDENTITY ON AN EXPORTED CONSTANT, not a match on prose. The comparison
+    // below is `===` against the very string the use-case returned, imported
+    // from the module that owns it, so a reworded sentence changes both sides at
+    // once. That is what keeps this from being the copy-parsing the paragraph
+    // below forbids — a `.includes("postulaciones")` here WOULD be it.
+    if (result.error === ADOPTION_APPLICATION_RATE_LIMITED_COPY) {
+      // NO `retry-after`, deliberately, and byte-identical to the per-IP branch
+      // at the top of this handler: `apiV1Error`'s own docblock records why the
+      // two rate-limit answers must not differ ("only one of them could set an
+      // honest value, and the pair must stay byte-identical so the response
+      // never says which budget ran out"). The ledger asked for a retry-after;
+      // the invariant is older and the honest value is unknown here anyway —
+      // the use-case's verdict is `"denied"` and does not say which of the
+      // three windows (5/min, 15/hr, 30/day) filled.
+      return apiV1Error("rate_limited", 429);
+    }
+    // ONE CODE FOR EVERY OTHER DOMAIN REFUSAL, and the coarseness is argued in
     // `@dim/contract/api`'s `errors.ts` rather than here: the use-case returns
     // es-AR PROSE, so a route that mapped its sentences onto codes would be
     // parsing copy. The sentence is not forwarded either — it is written for

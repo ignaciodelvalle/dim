@@ -60,12 +60,21 @@ export type PetSex = (typeof PET_SEXES)[number];
 // Field helpers
 // ---------------------------------------------------------------------------
 
-/** A trimmed optional string; empty becomes null, because a blank form field
- *  and an absent one mean the same thing to every caller. */
+/** A trimmed optional string; absent, blank and `null` all mean "not stated".
+ *
+ *  `.nullish()` AND NOT `.optional()`, which is what it was (A5-ciudadanas-11).
+ *  This helper EMITS `null` for a blank field and its input side refused one, so
+ *  the schema's own output was not a valid input to it — the exact defect
+ *  35f6e9430 fixed in `register-pet.ts` after the PO's first Play-build
+ *  registration answered 400. It was latent here only because this schema's sole
+ *  consumers build the body out of `FormData`, which omits a blank key rather
+ *  than nulling it; the next client that parses a draft and posts `parsed.data`
+ *  would have been the same bug again. The round-trip test in
+ *  `__tests__/input-round-trip.test.ts` now fences every schema in the package. */
 const optionalText = z
   .string()
   .trim()
-  .optional()
+  .nullish()
   .transform((v) => (v ? v : null));
 
 /** A required trimmed string, failing with the given code when blank. */
@@ -87,12 +96,20 @@ const trimmedEnum = <T extends readonly [string, ...string[]]>(values: T) =>
  * rejecting "aprox 2" outright would block the intake over a guess.
  */
 const ageCount = z
-  .string()
-  .trim()
-  .optional()
+  .union([z.string(), z.number()])
+  .nullish()
   .transform((v) => {
-    if (!v) return null;
-    const parsed = Number.parseInt(v, 10);
+    if (v === undefined || v === null) return null;
+    // ACCEPTS ITS OWN OUTPUT (A5-ciudadanas-11). This transform emits a NUMBER
+    // and its input side took only a string, so re-parsing the parsed value
+    // failed on every filled age — the `register-pet.ts` round-trip defect with
+    // one extra step, since here even a non-blank field breaks it. The number
+    // arm mirrors `register-pet.ts`'s `ageCount`, which grew the same union for
+    // the same reason: a JSON client has no reason to quote an integer.
+    if (typeof v === "number") return Number.isFinite(v) ? Math.max(0, Math.trunc(v)) : 0;
+    const trimmed = v.trim();
+    if (!trimmed) return null;
+    const parsed = Number.parseInt(trimmed, 10);
     return Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
   });
 

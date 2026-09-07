@@ -47,6 +47,15 @@ const control = vi.hoisted(() => ({
   limits: [] as Array<{ endpoint: string; identifier: string }>,
   /** What findSameOwnerDuplicatePet answers. */
   duplicate: null as null | { publicToken: string },
+  /**
+   * The `Idempotency-Key` the pet in `duplicate` was REGISTERED with, when the
+   * case is modelling a retry of the attempt that created it (A2-alta-asentar-04).
+   */
+  duplicateRegistrationKey: null as null | string,
+  /** Every argument findSameOwnerDuplicatePet received. */
+  dedupeCalls: [] as Array<{ excludeClientIdempotencyKey?: string | null }>,
+  /** Every `LocationValue` normalizeLocationForWrite received. */
+  normalizeCalls: [] as Array<{ localityIndecId: string | null }>,
   /** What registerPet answers. */
   register: null as null | (() => unknown),
   /** Every argument registerPet received. */
@@ -91,7 +100,8 @@ vi.mock("@/lib/domain/location-normalize", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/domain/location-normalize")>();
   return {
     ...actual,
-    normalizeLocationForWrite: async () => {
+    normalizeLocationForWrite: async (loc: { localityIndecId: string | null }) => {
+      control.normalizeCalls.push(loc);
       if (control.localityRejects) {
         throw new actual.JurisdictionValidationError(
           "INVALID_LOCALITY",
@@ -112,7 +122,21 @@ vi.mock("@/lib/domain/location-normalize", async (importOriginal) => {
 });
 
 vi.mock("@/lib/infra/owner-pet-dedupe", () => ({
-  findSameOwnerDuplicatePet: async () => control.duplicate,
+  findSameOwnerDuplicatePet: async (input: { excludeClientIdempotencyKey?: string | null }) => {
+    control.dedupeCalls.push(input);
+    // The fake mirrors exactly ONE rule of the real scan: it skips the pet this
+    // request's own key created. Recording the argument would not have been a
+    // test — an argument nothing reads is not a fix — and the rule itself is
+    // asserted directly in `lib/infra/owner-pet-dedupe.test.ts`.
+    if (
+      control.duplicate &&
+      control.duplicateRegistrationKey &&
+      input.excludeClientIdempotencyKey === control.duplicateRegistrationKey
+    ) {
+      return null;
+    }
+    return control.duplicate;
+  },
 }));
 
 vi.mock("@/lib/infra/ppp-classification", () => ({
@@ -194,6 +218,9 @@ beforeEach(() => {
   control.limiterThrows = null;
   control.limits = [];
   control.duplicate = null;
+  control.duplicateRegistrationKey = null;
+  control.dedupeCalls = [];
+  control.normalizeCalls = [];
   control.register = null;
   control.registerCalls = [];
   control.localityRejects = false;
@@ -482,6 +509,81 @@ describe("POST /api/v1/pets — server-side gates", () => {
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "duplicate_pet_suspected" });
+    expect(control.registerCalls).toEqual([]);
+  });
+
+  // -------------------------------------------------------------------------
+  // A2-alta-asentar-04 — the retry the key exists for
+  // -------------------------------------------------------------------------
+  //
+  // The client gives up after 10 s ("No pudimos conectarnos") while the server
+  // commits. The person taps Registrar again; the request carries the SAME key.
+  // The dedupe scan runs BEFORE `registerPet`, matched the pet the phone had
+  // just created, and the app showed "Ya tenés registrada una mascota llamada
+  // Pampa…" about it — with a "Cancelar" that sent the person away believing
+  // nothing had been registered. The replay 201 was unreachable.
+  it("answers a retry on the SAME key with the replay, not the duplicate dialog", async () => {
+    const key = randomUUID();
+    control.duplicate = { publicToken: "DIM-PAMP-0001" };
+    control.duplicateRegistrationKey = key;
+    control.register = () => ({
+      ok: true,
+      value: {
+        petId: PET_ID,
+        eventId: EVENT_ID,
+        publicToken: "DIM-PAMP-0001",
+        wasDuplicate: true,
+      },
+      notifications: [],
+    });
+
+    const res = await POST(post(VALID_BODY, { idempotencyKey: key }));
+
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ publicToken: "DIM-PAMP-0001", wasDuplicate: true });
+  });
+
+  it("hands the request's Idempotency-Key to the dedupe scan", async () => {
+    const key = randomUUID();
+
+    await POST(post(VALID_BODY, { idempotencyKey: key }));
+
+    expect(control.dedupeCalls).toHaveLength(1);
+    expect(control.dedupeCalls[0].excludeClientIdempotencyKey).toBe(key);
+  });
+
+  // -------------------------------------------------------------------------
+  // A2-alta-asentar-03 — which homonym
+  // -------------------------------------------------------------------------
+  //
+  // The INDEC catalogue ships 68 (province, name) collisions, and the picker
+  // disambiguates them by showing the DEPARTMENT. Sending only the name let the
+  // server resolve with `.orderBy(departmentName).limit(1)`, so a person in San
+  // Martín, Mendoza who tapped the right row got a pet in San Martín, Buenos
+  // Aires. Jurisdiction decides the responding authority and the PPP regime.
+  it("hands the locality's INDEC id to the normalizer when the client sends one", async () => {
+    await POST(post({ ...VALID_BODY, localityIndecId: "500098" }));
+
+    expect(control.normalizeCalls).toHaveLength(1);
+    expect(control.normalizeCalls[0].localityIndecId).toBe("500098");
+  });
+
+  it("sends null for a body that omits it — an older build still registers", async () => {
+    const res = await POST(post(VALID_BODY));
+
+    expect(res.status).toBe(201);
+    expect(control.normalizeCalls[0].localityIndecId).toBeNull();
+  });
+
+  it("still refuses a duplicate registered under a DIFFERENT key", async () => {
+    // The exclusion is not a way past the gate: only the pet this attempt
+    // itself created is skipped.
+    control.duplicate = { publicToken: "DIM-EXIS-0001" };
+    control.duplicateRegistrationKey = randomUUID();
+
+    const res = await POST(post(VALID_BODY, { idempotencyKey: randomUUID() }));
+
+    expect(res.status).toBe(409);
     expect(control.registerCalls).toEqual([]);
   });
 

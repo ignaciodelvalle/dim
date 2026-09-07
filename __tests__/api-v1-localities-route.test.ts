@@ -138,7 +138,7 @@ describe("GET /api/v1/localities — the wire shape", () => {
     );
   });
 
-  it("projects a catalogue row to exactly the five fields a client renders and sends back", async () => {
+  it("projects a catalogue row to exactly the six fields a client renders and sends back", async () => {
     control.search = () => ({ results: [CATALOG_ROW] });
 
     const body = (await (await GET(req("?q=Villa"))).json()) as {
@@ -147,6 +147,13 @@ describe("GET /api/v1/localities — the wire shape", () => {
 
     expect(body.results).toHaveLength(1);
     expect(body.results[0]).toEqual({
+      // SIX, NOT FIVE, since A2-alta-asentar-03. `indecId` is INDEC's own
+      // published identifier and it is the field that makes a choice between two
+      // homonyms mean anything: the catalogue ships 68 (province, name)
+      // collisions, the picker disambiguates them by department, and a write
+      // carrying only the name resolved to the alphabetically first department
+      // regardless of the row tapped.
+      indecId: "02007010",
       localityName: "Villa Crespo",
       localitySlug: "villa-crespo",
       provinceCode: "AR-C",
@@ -156,13 +163,16 @@ describe("GET /api/v1/localities — the wire shape", () => {
   });
 
   it("drops the ar_localities uuid and the matchKind ranking signal", async () => {
+    // THE UUID STILL DOES NOT TRAVEL, and that distinction is the point of this
+    // case now that `indecId` does: the uuid is the APP'S structural FK
+    // (migration 0147), private to our schema; the INDEC id is a published
+    // national identifier a client is meant to hand back.
     control.search = () => ({ results: [CATALOG_ROW] });
 
     const body = JSON.stringify(await (await GET(req("?q=Villa"))).json());
 
     expect(body).not.toContain(CATALOG_ROW.id);
     expect(body).not.toContain("matchKind");
-    expect(body).not.toContain("indecId");
   });
 
   it("keeps a null departmentName as null — CABA barrios genuinely have none", async () => {

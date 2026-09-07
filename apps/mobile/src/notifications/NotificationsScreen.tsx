@@ -464,7 +464,17 @@ function NotificationRow({
                 onPress={() => onOpenRoute(notification.cta?.route ?? "")}
               />
             ) : (
-              <Text style={styles.inertCta}>{notification.cta.label}</Text>
+              // AN INERT CTA SAYS SO NOW (A5-ciudadanas-03). It used to be a bare
+              // greyed label: sighted people read it as a broken button, and a
+              // screen reader announced nothing at all, because plain `<Text>` is
+              // not a control and carries no state. Three of these were the app's
+              // own destinations missing from `DEEP_LINK_MAP` — fixed at the
+              // contract — and what is left is the genuinely un-openable case, an
+              // absolute `https://` CTA the inbox cannot route. The hint names
+              // the only thing that does work.
+              <Text accessibilityRole="text" style={styles.inertCta}>
+                {`${notification.cta.label} · abrilo desde la web`}
+              </Text>
             ))}
 
           {notification.petLinkAvailable && notification.pet !== null && (

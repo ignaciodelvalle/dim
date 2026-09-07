@@ -265,8 +265,14 @@ describe("NotificationsScreen — the affordances are the server's", () => {
       }),
     });
     renderScreen((route) => pushed.push(route));
-    await waitFor(() => expect(screen.getByText("Leer la resolución")).toBeTruthy());
-    fireEvent.press(screen.getByText("Leer la resolución"));
+    // AND IT SAYS SO (A5-ciudadanas-03). A bare greyed label read as a broken
+    // button to a sighted person and announced nothing at all to a screen reader
+    // — `<Text>` is not a control and carries no state. Three of the CTAs that
+    // landed here were the app's own destinations missing from `DEEP_LINK_MAP`,
+    // now rows in the table; what is left is the genuinely un-openable case (an
+    // absolute `https://` CTA), and the hint names the only thing that works.
+    const inert = await screen.findByText(/Leer la resolución · abrilo desde la web/);
+    fireEvent.press(inert);
     expect(pushed).toEqual([]);
   });
 

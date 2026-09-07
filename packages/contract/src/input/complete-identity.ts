@@ -32,6 +32,7 @@
 import { z } from "zod";
 
 import { DISPLAY_NAME_MAX_LENGTH } from "./my-profile-edit.ts";
+import { isWritableName } from "./writable-name.ts";
 
 /**
  * The bound on EACH half of the name.
@@ -77,38 +78,15 @@ export type CompleteIdentityInputCode = (typeof COMPLETE_IDENTITY_INPUT_CODES)[n
  * Unicode 4.0.1), and joins into a `display_name` that makes `isIdentityPending`
  * false while rendering as NOTHING. The result is a titular whose name is blank
  * on their own credential, on the public page and in `/gob/historial`, with
- * every gate in the product reporting the identity as complete. `U+202E`
- * (RIGHT-TO-LEFT OVERRIDE) is the same hole pointed the other way: it renders
- * the rest of the line reversed, wherever it is displayed.
+ * every gate in the product reporting the identity as complete.
  *
- * So two rules, per HALF, on the SHARED schema rather than at a call site — both
- * doors inherit them and neither can drift:
- *
- *   · NO `\p{C}` — the whole Other category: `Cc` (controls, newline included),
- *     `Cf` (format: zero-width, the bidi marks and overrides, `U+FEFF`), plus
- *     `Cs`/`Co`/`Cn`. REJECTED rather than STRIPPED, deliberately: a form that
- *     silently rewrites what somebody typed is worse than one that says no, and
- *     the person cannot see the difference to check it for themselves.
- *   · AT LEAST ONE `\p{L}` — a name is written with letters. This is what
- *     refuses `"12345"` and `"---"`, and it is also what makes the `Cn`
- *     (unassigned) arm of `\p{C}` harmless in the only case it could be wrong: a
- *     script so new that the runtime's tables do not know it would fail this
- *     rule anyway, so the ban adds no refusal of its own.
- *
- * DELIBERATELY NOT AN ALLOWLIST of letters and punctuation. `O'Connor`,
- * `Ñandú-López`, `María José`, `D'Angelo` — every apostrophe, hyphen, space,
- * accent and particle a real Argentine name carries has to pass, and a list of
- * the ones somebody thought of is a list that eventually refuses a real person
- * on a national registry. These two rules ban what cannot be part of a name and
- * let everything else through.
+ * The predicate that closes it — no `\p{C}`, at least one `\p{L}` — MOVED to
+ * `./writable-name.ts` (A2-alta-asentar-09), which states both rules and why
+ * they are not an allowlist. It lived here, and here only, which meant the three
+ * OTHER doors onto a human-readable name — alta step 1, Editar mascota and Mis
+ * datos — accepted exactly what this one refused. Applied per HALF, on the
+ * SHARED schema rather than at a call site, so neither half can drift.
  */
-const CONTROL_OR_INVISIBLE = /\p{C}/u;
-const HAS_A_LETTER = /\p{L}/u;
-
-function isWritableName(value: string): boolean {
-  return !CONTROL_OR_INVISIBLE.test(value) && HAS_A_LETTER.test(value);
-}
-
 export const completeIdentityInputSchema = z.object({
   firstName: z
     .string()

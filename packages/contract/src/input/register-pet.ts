@@ -63,6 +63,12 @@ import { z } from "zod";
 // `intake.ts`'s. Re-declaring it here would compile, would look identical, and
 // would be the first day of two lists drifting.
 import { PET_SEXES } from "./intake.ts";
+// The caps on `pets.name` and `pets.color` have exactly ONE definition too, and
+// it is the EDIT door's. Alta accepted a 90-character name that Editar then
+// refused to re-save (A2-alta-asentar-11): two doors onto one column disagreeing
+// about what fits in it. Imported rather than re-declared, for the reason above.
+import { PET_COLOR_MAX, PET_NAME_MAX } from "./pet-profile-edit.ts";
+import { isWritableName } from "./writable-name.ts";
 
 // ---------------------------------------------------------------------------
 // Vocabularies
@@ -135,6 +141,90 @@ const optionalText = z
 
 /** A required trimmed string, failing with the given code when blank. */
 const requiredText = (code: string) => z.string({ error: code }).trim().min(1, { error: code });
+
+/**
+ * The ceiling on an estimated weight, in kilograms.
+ *
+ * NOT a data-quality opinion — `record-event.ts`'s `MAX_WEIGHT_KG` (120) is the
+ * one of those, on a weight somebody MEASURED. This number is the COLUMN:
+ * `pets.estimated_weight_kg` is `numeric(5, 2)`, so 999.99 is the largest value
+ * it can hold and anything above it is a Postgres `numeric field value out of
+ * range`, which arrives at the owner as a 500 (A2-alta-asentar-01). Kept wider
+ * than 120 deliberately: `species` includes `other`, and a cerdo vietnamita of
+ * 150 kg is a real registration this door has no business refusing.
+ *
+ * The rounding matters at BOTH ends. `numeric(5, 2)` rounds to two decimals
+ * BEFORE it checks the precision, so `999.999` becomes `1000.00` and overflows —
+ * and `0.001` becomes `0.00`, a stored weight of zero the typed value never
+ * looked like. That is why the guard below compares the ROUNDED value against
+ * both bounds rather than the typed one.
+ */
+export const MAX_ESTIMATED_WEIGHT_KG = 999.99;
+
+/** A decimal comma with digits on both sides, as an es-AR keyboard produces it. */
+const DECIMAL_COMMA = /^\d+,\d+$/;
+
+/** What `numeric` accepts once the comma is a dot: digits, one optional point. */
+const PLAIN_DECIMAL = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+/**
+ * An estimated weight, as the owner typed it, in a form Postgres can store.
+ *
+ * WHY THIS IS NOT `optionalText`, which is what it was. The value goes into
+ * `numeric(5, 2)` UNPARSED — the repository hands the string straight to the
+ * insert — so the column is the validator, and its refusals are 500s. Two of
+ * them, both measured:
+ *
+ *   · `"12,5"` — the es-AR decimal comma, which is what the phone's
+ *     `inputMode="decimal"` keyboard puts under the owner's thumb and what every
+ *     Argentine writes. `invalid input syntax for type numeric` → the route's
+ *     `pet_registration_failed` 500 → "Volvé a intentar en unos minutos", and
+ *     the retry re-sends the same body and fails identically. Nothing in the
+ *     message names the weight field.
+ *   · `"1000"` and up — `numeric field value out of range`, same 500.
+ *
+ * So the comma is NORMALISED (the repo already does exactly this rewrite for the
+ * org CSV path, `lib/domain/intake-csv.ts`) and everything the column cannot
+ * hold is refused HERE, with a code the form can point at a field, instead of
+ * downstream with a code that says the server broke.
+ *
+ * NORMALISED, NOT RE-SPELLED: only `12,5` → `12.5`. Not "kg" suffixes, not
+ * internal spaces — `"1 2"` collapsing to `"12"` would be this schema inventing
+ * a weight nobody typed, which is the failure mode `writable-name.ts` refuses
+ * for names and the same argument applies to a number.
+ */
+const estimatedWeight = z
+  .union([z.string(), z.number()])
+  .nullish()
+  .transform((v) => {
+    if (v === undefined || v === null) return null;
+    // A JSON client has no reason to quote a number; `String(12.5)` is the same
+    // "12.5" the string arm produces, so both wire shapes converge here. A
+    // non-finite one never gets this far — `z.number()` refuses NaN and ±Infinity
+    // before any transform runs — and would fail the shape check below anyway.
+    if (typeof v === "number") return String(v);
+    const trimmed = v.trim();
+    if (!trimmed) return null;
+    return DECIMAL_COMMA.test(trimmed) ? trimmed.replace(",", ".") : trimmed;
+  })
+  .refine(
+    (v) => {
+      if (v === null) return true;
+      if (!PLAIN_DECIMAL.test(v)) return false;
+      const n = Number.parseFloat(v);
+      if (!Number.isFinite(n)) return false;
+      // BOTH bounds are about the value the COLUMN ends up holding, not the one
+      // the owner typed: `numeric(5, 2)` rounds to two decimals before it stores
+      // or checks anything. At the ceiling that is `999.999` → `1000.00` → out
+      // of range. At the FLOOR it is `0.001` → `0.00` (verified against the live
+      // Postgres), and a `n <= 0` guard reads the typed value, waves it through,
+      // and stores a weight of zero as a fact about an animal — a number a vet
+      // or a PPP threshold will later read as a measurement.
+      const stored = Math.round(n * 100) / 100;
+      return stored > 0 && stored <= MAX_ESTIMATED_WEIGHT_KG;
+    },
+    { error: "WEIGHT_INVALID" },
+  );
 
 /** A trimmed enum — form encodings and JSON serialisers both pad values. */
 const trimmedEnum = <T extends readonly [string, ...string[]]>(values: T) =>
@@ -213,15 +303,32 @@ const ageCount = (max: number) =>
  */
 export const REGISTER_PET_INPUT_CODES = [
   "NAME_REQUIRED",
+  "NAME_INVALID",
+  "NAME_TOO_LONG",
   "SPECIES_REQUIRED",
   "PROVINCE_REQUIRED",
   "LOCALITY_REQUIRED",
+  "COLOR_TOO_LONG",
+  "WEIGHT_INVALID",
 ] as const;
 export type RegisterPetInputCode = (typeof REGISTER_PET_INPUT_CODES)[number];
 
 export const registerPetInputSchema = z.object({
   // Required — the four things a credential cannot exist without.
-  name: requiredText("NAME_REQUIRED"),
+  //
+  // THREE RULES, NOT ONE, and the two beyond "not blank" are both doors this
+  // schema was the only one missing:
+  //   · `PET_NAME_MAX` — the EDIT door's cap (A2-alta-asentar-11). Registering a
+  //     90-character name and then being told "máximo 80" the first time you
+  //     rename the animal is two doors disagreeing about one column. Applied
+  //     flat here, unlike `edit_identity`'s grandfather-aware gate: there is no
+  //     stored value to carry over on a pet that does not exist yet.
+  //   · `isWritableName` — no `\p{C}`, at least one `\p{L}` (A2-alta-asentar-09).
+  //     A zero-width space trims to length 1 and renders as nothing, so the
+  //     credential and the public `/p` page show a pet with no name.
+  name: requiredText("NAME_REQUIRED")
+    .max(PET_NAME_MAX, { error: "NAME_TOO_LONG" })
+    .refine(isWritableName, { error: "NAME_INVALID" }),
   species: z.preprocess(
     (v) => (typeof v === "string" ? v.trim() : v),
     z.enum(PET_SPECIES, { error: "SPECIES_REQUIRED" }),
@@ -239,6 +346,24 @@ export const registerPetInputSchema = z.object({
    * that never came from the search will be rejected there, not here.
    */
   localityName: requiredText("LOCALITY_REQUIRED"),
+  /**
+   * INDEC's own id for the locality row the person TAPPED, as
+   * `GET /api/v1/localities` returned it (`LocalityV1.indecId`).
+   *
+   * OPTIONAL, AND IT IS THE ONE THAT DECIDES (A2-alta-asentar-03). The name
+   * alone is ambiguous: the catalogue ships 68 (province, name) collisions, the
+   * picker disambiguates them by showing the DEPARTMENT, and the server's
+   * name-only lookup then stored the alphabetically first department regardless
+   * of the row chosen — so a pet in San Martín, Mendoza was registered in San
+   * Martín, Buenos Aires. Jurisdiction decides the responding authority, the PPP
+   * regime and the epidemiological attribution; it is not a display detail.
+   *
+   * Optional rather than required because an installed build does not send it
+   * and must keep registering animals. The server prefers the id when it is
+   * there and falls back to the pair when it is not, so this is additive on both
+   * sides — and `localityName` stays required so the fallback always has a value.
+   */
+  localityIndecId: optionalText,
 
   // Enums that fall back rather than fail. Neither is a claim about the animal
   // that a wrong guess could corrupt.
@@ -247,8 +372,13 @@ export const registerPetInputSchema = z.object({
   // Optional identity fields. Raw trimmed strings: `breed` is resolved against
   // the species catalog server-side, and the rest are free text by nature.
   breed: optionalText,
-  color: optionalText,
-  estimatedWeightKg: optionalText,
+  // Capped at the EDIT door's number for the same reason the name is — one
+  // column, one cap. `breed` takes none: it is resolved against the species
+  // catalog server-side, so its length is the catalog's problem, not a person's.
+  color: optionalText.refine((v) => v === null || v.length <= PET_COLOR_MAX, {
+    error: "COLOR_TOO_LONG",
+  }),
+  estimatedWeightKg: estimatedWeight,
 
   // Estimated age, from which the server derives an estimated date of birth.
   ageYears: ageCount(MAX_PET_AGE_YEARS),

@@ -140,7 +140,12 @@ export async function createPetAction(
           province: parsed.jurisdictionProvince,
           provinceCode: null,
           locality: parsed.jurisdictionLocality,
-          localityIndecId: null,
+          // The row the picker wrote into the form. Passing null here — which
+          // this call did until L2-8 — made the web alta settle a (province,
+          // locality) homonym alphabetically, while the bearer registration and
+          // the mudanza, which both send the id, settled it correctly: two doors
+          // onto `pets.locality_id` disagreeing about the same animal.
+          localityIndecId: parsed.localityIndecId ?? null,
           lat: null,
           lng: null,
           address: null,
@@ -172,6 +177,12 @@ export async function createPetAction(
       name: parsed.name,
       species: parsed.species,
       sex: parsed.sex,
+      // A2-alta-asentar-04, the web half. Same defect, one form earlier: a
+      // resubmit carrying the SAME hidden key (a reload after a slow POST that
+      // did commit) met this scan before the use-case's replay guard and was
+      // shown "¿es la misma?" about the pet the form had just created.
+      excludeClientIdempotencyKey:
+        String(formData.get("clientIdempotencyKey") ?? "").trim() || null,
     });
     if (dup) {
       return {
@@ -572,6 +583,11 @@ export async function recordMoveAction(
   // with a user-facing message before it ever reaches the writer.
   let toProvince: string | null;
   let toLocality: string | null;
+  // The catalogue ROW the strict resolve landed on. Threaded to the writer so
+  // the id the form sent decides `pets.locality_id` instead of being discarded
+  // and re-guessed from the name — see RecordMovementParams.resolvedLocalityId
+  // (L2-2). Same fix as the bearer door's, because both doors had the same gap.
+  let toLocalityId: string | null;
   try {
     const normalized = await normalizeLocationForWrite(
       {
@@ -587,6 +603,7 @@ export async function recordMoveAction(
     );
     toProvince = normalized.province;
     toLocality = normalized.locality;
+    toLocalityId = normalized.localityId;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) return { error: err.message };
     throw err;
@@ -602,6 +619,10 @@ export async function recordMoveAction(
       from_country: pet.jurisdictionCountry ?? "AR",
       from_province: pet.jurisdictionProvince,
       from_locality: pet.jurisdictionLocality,
+      // The row the animal is leaving (L2-3) — with `to_locality_id`, stamped
+      // by the writer, it is what lets a correction between two same-named
+      // localities of one province be told from a no-op.
+      from_locality_id: pet.localityId,
       to_country: "AR",
       to_province: toProvince,
       to_locality: toLocality,
@@ -609,6 +630,7 @@ export async function recordMoveAction(
       reason: String(formData.get("reason") ?? "").trim() || null,
     },
     notes: null,
+    resolvedLocalityId: toLocalityId,
   });
 
   if (!result.ok) {

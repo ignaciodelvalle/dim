@@ -762,6 +762,36 @@ describe("GET .../lost — the read", () => {
     expect(body.capabilities.canReactivateSearch).toBe(false);
   });
 
+  // A4-custodia-13 — the OTHER flag the org path alone decides.
+  //
+  // `commands.ts` refuses `report_content` and `reactivate_search` in ONE
+  // condition, so the payload has to answer both. Without `canReportContent` the
+  // app drew "Reportar" on every feed row for an org-path reader and the server
+  // answered it with titular-only copy. Practically unreachable today (org
+  // viewers cannot navigate to LostScreen), which is exactly why a flag is
+  // cheaper than the bug being found later, from a hand-typed deep link.
+  it("does NOT offer content reporting on the org path, matching the write guard", async () => {
+    control.access = orgAccess({ status: "lost" });
+    const response = await get();
+    const body = (await response.json()) as { capabilities: Record<string, unknown> };
+    expect(body.capabilities.canReportContent).toBe(false);
+    // The two flags the guard refuses together are refused together here.
+    expect(body.capabilities.canReactivateSearch).toBe(false);
+  });
+
+  it("offers content reporting to the owner path, lost or not", async () => {
+    // NON-VACUITY, and the reason there is no status clause: reporting a message
+    // is about the FEED, which is readable whether or not a search is running.
+    control.access = ownerAccess({ status: "lost" });
+    const lost = (await (await get()).json()) as { capabilities: Record<string, unknown> };
+    expect(lost.capabilities.canReportContent).toBe(true);
+
+    control.access = ownerAccess({ status: "active" });
+    control.episode = null;
+    const home = (await (await get()).json()) as { capabilities: Record<string, unknown> };
+    expect(home.capabilities.canReportContent).toBe(true);
+  });
+
   it("hides the caretaker-contact toggle from a caretaker, and only that one", async () => {
     control.access = ownerAccess({}, "caretaker");
     const response = await get();

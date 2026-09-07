@@ -136,6 +136,7 @@ vi.mock("@/src/modules/adoption/infrastructure/adoption-repository", () => ({
 
 import { DbBudgetExceededError } from "@/lib/infra/db-budget";
 import { RateLimitError } from "@/lib/infra/rate-limit";
+import { ADOPTION_APPLICATION_RATE_LIMITED_COPY } from "@/src/modules/adoption/application/adoption-application-limits";
 
 import { GET as GET_DETAIL, POST } from "@/app/api/v1/adoptions/[petToken]/route";
 import { GET as GET_CATALOGUE } from "@/app/api/v1/adoptions/route";
@@ -517,6 +518,55 @@ describe("POST /api/v1/adoptions/{petToken} — postularse", () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "adoption_application_refused" });
     expect(mockFlush).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // A5-ciudadanas-02 — an exhausted budget is a 429, not a shelter's refusal
+  // -------------------------------------------------------------------------
+  //
+  // The applicant's own budget (5/min · 15/hr · 30/day) is spent INSIDE the
+  // use-case, which reports it as one more `{ ok: false }`. Coming back as
+  // `adoption_application_refused` 409 made the app say "El refugio no pudo
+  // tomar tu postulación. Volvé a la ficha para ver por qué." — blaming the
+  // shelter for a limit the registry imposed, sending the person to a ficha
+  // whose `canApply` is still true and still offers "Postularme", and spending
+  // more budget on every retry while never saying the real answer, which is wait.
+  it("answers an exhausted applicant budget with rate_limited 429", async () => {
+    mockSubmit.mockResolvedValue({
+      ok: false,
+      error: ADOPTION_APPLICATION_RATE_LIMITED_COPY,
+    });
+    const res = await POST(applyRequest(VALID_APPLICATION), params);
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: "rate_limited" });
+    expect(mockFlush).not.toHaveBeenCalled();
+  });
+
+  it("says nothing about WHICH budget ran out", async () => {
+    // `apiV1Error`'s own docblock: the per-IP and per-user rate-limit answers
+    // must stay byte-identical, because only one of them could set an honest
+    // `retry-after` and a differing pair tells a caller which bucket it hit.
+    mockSubmit.mockResolvedValue({ ok: false, error: ADOPTION_APPLICATION_RATE_LIMITED_COPY });
+    const perUser = await POST(applyRequest(VALID_APPLICATION), params);
+
+    control.limiterThrows = () => {
+      throw new RateLimitError(new Date(Date.now() + 60_000), "api_v1_adoption_apply_ip");
+    };
+    const perIp = await POST(applyRequest(VALID_APPLICATION), params);
+
+    expect(perIp.status).toBe(perUser.status);
+    expect(await perIp.json()).toEqual(await perUser.json());
+    expect(perUser.headers.get("retry-after")).toBeNull();
+    expect(perIp.headers.get("retry-after")).toBeNull();
+  });
+
+  it("still answers 409 for every OTHER domain refusal", async () => {
+    // NON-VACUITY: the new arm keys on the exported constant, not on "the
+    // use-case said no".
+    mockSubmit.mockResolvedValue({ ok: false, error: "Ya postulaste para esta mascota." });
+    const res = await POST(applyRequest(VALID_APPLICATION), params);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "adoption_application_refused" });
   });
 
   it("refuses a body the contract schema rejects, without reaching the use-case", async () => {

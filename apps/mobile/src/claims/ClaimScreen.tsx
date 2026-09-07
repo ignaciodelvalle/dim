@@ -218,6 +218,18 @@ export function ClaimScreen({ onOpenPet }: { onOpenPet: (publicToken: string) =>
             >
               Iniciar una disputa desde la web
             </LinkText>
+            {/* SAYS THE BROWSER IS SIGNED OUT, in the identity screen's own
+                words (A4-custodia-08). The web resolves a visitor from a COOKIE
+                and this app holds a bearer token, so the link opens a login page
+                with no explanation — a person who has just been told the animal
+                "ya tiene dueño/a" reads that as the app breaking. The page now
+                carries a `returnTo` back to Reclamar, so signing in lands on the
+                wizard instead of on Mis mascotas; this sentence is what stops the
+                login screen looking like a dead end before they get there. */}
+            <Body>
+              Vas a tener que ingresar de nuevo con el mismo correo: el navegador no comparte la
+              sesión de esta app. Después te lleva directo a Reclamar.
+            </Body>
           </View>
         ) : null}
 

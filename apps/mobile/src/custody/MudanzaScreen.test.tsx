@@ -91,6 +91,10 @@ beforeEach(() => {
     payload: {
       results: [
         {
+          // A2-alta-asentar-03: the row carries INDEC's own id now, and it is
+          // what the write sends back so the server resolves THIS row instead of
+          // the alphabetically first department among the name's homonyms.
+          indecId: "620105",
           localityName: "San Carlos de Bariloche",
           localitySlug: "san-carlos-de-bariloche",
           provinceCode: "AR-R",
@@ -180,6 +184,9 @@ describe("MudanzaScreen — recording the move", () => {
       command: "record_move",
       provinceCode: "AR-R",
       localityName: "San Carlos de Bariloche",
+      // The id of the ROW that was tapped, not a name for the server to guess a
+      // department from (A2-alta-asentar-03).
+      localityIndecId: "620105",
       reason: null,
     });
   });

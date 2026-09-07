@@ -230,6 +230,9 @@ export function parsePetForm(
     insurancePolicyNumber: String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
     jurisdictionProvince: provinceForStorage,
     jurisdictionLocality: loc.locality,
+    // The row the person picked, not just its name — the action resolves the
+    // catalogue with it so a homonym is not settled alphabetically (L2-8).
+    localityIndecId: loc.localityIndecId,
     acquisitionMethod,
     emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",
     permanentConditions,

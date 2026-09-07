@@ -76,6 +76,26 @@ const petRegistered = z
       insurance_policy_number: z.string().nullable(),
       jurisdiction_province: z.string().nullable(),
       jurisdiction_locality: z.string().nullable(),
+      // WHICH CATALOGUE ROW, not just which two names (L2-3). The INDEC
+      // catalogue ships 68 (province, locality) collisions, so the pair above
+      // does not identify a place: two pets with identical province and locality
+      // text legitimately carry different `pets.locality_id`, and until this
+      // field existed that choice was recorded NOWHERE in the spine. A
+      // rederivation or a backfill from the log had to resolve by name, which
+      // lands on the alphabetically first department and silently reattributes
+      // the animal to another jurisdiction — with the drift detector explicitly
+      // not looking (lib/infra/rederive-pet-cache.ts's exclusion note).
+      //
+      // THE `ar_localities` UUID AND NOT THE INDEC ID, deliberately: `indec_id`
+      // is NULL for every CABA barrio, so it cannot identify the row for a whole
+      // jurisdiction, while the uuid is present on every catalogue row and is
+      // exactly the value the cache column holds.
+      //
+      // OPTIONAL because it is NEW: events written before it exist and are read
+      // back unchanged, and one writer (execute-decomiso) sets no locality row
+      // at all. Absent means "this writer recorded no row", which is the honest
+      // reading for both.
+      jurisdiction_locality_id: z.string().uuid().nullable().optional(),
       potentially_dangerous_breed: z.boolean(),
       acquisition_method: z
         .enum(["adopted", "purchased", "found_stray", "gift", "born_in_litter", "other"])
@@ -508,6 +528,18 @@ const movementJurisdictionChanged = z
       to_country: z.string().min(1),
       to_province: z.string().nullable(),
       to_locality: z.string().nullable(),
+      // WHICH CATALOGUE ROWS the two names name (L2-3), as `ar_localities`
+      // uuids. Same reasoning as `pet_registered.jurisdiction_locality_id`
+      // above — the (province, locality) text pair does not identify a place,
+      // and `pets.locality_id` is written from a value the spine could not
+      // otherwise reproduce. `to_locality_id` is set by `recordMovementWriter`
+      // from the SAME variable it writes into the column, so the event and the
+      // cache cannot disagree; `from_locality_id` is the animal's stored row,
+      // supplied by the caller that already read it.
+      //
+      // Optional: events written before the field exist and stay valid.
+      from_locality_id: z.string().uuid().nullable().optional(),
+      to_locality_id: z.string().uuid().nullable().optional(),
       // ISO date the move takes effect (may differ from occurred_at).
       effective_date: z.string(),
       reason: z.string().nullable(),
@@ -517,7 +549,20 @@ const movementJurisdictionChanged = z
   // S2: a no-op move is rejected at the schema level — write nothing rather
   // than record a non-event (spec R1.2).
   .superRefine((p, ctx) => {
+    // TWO SAME-NAMED LOCALITIES OF ONE PROVINCE ARE NOT THE SAME PLACE (L2-5).
+    // The catalogue collides on 68 (province, name) pairs, so comparing the
+    // three TEXT fields refuses the one move that most needs to be recordable:
+    // the correction of an animal filed against the wrong San Pedro. When both
+    // sides name a catalogue row and the rows differ, this is a real move
+    // whatever the names say. When either id is absent — a legacy row, or a
+    // destination the catalogue does not know — the text comparison is all
+    // there is, and it stands.
+    const rowsDiffer =
+      p.from_locality_id != null && p.to_locality_id != null
+        ? p.from_locality_id !== p.to_locality_id
+        : false;
     if (
+      !rowsDiffer &&
       p.from_country === p.to_country &&
       p.from_province === p.to_province &&
       p.from_locality === p.to_locality

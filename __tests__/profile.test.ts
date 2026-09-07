@@ -218,6 +218,35 @@ describe("updateProfileForUser — validation rejections", () => {
     expect(result.error).toMatch(/VALIDATION_ERROR/);
   });
 
+  // A2-alta-asentar-09. The length floor is not a shape rule: two zero-width
+  // spaces are two characters, survive `trim()` and clear `min(2)`, so this door
+  // saved a display name that renders as NOTHING on the person's own credential,
+  // on the public /p page and in /gob/historial — while `isIdentityPending`
+  // reports the identity complete. Signup step 2 refused exactly this string and
+  // this door, onto the SAME column, did not.
+  it("rejects a displayName made only of invisible characters", async () => {
+    const result = await updateProfileForUser(actorUserId, { displayName: "​​" });
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/VALIDATION_ERROR/);
+  });
+
+  it("rejects a displayName with no letter in it", async () => {
+    const result = await updateProfileForUser(actorUserId, { displayName: "12345" });
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/VALIDATION_ERROR/);
+  });
+
+  // NON-VACUITY: the shape rule must not be refusing real Argentine names.
+  it.each(["María José", "Ñandú-López", "O'Connor", "Ana 2"])(
+    "still accepts %s as a displayName",
+    async (displayName) => {
+      const result = await updateProfileForUser(actorUserId, { displayName });
+      expect(result).toEqual({ ok: true });
+    },
+  );
+
   it("accepts any non-empty phone format (AR validation is now a client-side soft warning)", async () => {
     // Phone format is no longer rejected server-side. The client surfaces a
     // soft warning via `lib/ar-phone.ts` for non-AR-looking values, but the

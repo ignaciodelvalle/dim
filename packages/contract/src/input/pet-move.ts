@@ -115,6 +115,29 @@ const recordMove = z.object({
     .string({ error: "DESTINATION_REQUIRED" })
     .trim()
     .min(1, { error: "DESTINATION_REQUIRED" }),
+  /**
+   * INDEC's own id for the destination row the person TAPPED
+   * (`LocalityV1.indecId`). Optional; the server prefers it and falls back to
+   * the (province, name) pair.
+   *
+   * SAME DEFECT AS ALTA'S, ONE ACT LATER (A2-alta-asentar-03, merged with
+   * A4-custodia-05), and the defect is WITHIN one province — the first version
+   * of this note described a cross-province mix-up that cannot happen, since the
+   * server resolves the province first and the locality lookup is scoped to it
+   * (corrected by L2-5). What the name-only lookup really does is settle a
+   * homonym with `.orderBy(departmentName).limit(1)`, and the catalogue carries
+   * 68 (province, name) collisions — four "San Pedro"s in Santiago del Estero
+   * alone. Tap the second San Pedro of the list and the animal is filed under
+   * the first: a different department, a different responding authority, and a
+   * correcting move that USED to come back `move_same_locality` because the two
+   * rows compared equal on their names. Sending the id is what makes both the
+   * filing and the correction land on the row the person chose.
+   */
+  localityIndecId: z
+    .string()
+    .trim()
+    .nullish()
+    .transform((v) => (v ? v : null)),
   reason: optionalReason,
 });
 

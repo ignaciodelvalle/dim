@@ -241,6 +241,58 @@ describe("recordJurisdictionMove — a no-op is refused before any transaction",
     expect(control.writes).toHaveLength(1);
   });
 
+  it("writes the CORRECTION between two same-named localities of one province", async () => {
+    // L2-5(b). The no-op check used to compare country, province and locality
+    // TEXT, and `input.pet` was a `Pick` WITHOUT `localityId` — so for the one
+    // case the INDEC id exists to decide, the two sides compared equal and the
+    // registry answered `same_locality` to a move that is not one. The animal
+    // was filed against the alphabetically first San Pedro and could not be
+    // moved to the right one.
+    //
+    // MUTATION APPLIED: drop `sameCatalogueRow` from the condition. Red here,
+    // green everywhere else in this file.
+    const result = await run({
+      pet: pet({
+        jurisdictionProvince: "Río Negro",
+        jurisdictionLocality: "San Carlos de Bariloche",
+        // A DIFFERENT catalogue row from the one the destination resolves to
+        // ("loc-1", what the mocked normalizer answers).
+        localityId: "loc-OTHER",
+      }),
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(control.writes).toHaveLength(1);
+  });
+
+  it("still refuses when the stored row IS the destination row", async () => {
+    // NON-VACUITY for the case above: it is the ids differing that makes it a
+    // move, not the presence of an id. Same names, same row → still a no-op.
+    const result = await run({
+      pet: pet({
+        jurisdictionProvince: "Río Negro",
+        jurisdictionLocality: "San Carlos de Bariloche",
+        localityId: "loc-1",
+      }),
+    });
+    expect(result).toMatchObject({ ok: false, code: "same_locality" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("falls back to the names for a pet whose row was never resolved", async () => {
+    // A legacy pet carries `locality_id: null`. There is nothing to compare but
+    // the text, and the text rule still decides — half an id must not become a
+    // licence to append a non-event.
+    const result = await run({
+      pet: pet({
+        jurisdictionProvince: "Río Negro",
+        jurisdictionLocality: "San Carlos de Bariloche",
+        localityId: null,
+      }),
+    });
+    expect(result).toMatchObject({ ok: false, code: "same_locality" });
+    expect(control.writes).toEqual([]);
+  });
+
   it("treats a NULL stored country as `AR` on both sides of the comparison", async () => {
     // `pets.jurisdiction_country` is nullable and legacy rows carry null. The
     // web's action reads it as `pet.jurisdictionCountry ?? "AR"`; if this file
@@ -265,18 +317,31 @@ describe("recordJurisdictionMove — what the writer is handed", () => {
     // MUTATION APPLIED: `from_province: province` (the destination). Red — and
     // the payload would then claim the animal moved from where it moved TO,
     // which no later reader could detect.
-    await run();
+    await run({ pet: pet({ localityId: "loc-FROM" }) });
     expect(control.writes[0].movement).toEqual({
       sub_kind: "jurisdiction_changed",
       from_country: "AR",
       from_province: "Buenos Aires",
       from_locality: "La Plata",
+      // The ROW the animal is leaving, not just its two names (L2-3). Without
+      // it no later reader could tell a correction between two same-named
+      // localities from a no-op, and a rederivation would have to guess.
+      from_locality_id: "loc-FROM",
       to_country: "AR",
       to_province: "Río Negro",
       to_locality: "San Carlos de Bariloche",
       effective_date: "2019-07-04",
       reason: "Nos mudamos por trabajo",
     });
+  });
+
+  it("hands the writer the row the catalog resolved, not just its name", async () => {
+    // L2-2 at this seam. The use-case resolved the destination — possibly BY
+    // INDEC ID, the only thing that separates two same-named localities — and
+    // the writer must not throw that answer away and re-resolve the name.
+    // MUTATION APPLIED: drop `resolvedLocalityId` from the call. Red.
+    await run();
+    expect(control.writes[0].resolvedLocalityId).toBe("loc-1");
   });
 
   it("hardcodes `to_country: AR` even for an animal whose stored country is not", async () => {

@@ -64,6 +64,7 @@ function view(overrides: Partial<PetLostV1> = {}): PetLostV1 {
       canReportLastSeen: false,
       canMarkFound: false,
       canReactivateSearch: false,
+      canReportContent: true,
       editableDisclosureKeys: [
         "discloseFirstNameWhenLost",
         "disclosePhoneWhenLost",

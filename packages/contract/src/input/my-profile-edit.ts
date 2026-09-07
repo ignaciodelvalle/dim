@@ -34,6 +34,8 @@
 
 import { z } from "zod";
 
+import { isWritableName } from "./writable-name.ts";
+
 /** The writer's own bounds. Named so a client can size its inputs. */
 export const DISPLAY_NAME_MIN_LENGTH = 2;
 export const DISPLAY_NAME_MAX_LENGTH = 80;
@@ -52,6 +54,7 @@ export const CONTACT_PHONE_MAX_LENGTH = 40;
 export const MY_PROFILE_EDIT_INPUT_CODES = [
   "DISPLAY_NAME_TOO_SHORT",
   "DISPLAY_NAME_TOO_LONG",
+  "DISPLAY_NAME_INVALID",
   "CONTACT_NAME_TOO_LONG",
   "CONTACT_PHONE_TOO_LONG",
 ] as const;
@@ -74,11 +77,18 @@ const contactPhone = z
   .optional();
 
 export const myProfileEditInputSchema = z.object({
+  // The shape rule is `completeIdentityInputSchema`'s, and this is the OTHER
+  // door onto the same column (A2-alta-asentar-09). Two zero-width spaces trim
+  // to length 2, clear `DISPLAY_NAME_MIN_LENGTH`, save, and leave a titular
+  // whose name renders as nothing on their credential and on the public page
+  // while every gate in the product reports the identity complete — which is
+  // precisely the hole step 2 closed and this door kept open.
   displayName: z
     .string()
     .trim()
     .min(DISPLAY_NAME_MIN_LENGTH, { error: "DISPLAY_NAME_TOO_SHORT" })
-    .max(DISPLAY_NAME_MAX_LENGTH, { error: "DISPLAY_NAME_TOO_LONG" }),
+    .max(DISPLAY_NAME_MAX_LENGTH, { error: "DISPLAY_NAME_TOO_LONG" })
+    .refine(isWritableName, { error: "DISPLAY_NAME_INVALID" }),
   phone: contactPhone,
   preferredVetName: contactName,
   preferredVetPhone: contactPhone,

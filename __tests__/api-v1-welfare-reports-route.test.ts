@@ -105,6 +105,12 @@ const control = vi.hoisted(() => ({
    * pick which of the three it is exercising.
    */
   geocodeThrows: null as string | null,
+  /**
+   * Make the SHARED `geocode_public` budget refuse (A5-ciudadanas-04). A
+   * different arm from `geocodeThrows`: that one is the provider failing, this
+   * one is the limiter working — and the two must not answer the same status.
+   */
+  geocodeThrowsRateLimit: false,
   /** Make the case transaction fail, to exercise the other 500 arm. */
   txThrows: false,
 }));
@@ -246,16 +252,33 @@ vi.mock("@/lib/infra/report-error", () => ({
 // The WEB'S OWN anonymous geocoding action — the one the DenunciaWizard's
 // address field calls. Mocked at the module the route imports, not re-created,
 // so a rename of that export is a red here rather than a second geocoder.
-vi.mock("@/src/modules/localities/application/geocoding/geocoding", () => ({
-  geocodeAddressPublicAction: async (query: string) => {
-    control.geocodeQueries.push(query);
-    // The query is recorded BEFORE the throw on purpose: a case asserting the
-    // failure arm still gets to assert the geocoder was in fact reached, so a
-    // 503 produced by something else upstream cannot pass for this one.
-    if (control.geocodeThrows !== null) throw new Error(control.geocodeThrows);
-    return control.geocodeResults;
-  },
-}));
+vi.mock("@/src/modules/localities/application/geocoding/geocoding", () => {
+  // THE REAL `RateLimitError`, resolved lazily and memoised. The route decides
+  // with `instanceof`, so a hand-rolled look-alike here would test nothing; and
+  // a top-level import cannot be referenced from a hoisted factory. Memoised
+  // rather than re-imported per call — a per-call `await import()` of a mocked
+  // module has dropped a concurrent caller in this repo before.
+  let rateLimit: typeof import("@/lib/infra/rate-limit") | null = null;
+  return {
+    // `…OrThrow`, not `…Action` (A5-ciudadanas-04). Same act, same
+    // `geocode_public` bucket, same IP — the difference is that a REFUSED
+    // budget throws here instead of coming back as `[]`, because this door
+    // renders an empty list as "No pudimos encontrar esa dirección" and a
+    // limiter refusal is not a fact about the address.
+    geocodeAddressPublicOrThrow: async (query: string) => {
+      control.geocodeQueries.push(query);
+      // The query is recorded BEFORE the throw on purpose: a case asserting the
+      // failure arm still gets to assert the geocoder was in fact reached, so a
+      // 503 produced by something else upstream cannot pass for this one.
+      if (control.geocodeThrowsRateLimit) {
+        rateLimit ??= await import("@/lib/infra/rate-limit");
+        throw new rateLimit.RateLimitError(new Date(Date.now() + 60_000), "geocode_public");
+      }
+      if (control.geocodeThrows !== null) throw new Error(control.geocodeThrows);
+      return control.geocodeResults;
+    },
+  };
+});
 
 // A PARTIAL mock: only `db` is replaced, and only its `transaction`. The table
 // objects stay real, because half the app's infra transitively imports this
@@ -345,6 +368,7 @@ beforeEach(() => {
   control.geocodeQueries = [];
   control.geocodeResults = [];
   control.geocodeThrows = null;
+  control.geocodeThrowsRateLimit = false;
 });
 
 describe("resolve_location — the only way a phone can name a point", () => {
@@ -495,6 +519,65 @@ describe("resolve_location — the only way a phone can name a point", () => {
 
     expect(failed.status).not.toBe(missed.status);
     expect(missed.status).toBe(200);
+  });
+
+  // -------------------------------------------------------------------------
+  // A5-ciudadanas-04 — the SHARED budget's refusal is not a fact about the street
+  // -------------------------------------------------------------------------
+  //
+  // CANON-433 covered the provider throwing. It did not cover the `geocode_public`
+  // limiter, because `geocodeAddressPublicAction` answers a refused budget with
+  // `[]` — the shape the web's debounced autocomplete wants and the one this door
+  // renders as "No pudimos encontrar esa dirección. Probá escribirla de otra
+  // forma". Behind a carrier gateway where neighbours are filing web sightings, a
+  // tester retypes the address three ways (each spending more of the same
+  // budget), is told three times that it does not exist, and never files.
+  it("answers rate_limited 429 when the shared geocode budget refuses", async () => {
+    control.geocodeThrowsRateLimit = true;
+    const response = await post({
+      command: "resolve_location",
+      addressText: "Av. Bustillo 1200",
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "rate_limited" });
+    // The limiter really was reached through this call, so a 429 minted by the
+    // route's own per-IP bucket cannot pass for this one.
+    expect(control.geocodeQueries).toEqual(["Av. Bustillo 1200"]);
+  });
+
+  it("does NOT answer an empty match list when the budget refuses", async () => {
+    control.geocodeThrowsRateLimit = true;
+    const refused = await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    control.geocodeThrowsRateLimit = false;
+    control.geocodeResults = [];
+    const missed = await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(refused.status).not.toBe(missed.status);
+    expect(missed.status).toBe(200);
+  });
+
+  it("does not report a spent budget to the error sink — the limiter working is not an incident", async () => {
+    control.geocodeThrowsRateLimit = true;
+    await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(control.errors).not.toContain("api-v1-welfare-reports/geocode");
+  });
+
+  it("keeps the limiter's answer DISTINCT from the provider's", async () => {
+    // Two different truths: "we could not reach the geocoder, try again in a
+    // few seconds" (503 + retry-after) and "you have used this budget up"
+    // (429). Collapsing them would put the wrong sentence on the phone.
+    control.geocodeThrowsRateLimit = true;
+    const limited = await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    control.geocodeThrowsRateLimit = false;
+    control.geocodeThrows = "fetch_failed";
+    const down = await post({ command: "resolve_location", addressText: "Av. Bustillo 1200" });
+
+    expect(limited.status).toBe(429);
+    expect(down.status).toBe(503);
   });
 
   it("reports the geocoder failure to the sink WITHOUT the address", async () => {

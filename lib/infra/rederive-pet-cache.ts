@@ -57,10 +57,37 @@
 //     discloseConditionsPublicly is the closest to that line already: it gates
 //     what the public credential shows. At that point the work is writing the
 //     projections, not extending this note.
-//   - localityId → the denormalized FK twin of jurisdictionLocality. Left out
-//     because the three text columns above already fail when the locality
-//     drifts, and resolving the id would double the per-pet catalog lookups for
-//     a value that cannot drift independently of the name it is resolved from.
+//   - localityId → the denormalized FK twin of jurisdictionLocality.
+//     THE JUSTIFICATION THAT USED TO STAND HERE WAS FALSE, and it is the same
+//     failure mode as the H7 correction above: it was written as a REASON TO
+//     SKIP THE CHECK rather than as an observation, and it would have authorised
+//     the wrong conclusion the next time somebody read it. It said the id was
+//     "a value that cannot drift independently of the name it is resolved from".
+//     It can, and it does by design: the INDEC catalogue carries 68 (province,
+//     locality) collisions — four "San Pedro"s in Santiago del Estero — so two
+//     pets whose three text columns are byte-identical legitimately hold
+//     DIFFERENT locality_ids, and which one is right is the row the person
+//     tapped. The three text columns cannot fail on that difference; they are
+//     equal.
+//     Worse, until L2-3 the choice was recorded NOWHERE in the spine:
+//     `pet_registered` carried province/locality names only and
+//     `movement_recorded` carried to_province/to_locality only, so any
+//     rederivation or backfill from the log had to resolve by NAME, land on the
+//     alphabetically first department, and silently reattribute the animal — to
+//     a different responding authority and a different PPP regime — with this
+//     exclusion note guaranteeing nothing looked.
+//     The spine now records it: `pet_registered.jurisdiction_locality_id` and
+//     `movement_recorded.to_locality_id`, both written from the same variable
+//     that sets the column. It stays EXCLUDED for a narrower and true reason:
+//     every event written BEFORE that field existed lacks it, so a checker would
+//     derive null for the entire historical corpus and report drift for every
+//     pet that has one — noise that gets the whole check muted, which is the
+//     failure this module exists to prevent.
+//     REVISIT IF: the id is backfilled into historical payloads, or the check is
+//     written to skip pets whose latest jurisdiction-bearing event predates the
+//     field. At that point the work is extending replayPetJurisdiction (which
+//     returns the three text values today) to carry the id through, not
+//     extending this note.
 //
 // jurisdictionCountry / _Province / _Locality WERE in neither list until
 // 2026-08-12 — they fell through the gap in silence, which is exactly the

@@ -144,7 +144,12 @@ async function recordMove(
       pet: access.pet,
       recordedByUserId: ctx.userId,
       eventAuthorship: access.kind === "owner" ? OWNER_AUTHORSHIP : access.eventAuthorship,
-      destination: { provinceCode: input.provinceCode, localityName: input.localityName },
+      destination: {
+        provinceCode: input.provinceCode,
+        localityName: input.localityName,
+        // A2-alta-asentar-03 — the row the person tapped, when the client says.
+        localityIndecId: input.localityIndecId,
+      },
       reason: input.reason,
     });
   } catch (err) {

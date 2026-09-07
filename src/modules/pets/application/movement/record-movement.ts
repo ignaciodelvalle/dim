@@ -37,9 +37,19 @@ import type { MovementInput, RecordMovementParams, RecordMovementResult } from "
  * introduce a NEW hard rejection that breaks the atomic event-first write —
  * an off-catalog pair falls through as-is, exactly as before this hardening.
  * The action edge (recordMoveAction) applies the strict, user-facing rejection.
+ *
+ * THE EDGE'S ANSWER WINS WHEN THERE IS ONE (L2-2). A caller that already
+ * resolved the destination — both of them do, strictly, and one of them can do
+ * it by INDEC id — hands its `localityId` in and this function does not resolve
+ * again. Re-resolving by NAME is not a harmless second opinion: `localityByName`
+ * is province-scoped and settles a homonym alphabetically, so for the only case
+ * an id can decide (two same-named localities of one province) the second
+ * opinion silently overrules the first and `pets.locality_id` lands on the wrong
+ * department.
  */
 async function canonicalizeMovement(
   movement: MovementInput,
+  resolvedLocalityId: string | null | undefined,
 ): Promise<{ movement: MovementInput; localityId: string | null }> {
   if (
     movement.sub_kind !== "jurisdiction_changed" ||
@@ -48,6 +58,13 @@ async function canonicalizeMovement(
     !movement.to_locality
   ) {
     return { movement, localityId: null };
+  }
+
+  // The caller resolved. Its names came from the same resolution (see
+  // RecordMovementParams.resolvedLocalityId), so there is nothing left to
+  // canonicalize and nothing to second-guess.
+  if (resolvedLocalityId !== undefined) {
+    return { movement, localityId: resolvedLocalityId };
   }
 
   const normalized = await normalizeLocationForWrite(
@@ -85,11 +102,24 @@ export async function recordMovementWriter(
   try {
     // Canonicalize the destination jurisdiction before both the event payload
     // and the denormalization so they never diverge (review 14 item 11).
-    const { movement, localityId } = await canonicalizeMovement(params.movement);
+    const { movement, localityId } = await canonicalizeMovement(
+      params.movement,
+      params.resolvedLocalityId,
+    );
+
+    // THE EVENT RECORDS THE ROW, NOT ONLY THE TWO NAMES (L2-3). `to_locality_id`
+    // is stamped here, from the SAME variable the denormalization below writes
+    // into `pets.locality_id`, so the spine and the cache cannot disagree about
+    // which of two same-named localities this move landed on — and a
+    // rederivation never has to re-resolve a homonym by name.
+    const recorded: MovementInput =
+      movement.sub_kind === "jurisdiction_changed"
+        ? { ...movement, to_locality_id: localityId }
+        : movement;
 
     // Validate BEFORE opening the transaction: an invalid payload (e.g. the
     // S2 no-op move) writes nothing at all.
-    const payload = validateEventPayload("movement_recorded", movement);
+    const payload = validateEventPayload("movement_recorded", recorded);
 
     await db.transaction(async (tx) => {
       // (1) Event row FIRST — the immutable fact.

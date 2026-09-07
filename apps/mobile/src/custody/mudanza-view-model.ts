@@ -33,10 +33,22 @@ import { firstPetMoveCommandInputCode, petMoveCommandInputSchema } from "@dim/co
 export type MoveDraft = {
   provinceCode: string;
   localityName: string;
+  /**
+   * INDEC's id for the row the person tapped. `""` before a pick, and from a
+   * picker too old to send one — the server falls back to the name in that case
+   * and lands on the alphabetically first department, which is the defect
+   * (A2-alta-asentar-03).
+   */
+  localityIndecId: string;
   reason: string;
 };
 
-export const EMPTY_MOVE_DRAFT: MoveDraft = { provinceCode: "", localityName: "", reason: "" };
+export const EMPTY_MOVE_DRAFT: MoveDraft = {
+  provinceCode: "",
+  localityName: "",
+  localityIndecId: "",
+  reason: "",
+};
 
 export type MoveCommandResult =
   | { ok: true; input: PetMoveCommandInput }
@@ -72,6 +84,9 @@ export function buildMove(draft: MoveDraft): MoveCommandResult {
     command: "record_move",
     provinceCode: draft.provinceCode,
     localityName: draft.localityName,
+    // Blank means "this picker did not say", which the contract reads as null
+    // and the server answers by falling back to the (province, name) pair.
+    localityIndecId: draft.localityIndecId.trim() || null,
     reason: draft.reason.trim() || null,
   });
   if (parsed.success) return { ok: true, input: parsed.data };

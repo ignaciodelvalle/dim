@@ -228,6 +228,12 @@ export function petProfileInputCodeMessage(code: PetProfileCommandInputCode | nu
       return "La app no pudo armar la acción. Volvé a intentar.";
     case "NAME_REQUIRED":
       return "El nombre no puede quedar vacío.";
+    case "NAME_INVALID":
+      // NAMES WHAT IS WRONG WITHOUT NAMING THE CHARACTER. A person who pasted a
+      // name with an invisible character in it cannot see the character, so
+      // "sacá el U+200B" would be useless; "escribilo con letras" is the move
+      // that works for every string this rule refuses.
+      return "Ese nombre no se puede mostrar. Escribilo con letras.";
     case "NAME_TOO_LONG":
       return `El nombre es demasiado largo (máximo ${PET_NAME_MAX} caracteres).`;
     case "COLOR_TOO_LONG":

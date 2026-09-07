@@ -1,4 +1,8 @@
-// Mobile a11y fences (C3, 2026-09-01) — the three rules a phone build keeps.
+// Mobile source fences (C3, 2026-09-01) — the rules a phone build keeps.
+//
+// Three of them are a11y; the fourth (L2-10, decimal fields) is not, and it is
+// here for the reason stated on the rule itself: this file is the only
+// instrument that reaches `apps/mobile/app/`, where jest does not go.
 //
 // Same instrument as mobile-screen-titles.test.ts: a root vitest fence that
 // SCANS apps/mobile source, so it runs inside test:verified without touching
@@ -63,8 +67,13 @@ const files = MOBILE_ROOTS.flatMap(walk).map((full) => ({
  * brace-depth walk check-empty-state-consistency.ts uses.
  */
 function pressableOpenings(content: string): string[] {
+  return jsxOpenings(content, "Pressable");
+}
+
+/** The same walk, for any component. See `pressableOpenings` for the rule. */
+function jsxOpenings(content: string, tag: string): string[] {
   const openings: string[] = [];
-  const re = /<Pressable\b/g;
+  const re = new RegExp(`<${tag}\\b`, "g");
   let match = re.exec(content);
   while (match !== null) {
     let i = match.index;
@@ -185,6 +194,40 @@ describe("mobile a11y fences (C3)", () => {
       undisciplined,
       `Pressable files with no touch-target discipline (44dp, theme.ts TOUCH_TARGET):\n${undisciplined.join("\n")}`,
     ).toEqual([]);
+  });
+
+  // L2-10 — a FOURTH rule, and the only one here that is about data rather than
+  // about a screen reader. It lives in this file because this file is the only
+  // instrument that reaches `apps/mobile/app/`: jest's `roots` is `<rootDir>/src`
+  // (CANON-431), so `alta.tsx` — the one screen with a decimal field — has no
+  // render test that could hold it.
+  it("no decimal field caps its own length — truncation rewrites a number", () => {
+    const capped: string[] = [];
+    const decimals: string[] = [];
+    for (const f of files) {
+      for (const opening of jsxOpenings(f.content, "TextField")) {
+        if (!/inputMode=["']decimal["']/.test(opening)) continue;
+        decimals.push(f.rel);
+        if (/\bmaxLength=/.test(opening)) capped.push(`${f.rel}: ${opening.split("\n")[0]}…`);
+      }
+    }
+    // NON-VACUITY, for the reason the radio rule spells out: this is an
+    // `expect([]).toEqual([])` over a filtered loop, so a broken walk or a
+    // renamed prop makes it pass forever. One decimal field exists today (the
+    // alta wizard's "Peso aproximado"); the floor is that one.
+    expect(decimals.length, `decimal fields seen: ${decimals.join(", ")}`).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect(
+      capped,
+      `A \`maxLength\` on a decimal field does not refuse the extra digit — it DROPS it, and what is left parses: \`123,456\` becomes \`123,45\`, a different weight with nothing on screen to say so. Bound it in the contract (WEIGHT_INVALID), which can say no out loud, not in the keyboard:\n${capped.join("\n")}`,
+    ).toEqual([]);
+    // AND THE RULE IS NOT "never cap a field". A FIXED-WIDTH MASK is safe —
+    // `DateField`'s `maxLength={10}` is the width of `DD/MM/AAAA`, so there is
+    // no eleventh character a person could have meant. What is unsafe is capping
+    // a format with no width: every prefix of a decimal is another decimal.
+    const kit = files.find((f) => f.rel.endsWith("src/ui/kit.tsx"));
+    expect(kit?.content).toMatch(/maxLength=\{10\}/);
   });
 
   it("EmptyState keeps its consumers — the primitive cannot quietly die", () => {

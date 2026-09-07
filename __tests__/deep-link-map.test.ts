@@ -24,12 +24,14 @@ import {
   APP_PATH_NAMES_NO_SCREEN,
   APP_SCHEME,
   DEEP_LINK_MAP,
+  type DeepLinkAccess,
   type DeepLinkName,
   appRoutePath,
   deepLinkAppUrl,
   deepLinkPath,
   deepLinkUrl,
   matchWebPath,
+  outranksWebPath,
   pathParamNames,
 } from "@dim/contract/links";
 import { describe, expect, it } from "vitest";
@@ -87,6 +89,72 @@ function discoverRoutes(): Set<string> {
   }
   return routes;
 }
+
+// ---------------------------------------------------------------------------
+// `access`, derived from the route group rather than believed (L2-4)
+// ---------------------------------------------------------------------------
+
+/**
+ * What each Next route GROUP says about who can reach a page.
+ *
+ * `app/(public)/…` renders for a stranger with no cookie; `app/(app)/…` sits
+ * behind the session guard and redirects to login. So the file system already
+ * answers the question `access` claims to answer, and the label is checkable
+ * instead of being taken on faith.
+ *
+ * WHY THIS EXISTS. `adoptionCatalogue` shipped labelled `session` while its page
+ * says "Public landing — no auth required" in its first comment. Nothing caught
+ * it, because the ONE rule that reads `access` — "never claims a public
+ * destination" — keys off the hand-typed word: a row labelled `session` is
+ * simply not looked at, so a mislabel does not break the fence, it switches the
+ * fence off. A rule that a typo can disable is not a fence.
+ */
+const GROUP_ACCESS: Record<string, DeepLinkAccess> = {
+  "(public)": "public",
+  "(app)": "session",
+};
+
+/**
+ * Every route shape in `app/`, mapped to the access its group implies.
+ *
+ * A shape reachable from BOTH groups is recorded as ambiguous (`null`) rather
+ * than resolved by whichever file the glob returned first — `/denuncias` really
+ * does exist under both, and picking one silently would be the same
+ * hand-waving this derivation replaces.
+ */
+function discoverAccessByShape(): Map<string, DeepLinkAccess | null> {
+  const files = [...globSync("app/**/page.tsx"), ...globSync("app/**/route.ts")].map((f) =>
+    f.replaceAll("\\", "/"),
+  );
+
+  const byShape = new Map<string, DeepLinkAccess | null>();
+  for (const file of files) {
+    if (file.includes("node_modules/")) continue;
+    const withoutFile = file.replace(/^app/, "").replace(/\/(page\.tsx|route\.ts)$/, "");
+    const segments = withoutFile.split("/").filter((s) => s !== "");
+    if (segments.some((s) => s.startsWith("_") || s.startsWith("[..."))) continue;
+    const group = segments.find((s) => s.startsWith("(") && s.endsWith(")"));
+    const access = group ? GROUP_ACCESS[group] : undefined;
+    if (!access) continue;
+    const shape = eraseParams(
+      `/${segments.filter((s) => !(s.startsWith("(") && s.endsWith(")"))).join("/")}`,
+    );
+    const seen = byShape.get(shape);
+    byShape.set(shape, seen === undefined || seen === access ? access : null);
+  }
+  return byShape;
+}
+
+/**
+ * The rows whose page sits in NO route group, so the tree cannot answer.
+ *
+ * `app/libreta/compartir/[shareToken]` and `app/r/invite/[token]` are top-level
+ * directories with their own layouts. Pinned as a LIST OF DECISIONS, the way
+ * `APP_PATH_EXCEPTIONS` is: two rows still carry a hand-typed `access`, and
+ * adding a third has to be a visible edit next to the reason rather than a
+ * silent widening of what the derivation cannot see.
+ */
+const ACCESS_NOT_DERIVABLE: DeepLinkName[] = ["libretaShare", "orgInvitation"];
 
 // ---------------------------------------------------------------------------
 // The SECOND corpus, derived from apps/mobile/app/
@@ -253,16 +321,69 @@ describe("the table is unambiguous", () => {
     expect(APP_SCREENS.has("/transferencias/*")).toBe(true);
   });
 
-  // Every PUBLIC destination stays null, forever. A stranger's phone camera does
-  // not follow `mimar://`, and a public link that only resolves for people with
-  // the app installed is a lost pet nobody can report.
-  it("never claims a public destination", () => {
+  // A public link HANDED TO SOMEBODY stays null, forever. A stranger's phone
+  // camera does not follow `mimar://`, and a public link that only resolves for
+  // people with the app installed is a lost pet nobody can report.
+  //
+  // THE RULE IS ABOUT PLACEHOLDERS, not about the word `public` alone (L2-4).
+  // Every public destination that names ONE subject — a credential, a tag, a
+  // case code, a share token — carries a `:param`, and that is precisely the
+  // link somebody is given: on a collar, in an e-mail, on a poster. A
+  // parameterless public page is a SECTION of the product, and the native inbox
+  // pushing it opens a screen for somebody who already has the app. Stating the
+  // rule as "public ⇒ null" would have forced `adoptionCatalogue` — public, no
+  // placeholder — back to a dead CTA the moment its label was corrected.
+  it("never claims a public destination that names ONE subject", () => {
     for (const name of NAMES) {
-      if (DEEP_LINK_MAP[name].access !== "public") continue;
-      expect(DEEP_LINK_MAP[name].appPath, `${name} is public and must have no mimar:// form`).toBe(
-        null,
-      );
+      const { access, webPath, appPath } = DEEP_LINK_MAP[name];
+      if (access !== "public") continue;
+      if (pathParamNames(webPath).length === 0) continue;
+      expect(appPath, `${name} is a public link about one subject: no mimar:// form`).toBe(null);
     }
+  });
+
+  // NON-VACUITY for the rule above: it must still be looking at the rows it was
+  // written for. Nine public destinations carry a placeholder today.
+  it("still has public one-subject links to check", () => {
+    const guarded = NAMES.filter(
+      (n) =>
+        DEEP_LINK_MAP[n].access === "public" && pathParamNames(DEEP_LINK_MAP[n].webPath).length > 0,
+    );
+    expect(guarded.length).toBeGreaterThanOrEqual(6);
+    expect(guarded).toContain("credential");
+    expect(guarded).toContain("tag");
+  });
+
+  // L2-4 — the label is DERIVED and compared, not believed. See GROUP_ACCESS.
+  it("labels every destination with the access its route group implies", () => {
+    const derived = discoverAccessByShape();
+    const mismatches: string[] = [];
+    const undecidable: DeepLinkName[] = [];
+
+    for (const name of NAMES) {
+      const fromTree = derived.get(eraseParams(DEEP_LINK_MAP[name].webPath));
+      if (fromTree === undefined || fromTree === null) {
+        undecidable.push(name);
+        continue;
+      }
+      if (fromTree !== DEEP_LINK_MAP[name].access) {
+        mismatches.push(
+          `${name}: the table says "${DEEP_LINK_MAP[name].access}", app/ says "${fromTree}"`,
+        );
+      }
+    }
+
+    expect(
+      mismatches,
+      "a hand-typed access label disagrees with the route group its page lives in — " +
+        "and the public-destination rule keys off that label, so the wrong word turns it off",
+    ).toEqual([]);
+    // The exception list is pinned: a row the tree cannot decide keeps a
+    // hand-typed label, and there may be no more of those than were argued for.
+    expect([...undecidable].sort()).toEqual([...ACCESS_NOT_DERIVABLE].sort());
+    // NON-VACUITY: the derivation decided most of the table, rather than
+    // answering "undecidable" for everything and passing.
+    expect(NAMES.length - undecidable.length).toBeGreaterThanOrEqual(MIN_MAP_ENTRIES - 2);
   });
 });
 
@@ -336,25 +457,128 @@ describe("matchWebPath — no two destinations can claim the same path", () => {
   // literals and the literals differ; if no such position exists, some concrete
   // path matches both and "first wins" silently decides which screen a
   // notification opens.
-  it("has no pair of patterns a concrete path could satisfy twice", () => {
+  it("has no pair of patterns a concrete path could satisfy twice AMBIGUOUSLY", () => {
+    // TWO WAYS A PAIR CAN BE FINE, and only one of them was here originally.
+    //
+    //   1. SEPARABLE — some position where both are literals and the literals
+    //      differ. No concrete path matches both, so order never arises.
+    //   2. RANKED — `outranksWebPath` decides, at the leftmost position where
+    //      one is a literal and the other a placeholder. That is the ROUTERS'
+    //      rule: Next resolves `/mis-mascotas/postulaciones/page.tsx` before
+    //      `/mis-mascotas/[publicToken]`, and expo-router resolves
+    //      `adoptar/postulaciones.tsx` before `adoptar/[petToken].tsx`.
+    //
+    // THE RANKING IS ASKED FOR, NOT RE-IMPLEMENTED (L2-7). This test used to
+    // count literals and flag only pairs with EQUAL totals, which is a second
+    // copy of the runtime rule — and it was a copy of the WRONG rule: the
+    // routers rank positionally, so `/a/b/:q/:r` (3 literals) beats
+    // `/a/:p/c/d` (4) for `/a/b/c/d`, and a fence comparing totals would have
+    // passed that pair in silence while the table answered `/a/:p/c/d`. Calling
+    // the exported function means the fence can only ever be checking the rule
+    // `matchWebPath` actually applies.
+    //
+    // What is still forbidden is a pair that is neither: identical
+    // literal/placeholder shape at every position with no differing literal,
+    // where "which screen does this notification open" would be decided by key
+    // order in an object literal.
     const collisions: string[] = [];
     for (let i = 0; i < NAMES.length; i += 1) {
       for (let j = i + 1; j < NAMES.length; j += 1) {
-        const left = (DEEP_LINK_MAP[NAMES[i] as DeepLinkName].webPath as string).split("/");
-        const right = (DEEP_LINK_MAP[NAMES[j] as DeepLinkName].webPath as string).split("/");
+        const leftPath = DEEP_LINK_MAP[NAMES[i] as DeepLinkName].webPath as string;
+        const rightPath = DEEP_LINK_MAP[NAMES[j] as DeepLinkName].webPath as string;
+        const left = leftPath.split("/");
+        const right = rightPath.split("/");
         if (left.length !== right.length) continue;
         const separable = left.some((segment, index) => {
           const other = right[index] as string;
           return !segment.startsWith(":") && !other.startsWith(":") && segment !== other;
         });
-        if (!separable) collisions.push(`${NAMES[i]} vs ${NAMES[j]}`);
+        if (separable) continue;
+        if (outranksWebPath(leftPath, rightPath) || outranksWebPath(rightPath, leftPath)) continue;
+        collisions.push(`${NAMES[i]} vs ${NAMES[j]}`);
       }
     }
     expect(
       collisions,
-      "two destinations are shape-identical, so matchWebPath's answer for a path " +
-        "matching both is whichever happens to come first in the table",
+      "two destinations are shape-identical and neither outranks the other, so " +
+        "matchWebPath's answer for a path matching both is whichever happens to " +
+        "come first in the table",
     ).toEqual([]);
+  });
+
+  // L2-7 — the ranking rule itself, on synthetic pairs the table does not carry.
+  //
+  // WHY SYNTHETIC. Every pair in the table today is ranked the same way by
+  // positional order and by total literal count, which is precisely why the
+  // divergence would have shipped: no real row can demonstrate it. These two
+  // assertions are the demonstration, and they are what stops somebody
+  // "simplifying" `outranksWebPath` back into a count.
+  describe("outranksWebPath — the routers' rule, positionally", () => {
+    it("ranks by the LEFTMOST literal, not by how many literals there are", () => {
+      // For `/a/b/c/d`: Next resolves `app/a/b/[q]/[r]` before `app/a/[p]/c/d`,
+      // because at position 2 one is static and the other dynamic. Counting
+      // totals says the opposite — 4 literals against 3.
+      expect(outranksWebPath("/a/b/:q/:r", "/a/:p/c/d")).toBe(true);
+      expect(outranksWebPath("/a/:p/c/d", "/a/b/:q/:r")).toBe(false);
+      const literalsOf = (p: string) => p.split("/").filter((s) => !s.startsWith(":")).length;
+      expect(literalsOf("/a/b/:q/:r")).toBeLessThan(literalsOf("/a/:p/c/d"));
+    });
+
+    it("ranks the pair this table really has, and calls a tie a tie", () => {
+      // NON-VACUITY against the real rows: the static sibling wins.
+      expect(outranksWebPath("/mis-mascotas/postulaciones", "/mis-mascotas/:publicToken")).toBe(
+        true,
+      );
+      expect(outranksWebPath("/mis-mascotas/:publicToken", "/mis-mascotas/postulaciones")).toBe(
+        false,
+      );
+      // Same shape at every position → neither outranks the other, which is
+      // what the collision check above keys off.
+      expect(outranksWebPath("/casos/:code", "/refugios/:orgToken")).toBe(false);
+      expect(outranksWebPath("/refugios/:orgToken", "/casos/:code")).toBe(false);
+    });
+  });
+
+  it("resolves a STATIC sibling before the parameterised route it sits under", () => {
+    // A5-ciudadanas-03, and the reason `matchWebPath` stopped returning the first
+    // match. `/mis-mascotas/postulaciones` also satisfies
+    // `/mis-mascotas/:publicToken`; under "first wins" it opened a credential for
+    // a pet whose token is the word "postulaciones".
+    expect(matchWebPath("/mis-mascotas/postulaciones")).toEqual({
+      name: "myAdoptionApplications",
+      params: {},
+    });
+    // NON-VACUITY: the parameterised route still works for a real token.
+    expect(matchWebPath("/mis-mascotas/DIM-PAMP-0001")).toEqual({
+      name: "pet",
+      params: { publicToken: "DIM-PAMP-0001" },
+    });
+  });
+
+  it("resolves the three CTA paths the inbox used to render as dead text", () => {
+    // Six notification writers emit these literals (`cancel-appointment-by-org`,
+    // `review-adoption-application` ×2, `finalize-adoption`, `death-record-use-case`,
+    // `withdraw-rehome-sponsorship`, `adoption/actions`). With no row each came
+    // back `{ label, route: null }`, which the inbox renders as greyed,
+    // unpressable text TalkBack does not announce as a control at all — while the
+    // app has had all three screens.
+    expect(matchWebPath("/mis-turnos")?.name).toBe("myAppointments");
+    expect(matchWebPath("/mis-mascotas/postulaciones")?.name).toBe("myAdoptionApplications");
+    expect(matchWebPath("/adoptar")?.name).toBe("adoptionCatalogue");
+
+    // And the app really has a screen for each — `appRoutePath` is the half the
+    // inbox pushes, and it is null for a destination the app does not claim.
+    expect(appRoutePath("myAppointments", {})).toBe("/turnos");
+    expect(appRoutePath("myAdoptionApplications", {})).toBe("/adoptar/postulaciones");
+    expect(appRoutePath("adoptionCatalogue", {})).toBe("/adoptar");
+  });
+
+  it("keeps ONE pet's listing distinct from the catalogue", () => {
+    // `adoptionListing` is public and takes a token; `adoptionCatalogue` is the
+    // signed-in list. Different segment counts, so no ambiguity — asserted
+    // because the two names are one word apart.
+    expect(matchWebPath("/adoptar/DIM-PAMP-0001")?.name).toBe("adoptionListing");
+    expect(matchWebPath("/adoptar")?.name).toBe("adoptionCatalogue");
   });
 
   it("matches a concrete path back to its destination and values", () => {

@@ -261,6 +261,9 @@ export const PetsRepository = {
       insurance_policy_number: parsed.insurancePolicyNumber,
       jurisdiction_province: parsed.jurisdictionProvince,
       jurisdiction_locality: parsed.jurisdictionLocality,
+      // The catalogue ROW behind those two names, so the spine can reproduce
+      // `pets.locality_id` instead of re-resolving a homonym by name (L2-3).
+      jurisdiction_locality_id: parsed.localityId ?? null,
       potentially_dangerous_breed: potentiallyDangerousBreed,
       acquisition_method: parsed.acquisitionMethod,
       has_photo: uploadedPath !== null,

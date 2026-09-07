@@ -6,6 +6,7 @@
 // crash in between could change a user's contact details with no trace).
 // No notifications.
 
+import { isWritableName } from "@dim/contract/input";
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
@@ -32,7 +33,14 @@ const updateProfileSchema = z.object({
     .string()
     .min(2, "El nombre debe tener al menos 2 caracteres")
     .max(80, "El nombre no puede superar 80 caracteres")
-    .trim(),
+    .trim()
+    // A2-alta-asentar-09. Two zero-width spaces are two characters, survive
+    // `trim()` and render as nothing — so this schema's length floor passed a
+    // display name that leaves the person blank on their own credential while
+    // `isIdentityPending` reports them complete. The predicate is the contract's
+    // (`@dim/contract/input`), not a second copy: signup step 2 already refuses
+    // exactly this, and the two doors write the same column.
+    .refine(isWritableName, "Escribí tu nombre con letras"),
   // phone semantics:
   //   undefined  → caller did not include phone in the update; leave DB value unchanged
   //   ""         → caller explicitly cleared phone; set to null in DB

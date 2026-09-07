@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 const mockResolveCanonicalJurisdiction = vi.hoisted(() => vi.fn());
+const mockResolveCanonicalJurisdictionById = vi.hoisted(() => vi.fn());
 const mockTryResolveCanonicalJurisdiction = vi.hoisted(() => vi.fn());
 const MockJurisdictionValidationError = vi.hoisted(
   () =>
@@ -32,6 +33,7 @@ const MockJurisdictionValidationError = vi.hoisted(
 
 vi.mock("@/lib/infra/jurisdiction-validation", () => ({
   resolveCanonicalJurisdiction: mockResolveCanonicalJurisdiction,
+  resolveCanonicalJurisdictionById: mockResolveCanonicalJurisdictionById,
   tryResolveCanonicalJurisdiction: mockTryResolveCanonicalJurisdiction,
   JurisdictionValidationError: MockJurisdictionValidationError,
 }));
@@ -86,6 +88,138 @@ function makeLocationValue(overrides: Partial<LocationValue> = {}): LocationValu
 describe("normalizeLocationForWrite", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  // -------------------------------------------------------------------------
+  // A2-alta-asentar-03 — the INDEC id decides which homonym this is
+  // -------------------------------------------------------------------------
+  //
+  // `localityByName` resolves a (province, name) pair with
+  // `.orderBy(departmentName).limit(1)`, and the catalogue ships 68 collisions.
+  // So the picker showed two "San Martín" rows with different departments, the
+  // person tapped the second, and the pet was stored in the first. Jurisdiction
+  // decides the responding authority, the PPP regime and the epidemiological
+  // attribution. `LocationValue.localityIndecId` existed from the start and this
+  // function never read it (14-4, still open) — every caller passed null.
+  describe("locality resolution by INDEC id", () => {
+    const SAN_MARTIN_MENDOZA = {
+      province: { name: "Mendoza", code: "AR-M" },
+      locality: { id: "uuid-mendoza", localityName: "San Martín", provinceCode: "AR-M" },
+    };
+
+    it("resolves by id instead of by name when the caller sends one", async () => {
+      mockResolveCanonicalJurisdictionById.mockResolvedValue(SAN_MARTIN_MENDOZA);
+
+      const result = await normalizeLocationForWrite(
+        makeLocationValue({
+          provinceCode: "Mendoza",
+          locality: "San Martín",
+          localityIndecId: "500098",
+        }),
+        { locality: "strict" },
+      );
+
+      expect(mockResolveCanonicalJurisdictionById).toHaveBeenCalledWith({ indecId: "500098" });
+      // THE NAME LOOKUP MUST NOT RUN. It is the one that picks the wrong row.
+      expect(mockResolveCanonicalJurisdiction).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        province: "Mendoza",
+        locality: "San Martín",
+        localityCanonical: true,
+        localityId: "uuid-mendoza",
+      });
+    });
+
+    it("refuses a body whose id names a locality in a DIFFERENT province", async () => {
+      // The id is the authority for WHICH locality, not a licence to overrule
+      // the province the caller named: a client whose two halves disagree is
+      // broken or hostile, and storing the id's province silently would let it
+      // attribute a pet to a jurisdiction it never claimed.
+      mockResolveCanonicalJurisdictionById.mockResolvedValue(SAN_MARTIN_MENDOZA);
+
+      await expect(
+        normalizeLocationForWrite(
+          makeLocationValue({
+            provinceCode: "AR-B",
+            locality: "San Martín",
+            localityIndecId: "500098",
+          }),
+          { locality: "strict" },
+        ),
+      ).rejects.toThrow(JurisdictionValidationError);
+    });
+
+    it("falls back to the NAME path in soft mode when the id is unknown", async () => {
+      // A stale id must not break a write that "soft" exists to let through.
+      mockResolveCanonicalJurisdictionById.mockRejectedValue(
+        new MockJurisdictionValidationError("INVALID_LOCALITY", "no such id"),
+      );
+      mockTryResolveCanonicalJurisdiction.mockResolvedValue({
+        province: "Buenos Aires",
+        locality: "San Martín",
+        canonical: true,
+        localityId: "uuid-ba",
+      });
+
+      const result = await normalizeLocationForWrite(
+        makeLocationValue({
+          provinceCode: "AR-B",
+          locality: "San Martín",
+          localityIndecId: "no-existe",
+        }),
+        { locality: "soft" },
+      );
+
+      expect(mockTryResolveCanonicalJurisdiction).toHaveBeenCalled();
+      expect(result.locality).toBe("San Martín");
+    });
+
+    it("REFUSES an unknown id in strict mode rather than falling back", async () => {
+      // Falling back here would resolve the name and land on the wrong
+      // department — the exact behaviour the id exists to replace.
+      mockResolveCanonicalJurisdictionById.mockRejectedValue(
+        new MockJurisdictionValidationError("INVALID_LOCALITY", "no such id"),
+      );
+
+      await expect(
+        normalizeLocationForWrite(
+          makeLocationValue({
+            provinceCode: "AR-B",
+            locality: "San Martín",
+            localityIndecId: "no-existe",
+          }),
+          { locality: "strict" },
+        ),
+      ).rejects.toThrow(JurisdictionValidationError);
+      expect(mockResolveCanonicalJurisdiction).not.toHaveBeenCalled();
+    });
+
+    it("ignores a blank id and every id under locality:none", async () => {
+      // NON-VACUITY: the id path must not have taken over the two cases that
+      // were working. A blank string is what an older client's draft holds.
+      mockResolveCanonicalJurisdiction.mockResolvedValue({
+        province: { name: "Buenos Aires" },
+        locality: { id: "uuid-ba", localityName: "San Martín" },
+      });
+
+      await normalizeLocationForWrite(
+        makeLocationValue({ provinceCode: "AR-B", locality: "San Martín", localityIndecId: "  " }),
+        { locality: "strict" },
+      );
+      expect(mockResolveCanonicalJurisdiction).toHaveBeenCalled();
+      expect(mockResolveCanonicalJurisdictionById).not.toHaveBeenCalled();
+
+      const none = await normalizeLocationForWrite(
+        makeLocationValue({
+          provinceCode: "AR-B",
+          locality: "San Martín",
+          localityIndecId: "500098",
+        }),
+        { locality: "none" },
+      );
+      expect(mockResolveCanonicalJurisdictionById).not.toHaveBeenCalled();
+      expect(none.localityCanonical).toBe(false);
+    });
   });
 
   describe("province canonicalization", () => {

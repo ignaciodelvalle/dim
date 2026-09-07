@@ -17,6 +17,18 @@ export type JurisdictionChangedMovement = {
   to_country: string;
   to_province: string | null;
   to_locality: string | null;
+  /**
+   * The `ar_localities` row the animal is leaving, when the caller knows it.
+   *
+   * Supplied by the caller because only the caller has read the pet. Together
+   * with `to_locality_id` — which `recordMovementWriter` fills from the value it
+   * writes into the column — it is what lets the schema tell a CORRECTION
+   * between two same-named localities of one province apart from a no-op move
+   * (L2-3 / L2-5).
+   */
+  from_locality_id?: string | null;
+  /** Filled by `recordMovementWriter`; callers do not set it. See above. */
+  to_locality_id?: string | null;
   effective_date: string;
   reason: string | null;
 };
@@ -52,6 +64,30 @@ export type RecordMovementParams = {
   movement: MovementInput;
   notes: string | null;
   now?: Date;
+  /**
+   * The `ar_localities` row the EDGE already resolved for the destination, when
+   * it resolved one.
+   *
+   * WHY THE WRITER CANNOT WORK THIS OUT FOR ITSELF (L2-2). Both edges resolve
+   * the destination STRICTLY, and the owner-facing one can resolve it BY INDEC
+   * ID — which is the only way to tell two same-named localities of one province
+   * apart, because `localityByName` is province-scoped and settles a homonym
+   * with `.orderBy(departmentName).limit(1)`. Passing only `to_province` /
+   * `to_locality` throws that answer away: the writer's own soft
+   * re-canonicalization then resolves the NAME and lands on the alphabetically
+   * first department, so `pets.locality_id` disagreed with the row the person
+   * actually tapped and the id at the edge changed nothing the move persisted.
+   *
+   * `undefined` means "the caller did not resolve" and the writer resolves by
+   * name, as it always did. `null` means "the caller resolved and there is no
+   * catalogue row", which is an ANSWER and is stored as one — re-resolving it by
+   * name here would be the alphabetical guess coming back through the window.
+   *
+   * Supplying it is a claim that `to_province` / `to_locality` came from the
+   * SAME resolution; the writer skips its own canonicalization when it is
+   * present, so a caller that mixed sources would store an inconsistent pair.
+   */
+  resolvedLocalityId?: string | null;
 };
 
 export type RecordMovementResult = { ok: true; eventId: string } | { ok: false; error: string };

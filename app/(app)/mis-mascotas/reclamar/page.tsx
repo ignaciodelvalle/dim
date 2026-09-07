@@ -8,7 +8,14 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { ClaimWizard } from "./ClaimWizard";
 
 export default async function ClaimPage() {
-  await requireUserOrRedirect();
+  // A4-custodia-08. The native app hands this page a finder who has just been
+  // told the animal "ya tiene dueño/a" and tapped "Iniciar una disputa desde la
+  // web": Chrome opens a login screen with no explanation, and after signing in
+  // the bare `requireUserOrRedirect()` landed them on Mis mascotas — where they
+  // had to find Reclamar again and retype the fifteen digits they had just
+  // typed. The guard has taken a `returnTo` since it was written; this door was
+  // simply not passing one.
+  await requireUserOrRedirect("/mis-mascotas/reclamar");
 
   return (
     <div className="mx-auto max-w-md px-8 py-7 pb-12">

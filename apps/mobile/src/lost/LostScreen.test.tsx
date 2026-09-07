@@ -94,6 +94,7 @@ function payload(overrides: Partial<PetLostV1> = {}): PetLostV1 {
       canReportLastSeen: false,
       canMarkFound: false,
       canReactivateSearch: false,
+      canReportContent: true,
       editableDisclosureKeys: [...ALL_KEYS],
     },
     feed: { items: [], truncated: false, totalScans: 0, totalSightings: 0 },
@@ -123,6 +124,7 @@ function searching(overrides: Partial<PetLostV1> = {}) {
       canReportLastSeen: true,
       canMarkFound: true,
       canReactivateSearch: false,
+      canReportContent: true,
       editableDisclosureKeys: [...ALL_KEYS],
     },
     ...overrides,
@@ -188,6 +190,7 @@ describe("LostScreen — the affordances come from capabilities, never from stat
             canReportLastSeen: false,
             canMarkFound: true,
             canReactivateSearch: true,
+            canReportContent: true,
             editableDisclosureKeys: [...ALL_KEYS],
           },
         }),
@@ -213,6 +216,7 @@ describe("LostScreen — the affordances come from capabilities, never from stat
             canReportLastSeen: false,
             canMarkFound: true,
             canReactivateSearch: false,
+            canReportContent: true,
             editableDisclosureKeys: [...ALL_KEYS],
           },
         }),
@@ -255,6 +259,7 @@ describe("LostScreen — compartir la búsqueda", () => {
             canReportLastSeen: false,
             canMarkFound: true,
             canReactivateSearch: true,
+            canReportContent: true,
             editableDisclosureKeys: [...ALL_KEYS],
           },
         }),
@@ -281,6 +286,7 @@ describe("LostScreen — the privacy rows", () => {
             canReportLastSeen: false,
             canMarkFound: false,
             canReactivateSearch: false,
+            canReportContent: true,
             editableDisclosureKeys: ALL_KEYS.filter(
               (k) => k !== "discloseCaretakerContactWhenLost",
             ),
@@ -648,6 +654,36 @@ describe("LostScreen — reportar un mensaje del feed", () => {
     // Two rows, one control. If the scan grew one, this would be 2 — which is
     // the whole assertion, so it counts rather than checking existence.
     expect(screen.getAllByLabelText(/Reportar este mensaje/)).toHaveLength(1);
+  });
+
+  // A4-custodia-13 — the CALLER's half of the answer, which only the server has.
+  //
+  // The route refuses `report_content` on the ORG path, in the same condition
+  // that refuses `reactivate_search`: an organization holding `shelter_custody`
+  // could otherwise make a finder's "tengo a tu perro, llamame" disappear from
+  // the owner's feed during a custody dispute, silently and with no un-report.
+  // Nothing on the feed says which path the reader came through, so the app drew
+  // the control for everybody and the server answered with titular-only copy.
+  it("draws no Reportar for a reader the server would refuse", async () => {
+    mockFetch.mockResolvedValue(
+      ok(
+        searching({
+          feed: REPORTABLE_FEED,
+          capabilities: {
+            canMarkLost: false,
+            canReportLastSeen: false,
+            canMarkFound: true,
+            canReactivateSearch: false,
+            canReportContent: false,
+            editableDisclosureKeys: [],
+          },
+        }),
+      ),
+    );
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Alguien la vio");
+    // The reportable ROW is on screen — this is not the scan case.
+    expect(screen.queryAllByLabelText(/Reportar este mensaje/)).toHaveLength(0);
   });
 
   it("offers none at all when the feed is only scans", async () => {

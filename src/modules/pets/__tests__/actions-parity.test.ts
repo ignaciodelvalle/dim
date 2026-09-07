@@ -97,11 +97,20 @@ vi.mock("@/lib/infra/uploads", () => ({
   }),
 }));
 
+// TWO CATALOGUE ROWS WITH THE SAME NAME, which is what makes the L2-8 case
+// below observable: the INDEC catalogue carries 68 (province, locality)
+// collisions, the name lookup settles them with `.orderBy(departmentName)
+// .limit(1)`, and only the id says which one the person picked. The two mocked
+// resolvers therefore answer with the same NAMES and different ROWS.
 vi.mock("@/lib/infra/jurisdiction-validation", () => ({
   JurisdictionValidationError: class JurisdictionValidationError extends Error {},
   resolveCanonicalJurisdiction: vi.fn().mockResolvedValue({
     province: { name: "Buenos Aires" },
-    locality: { localityName: "La Plata" },
+    locality: { localityName: "La Plata", id: "loc-BY-NAME" },
+  }),
+  resolveCanonicalJurisdictionById: vi.fn().mockResolvedValue({
+    province: { name: "Buenos Aires" },
+    locality: { localityName: "La Plata", id: "loc-BY-ID" },
   }),
 }));
 
@@ -226,11 +235,19 @@ describe("createPetAction", () => {
       },
     });
     (await import("@/lib/infra/chip-lookup")).lookupByChip = vi.fn().mockResolvedValue(null);
+    // The two resolvers answer with the SAME names and DIFFERENT rows — see the
+    // module mock's note. `id` is the value that reaches `pets.locality_id`.
     (await import("@/lib/infra/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
       .fn()
       .mockResolvedValue({
         province: { name: "Buenos Aires" },
-        locality: { localityName: "La Plata" },
+        locality: { localityName: "La Plata", id: "loc-BY-NAME" },
+      });
+    (await import("@/lib/infra/jurisdiction-validation")).resolveCanonicalJurisdictionById = vi
+      .fn()
+      .mockResolvedValue({
+        province: { name: "Buenos Aires" },
+        locality: { localityName: "La Plata", id: "loc-BY-ID" },
       });
     (await import("@/src/modules/pets/application/register-pet")).registerPet = vi
       .fn()
@@ -385,6 +402,38 @@ describe("createPetAction", () => {
       );
     });
 
+    it("L2-8: resolves the locality BY THE ID the picker sent, not by its name", async () => {
+      // `LocationFields` writes a hidden `localityNameIndecId` on every catalog
+      // selection, `parsePetForm` reads it — and this action passed
+      // `localityIndecId: null` to the normalizer regardless. So the web alta
+      // settled a homonym alphabetically while the bearer registration and the
+      // mudanza, which both send the id, settled it correctly: two doors onto
+      // `pets.locality_id` disagreeing about the same animal.
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+      const { resolveCanonicalJurisdictionById } = await import(
+        "@/lib/infra/jurisdiction-validation"
+      );
+
+      await createPetAction({ error: null }, makeCreateFormData({ localityNameIndecId: "060658" }));
+
+      expect(resolveCanonicalJurisdictionById).toHaveBeenCalledWith({ indecId: "060658" });
+      expect(registerPet).toHaveBeenCalledWith(
+        expect.objectContaining({ parsed: expect.objectContaining({ localityId: "loc-BY-ID" }) }),
+        expect.anything(),
+      );
+    });
+
+    it("L2-8: still resolves by NAME when the form sent no id", async () => {
+      // NON-VACUITY: the two resolvers really are distinguishable here, so the
+      // assertion above is about which one ran and not about the mock.
+      const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+      await createPetAction({ error: null }, makeCreateFormData());
+      expect(registerPet).toHaveBeenCalledWith(
+        expect.objectContaining({ parsed: expect.objectContaining({ localityId: "loc-BY-NAME" }) }),
+        expect.anything(),
+      );
+    });
+
     it("P1: resolves a double-submit to the existing pet without re-flushing", async () => {
       const { registerPet } = await import("@/src/modules/pets/application/register-pet");
       (registerPet as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -489,11 +538,19 @@ describe("updatePetAction", () => {
       eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
       accessPath: "owner",
     });
+    // The two resolvers answer with the SAME names and DIFFERENT rows — see the
+    // module mock's note. `id` is the value that reaches `pets.locality_id`.
     (await import("@/lib/infra/jurisdiction-validation")).resolveCanonicalJurisdiction = vi
       .fn()
       .mockResolvedValue({
         province: { name: "Buenos Aires" },
-        locality: { localityName: "La Plata" },
+        locality: { localityName: "La Plata", id: "loc-BY-NAME" },
+      });
+    (await import("@/lib/infra/jurisdiction-validation")).resolveCanonicalJurisdictionById = vi
+      .fn()
+      .mockResolvedValue({
+        province: { name: "Buenos Aires" },
+        locality: { localityName: "La Plata", id: "loc-BY-ID" },
       });
     (await import("@/src/modules/pets/application/update-pet")).updatePet = vi
       .fn()

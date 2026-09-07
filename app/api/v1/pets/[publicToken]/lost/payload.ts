@@ -178,6 +178,13 @@ function toCapabilities(input: BuildPetLostInput): LostCapabilitiesV1 {
     canReportLastSeen: lost && episode !== null,
     canMarkFound: !deceased && lost,
     canReactivateSearch: lost && episode === null && accessPath === "owner",
+    // A4-custodia-13. `commands.ts` refuses `report_content` and
+    // `reactivate_search` in ONE condition — `access.kind === "org"` — so the
+    // two flags carry the same access clause here, and a change to that guard
+    // that touched only one of them would leave this file visibly asymmetric.
+    // No status clause: reporting a message is about the FEED, which an org
+    // reader can see whether or not the animal is currently lost.
+    canReportContent: accessPath === "owner",
     // A caretaker gets five of the six. The list is an AFFORDANCE hint — the
     // rule is the server's guard, and a client that ignored this would be
     // refused with `lost_forbidden` rather than obeyed.

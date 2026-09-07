@@ -101,11 +101,16 @@ export type DeepLinkDestination = {
    *
    * A custom scheme still cannot be the canonical form of anything a stranger
    * might scan: no phone camera follows `mimar://…` from a QR it finds in the
-   * street, and it must not. That is why every PUBLIC destination below is
-   * `null` and will stay `null`. When verified App Links land (blocked on a
-   * Play-signed fingerprint — see apps/mobile/app.config.ts) these paths become
-   * the router's mapping from the `https` form, and this table is what stops the
-   * two from drifting.
+   * street, and it must not. That is why every public destination that is HANDED
+   * TO SOMEBODY below is `null` and will stay `null` — a credential, a tag, a
+   * case code, a share token. Each of those is a link given to one person about
+   * one subject, which is exactly what a placeholder in the path means, so the
+   * fitness test states the rule that way (L2-4): PUBLIC + a `:param` ⇒ no
+   * `mimar://` form. A public page with no placeholder is a SECTION, not a link
+   * — the app's own inbox pushes it for somebody who already has the app open.
+   * When verified App Links land (blocked on a Play-signed fingerprint — see
+   * apps/mobile/app.config.ts) these paths become the router's mapping from the
+   * `https` form, and this table is what stops the two from drifting.
    */
   readonly appPath: string | null;
   readonly access: DeepLinkAccess;
@@ -263,6 +268,63 @@ export const DEEP_LINK_MAP = {
 
   /** The inbox of invitations and requests addressed to the signed-in person. */
   accountRequests: { webPath: "/cuenta/solicitudes", appPath: null, access: "session" },
+
+  // -------------------------------------------------------------------------
+  // A5-ciudadanas-03 — three destinations the app HAS and this table did not.
+  //
+  // The bar this table's header sets is "something outside names it", and all
+  // three clear it by a wide margin: they are `cta_url` literals in six
+  // notification writers (`cancel-appointment-by-org.ts`,
+  // `review-adoption-application.ts` twice, `finalize-adoption.ts`,
+  // `death-record-use-case.ts`, `withdraw-rehome-sponsorship.ts` and
+  // `adoption/actions.ts`). With no row, `matchWebPath` returned null and
+  // `ctaOf` produced `{ label, route: null }` — which the inbox renders as
+  // greyed, unpressable text that TalkBack does not even announce as a control.
+  // A clinic cancels a turno and the person is shown a dead "Ver mis turnos"
+  // while the app has had `app/turnos/index.tsx` all along.
+  // -------------------------------------------------------------------------
+
+  /** The person's own appointments. Cancelled-by-the-clinic notifications land here. */
+  myAppointments: { webPath: "/mis-turnos", appPath: "turnos", access: "session" },
+
+  /**
+   * The applications this person has sent to shelters.
+   *
+   * THE TWO PATHS DIVERGE, like `pet`/`myPets` above and for the same reason:
+   * the web hangs it off `/mis-mascotas` (it also has `/org/…` and `/adoptar/…`
+   * to distinguish it from), and the app files it under the adoption section
+   * because that is where a person looks for it — `app/adoptar/postulaciones.tsx`.
+   */
+  myAdoptionApplications: {
+    webPath: "/mis-mascotas/postulaciones",
+    appPath: "adoptar/postulaciones",
+    access: "session",
+  },
+
+  /**
+   * The catalogue of animals published for adoption.
+   *
+   * SEPARATE FROM `adoptionListing`, which is ONE pet. Both are PUBLIC, and this
+   * row said `session` until L2-4: the reasoning written here was about WHO the
+   * notifications pointing at it are addressed to (a signed-in applicant), which
+   * is not what the field means. `access` says whether the PAGE requires a
+   * session, and `app/(public)/adoptar/page.tsx` says in its own first comment
+   * "Public landing — no auth required".
+   *
+   * The mislabel was not cosmetic: the fitness rule "never claims a public
+   * destination" keys off this word, so a wrong word silently switched the fence
+   * off for this row. It is now DERIVED from the route group the page lives in
+   * and compared against the label — see `__tests__/deep-link-map.test.ts`.
+   *
+   * IT KEEPS ITS `appPath`, and that is the narrowed rule rather than an
+   * exception to it: what a public destination must never have is a `mimar://`
+   * form of a link handed to a STRANGER — a credential, a tag, a case code, a
+   * share token. Those all carry a placeholder, and every one of them is `null`.
+   * This row has no placeholder: it is a section of the app the native inbox
+   * pushes for a person who already has the app open, and blanking it would send
+   * "mirá otras mascotas" back to being grey unpressable text.
+   */
+  adoptionCatalogue: { webPath: "/adoptar", appPath: "adoptar", access: "public" },
 } as const satisfies Record<string, DeepLinkDestination>;
 
 export type DeepLinkName = keyof typeof DEEP_LINK_MAP;
@@ -398,11 +460,31 @@ export function deepLinkUrl<N extends DeepLinkName>(
  * quietly matching an attacker-chosen origin's path against this table would let
  * a link that is not ours name one of our screens.
  *
- * AMBIGUITY IS IMPOSSIBLE BY CONSTRUCTION rather than by luck, and
- * `__tests__/deep-link-map.test.ts` proves it: for every pair of destinations
- * with the same segment count there is at least one position where both are
- * literals and the literals differ. Without that check, "the first match wins"
- * would be a silent decision about which of two destinations a path names.
+ * TWO PATTERNS MAY MATCH ONE PATH, and which one wins is a RULE rather than key
+ * order — that sentence replaces an "AMBIGUITY IS IMPOSSIBLE BY CONSTRUCTION"
+ * claim that this table stopped satisfying the day `myAdoptionApplications`
+ * landed (L2-6). It used to say that for every pair with the same segment count
+ * there is a position where both are literals and the literals differ.
+ * `/mis-mascotas/postulaciones` and `/mis-mascotas/:publicToken` have no such
+ * position: any concrete path matching the first matches the second too.
+ *
+ * So `__tests__/deep-link-map.test.ts` proves the TWO-ARM rule the table
+ * actually satisfies. A same-length pair is fine when it is either:
+ *
+ *   1. SEPARABLE — some position where both are literals and the literals
+ *      differ. No concrete path matches both, so order never arises.
+ *   2. RANKED — `outranksWebPath` decides, at the leftmost position where one
+ *      pattern is a literal and the other a placeholder. That is the ROUTERS'
+ *      own rule (see `outranksWebPath`), so the table answers what Next and
+ *      expo-router answer for the same string.
+ *
+ * A pair that is NEITHER is a pair with the same literal/placeholder shape at
+ * every position and no differing literal — which is the same erased shape, and
+ * the "no two names pointing at the same path shape" test already refuses it.
+ * That is why ambiguity is still impossible, and it is impossible for a reason
+ * that survives the next static sibling being added. Do NOT restore "first
+ * wins": under it this table opens a credential for a pet whose token is the
+ * word "postulaciones".
  */
 /**
  * `decodeURIComponent`, as a value rather than as a throw.
@@ -421,6 +503,46 @@ function decodeSegment(segment: string): string | null {
   }
 }
 
+/**
+ * Whether `left` is the pattern a router would resolve FIRST for a concrete path
+ * that matches both. Exported because the fitness test enforces the same rule
+ * over the whole table, and a fence holding its own copy of a ranking rule
+ * agrees with the runtime on the day it is written and not afterwards.
+ *
+ * POSITIONAL, LEFT TO RIGHT, and that is the correction L2-7 asked for. The
+ * first version ranked by TOTAL literal count. The two rules agree for every
+ * pair in this table today, which is exactly why the divergence would have
+ * shipped unnoticed: `/casos/nuevo/:x/:y` (3 literals) against
+ * `/casos/:code/anexos/:n` (3 literals) is a tie the old fence caught, but
+ * `/a/b/:q/:r` (3) against `/a/:p/c/d` (4) is not — different totals, so the
+ * fence stayed quiet, while the routers resolve the FIRST one for `/a/b/c/d`
+ * because its literal sits further left. Counting says the second. A table that
+ * answers differently from the router it mirrors sends a notification to a
+ * screen the web would never have opened.
+ *
+ * Next resolves `app/(app)/mis-mascotas/postulaciones/page.tsx` before
+ * `app/(app)/mis-mascotas/[publicToken]/page.tsx`, and expo-router does the same
+ * for `app/adoptar/postulaciones.tsx` against `app/adoptar/[petToken].tsx` — a
+ * static segment beating a placeholder at the earliest position they differ.
+ *
+ * `false` for a tie: every position agrees on literal-vs-placeholder. Callers
+ * keep whatever they already had, which for two patterns of the same shape is
+ * the earlier row — and the fitness test refuses that pair anyway.
+ */
+export function outranksWebPath(left: string, right: string): boolean {
+  const leftSegments = left.split("/");
+  const rightSegments = right.split("/");
+  const length = Math.max(leftSegments.length, rightSegments.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftSegment = leftSegments[index];
+    const rightSegment = rightSegments[index];
+    const leftLiteral = leftSegment !== undefined && !leftSegment.startsWith(":");
+    const rightLiteral = rightSegment !== undefined && !rightSegment.startsWith(":");
+    if (leftLiteral !== rightLiteral) return leftLiteral;
+  }
+  return false;
+}
+
 export function matchWebPath(
   path: string,
 ): { name: DeepLinkName; params: Record<string, string> } | null {
@@ -428,39 +550,54 @@ export function matchWebPath(
   const clean = path.split("#")[0]?.split("?")[0] ?? "";
   const segments = clean.split("/");
 
+  // THE ROUTERS' RULE DECIDES, positionally — see `outranksWebPath`. It used to
+  // return the first pattern that matched, and this table used to contain no
+  // static sibling of a parameterised route, so the two agreed. Adding
+  // `myAdoptionApplications` (`/mis-mascotas/postulaciones`) is the first pair
+  // where they do not: under "first wins" the CTA resolved to `pet` with
+  // `publicToken: "postulaciones"` and opened a credential that does not exist.
+  // `/mis-mascotas/nueva` and `/mis-mascotas/reclamar` are two more static
+  // siblings this table does not carry yet and would hit the same edge.
+  let best: { name: DeepLinkName; params: Record<string, string>; webPath: string } | null = null;
+
   for (const name of Object.keys(DEEP_LINK_MAP) as DeepLinkName[]) {
-    const pattern = DEEP_LINK_MAP[name].webPath.split("/");
+    const webPath = DEEP_LINK_MAP[name].webPath;
+    const pattern = webPath.split("/");
     if (pattern.length !== segments.length) continue;
 
-    const params: Record<string, string> = {};
-    let matched = true;
-    for (const [index, expected] of pattern.entries()) {
-      const actual = segments[index] ?? "";
-      if (expected.startsWith(":")) {
-        // An empty segment ("/mis-mascotas//eventos/x") is not a value.
-        if (actual === "") {
-          matched = false;
-          break;
-        }
-        // Malformed percent-encoding is not a value either. See the docblock:
-        // letting the URIError out would turn one bad stored row into a 500 for
-        // the whole inbox, because this runs outside the route's try/catch.
-        const decoded = decodeSegment(actual);
-        if (decoded === null) {
-          matched = false;
-          break;
-        }
-        params[expected.slice(1)] = decoded;
-        continue;
-      }
-      if (expected !== actual) {
-        matched = false;
-        break;
-      }
-    }
-    if (matched) return { name, params };
+    const params = matchPattern(pattern, segments);
+    if (params === null) continue;
+    // A tie keeps the earlier row — the old behaviour for the only case a tie
+    // can arise in, which is two rows the fitness test already refuses as
+    // indistinguishable.
+    if (best === null || outranksWebPath(webPath, best.webPath)) best = { name, params, webPath };
   }
-  return null;
+  return best === null ? null : { name: best.name, params: best.params };
+}
+
+/**
+ * One pattern against one concrete path, as its captured params — or `null` when
+ * it does not match. Split out of `matchWebPath` so the SELECTION rule above and
+ * the MATCHING rule here are readable apart.
+ */
+function matchPattern(pattern: string[], segments: string[]): Record<string, string> | null {
+  const params: Record<string, string> = {};
+  for (const [index, expected] of pattern.entries()) {
+    const actual = segments[index] ?? "";
+    if (!expected.startsWith(":")) {
+      if (expected !== actual) return null;
+      continue;
+    }
+    // An empty segment ("/mis-mascotas//eventos/x") is not a value.
+    if (actual === "") return null;
+    // Malformed percent-encoding is not a value either. See the docblock:
+    // letting the URIError out would turn one bad stored row into a 500 for the
+    // whole inbox, because this runs outside the route's try/catch.
+    const decoded = decodeSegment(actual);
+    if (decoded === null) return null;
+    params[expected.slice(1)] = decoded;
+  }
+  return params;
 }
 
 /**

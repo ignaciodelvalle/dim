@@ -102,6 +102,88 @@ describe("movement_recorded — jurisdiction_changed sub_kind", () => {
     ).not.toThrow();
   });
 
+  // -------------------------------------------------------------------------
+  // L2-3 / L2-5 — the catalogue ROW, and the correction the names refused
+  // -------------------------------------------------------------------------
+
+  it("records WHICH catalogue row each side names", () => {
+    const parsed = validateEventPayload("movement_recorded", {
+      ...JURISDICTION_CHANGED,
+      from_locality_id: "11111111-1111-4111-8111-111111111111",
+      to_locality_id: "22222222-2222-4222-8222-222222222222",
+    }) as Record<string, unknown>;
+    expect(parsed.from_locality_id).toBe("11111111-1111-4111-8111-111111111111");
+    expect(parsed.to_locality_id).toBe("22222222-2222-4222-8222-222222222222");
+  });
+
+  it("accepts a move between two SAME-NAMED localities of one province", () => {
+    // THE CORRECTION THE OLD RULE REFUSED. The INDEC catalogue carries 68
+    // (province, name) collisions — four "San Pedro"s in Santiago del Estero —
+    // so an animal filed against the wrong one has a destination whose province
+    // AND locality text match its origin exactly. Comparing only the three text
+    // fields made that payload a "no-op" and the correcting move impossible.
+    expect(() =>
+      validateEventPayload("movement_recorded", {
+        ...JURISDICTION_CHANGED,
+        from_province: "Santiago del Estero",
+        from_locality: "San Pedro",
+        from_locality_id: "11111111-1111-4111-8111-111111111111",
+        to_province: "Santiago del Estero",
+        to_locality: "San Pedro",
+        to_locality_id: "22222222-2222-4222-8222-222222222222",
+      }),
+    ).not.toThrow();
+  });
+
+  it("still rejects a no-op when both sides name the SAME row", () => {
+    // NON-VACUITY for the case above: the ids are what make it a move, not the
+    // mere presence of the two new fields.
+    expect(() =>
+      validateEventPayload("movement_recorded", {
+        ...JURISDICTION_CHANGED,
+        from_province: "Santiago del Estero",
+        from_locality: "San Pedro",
+        from_locality_id: "11111111-1111-4111-8111-111111111111",
+        to_province: "Santiago del Estero",
+        to_locality: "San Pedro",
+        to_locality_id: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).toThrow();
+  });
+
+  it("still rejects a no-op when only ONE side names a row", () => {
+    // A legacy pet whose locality_id was never resolved, or a destination the
+    // catalogue does not know: there is nothing to compare but the text, and the
+    // text rule stands. Half an id must not become a licence to append a
+    // non-event.
+    for (const half of [
+      { from_locality_id: "11111111-1111-4111-8111-111111111111" },
+      { to_locality_id: "11111111-1111-4111-8111-111111111111" },
+      { from_locality_id: null, to_locality_id: "11111111-1111-4111-8111-111111111111" },
+    ]) {
+      expect(() =>
+        validateEventPayload("movement_recorded", {
+          ...JURISDICTION_CHANGED,
+          to_country: JURISDICTION_CHANGED.from_country,
+          to_province: JURISDICTION_CHANGED.from_province,
+          to_locality: JURISDICTION_CHANGED.from_locality,
+          ...half,
+        }),
+      ).toThrow();
+    }
+  });
+
+  it("rejects a locality id that is not a uuid", () => {
+    // The column it mirrors is a uuid FK; a free-text id here would be a value
+    // no rederivation could resolve.
+    expect(() =>
+      validateEventPayload("movement_recorded", {
+        ...JURISDICTION_CHANGED,
+        to_locality_id: "620105",
+      }),
+    ).toThrow();
+  });
+
   it("rejects extra keys (strict mode)", () => {
     expect(() =>
       validateEventPayload("movement_recorded", {

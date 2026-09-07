@@ -253,8 +253,14 @@ export {
   petProfileCommandInputSchema,
   resolvePetIdentityLengths,
 } from "./pet-profile-edit.ts";
+// EXPORTED ON ITS OWN, like `isRealArDay` above and for the same reason: the
+// rule has doors that are not zod schemas. `update-profile.ts` validates a
+// display name with a hand-rolled server schema, and a name rule that only the
+// contract's schemas carry is a rule that door does not have.
+export { isWritableName } from "./writable-name.ts";
 export {
   ACQUISITION_METHODS,
+  MAX_ESTIMATED_WEIGHT_KG,
   MAX_PET_AGE_MONTHS,
   MAX_PET_AGE_YEARS,
   PET_SPECIES,

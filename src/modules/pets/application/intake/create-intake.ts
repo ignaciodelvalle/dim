@@ -213,6 +213,10 @@ export function parseIntakeForm(formData: FormData) {
       clientIdempotencyKey,
       jurisdictionProvince: provinceByCode(loc.provinceCode ?? "")?.name ?? null,
       jurisdictionLocality: loc.locality,
+      // The row the picker wrote into the form (L2-8) — carried so the strict
+      // canonicalization in `createIntake` resolves the catalogue BY ID and does
+      // not settle a (province, locality) homonym alphabetically.
+      localityIndecId: loc.localityIndecId,
       intakeReason,
       intakeCondition: client.intakeCondition,
       rescueJurisdiction: client.rescueJurisdiction,
@@ -249,7 +253,8 @@ export async function createIntake(
           province: parsed.jurisdictionProvince,
           provinceCode: null,
           locality: parsed.jurisdictionLocality,
-          localityIndecId: null,
+          // See the field's note in `parseIntakeForm` (L2-8).
+          localityIndecId: parsed.localityIndecId ?? null,
           lat: null,
           lng: null,
           address: null,
@@ -462,6 +467,9 @@ export async function createIntake(
         insurance_policy_number: null,
         jurisdiction_province: parsed.jurisdictionProvince,
         jurisdiction_locality: parsed.jurisdictionLocality,
+        // The catalogue ROW the two names resolved to — the same value written
+        // into `pets.locality_id` below, so the spine can reproduce it (L2-3).
+        jurisdiction_locality_id: jurisdictionLocalityId,
         potentially_dangerous_breed: potentiallyDangerousBreed,
         acquisition_method: null,
         has_photo: false,

@@ -203,6 +203,27 @@ export type LostCapabilitiesV1 = {
   canMarkFound: boolean;
   canReactivateSearch: boolean;
   /**
+   * May this caller report a feed message (A4-custodia-13)?
+   *
+   * THE SECOND FLAG THE ORG PATH ALONE DECIDES, and it is refused for the same
+   * reason `canReactivateSearch` is — the route's guard refuses `report_content`
+   * and `reactivate_search` together, in one condition, because both are levers
+   * an organization holding `shelter_custody` could point at the owner during a
+   * custody dispute: a report makes a finder's "tengo a tu perro, llamame"
+   * disappear from the OWNER's feed, silently and with no un-report.
+   *
+   * A CLIENT CANNOT DERIVE IT. Nothing in `status`, `episode` or the feed row
+   * says which path the caller came through, so `feedItemReportable` — which is
+   * the ROW's half of the answer (a `scan` has no author and nothing to report)
+   * — was the app's whole test, and the control was drawn for an org reader the
+   * server then refused with titular-only copy.
+   *
+   * ITS TWIN IS ROW-SHAPED AND STAYS IN THE CLIENT. Whether THIS row can be
+   * reported is the kind and nothing else; whether THIS CALLER may report is
+   * here. Two different questions, and only one of them needs the server.
+   */
+  canReportContent: boolean;
+  /**
    * The preference keys this caller may flip. A caretaker gets five of the six;
    * the titular gets all six. Rendering a toggle outside this list is offering a
    * control that answers 403.

@@ -67,6 +67,8 @@
 
 import { z } from "zod";
 
+import { isWritableName } from "./writable-name.ts";
+
 /**
  * The longest a NEW pet name may be.
  *
@@ -106,6 +108,7 @@ export const EMERGENCY_CONTACT_PHONE_MAX = 40;
 export const PET_PROFILE_COMMAND_INPUT_CODES = [
   "COMMAND_REQUIRED",
   "NAME_REQUIRED",
+  "NAME_INVALID",
   "NAME_TOO_LONG",
   "COLOR_TOO_LONG",
   "CONTACT_NAME_TOO_LONG",
@@ -142,7 +145,17 @@ const editIdentity = z.object({
   command: z.literal("edit_identity"),
   // NOT `.max(PET_NAME_MAX)`: the length rule needs the stored value to tell a
   // carried-over name from a typed one. `resolvePetIdentityLengths` is it.
-  name: z.string({ error: "NAME_REQUIRED" }).trim().min(1, { error: "NAME_REQUIRED" }),
+  //
+  // The SHAPE rule is different in kind and belongs here: a name made of
+  // zero-width spaces is not a name at any length, there is nothing to
+  // grandfather (no writer can have stored one — this and alta are the only two
+  // doors, and both refuse it now), and a rename to `"​​"` would blank
+  // the animal's credential (A2-alta-asentar-09).
+  name: z
+    .string({ error: "NAME_REQUIRED" })
+    .trim()
+    .min(1, { error: "NAME_REQUIRED" })
+    .refine(isWritableName, { error: "NAME_INVALID" }),
   breed: optionalBreed,
   color: optionalColor,
 });

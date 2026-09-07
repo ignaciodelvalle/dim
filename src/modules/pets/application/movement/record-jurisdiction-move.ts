@@ -95,14 +95,42 @@ export type RecordJurisdictionMoveInput = {
    * The four jurisdiction fields are read to build the `from_*` half of the
    * payload and to decide the no-op; they are the row the access guard already
    * fetched, so this function opens no second read of `pets`.
+   *
+   * `localityId` is the fifth, and it is here because the other four cannot
+   * decide the no-op on their own: two localities of one province can share a
+   * name, so comparing text alone refuses the correcting move (L2-5).
    */
   pet: Pick<
     Pet,
-    "id" | "publicToken" | "jurisdictionCountry" | "jurisdictionProvince" | "jurisdictionLocality"
+    | "id"
+    | "publicToken"
+    | "jurisdictionCountry"
+    | "jurisdictionProvince"
+    | "jurisdictionLocality"
+    | "localityId"
   >;
   recordedByUserId: string;
   eventAuthorship: PetEventAuthorship;
-  destination: { provinceCode: string; localityName: string };
+  /**
+   * Where the animal now lives.
+   *
+   * `localityIndecId` is optional and, when present, DECIDES which catalogue row
+   * this is (A2-alta-asentar-03).
+   *
+   * WHAT IT ACTUALLY FIXES, stated correctly after L2-5 found the first version
+   * of this note describing something that cannot happen. Resolving by name
+   * CANNOT cross a province: `resolveCanonicalJurisdiction` resolves the
+   * province first and `localityByName` is province-scoped, so no lookup ever
+   * confused San Pedro, Buenos Aires with San Pedro, Santiago del Estero. The
+   * real defect is one province in: `localityByName` settles a homonym with
+   * `.orderBy(departmentName).limit(1)`, and the INDEC catalogue carries 68
+   * (province, name) collisions — four "San Pedro"s in Santiago del Estero
+   * alone. A person shown two rows with different departments who taps the
+   * second one had their animal filed under the first, which decides the
+   * responding authority, the applicable PPP regime and where the animal counts
+   * epidemiologically. The id is the only thing that tells those rows apart.
+   */
+  destination: { provinceCode: string; localityName: string; localityIndecId?: string | null };
   reason: string | null;
   /** Injectable clock — the effective date and `occurredAt` both derive from it. */
   now?: Date;
@@ -123,13 +151,17 @@ export async function recordJurisdictionMove(
   // `resolveBusinessRule` call site reads, so the edge refuses instead.
   let province: string | null;
   let locality: string | null;
+  // The catalogue ROW, not just its two names. Carried to the writer so the
+  // homonym the INDEC id just decided is the one `pets.locality_id` ends up
+  // holding — see RecordMovementParams.resolvedLocalityId (L2-2).
+  let localityId: string | null;
   try {
     const normalized = await normalizeLocationForWrite(
       {
         province: input.destination.provinceCode,
         provinceCode: input.destination.provinceCode,
         locality: input.destination.localityName,
-        localityIndecId: null,
+        localityIndecId: input.destination.localityIndecId ?? null,
         lat: null,
         lng: null,
         address: null,
@@ -138,6 +170,7 @@ export async function recordJurisdictionMove(
     );
     province = normalized.province;
     locality = normalized.locality;
+    localityId = normalized.localityId;
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
       return { ok: false, code: "destination_invalid", error: err.message };
@@ -159,16 +192,27 @@ export async function recordJurisdictionMove(
     };
   }
 
-  // THE NO-OP, computed rather than read off a message. These three comparisons
-  // ARE `movementJurisdictionChanged`'s `superRefine` — if they all hold, the
-  // schema would reject the payload and the writer would hand back a sentence
-  // this door would have to grep. Doing it here also means a no-op costs no
-  // transaction at all.
+  // THE NO-OP, computed rather than read off a message. These comparisons ARE
+  // `movementJurisdictionChanged`'s `superRefine` — if they all hold, the schema
+  // would reject the payload and the writer would hand back a sentence this door
+  // would have to grep. Doing it here also means a no-op costs no transaction at
+  // all.
+  //
+  // THE NAMES ARE NOT THE PLACE (L2-5). Comparing only country, province and
+  // locality TEXT refuses the one move that most needs to be recordable: an
+  // animal filed against the wrong San Pedro being corrected to the right one,
+  // where both rows carry the same province and the same name. When both sides
+  // name a catalogue row and the rows differ, this is a real move whatever the
+  // text says. When either id is missing — a legacy pet whose `locality_id` was
+  // never resolved — the text comparison is all there is and it still decides.
   const fromCountry = input.pet.jurisdictionCountry ?? MOVE_COUNTRY;
+  const sameCatalogueRow =
+    input.pet.localityId != null && localityId != null ? input.pet.localityId === localityId : true;
   if (
     fromCountry === MOVE_COUNTRY &&
     input.pet.jurisdictionProvince === province &&
-    input.pet.jurisdictionLocality === locality
+    input.pet.jurisdictionLocality === locality &&
+    sameCatalogueRow
   ) {
     return {
       ok: false,
@@ -187,6 +231,9 @@ export async function recordJurisdictionMove(
       from_country: fromCountry,
       from_province: input.pet.jurisdictionProvince,
       from_locality: input.pet.jurisdictionLocality,
+      // The row the animal is leaving, so a later reader can tell this move
+      // from a no-op without re-resolving two identical names (L2-3).
+      from_locality_id: input.pet.localityId,
       to_country: MOVE_COUNTRY,
       to_province: province,
       to_locality: locality,
@@ -198,6 +245,7 @@ export async function recordJurisdictionMove(
     },
     notes: null,
     now,
+    resolvedLocalityId: localityId,
   });
 
   if (!result.ok) {

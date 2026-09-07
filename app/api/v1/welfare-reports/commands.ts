@@ -107,7 +107,7 @@ import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text"
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
-import { geocodeAddressPublicAction } from "@/src/modules/localities/application/geocoding/geocoding";
+import { geocodeAddressPublicOrThrow } from "@/src/modules/localities/application/geocoding/geocoding";
 import { createWelfareReport } from "@/src/modules/welfare/application/create-welfare-report";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { WELFARE_REPORT_KINDS } from "@/src/modules/welfare/domain/types";
@@ -170,13 +170,13 @@ export async function runWelfareReportCommand(ctx: WelfareReportCommandContext) 
     // not a denuncia — spending it on address lookups would let somebody who
     // mistyped a street four times find themselves unable to REPORT. What bounds
     // this command is the web's own `geocode_public` bucket (60/min + 400/hr per
-    // IP), spent inside `geocodeAddressPublicAction`, plus the route's per-IP
+    // IP), spent inside `geocodeAddressPublicOrThrow`, plus the route's per-IP
     // bucket that already ran.
     //
     // THE GEOCODER THROWS AND THIS IS WHERE IT IS CAUGHT. `geocodeAddress` has
     // three throwing paths — `rate_limited` (its own token bucket, which is NOT
     // the `geocode_public` one above), `fetch_failed` (the nominatim timeout) and
-    // `provider_error` (any non-2xx) — and `geocodeAddressPublicAction` re-throws
+    // `provider_error` (any non-2xx) — and `geocodeAddressPublicOrThrow` re-throws
     // all three. Uncaught, they escape `route.ts`, which does not wrap this call
     // either, and Next answers a bare 500 with no `{ error }` envelope at all:
     // the one shape every `/api/v1` failure is required to have, missing on the
@@ -197,10 +197,26 @@ export async function runWelfareReportCommand(ctx: WelfareReportCommandContext) 
     // wraps the same action and sets `geocodeMessage` to `"failed"`, a state it
     // keeps DISTINCT from the `"empty"` it sets for a zero-length result. This
     // door had copied the call and not the try/catch around it.
-    let matches: Awaited<ReturnType<typeof geocodeAddressPublicAction>>;
+    // A5-ciudadanas-04 — THE SAME ARGUMENT ONE LAYER DOWN, and the half
+    // CANON-433 did not reach. `geocodeAddressPublicAction` spends the shared
+    // `geocode_public` bucket and answers a REFUSED one with `[]`, which is
+    // right for the web's debounced autocomplete and wrong here: this door
+    // renders an empty list as "No pudimos encontrar esa dirección. Probá
+    // escribirla de otra forma". Behind a carrier gateway where the neighbours
+    // are filing web sightings, that sentence tells somebody standing in front
+    // of an injured animal that their street does not exist — and each retype
+    // spends more of the same budget. `…OrThrow` is the same act, the same
+    // bucket and the same IP; only the refusal's SHAPE differs.
+    let matches: Awaited<ReturnType<typeof geocodeAddressPublicOrThrow>>;
     try {
-      matches = await geocodeAddressPublicAction(ctx.input.addressText);
+      matches = await geocodeAddressPublicOrThrow(ctx.input.addressText);
     } catch (err) {
+      // A SPENT BUDGET IS NOT AN INCIDENT. It is the limiter working, so it is
+      // answered rather than reported — and answered with the code the mobile
+      // client already has es-AR copy for ("Demasiadas consultas. Esperá un
+      // momento y volvé a intentar."), which is the only sentence here that
+      // names a wait instead of blaming the address.
+      if (err instanceof RateLimitError) return apiV1Error("rate_limited", 429);
       // NO ADDRESS IN THE SINK. Spec D10 forbids logging what the person typed,
       // and a geocoder failure is the one place it would be most tempting to
       // attach for debugging.

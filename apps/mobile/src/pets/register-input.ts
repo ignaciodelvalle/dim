@@ -28,6 +28,8 @@
 // whether a request is sent is always `toRegisterPetInput`.
 
 import {
+  PET_COLOR_MAX,
+  PET_NAME_MAX,
   type RegisterPetInput,
   type RegisterPetInputCode,
   firstRegisterPetInputCode,
@@ -44,6 +46,14 @@ export type PetDraft = {
   breed: string;
   provinceCode: string;
   localityName: string;
+  /**
+   * INDEC's id for the locality row the person tapped. `""` before a pick.
+   *
+   * The picker writes all three in the same tap; the id is what tells two
+   * homonyms apart on the server (A2-alta-asentar-03), and a blank one falls
+   * back to the (province, name) pair the way an older build's body does.
+   */
+  localityIndecId: string;
   ageYears: string;
   ageMonths: string;
   color: string;
@@ -61,6 +71,7 @@ export const EMPTY_DRAFT: PetDraft = {
   breed: "",
   provinceCode: "",
   localityName: "",
+  localityIndecId: "",
   ageYears: "",
   ageMonths: "",
   color: "",
@@ -86,12 +97,26 @@ export function draftErrorMessage(code: RegisterPetInputCode): string {
   switch (code) {
     case "NAME_REQUIRED":
       return "Poné el nombre de tu mascota.";
+    case "NAME_INVALID":
+      // NAMES WHAT IS WRONG WITHOUT NAMING THE CHARACTER: a person who pasted a
+      // name carrying a zero-width space cannot see it, so the only useful
+      // sentence is the one that says what a name is made of.
+      return "Ese nombre no se puede mostrar. Escribilo con letras.";
+    case "NAME_TOO_LONG":
+      return `El nombre es demasiado largo (máximo ${PET_NAME_MAX} caracteres).`;
     case "SPECIES_REQUIRED":
       return "Elegí qué animal es.";
     case "PROVINCE_REQUIRED":
       return "Elegí la provincia.";
     case "LOCALITY_REQUIRED":
       return "Elegí la localidad.";
+    case "COLOR_TOO_LONG":
+      return `El color es demasiado largo (máximo ${PET_COLOR_MAX} caracteres).`;
+    case "WEIGHT_INVALID":
+      // SHOWS THE COMMA, because the comma is the case: the schema accepts
+      // "12,5" and normalises it, so the example teaches the format that works
+      // rather than asking an Argentine to type a decimal point.
+      return "Poné el peso en kilos, por ejemplo 12,5.";
   }
 }
 
@@ -111,6 +136,9 @@ export function toRegisterPetInput(draft: PetDraft): DraftVerdict {
     breed: draft.breed,
     provinceCode: draft.provinceCode,
     localityName: draft.localityName,
+    // Blank means "this build did not say which row"; the contract reads it as
+    // null and the server falls back to the (province, name) pair.
+    localityIndecId: draft.localityIndecId.trim() || null,
     ageYears: draft.ageYears,
     ageMonths: draft.ageMonths,
     color: draft.color,
@@ -192,8 +220,16 @@ export function advanceBlockedReason(step: WizardStep, draft: PetDraft): string 
       return "Elegí si es perro o gato para seguir.";
     case "lugar":
       return "Elegí la localidad donde vive para seguir.";
-    case "confirmar":
-      return "Faltan datos: volvé a los pasos anteriores y revisá el nombre, la especie y el lugar.";
+    // THE SCHEMA'S OWN SENTENCE, not a guess at which field is missing.
+    // "Faltan datos: revisá el nombre, la especie y el lugar" was written when
+    // those were the only three rules; a weight of "12,5" or a 90-character
+    // name now fails here too, and the old copy sent the person to look at
+    // three fields that were all fine. `toRegisterPetInput` already knows which
+    // rule failed and `draftErrorMessage` already has the sentence.
+    case "confirmar": {
+      const verdict = toRegisterPetInput(draft);
+      return verdict.ok ? null : verdict.message;
+    }
     // Both are optional: `canAdvance` is always true, so this is unreachable.
     case "raza":
     case "detalles":

@@ -59,11 +59,22 @@ type SearchState =
  * (`SearchFiltersForm.tsx`). One picker feeding both means carrying both, and a
  * consumer picking the wrong one gets an empty search rather than an error, which
  * is the failure mode worth spending a field to avoid.
+ *
+ * AND THE INDEC ID, which is what makes the choice mean anything
+ * (A2-alta-asentar-03). This picker disambiguates homonyms by showing the
+ * DEPARTMENT — there are several San Martín in one province — and then handed
+ * back only the name, so the server's name lookup stored the alphabetically
+ * first department regardless of the row tapped. Carrying the id is what makes
+ * the two rows the person is choosing between actually different.
  */
 export type LocalitySelection = {
   provinceCode: string;
   provinceName: string;
   localityName: string;
+  /** INDEC's id for the row that was tapped. The server resolves THIS one. */
+  localityIndecId: string;
+  /** For a chip that says WHICH homonym was chosen. Null for CABA barrios. */
+  departmentName: string | null;
 };
 
 export function LocalityPicker({
@@ -91,6 +102,8 @@ export function LocalityPicker({
 }) {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SearchState>({ phase: "idle" });
+  /** The department of the row THIS picker last selected — see the chip below. */
+  const [pickedDepartment, setPickedDepartment] = useState<string | null>(null);
   const generation = useRef(0);
 
   const run = useCallback(async (text: string) => {
@@ -124,19 +137,37 @@ export function LocalityPicker({
   }, [query, run]);
 
   const selected = provinceCode.length > 0 && localityName.length > 0;
+  const where = pickedDepartment === null ? provinceCode : `${pickedDepartment} · ${provinceCode}`;
 
   return (
     <>
       {selected ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Localidad elegida: ${localityName}, ${provinceCode}. Tocá para cambiarla.`}
-          onPress={() => onSelect({ provinceCode: "", provinceName: "", localityName: "" })}
+          accessibilityLabel={`Localidad elegida: ${localityName}, ${where}. Tocá para cambiarla.`}
+          onPress={() => {
+            setPickedDepartment(null);
+            onSelect({
+              provinceCode: "",
+              provinceName: "",
+              localityName: "",
+              localityIndecId: "",
+              departmentName: null,
+            });
+          }}
           style={styles.selected}
         >
           <View style={styles.selectedText}>
             <Text style={styles.selectedName}>{localityName}</Text>
-            <Text style={styles.selectedProvince}>{provinceCode}</Text>
+            {/* THE DEPARTMENT, when this picker is the one that chose the row
+                (A2-alta-asentar-03). The list disambiguates homonyms by
+                department and the chip then showed only the province code, so
+                the person could not check that the San Martín on the confirm
+                screen was the San Martín they tapped. Held in this component's
+                own state rather than threaded through four callers' drafts: on a
+                remount the chip falls back to the province, which is what it
+                always said. */}
+            <Text style={styles.selectedProvince}>{where}</Text>
           </View>
           <Text style={styles.selectedClear}>Cambiar</Text>
         </Pressable>
@@ -162,7 +193,10 @@ export function LocalityPicker({
       <SearchBody
         state={state}
         query={query}
-        onPick={onSelect}
+        onPick={(selection) => {
+          setPickedDepartment(selection.departmentName);
+          onSelect(selection);
+        }}
         onRetry={() => void run(query.trim())}
       />
     </>
@@ -209,12 +243,20 @@ function SearchBody({
           {state.rows.map((row) => (
             <Pressable
               accessibilityRole="button"
-              key={`${row.provinceCode}:${row.localitySlug}`}
+              // THE INDEC ID, not the slug. Two homonyms in one province share a
+              // slug — that is what makes them homonyms — so the old key
+              // collided on exactly the rows this list exists to tell apart, and
+              // React reconciled two different localities as one.
+              key={row.indecId ?? `${row.provinceCode}:${row.localitySlug}:${row.departmentName}`}
               onPress={() =>
                 onPick({
                   provinceCode: row.provinceCode,
                   provinceName: row.provinceName,
                   localityName: row.localityName,
+                  // `""` for a row whose catalogue id is null — the field is
+                  // nullable on the wire and the server falls back to the pair.
+                  localityIndecId: row.indecId ?? "",
+                  departmentName: row.departmentName,
                 })
               }
               style={styles.option}

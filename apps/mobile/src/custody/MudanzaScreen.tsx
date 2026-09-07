@@ -206,6 +206,11 @@ export function MudanzaScreen({ publicToken }: { publicToken: string }) {
                   ...draft,
                   provinceCode: selection.provinceCode,
                   localityName: selection.localityName,
+                  // A2-alta-asentar-03: WHICH San Pedro. Without it the server
+                  // resolves the name and lands on the alphabetically first
+                  // department, so the ack named a province nobody chose and the
+                  // correcting move was refused as `move_same_locality`.
+                  localityIndecId: selection.localityIndecId,
                 })
               }
             />

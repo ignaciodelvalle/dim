@@ -184,7 +184,23 @@ describe("advanceBlockedReason — the disabled button stops being mute (CA-M5)"
     expect(advanceBlockedReason("lugar", EMPTY_DRAFT)).toBe(
       "Elegí la localidad donde vive para seguir.",
     );
-    expect(advanceBlockedReason("confirmar", EMPTY_DRAFT)).toMatch(/Faltan datos/);
+    // The confirm step defers to the SCHEMA'S verdict rather than naming three
+    // fields it guessed at (A2-alta-asentar-01/-09/-11 gave this step rules the
+    // old sentence knew nothing about: a weight, a name shape, two caps). An
+    // empty draft fails on the first field of the form, and that is what it says.
+    expect(advanceBlockedReason("confirmar", EMPTY_DRAFT)).toBe("Poné el nombre de tu mascota.");
+  });
+
+  it("names the field the SCHEMA refused, not the three the old copy guessed", () => {
+    // The regression this replaced: "Faltan datos: revisá el nombre, la especie
+    // y el lugar" under a form whose name, species and place are all filled in
+    // and whose weight is the problem.
+    expect(advanceBlockedReason("confirmar", { ...VALID, estimatedWeightKg: "gordito" })).toBe(
+      "Poné el peso en kilos, por ejemplo 12,5.",
+    );
+    expect(advanceBlockedReason("confirmar", { ...VALID, name: "​​" })).toBe(
+      "Ese nombre no se puede mostrar. Escribilo con letras.",
+    );
   });
 
   it("says NOTHING when the step can advance — silence is the normal state", () => {

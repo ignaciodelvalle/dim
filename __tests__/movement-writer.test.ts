@@ -11,10 +11,11 @@
 //      original row stays byte-identical.
 
 import { sql } from "drizzle-orm";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { arLocalities, db, ownerships, petEvents, pets, profiles } from "@/db";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { recordMovementWriter } from "@/src/modules/pets/application/movement/record-movement";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -58,6 +59,16 @@ async function fetchJurisdiction(petId: string) {
     .where(eq(pets.id, petId))
     .limit(1);
   return row;
+}
+
+/** The FK column the name path cannot get right on its own. See L2-2 below. */
+async function fetchLocalityId(petId: string) {
+  const [row] = await db
+    .select({ localityId: pets.localityId })
+    .from(pets)
+    .where(eq(pets.id, petId))
+    .limit(1);
+  return row?.localityId ?? null;
 }
 
 function baseParams(pet: Awaited<ReturnType<typeof insertTestPet>>) {
@@ -161,6 +172,113 @@ describe("recordMovementWriter — jurisdiction_changed (S11, R6.1)", () => {
       .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "movement_recorded")));
     expect(events).toHaveLength(0);
     expect(await fetchJurisdiction(pet.id)).toEqual(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// L2-2 — the homonym the EDGE decided, and the column that has to agree
+// ---------------------------------------------------------------------------
+//
+// WHY THIS TEST IS AT THE WRITER AND NOT AT A SCHEMA. `localityIndecId` reached
+// the edge and was then thrown away: the use-case passed only `to_province` /
+// `to_locality` on, and the writer re-resolved those NAMES with
+// `localityIndecId: null` hardcoded. For the only case an id can decide — two
+// localities with the same name in one province — the names are identical, so
+// the re-resolution landed on the alphabetically first department and
+// `pets.locality_id` recorded a jurisdiction the person never chose.
+//
+// Three tests already covered that path and none of them could see it:
+// `location-normalize.test.ts` stops at the normalizer, `mudanza-view-model`
+// at the input schema, `MudanzaScreen.test.tsx` at the request body. The
+// verdict has to be read off the COLUMN.
+
+/**
+ * A (province, locality-slug) pair the INDEC catalogue carries more than once,
+ * with its rows in the order `localityByName` would consider them.
+ *
+ * Discovered rather than hardcoded: the catalogue ships 68 such collisions and
+ * which ones exist is seed data, not a fact this test should pin. `null` when
+ * the local catalogue has none — the test says so instead of passing silently.
+ */
+async function findHomonymRows() {
+  const [collision] = await db
+    .select({
+      provinceCode: arLocalities.provinceCode,
+      localitySlug: arLocalities.localitySlug,
+    })
+    .from(arLocalities)
+    .where(sql`${arLocalities.removedAt} is null`)
+    .groupBy(arLocalities.provinceCode, arLocalities.localitySlug)
+    .having(sql`count(*) > 1`)
+    .orderBy(asc(arLocalities.provinceCode), asc(arLocalities.localitySlug))
+    .limit(1);
+  if (!collision) return null;
+
+  const rows = await db
+    .select({
+      id: arLocalities.id,
+      localityName: arLocalities.localityName,
+      departmentName: arLocalities.departmentName,
+      provinceCode: arLocalities.provinceCode,
+    })
+    .from(arLocalities)
+    .where(
+      and(
+        eq(arLocalities.provinceCode, collision.provinceCode),
+        eq(arLocalities.localitySlug, collision.localitySlug),
+        sql`${arLocalities.removedAt} is null`,
+      ),
+    )
+    // The order `localityByName` resolves in — its own `.orderBy(departmentName)
+    // .limit(1)`. The FIRST row here is what the name path picks.
+    .orderBy(asc(arLocalities.departmentName));
+  return rows.length > 1 ? rows : null;
+}
+
+describe("recordMovementWriter — the homonym the edge already decided (L2-2)", () => {
+  it("stores the catalogue row the CALLER resolved, not the one the name picks", async () => {
+    const rows = await findHomonymRows();
+    // NON-VACUITY: without a real collision this test proves nothing, and a
+    // silent pass is exactly how the defect survived three green suites.
+    expect(rows, "the local INDEC catalogue has no (province, locality) homonym").not.toBeNull();
+    if (!rows) return;
+
+    const nameWouldPick = rows[0];
+    const personTapped = rows[rows.length - 1];
+    expect(personTapped.id).not.toBe(nameWouldPick.id);
+
+    const province = provinceByCode(personTapped.provinceCode)?.name as string;
+    const movement = {
+      sub_kind: "jurisdiction_changed" as const,
+      from_country: "AR",
+      from_province: "CABA",
+      from_locality: "Palermo",
+      to_country: "AR",
+      to_province: province,
+      to_locality: personTapped.localityName,
+      effective_date: "2026-07-01",
+      reason: null,
+    };
+
+    const resolved = await insertTestPet("HOMONYM-ID");
+    const withId = await recordMovementWriter({
+      ...baseParams(resolved),
+      movement,
+      // What the edge resolved — by INDEC id, which is the only thing that can
+      // tell these two rows apart.
+      resolvedLocalityId: personTapped.id,
+    });
+    expect(withId.ok).toBe(true);
+    expect(await fetchLocalityId(resolved.id)).toBe(personTapped.id);
+
+    // THE CONTROL, and the half that makes the assertion above mean something:
+    // the SAME names with no resolved id still go down the name path and land
+    // on the other department. If these two ever agree, the catalogue stopped
+    // colliding and this test stopped testing the defect.
+    const byName = await insertTestPet("HOMONYM-NAME");
+    const withoutId = await recordMovementWriter({ ...baseParams(byName), movement });
+    expect(withoutId.ok).toBe(true);
+    expect(await fetchLocalityId(byName.id)).toBe(nameWouldPick.id);
   });
 });
 

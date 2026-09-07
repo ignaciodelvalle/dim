@@ -73,8 +73,12 @@ export const loginInputSchema = z.object({
    * `safeReturnTo` regardless of what a client claims.
    */
   returnTo: z
+    // `.nullish()` and not `.optional()` (A5-ciudadanas-11): the transform emits
+    // `null` for an absent value, so the schema has to accept one back. See the
+    // note on `intake.ts`'s `optionalText` — same class, same fix, and the
+    // package-level round-trip test now fences both.
     .string()
-    .optional()
+    .nullish()
     .transform((v) => (v ? v : null)),
 });
 

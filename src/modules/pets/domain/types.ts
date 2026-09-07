@@ -44,6 +44,18 @@ export type ParsedPet = {
    * Resolved at the action edge by normalizeLocationForWrite; undefined until then.
    * Optional so parsePetForm (which has no DB access) need not set it. */
   localityId?: string | null;
+  /**
+   * INDEC's own id for the locality row the person PICKED, straight off the
+   * form (`LocationFields` writes it into a hidden `localityNameIndecId`).
+   *
+   * It is here because `localityId` above cannot be resolved without it: two
+   * localities of one province can share a name, and the name-only lookup
+   * settles that with `.orderBy(departmentName).limit(1)`. Every other door onto
+   * `pets.locality_id` — the bearer registration and the mudanza — already sends
+   * the id; the web alta parsed it and dropped it, so the two doors disagreed
+   * about which homonym a pet belongs to (L2-8).
+   */
+  localityIndecId?: string | null;
   acquisitionMethod: AcquisitionMethod | null;
   emergencyInfoVisible: boolean;
   permanentConditions: PermanentCondition[];

@@ -175,11 +175,13 @@ export async function GET(request: Request) {
       payloadVersion: LOCALITIES_PAYLOAD_VERSION,
       staleAfterMs: LOCALITIES_STALE_AFTER_MS,
     }),
-    // Projected down to the five fields a client renders and sends back. The
+    // Projected down to the six fields a client renders and sends back. The
     // catalogue row also carries the `ar_localities` uuid (the app's structural
     // FK) and a `matchKind` ranking signal; neither belongs on a wire. See
-    // `LocalityV1` for why each omission is deliberate.
+    // `LocalityV1` for why each omission is deliberate, and why `indecId` is the
+    // one identifier that does travel.
     results: result.results.map((row) => ({
+      indecId: row.indecId,
       localityName: row.localityName,
       localitySlug: row.localitySlug,
       provinceCode: row.provinceCode,

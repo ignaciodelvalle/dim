@@ -13,7 +13,15 @@ export const metadata = {
 };
 
 export default async function PrivacidadPage() {
-  await requireUserOrRedirect();
+  // THE RETURN PATH IS THE ARGUMENT, and this page needs it more than most: the
+  // native app hands people here — `ACCOUNT_DELETION_URL` in
+  // `apps/mobile/src/config/api.ts`, rendered as selectable text on the privacy
+  // screen — and the Play Data-safety form names this URL as where an account is
+  // deleted. The app holds a bearer token and the web reads a cookie, so that
+  // handoff always opens a SIGNED-OUT browser. A bare guard sent the person to
+  // login and then to `/mis-mascotas`, which is not a deletion page: a store
+  // reviewer following the Data-safety link landed on a pet list (L2-11).
+  await requireUserOrRedirect("/cuenta/privacidad");
 
   return (
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">

@@ -46,26 +46,49 @@ function okIdentity(over: Record<string, unknown> = {}): OwnerPetDetailV1["ident
   } as unknown as OwnerPetDetailV1["identity"];
 }
 
+/** A picked destination, as the picker writes it. Overridden per case. */
+const PICKED = {
+  provinceCode: "AR-R",
+  localityName: "Bariloche",
+  localityIndecId: "620105",
+  reason: "",
+};
+
 describe("buildMove — the contract's schema, run before the round trip", () => {
   it("accepts a picked destination and trims a blank reason to null", () => {
-    const built = buildMove({ provinceCode: "AR-R", localityName: "Bariloche", reason: "   " });
+    const built = buildMove({ ...PICKED, reason: "   " });
     expect(built).toEqual({
       ok: true,
       input: {
         command: "record_move",
         provinceCode: "AR-R",
         localityName: "Bariloche",
+        localityIndecId: "620105",
         reason: null,
       },
     });
   });
 
+  it("carries the INDEC id of the row the person tapped", () => {
+    // A2-alta-asentar-03. Sending only the name lets the server resolve a
+    // homonym to the alphabetically first department: a mudanza to San Pedro,
+    // Buenos Aires acknowledged "San Pedro, Santiago del Estero quedó
+    // registrada", and the correcting move was then refused as
+    // `move_same_locality` because the registry already believed the pet was
+    // there.
+    const built = buildMove({ ...PICKED, localityIndecId: "060658" });
+    expect(built.ok && built.input.localityIndecId).toBe("060658");
+  });
+
+  it("sends null when the picker did not say which row — the old body, unchanged", () => {
+    // An older build sends no id at all. The server falls back to the
+    // (province, name) pair, so this must be a clean null rather than a "".
+    const built = buildMove({ ...PICKED, localityIndecId: "   " });
+    expect(built.ok && built.input.localityIndecId).toBeNull();
+  });
+
   it("keeps a real reason, trimmed", () => {
-    const built = buildMove({
-      provinceCode: "AR-R",
-      localityName: "Bariloche",
-      reason: "  Trabajo ",
-    });
+    const built = buildMove({ ...PICKED, reason: "  Trabajo " });
     expect(built.ok && built.input.reason).toBe("Trabajo");
   });
 
@@ -79,7 +102,7 @@ describe("buildMove — the contract's schema, run before the round trip", () =>
     // MUTATION APPLIED: `provinceCode: draft.provinceCode || "AR-X"` in
     // `buildMove`. Red — and the request would then go out naming a province
     // nobody picked.
-    const built = buildMove({ provinceCode: "", localityName: "Bariloche", reason: "" });
+    const built = buildMove({ ...PICKED, provinceCode: "" });
     expect(built).toEqual({
       ok: false,
       code: "DESTINATION_REQUIRED",
@@ -92,19 +115,15 @@ describe("buildMove — the contract's schema, run before the round trip", () =>
     // message naming the province would point at a field this screen does not
     // draw. Asserted as equality with the case above rather than as its own
     // string, so the two cannot drift apart.
-    const noLocality = buildMove({ provinceCode: "AR-R", localityName: "  ", reason: "" });
-    const noProvince = buildMove({ provinceCode: "", localityName: "Bariloche", reason: "" });
+    const noLocality = buildMove({ ...PICKED, localityName: "  " });
+    const noProvince = buildMove({ ...PICKED, provinceCode: "" });
     expect(noLocality).toEqual(noProvince);
   });
 
   it("refuses a reason past the cap rather than truncating it", () => {
     // Truncation would edit somebody's explanation without being asked.
     // MUTATION APPLIED: `reason: draft.reason.slice(0, 200)`. Red.
-    const built = buildMove({
-      provinceCode: "AR-R",
-      localityName: "Bariloche",
-      reason: "x".repeat(201),
-    });
+    const built = buildMove({ ...PICKED, reason: "x".repeat(201) });
     expect(built).toMatchObject({ ok: false, code: "REASON_TOO_LONG" });
   });
 });

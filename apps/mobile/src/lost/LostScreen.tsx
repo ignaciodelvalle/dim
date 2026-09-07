@@ -442,7 +442,13 @@ function Overview({
         ) : (
           <>
             {view.feed.items.map((item) => (
-              <FeedRow key={item.id} item={item} busy={busy} onReport={() => onReportItem(item)} />
+              <FeedRow
+                key={item.id}
+                item={item}
+                busy={busy}
+                canReport={view.capabilities.canReportContent}
+                onReport={() => onReportItem(item)}
+              />
             ))}
             {feedTruncationNote(view.feed.truncated) ? (
               <Body>{feedTruncationNote(view.feed.truncated)}</Body>
@@ -474,10 +480,17 @@ function Overview({
 function FeedRow({
   item,
   busy,
+  canReport,
   onReport,
 }: {
   item: LostFeedItemV1;
   busy: boolean;
+  /**
+   * `capabilities.canReportContent` — whether this CALLER may report at all
+   * (A4-custodia-13). The row's own half of the answer is `feedItemReportable`;
+   * both have to be true, and only the server knows this one.
+   */
+  canReport: boolean;
   onReport: () => void;
 }) {
   const detail = feedItemDetail(item);
@@ -494,11 +507,17 @@ function FeedRow({
         <Body>Dejó una foto. Se ve desde la web.</Body>
       ) : null}
 
-      {/* ON THE TWO AUTHORED KINDS ONLY. A `scan` is a machine reading a QR: no
-          author, no text, nothing anybody could have written wrongly — so there
-          is no control here at all, rather than a disabled one. The rule is
-          `feedItemReportable`, and the server refuses a scan target regardless. */}
-      {feedItemReportable(item) ? (
+      {/* TWO CONDITIONS, AND THEY ARE DIFFERENT QUESTIONS.
+          · THE ROW — on the two authored kinds only. A `scan` is a machine
+            reading a QR: no author, no text, nothing anybody could have written
+            wrongly, so there is no control rather than a disabled one.
+            `feedItemReportable`, and the server refuses a scan target anyway.
+          · THE CALLER — `canReportContent` (A4-custodia-13). The route refuses
+            `report_content` on the ORG path, in the same condition that refuses
+            `reactivate_search`, and nothing on the payload's feed says which
+            path the reader came through. Without it an org-path reader was drawn
+            a "Reportar" the server answers with titular-only copy. */}
+      {canReport && feedItemReportable(item) ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${REPORT_ACTION_LABEL} este mensaje`}

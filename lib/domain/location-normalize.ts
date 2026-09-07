@@ -25,6 +25,7 @@ import type { LocationValue } from "@/lib/domain/location-value";
 import {
   JurisdictionValidationError,
   resolveCanonicalJurisdiction,
+  resolveCanonicalJurisdictionById,
   tryResolveCanonicalJurisdiction,
 } from "@/lib/infra/jurisdiction-validation";
 
@@ -105,21 +106,32 @@ export async function normalizeLocationForWrite(
   // ── 2. Coord validation ───────────────────────────────────────────────────
   const lat = loc.lat;
   const lng = loc.lng;
-
-  if (requireCoords) {
-    if (lat === null || lng === null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-      throw new CoordError("COORD_REQUIRED", "Coordenadas requeridas pero ausentes o inválidas.");
-    }
-  }
-
-  if (lat !== null && lng !== null) {
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      throw new CoordError("COORD_OUT_OF_RANGE", "La ubicación está fuera de rango.");
-    }
-  }
+  assertCoords(lat, lng, requireCoords);
 
   // ── 3. Locality resolution ────────────────────────────────────────────────
   const rawLocality = loc.locality ?? "";
+
+  // THE INDEC ID WINS WHEN THERE IS ONE (A2-alta-asentar-03).
+  //
+  // `localityByName` disambiguates a homonym by taking the alphabetically first
+  // department (`.orderBy(departmentName).limit(1)` — its own comment says so),
+  // and the INDEC catalogue ships 68 (province, name) collisions. So a person in
+  // San Martín who was SHOWN two rows with different departments and tapped the
+  // second one had their pet stored in the other San Martín. Jurisdiction decides
+  // the responding authority, which PPP rules apply and where the animal counts
+  // epidemiologically, and on a later move the registry answers
+  // `move_same_locality` for a move that is not.
+  //
+  // The field existed on `LocationValue` from the start and NOTHING read it (14-4
+  // in the jurisdiction review, still open). Every caller passed null, so the id
+  // path is new behaviour for whoever starts sending one and a no-op for the rest.
+  const indecId = loc.localityIndecId?.trim() || null;
+  if (localityMode !== "none" && indecId) {
+    const byId = await resolveByIndecId(indecId, province, localityMode);
+    if (byId !== null) {
+      return { ...byId, lat, lng, address: loc.address };
+    }
+  }
 
   if (localityMode === "strict") {
     if (province && rawLocality) {
@@ -188,6 +200,76 @@ export async function normalizeLocationForWrite(
     lng,
     address: loc.address,
   };
+}
+
+/**
+ * The coordinate rules, unchanged and moved out of the gate's body so the
+ * locality branches read as the three cases they are.
+ *
+ * @throws {CoordError} when `requireCoords` and either half is absent or
+ *   non-finite, or when PRESENT coords are outside WGS-84 range. The range check
+ *   runs whenever coords exist, regardless of locality mode — the deliberate P2
+ *   hardening (STEP 3 in the P2 spec).
+ */
+function assertCoords(lat: number | null, lng: number | null, requireCoords: boolean): void {
+  if (requireCoords) {
+    if (lat === null || lng === null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new CoordError("COORD_REQUIRED", "Coordenadas requeridas pero ausentes o inválidas.");
+    }
+  }
+  if (lat !== null && lng !== null) {
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new CoordError("COORD_OUT_OF_RANGE", "La ubicación está fuera de rango.");
+    }
+  }
+}
+
+/**
+ * The catalogue row an INDEC id names, or `null` when the caller should fall
+ * back to the name path.
+ *
+ * Split out of `normalizeLocationForWrite` so the id branch's THREE outcomes are
+ * readable in one place: resolved, refused (strict), or "let the name path try"
+ * (soft). Returns the location half only; the caller owns the coordinates.
+ *
+ * @throws {JurisdictionValidationError} under `strict`, for an id the catalogue
+ *   does not know or one whose province contradicts the claimed one.
+ */
+async function resolveByIndecId(
+  indecId: string,
+  province: string | null,
+  localityMode: LocalityValidation,
+): Promise<Pick<
+  NormalizedLocation,
+  "province" | "locality" | "localityCanonical" | "localityId"
+> | null> {
+  try {
+    const canonical = await resolveCanonicalJurisdictionById({ indecId });
+    // THE CLAIMED PROVINCE IS CROSS-CHECKED, not overruled. The id is the
+    // authority for WHICH locality, but a body whose two halves disagree is a
+    // broken or hostile client, and silently storing the id's province would let
+    // a caller attribute a pet to a jurisdiction it never named.
+    if (province && canonical.province.name !== province) {
+      throw new JurisdictionValidationError(
+        "INVALID_LOCALITY",
+        `La localidad '${canonical.locality.localityName}' no pertenece a '${province}'.`,
+      );
+    }
+    return {
+      province: canonical.province.name,
+      locality: canonical.locality.localityName,
+      localityCanonical: true,
+      localityId: canonical.locality.id,
+    };
+  } catch (err) {
+    // "soft" means a locality this catalogue does not know is not a reason to
+    // break the write, and that has to hold for a stale id exactly as it holds
+    // for a stale name — hand the caller back to the name path. "strict"
+    // refuses, because falling back there would resolve the NAME and land on the
+    // alphabetically first department, which is what the id exists to replace.
+    if (localityMode === "strict" || !(err instanceof JurisdictionValidationError)) throw err;
+    return null;
+  }
 }
 
 // Re-export for callers that need the error type without a separate import.
