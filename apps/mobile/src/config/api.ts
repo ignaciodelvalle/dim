@@ -227,6 +227,17 @@ export function caretakerGrantPageUrl(grantToken: string): string {
  * IT AUTHORIZES NOTHING. It is a query parameter anybody can paste; the signup
  * form is still rendered underneath. All it decides is which door is offered
  * first, which is exactly as much trust as a query parameter has earned.
+ *
+ * NO CALLER SINCE 2026-09-07, and that is recorded rather than resolved. The one
+ * call site — `IdentidadPendienteScreen`'s "Prefiero completarlo en la web" —
+ * went with the DNI field it led to. The constant stays for two reasons, neither
+ * of them "it might come back": the two constants below refer to it BY NAME to
+ * explain why THEY need no lost-session warning, so deleting it turns two live
+ * explanations into dangling references; and the `?from=app` marker it composes
+ * is still handled on the web (`app/(auth)/registro/page.tsx`) for app builds
+ * already in the field, so the shape is still real even though nothing here
+ * builds it. If Mi Argentina lands and this file no longer needs a web door at
+ * all, delete it WITH those two comments, not before them.
  */
 export const IDENTITY_COMPLETION_URL = `${API_BASE_URL}/registro?from=app`;
 

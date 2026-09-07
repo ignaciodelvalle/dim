@@ -200,7 +200,24 @@ describe("signupAction — email enumeration defense", () => {
 // completeIdentityAction — DNI enumeration
 // ---------------------------------------------------------------------------
 
-describe("completeIdentityAction — DNI enumeration defense", () => {
+// SINCE 2026-09-07 THIS DOOR NO LONGER CARRIES A DNI, and the tests below are
+// kept anyway — with their claim narrowed, which is the honest version.
+//
+// `completeIdentityAction` stopped reading `dni` (PO decision; the argument is
+// in `app/(auth)/registro/SignupForm.tsx`), so it passes `dni: null` and can no
+// longer violate `profiles_dni_hash_unique`. The DNI-oracle threat these cases
+// were written for has moved entirely to `/cuenta/verificar-dni`, where it is
+// covered by `__tests__/dni-verification.test.ts:159` ("unique collision (AU-1
+// oracle defense)") — that is the door that still asks, and it is a DB-backed
+// test rather than a mocked one.
+//
+// What survives here is the WIDER property, which never depended on the DNI: a
+// failed profile write must answer with ONE generic sentence whatever went
+// wrong, and must not leak the internal error. The mocked rejection below is
+// still a faithful stand-in for that — `dniUniqueViolation()` is now simply one
+// example of "the write failed", not a reachable scenario. Do not read these as
+// live DNI coverage.
+describe("completeIdentityAction — generic-failure defense (formerly DNI enumeration)", () => {
   it("returns a generic error on a DNI unique violation (does not confirm existence)", async () => {
     mockReturning.mockRejectedValue(dniUniqueViolation());
     const result = await completeIdentityAction({ error: null }, identityForm());

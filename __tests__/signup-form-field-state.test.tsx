@@ -119,10 +119,17 @@ describe("SignupForm — step 2 (identity) field state", () => {
     fireEvent.change(firstName, { target: { value: "Juana" } });
     fireEvent.change(lastName, { target: { value: "Gómez" } });
 
-    // A failed submit (e.g. bad DNI) re-renders with the error AND the
-    // echoed-back name.
+    // A failed submit re-renders with the error AND the echoed-back name.
+    //
+    // The sample error used to be "El DNI debe tener 7 u 8 dígitos numéricos.",
+    // a sentence the action can no longer produce: the DNI field left this form
+    // on 2026-09-07. What this test is about is the ECHO — React 19 resets an
+    // uncontrolled form when the action resolves, and bug #46 was people losing
+    // their own typed name on a refusal — so the string only has to be a real
+    // refusal this form can actually show. Using a dead one would quietly make
+    // the fixture a lie about what a user sees here.
     identityState = {
-      error: "El DNI debe tener 7 u 8 dígitos numéricos.",
+      error: "No pudimos guardar tus datos. Revisá la información e intentá de nuevo.",
       firstName: "Juana",
       lastName: "Gómez",
     };

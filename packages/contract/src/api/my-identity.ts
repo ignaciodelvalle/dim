@@ -19,11 +19,14 @@
 // The NAME moved. `completeIdentityInputSchema` (`@dim/contract/input`) is the
 // whole request: `firstName` and `lastName`, nothing else.
 //
-// The DNI did NOT, and `apps/mobile/src/auth/IdentidadPendienteScreen.tsx` still
-// offers the browser link as a secondary affordance for it. The reasoning that
-// screen used to give for refusing a native form ENTIRELY — the hashing, the
-// Ley 25.326 consent copy, the Mi Argentina federation path — was right about
-// the DNI and overshot on the name. A name is not a claim about a national
+// The DNI did not move with it, and as of 2026-09-07 it is not collected at
+// signup on EITHER side: the web form dropped the field and the mobile screen
+// dropped the browser link that led to it (PO decision — official identity waits
+// for Mi Argentina). This paragraph used to say the link "still offers" that
+// affordance; it does not. The reasoning that screen used to give for refusing a
+// native form ENTIRELY — the hashing, the Ley 25.326 consent copy, the Mi
+// Argentina federation path — was right about the DNI and overshot on the name.
+// A name is not a claim about a national
 // registry; it is the field `handle_new_user` guesses at from an email address
 // and that every other surface renders the person as.
 //

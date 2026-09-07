@@ -66,9 +66,17 @@ export default async function SignupPage({
   const rawIntent = sp.intent ?? null;
   const intent = rawIntent === "apply" ? "apply" : null;
   const returnTo = safeReturnTo(sp.returnTo);
-  // THE NATIVE HANDOFF MARKER (native QA batch 2, D6). `identidad-pendiente`
-  // opens IDENTITY_COMPLETION_URL in the browser to finish a registration that
-  // already has an account behind it — and the browser opens SIGNED OUT, because
+  // THE NATIVE HANDOFF MARKER (native QA batch 2, D6). THE HANDOFF ITSELF IS
+  // GONE as of 2026-09-07 — `identidad-pendiente` no longer opens anything in a
+  // browser, because the DNI it was for left the signup form — but this marker
+  // handling STAYS, and deliberately: an app build already installed in the
+  // field still carries the old link compiled in, and a stale bookmark outlives
+  // both. So read the present tense below as "a visitor arriving this way",
+  // which is still possible, rather than as a path the current app can take.
+  //
+  // What it used to do: `identidad-pendiente` opened IDENTITY_COMPLETION_URL in
+  // the browser to finish a registration that already had an account behind it
+  // — and the browser opened SIGNED OUT, because
   // the app holds a bearer token and this page resolves a cookie
   // (apps/mobile/app/identidad-pendiente.tsx says so out loud). Without this
   // marker the page has no way to tell that visitor from a stranger, so it

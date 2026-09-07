@@ -945,8 +945,10 @@ export type CompleteIdentityResult = { ok: true } | { ok: false; message: string
  * there, come back, and cycle the session so the app re-read `/me`. Pilot testers
  * read the second login as "confirm your email" and stopped: 8 invalid-credential
  * attempts and 2 duplicate signups in one hour of GoTrue log. The name is now
- * collected here; the DNI still lives on the web and the screen still offers that
- * link for it.
+ * collected here, and since 2026-09-07 it is the ONLY thing this step collects:
+ * the screen's browser link is gone with the DNI field it led to (PO decision —
+ * official identity waits for Mi Argentina). So there is no longer any path out
+ * of the app in signup step 2, which is what this whole paragraph was about.
  *
  * IT LIVES IN THIS FILE FOR `signOutEverywhere`'S REASON: the call and the
  * session-state transition are ONE act. A screen that made the request and then

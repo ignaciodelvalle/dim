@@ -5,8 +5,10 @@
 //
 // completeIdentityAction requires an active session (supabase.auth.getUser) to
 // proceed past validation. Tests that exercise pre-session guards are possible
-// because the DNI format check runs before the session lookup. Tests that
-// require an authenticated user are skipped with a note.
+// because the NAME presence check runs before the session lookup. (It used to
+// say "the DNI format check"; that check was removed with the field on
+// 2026-09-07, and the names are now the only gate standing before the session
+// lookup.) Tests that require an authenticated user are skipped with a note.
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -126,9 +128,14 @@ describe("completeIdentityAction — pre-session validation gates", () => {
   //
   // The matcher below fixes that. It still cannot reach the profile write, but
   // it is no longer vacuous: a REJECTED DNI would return a validation error
-  // instead of throwing, so `rejects` fails — which is precisely the claim
-  // "this DNI is accepted". The specific pattern additionally pins WHERE
-  // execution got to, so an unrelated throw can never be mistaken for success.
+  // instead of throwing, so `rejects` fails. The specific pattern additionally
+  // pins WHERE execution got to, so an unrelated throw can never be mistaken
+  // for success.
+  //
+  // The three "accepts a valid DNI" tests that paragraph refers to no longer
+  // exist — see the block below for why. The matcher outlived them because the
+  // property it makes non-vacuous outlived them too: it is now what proves the
+  // action walks PAST a DNI instead of validating one.
   const REACHED_REQUEST_BOUNDARY = /request scope|cookies/i;
 
   it("rejects when firstName is empty", async () => {
@@ -143,51 +150,49 @@ describe("completeIdentityAction — pre-session validation gates", () => {
     expect(result.error).toMatch(/nombre y apellido/);
   });
 
-  it("rejects a DNI with letters", async () => {
-    const fd = buildIdentityForm({ dni: "abc1234" });
-    const result = await completeIdentityAction({ error: null }, fd);
-    expect(result.error).toMatch(/7 u 8 dígitos/);
-  });
-
-  it("rejects a DNI that is too short (< 7 digits)", async () => {
-    const fd = buildIdentityForm({ dni: "123456" });
-    const result = await completeIdentityAction({ error: null }, fd);
-    expect(result.error).toMatch(/7 u 8 dígitos/);
-  });
-
-  it("rejects a DNI that is too long (> 8 digits)", async () => {
-    const fd = buildIdentityForm({ dni: "123456789" });
-    const result = await completeIdentityAction({ error: null }, fd);
-    expect(result.error).toMatch(/7 u 8 dígitos/);
-  });
-
-  it("accepts a valid 7-digit DNI: no validation error, execution reaches the session boundary", async () => {
-    const fd = buildIdentityForm({ dni: "1234567" });
-    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
-      REACHED_REQUEST_BOUNDARY,
-    );
-  });
-
-  it("accepts a valid 8-digit DNI: no validation error, execution reaches the session boundary", async () => {
+  // -------------------------------------------------------------------------
+  // THIS BLOCK USED TO BE SEVEN DNI-FORMAT TESTS, AND THE INVERSION IS THE POINT
+  // -------------------------------------------------------------------------
+  // They pinned `DNI_RE` — letters rejected, <7 rejected, >8 rejected, 7 and 8
+  // accepted, absent accepted, dots stripped. All seven are gone with the field
+  // they guarded (PO decision 2026-09-07, `SignupForm.tsx` carries the argument:
+  // a DNI collected here left `dni_verified` false and unlocked nothing, while
+  // still occupying `profiles_dni_hash_unique` — partial on `dni_hash IS NOT
+  // NULL`, not on `dni_verified` — where it could lock a stranger out of
+  // verifying their own).
+  //
+  // WHAT REPLACES THEM IS NOT NOTHING, and it is the assertion the old seven
+  // could not make. Removing an <input> removes a suggestion, not a boundary: a
+  // server action accepts whatever multipart body is posted to it. So the claim
+  // worth pinning is no longer "a malformed DNI is rejected" but "a DNI is not
+  // read AT ALL" — which is why this test posts a perfectly well-formed one and
+  // requires the action to sail straight past it to the session boundary.
+  //
+  // Non-vacuity, checked the way the note above checks it: if the action still
+  // read and validated `dni`, the malformed case below would RETURN a validation
+  // error instead of throwing, and `rejects` would fail. Both directions are
+  // therefore covered by two tests rather than seven.
+  it("ignores a well-formed DNI in the posted form data — the field is not read", async () => {
     const fd = buildIdentityForm({ dni: "34567890" });
     await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
       REACHED_REQUEST_BOUNDARY,
     );
   });
 
-  it("accepts a missing DNI — the field is optional", async () => {
-    const fd = buildIdentityForm();
-    // No dni set — optional field omitted entirely.
+  it("ignores a MALFORMED DNI too, rather than answering with the old format error", async () => {
+    // The hand-crafted-POST case. `abc1234` would have produced "El DNI debe
+    // tener 7 u 8 dígitos numéricos." from the removed validator; reaching the
+    // session boundary instead proves the parse is gone and not merely the
+    // input. If somebody restores the read, this test goes red — which is the
+    // whole reason it is written from the attacker's side and not the form's.
+    const fd = buildIdentityForm({ dni: "abc1234" });
     await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
       REACHED_REQUEST_BOUNDARY,
     );
   });
 
-  it("strips dots and spaces from DNI before validating the format", async () => {
-    // "34.567.890" → "34567890": 8 digits, valid. If the stripping were removed
-    // the raw value would fail DNI_RE and the action would RETURN an error
-    // instead of throwing, so this assertion genuinely covers the stripping.
-    const fd = buildIdentityForm({ dni: "34.567.890" });
+  it("still requires both names, with no DNI anywhere in the picture", async () => {
+    const fd = buildIdentityForm();
     await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
       REACHED_REQUEST_BOUNDARY,
     );

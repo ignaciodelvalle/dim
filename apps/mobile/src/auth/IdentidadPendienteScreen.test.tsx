@@ -14,9 +14,11 @@
 //      automatic reset for this property (bug #46) and echo the names back
 //      through `IdentityFormState`; here they are component state, and the
 //      assertion is what stops somebody "cleaning up" by clearing the draft.
-//   4. THE BROWSER IS NEVER OPENED ON ITS OWN. The web door is still there for
-//      the DNI — it is the only place one can be loaded — but it is a link
-//      somebody taps, not something the screen does.
+//   4. THE BROWSER IS NEVER REACHED FROM HERE, AT ALL. This used to say the web
+//      door "is still there for the DNI"; it is not, since 2026-09-07. The DNI
+//      left `/registro` and the link left with it, so the assertion below is now
+//      an absence — a fence against re-offering a hand-off that costs a re-login
+//      and lands on a form without the field it promises.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
@@ -45,7 +47,6 @@ jest.mock("./session-store", () => ({
   completeIdentity: (...args: unknown[]) => mockCompleteIdentity(...args),
 }));
 
-import { IDENTITY_COMPLETION_URL } from "../config/api";
 import { ROUTES } from "../ui/routes";
 import { IdentidadPendienteScreen } from "./IdentidadPendienteScreen";
 
@@ -224,16 +225,24 @@ describe("the form", () => {
 });
 
 describe("the web door and the way out", () => {
-  it("keeps the browser handoff as a secondary link, for the DNI", () => {
+  it("offers NO browser handoff at all, by tap or otherwise", () => {
+    // THIS ASSERTION USED TO BE ITS OWN OPPOSITE, and the inversion is the
+    // change. It read `getByText("Prefiero completarlo en la web")` and pressed
+    // it, pinning the demoted web link as a feature.
+    //
+    // That link existed for exactly one thing — the DNI — and `/registro`
+    // stopped asking for one on 2026-09-07 (PO decision). A link that survives
+    // the field it was for sends somebody through a re-login, into a browser
+    // that does not carry this app's session, to reach a form that no longer has
+    // what they were promised.
+    //
+    // The test is kept and inverted rather than deleted, because deleting it
+    // would leave nothing standing between a future "let's offer the web as a
+    // fallback" and a screen that silently hands people out of the app again.
+    // The screen's whole job is to take a name; it must finish that here.
     render(<IdentidadPendienteScreen profilePending={true} />);
-    expect(screen.getByText("Prefiero completarlo en la web")).toBeTruthy();
-
-    fireEvent.press(screen.getByText("Prefiero completarlo en la web"));
-    expect(mockOpenURL).toHaveBeenCalledWith(IDENTITY_COMPLETION_URL);
-  });
-
-  it("never opens the browser on its own", () => {
-    render(<IdentidadPendienteScreen profilePending={true} />);
+    expect(screen.queryByText("Prefiero completarlo en la web")).toBeNull();
+    // Not the copy alone: nothing on this screen may reach the browser at all.
     expect(mockOpenURL).not.toHaveBeenCalled();
   });
 

@@ -11,9 +11,11 @@
 // What stayed HERE is everything that is about a browser form:
 //   · `FormData` in, `IdentityFormState` out;
 //   · the session, resolved from the cookie-backed Supabase client;
-//   · THE DNI — its format rule, its optionality, and the fact that it is not
-//     echoed back. The native step deliberately collects none, so the DNI never
-//     reached the shared writer as anything but an optional argument;
+//   · (THE DNI USED TO BE ON THIS LIST — its format rule and its optionality.
+//     Both are gone since 2026-09-07 and the block below says why. This bullet
+//     stays as a pointer rather than vanishing, because "what stayed HERE" is an
+//     inventory somebody trusts instead of re-reading the file, and an inventory
+//     that silently drops an entry teaches nothing.);
 //   · the es-AR sentences, which are prose for a page rather than codes for a
 //     client.
 //
@@ -21,15 +23,28 @@
 // IdentityFormState, mirroring the login/signup field-wipe fix (bug #46):
 // React 19 auto-resets this uncontrolled form once the action resolves, and
 // a validation error (no redirect) would otherwise wipe the name the user
-// just typed. DNI is intentionally not echoed — out of scope for this fix.
+// just typed. (This sentence used to end "DNI is intentionally not echoed — out
+// of scope for this fix." There is no DNI to echo any more.)
 
 import { createClient } from "@/lib/supabase/server";
 
 import { completeIdentityForUser } from "./complete-identity-for-user";
 import type { IdentityFormState } from "./types";
 
-// Argentine DNI: 7–8 digits, no spaces/dots/dashes. Same regex as verifyDniAction.
-const DNI_RE = /^\d{7,8}$/;
+// NO DNI IS READ FROM THIS FORM ANY MORE (2026-09-07). The reasoning lives next
+// to the field that was removed, in `app/(auth)/registro/SignupForm.tsx`; the
+// short version is that a DNI typed here left `dni_verified` false and so
+// unlocked nothing, while still occupying `profiles_dni_hash_unique` — which is
+// partial on `dni_hash IS NOT NULL`, not on `dni_verified` — and could therefore
+// lock a stranger out of verifying their own.
+//
+// THE PARSE IS GONE, NOT JUST THE INPUT, and that is the point: dropping the
+// field alone would leave a server action that still accepts `dni` from any
+// hand-crafted POST. A form field is a suggestion; the reader is the boundary.
+//
+// `/cuenta/verificar-dni` is deliberately untouched — it is the voluntary,
+// audited door, and it is what the four gated flows (vet upgrade, create
+// organization, create consultorio, tránsito volunteer) actually read.
 
 export async function completeIdentityAction(
   _previous: IdentityFormState,
@@ -37,17 +52,9 @@ export async function completeIdentityAction(
 ): Promise<IdentityFormState> {
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
-  const rawDni = String(formData.get("dni") ?? "")
-    .trim()
-    .replace(/[.\s-]/g, "");
 
   if (!firstName || !lastName) {
     return { error: "Ingresá tu nombre y apellido.", firstName, lastName };
-  }
-
-  // Validate DNI format only when provided.
-  if (rawDni && !DNI_RE.test(rawDni)) {
-    return { error: "El DNI debe tener 7 u 8 dígitos numéricos.", firstName, lastName };
   }
 
   // NO LOCATION IS COLLECTED HERE ANY MORE (2026-08-27, PO decision:
@@ -105,16 +112,21 @@ export async function completeIdentityAction(
     };
   }
 
-  // THE ACT, which is no longer in this file. The DNI is handed over already
-  // format-checked and digits-only; the writer hashes it (never plaintext —
-  // Wave 5 Item 25a) and leaves `dni_verified` false, because full verification
-  // is `/cuenta/verificar-dni` and its own audit trail.
+  // THE ACT, which is no longer in this file.
+  //
+  // `dni: null` ALWAYS, since 2026-09-07. The writer still accepts one — the
+  // parameter is kept rather than deleted because the PO's decision is "por
+  // ahora", pending Mi Argentina, and a capability that may come back should
+  // come back as one line rather than as a reconstruction. It now has no caller
+  // that passes a value: this action pins null, and the native path
+  // (`app/api/v1/me/identity/route.ts`) already refused to carry one ("NO DNI,
+  // AND ITS ABSENCE IS THE DECISION").
   const result = await completeIdentityForUser({
     userId: user.id,
     email: user.email,
     firstName,
     lastName,
-    dni: rawDni === "" ? null : rawDni,
+    dni: null,
   });
 
   if (!result.ok) {

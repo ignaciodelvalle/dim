@@ -26,10 +26,24 @@
 // `identityDisplayName`, refused if the result would still read as provisional —
 // so this form is step 2 rather than a weaker copy of it.
 //
-// THE WEB LINK STAYS, DEMOTED. The DNI did not move, and it is the reason: it is
-// hashed, it carries a uniqueness claim through `profiles_dni_hash_unique`, and
-// it is the half federation will eventually replace. Somebody who wants to add
-// it can still go there, and the link still says the session is not carried.
+// THE WEB LINK IS GONE (PO decision, 2026-09-07), and the paragraph that used to
+// stand here said the opposite: that it stayed, demoted, because the DNI had not
+// moved. The DNI has now moved — out of `/registro` entirely — so the link led to
+// a form without the field it promised, through a re-login, in a browser that
+// does not share this session.
+//
+// The measurement that settled it is the same kind as the one two paragraphs up.
+// A pilot tester walked that path on day 1, reported the browser trip, and the
+// second sign-in at 18:49:31 UTC is the last event their account has. One person
+// is not a study; a demoted link that no longer leads anywhere useful needs no
+// study.
+//
+// The uniqueness claim the old paragraph cited is exactly why the field went:
+// `profiles_dni_hash_unique` is partial on `dni_hash IS NOT NULL`, NOT on
+// `dni_verified`, so the unverified number that form collected could squat a
+// stranger's slot. The argument is written out where the field was removed,
+// `app/(auth)/registro/SignupForm.tsx`. Federation (invariant #6) is still the
+// half that replaces this, and now it is the ONLY thing that will.
 //
 // WHY THIS FILE, AND NOT `app/identidad-pendiente.tsx`. This app's jest suite is
 // anchored at `<rootDir>/src` (jest.config.js says so, and says why), so a
@@ -53,16 +67,13 @@
 // SUBMITS from "Apellido", so nothing anybody has to reach is ever under the
 // keyboard.
 
-import * as Linking from "expo-linking";
 import { Redirect } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { IDENTITY_COMPLETION_URL } from "../config/api";
 import { Body, Card } from "../ui/components";
 import {
   Callout,
-  LinkText,
   PrimaryButton,
   Screen,
   SecondaryButton,
@@ -235,35 +246,28 @@ export function IdentidadPendienteScreen({
         </Body>
       </Card>
 
-      {/* THE WEB DOOR, KEPT AND DEMOTED. It is the only place a DNI can be
-          loaded, so removing it would take a field away rather than move it —
-          and the sentence still says the awkward part, because the link carries
-          no session and the browser opens signed out. `LinkText` and not a
-          button: this is the secondary path now. */}
-      <Card title="¿Querés cargar tu DNI?">
-        {/* SAYS "OPCIONAL" AND SAYS WHERE ELSE, because this screen DISAPPEARS.
-            Once Guardar lands, `profilePending` is false, the redirect fires and
-            this link is gone — and `/registro?from=app` then bounces a completed
-            account straight to `/mis-mascotas`, so the URL stops leading anywhere
-            useful too. Somebody who skips the DNI here would otherwise read the
-            vanished link as the door having closed. */}
-        <Body>
-          El DNI es opcional y se carga en la web. Vas a tener que ingresar de nuevo con el mismo
-          correo: el navegador no comparte la sesión de esta app.
-        </Body>
-        <Body>
-          Si preferís dejarlo para después, podés cargarlo cuando quieras desde tu cuenta en la web,
-          en Verificar DNI.
-        </Body>
-        <View style={styles.webDoor}>
-          <LinkText
-            accessibilityHint="Se abre en el navegador"
-            onPress={() => void Linking.openURL(IDENTITY_COMPLETION_URL)}
-          >
-            Prefiero completarlo en la web
-          </LinkText>
-        </View>
-      </Card>
+      {/* THE WEB DOOR IS GONE (2026-09-07), and it went because the thing behind
+          it went first.
+
+          It existed for exactly one reason — the DNI, which this app
+          deliberately never collects — and `/registro` stopped asking for one on
+          the same day (see the removed field in
+          `app/(auth)/registro/SignupForm.tsx` for the full argument: an
+          unverified number unlocked nothing and could squat the unique index on
+          somebody else's identity). Keeping the link would have sent a person
+          through a re-login, into a browser that does not share this app's
+          session, to reach a form that no longer has the field they were
+          promised. That is worse than not offering it.
+
+          A pilot tester reported this exact trip on day 1 and it was the last
+          thing their account ever did.
+
+          The DNI is not gone from the product: `/cuenta/verificar-dni` still
+          asks, voluntarily and with its own audit trail, and it is what actually
+          gates the vet upgrade, creating an organization or a consultorio, and
+          volunteering as tránsito. Nothing points there from here because
+          nothing here needs it — this screen exists to get a name, and once
+          Guardar lands it disappears. */}
 
       {/* The path travels with the sign-out so the gate suppresses the `next`
           parameter for THIS screen only — see `signedOutHref`. A constant and
@@ -279,5 +283,4 @@ export function IdentidadPendienteScreen({
 const styles = StyleSheet.create({
   heading: { alignItems: "center", gap: SPACE.xs + 2 },
   form: { gap: SPACE.lg },
-  webDoor: { alignItems: "flex-start", marginTop: SPACE.xs },
 });

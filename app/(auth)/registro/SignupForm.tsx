@@ -146,20 +146,32 @@ export function SignupForm({
               />
             )}
           </LnField>
-          <LnField label="DNI" hint="Podés agregarlo después desde tu cuenta.">
-            {({ id, describedBy, invalid }) => (
-              <LnInput
-                id={id}
-                name="dni"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="Ej: 34567890"
-                aria-describedby={describedBy}
-                invalid={invalid}
-              />
-            )}
-          </LnField>
+          {/* THE DNI FIELD WAS REMOVED HERE (2026-09-07), on the same grounds as
+              the locality field below it and with the same shape of reasoning.
+
+              WHAT IT BOUGHT: nothing. This form's writer leaves `dni_verified`
+              false by design (see `complete-identity.ts`), so a DNI typed here
+              unlocked none of the four things a verified DNI gates — the vet
+              upgrade, creating an organization, creating a consultorio, and
+              volunteering as a tránsito all read `dni_verified` and all send you
+              to `/cuenta/verificar-dni`, which is untouched and still asks.
+
+              WHAT IT COST, beyond the friction a pilot tester actually reported:
+              `profiles_dni_hash_unique` (migration 0106, `db/schema.ts:414`) is
+              partial on `dni_hash IS NOT NULL` and NOT on `dni_verified`, so an
+              unverified number typed here OCCUPIED THE SLOT GLOBALLY. Nothing
+              here proves the typer owns the number. Somebody entering another
+              person's DNI — by typo or otherwise — left that person unable to
+              ever verify their own: the collision surfaces through the
+              deliberately GENERIC error the enumeration defence requires, so the
+              victim gets an opaque failure and no way out.
+
+              This does not close the squat completely — `/cuenta/verificar-dni`
+              is self-declared too, and its own audit payload calls the method
+              `placeholder_form`. It removes the CASUAL path, mid-signup, where
+              the typer bears no consequence. The real fix is federated identity:
+              PO decision 2026-09-07 is that DNI collection waits for Mi
+              Argentina rather than growing another self-declared door. */}
 
           {/* THE LOCALITY FIELD WAS REMOVED HERE (2026-08-27). It wrote
               profiles.jurisdiction_province / _locality, which had one writer and
