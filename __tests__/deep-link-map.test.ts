@@ -31,7 +31,6 @@ import {
   deepLinkPath,
   deepLinkUrl,
   matchWebPath,
-  outranksWebPath,
   pathParamNames,
 } from "@dim/contract/links";
 import { describe, expect, it } from "vitest";
@@ -457,87 +456,18 @@ describe("matchWebPath — no two destinations can claim the same path", () => {
   // literals and the literals differ; if no such position exists, some concrete
   // path matches both and "first wins" silently decides which screen a
   // notification opens.
-  it("has no pair of patterns a concrete path could satisfy twice AMBIGUOUSLY", () => {
-    // TWO WAYS A PAIR CAN BE FINE, and only one of them was here originally.
-    //
-    //   1. SEPARABLE — some position where both are literals and the literals
-    //      differ. No concrete path matches both, so order never arises.
-    //   2. RANKED — `outranksWebPath` decides, at the leftmost position where
-    //      one is a literal and the other a placeholder. That is the ROUTERS'
-    //      rule: Next resolves `/mis-mascotas/postulaciones/page.tsx` before
-    //      `/mis-mascotas/[publicToken]`, and expo-router resolves
-    //      `adoptar/postulaciones.tsx` before `adoptar/[petToken].tsx`.
-    //
-    // THE RANKING IS ASKED FOR, NOT RE-IMPLEMENTED (L2-7). This test used to
-    // count literals and flag only pairs with EQUAL totals, which is a second
-    // copy of the runtime rule — and it was a copy of the WRONG rule: the
-    // routers rank positionally, so `/a/b/:q/:r` (3 literals) beats
-    // `/a/:p/c/d` (4) for `/a/b/c/d`, and a fence comparing totals would have
-    // passed that pair in silence while the table answered `/a/:p/c/d`. Calling
-    // the exported function means the fence can only ever be checking the rule
-    // `matchWebPath` actually applies.
-    //
-    // What is still forbidden is a pair that is neither: identical
-    // literal/placeholder shape at every position with no differing literal,
-    // where "which screen does this notification open" would be decided by key
-    // order in an object literal.
-    const collisions: string[] = [];
-    for (let i = 0; i < NAMES.length; i += 1) {
-      for (let j = i + 1; j < NAMES.length; j += 1) {
-        const leftPath = DEEP_LINK_MAP[NAMES[i] as DeepLinkName].webPath as string;
-        const rightPath = DEEP_LINK_MAP[NAMES[j] as DeepLinkName].webPath as string;
-        const left = leftPath.split("/");
-        const right = rightPath.split("/");
-        if (left.length !== right.length) continue;
-        const separable = left.some((segment, index) => {
-          const other = right[index] as string;
-          return !segment.startsWith(":") && !other.startsWith(":") && segment !== other;
-        });
-        if (separable) continue;
-        if (outranksWebPath(leftPath, rightPath) || outranksWebPath(rightPath, leftPath)) continue;
-        collisions.push(`${NAMES[i]} vs ${NAMES[j]}`);
-      }
-    }
-    expect(
-      collisions,
-      "two destinations are shape-identical and neither outranks the other, so " +
-        "matchWebPath's answer for a path matching both is whichever happens to " +
-        "come first in the table",
-    ).toEqual([]);
-  });
-
-  // L2-7 — the ranking rule itself, on synthetic pairs the table does not carry.
+  // THE AMBIGUITY CHECK AND THE RANKING RULE LIVE IN THE PACKAGE.
   //
-  // WHY SYNTHETIC. Every pair in the table today is ranked the same way by
-  // positional order and by total literal count, which is precisely why the
-  // divergence would have shipped: no real row can demonstrate it. These two
-  // assertions are the demonstration, and they are what stops somebody
-  // "simplifying" `outranksWebPath` back into a count.
-  describe("outranksWebPath — the routers' rule, positionally", () => {
-    it("ranks by the LEFTMOST literal, not by how many literals there are", () => {
-      // For `/a/b/c/d`: Next resolves `app/a/b/[q]/[r]` before `app/a/[p]/c/d`,
-      // because at position 2 one is static and the other dynamic. Counting
-      // totals says the opposite — 4 literals against 3.
-      expect(outranksWebPath("/a/b/:q/:r", "/a/:p/c/d")).toBe(true);
-      expect(outranksWebPath("/a/:p/c/d", "/a/b/:q/:r")).toBe(false);
-      const literalsOf = (p: string) => p.split("/").filter((s) => !s.startsWith(":")).length;
-      expect(literalsOf("/a/b/:q/:r")).toBeLessThan(literalsOf("/a/:p/c/d"));
-    });
-
-    it("ranks the pair this table really has, and calls a tie a tie", () => {
-      // NON-VACUITY against the real rows: the static sibling wins.
-      expect(outranksWebPath("/mis-mascotas/postulaciones", "/mis-mascotas/:publicToken")).toBe(
-        true,
-      );
-      expect(outranksWebPath("/mis-mascotas/:publicToken", "/mis-mascotas/postulaciones")).toBe(
-        false,
-      );
-      // Same shape at every position → neither outranks the other, which is
-      // what the collision check above keys off.
-      expect(outranksWebPath("/casos/:code", "/refugios/:orgToken")).toBe(false);
-      expect(outranksWebPath("/refugios/:orgToken", "/casos/:code")).toBe(false);
-    });
-  });
+  // Both need `outranksWebPath`, which is internal to `deep-link-map.ts`.
+  // Exporting it from `links/index.ts` so this file could import it moves the
+  // native fingerprint — app.config.ts imports that barrel, so expo-updates
+  // counts its file tree as a native config dependency, and one export line
+  // published an OTA no installed phone could reach (measured 2026-09-07).
+  // Importing it by path is refused by scripts/check-contract-purity.ts, which
+  // is also right: that bypasses the exports map. So the unit test of an
+  // internal rule sits next to the rule, in
+  // packages/contract/src/links/deep-link-map.test.ts, inside the root vitest
+  // walk. What stays here is everything observable through `matchWebPath`.
 
   it("resolves a STATIC sibling before the parameterised route it sits under", () => {
     // A5-ciudadanas-03, and the reason `matchWebPath` stopped returning the first
@@ -696,5 +626,55 @@ describe("appRoutePath", () => {
       const openable = appPath !== null && !APP_PATH_EXCEPTIONS.has(name);
       expect(resolve(name, params) === null, name).toBe(!openable);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The barrel's export surface is part of the NATIVE fingerprint
+// ---------------------------------------------------------------------------
+//
+// `apps/mobile/app.config.ts:167` imports ANDROID_PACKAGE_NAME and
+// IOS_BUNDLE_IDENTIFIER from `@dim/contract/links`, so expo-updates counts this
+// module's file tree as a native config dependency under the fingerprint
+// runtime policy. Editing `links/index.ts` therefore moves the runtime version
+// and an OTA published from that tree reaches NO installed phone — it is not a
+// failure anyone sees, it is an update that silently applies to nobody.
+//
+// MEASURED 2026-09-07. Lote L2 added one export line here (`outranksWebPath`,
+// for the fitness test above). The OTA carrying lotes 1b, 1c and L3+L5
+// published under runtime 3bd89d34fccf9000c08a60942a636a0c1aaa5d5f while Play
+// build 10 runs 160f6069f9791f2c3bda95ae3829fa1ea4c4d49f. Removing that single
+// line brought `eas fingerprint:compare` back to an exact match. The two other
+// diffs it reported that day — three chalk/ansi-styles files and
+// `sentryDsn: {}` — were artefacts of running the compare WITHOUT the EAS
+// production environment, and vanish under `eas env:exec production`.
+//
+// This fence does not compute a fingerprint (that needs EAS and a build id).
+// It pins the surface, so a change here goes red and whoever made it has to
+// decide, deliberately, that the next release is a BUILD and not an OTA.
+describe("the links barrel is a native-fingerprint surface", () => {
+  it("exports exactly the pinned set — adding one moves the OTA runtime", async () => {
+    const barrel = await import("@dim/contract/links");
+    expect(Object.keys(barrel).sort()).toEqual(
+      [
+        "ANDROID_PACKAGE_NAME",
+        "APP_PATH_NAMES_NO_SCREEN",
+        "APP_SCHEME",
+        "DEEP_LINK_MAP",
+        "IOS_BUNDLE_IDENTIFIER",
+        "appRoutePath",
+        "deepLinkAppUrl",
+        "deepLinkPath",
+        "deepLinkUrl",
+        "matchWebPath",
+        "pathParamNames",
+      ].sort(),
+    );
+  });
+
+  it("still names the two symbols app.config.ts actually reads", async () => {
+    const barrel = await import("@dim/contract/links");
+    expect(typeof barrel.ANDROID_PACKAGE_NAME).toBe("string");
+    expect(typeof barrel.IOS_BUNDLE_IDENTIFIER).toBe("string");
   });
 });

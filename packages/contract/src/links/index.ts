@@ -28,8 +28,5 @@ export {
   deepLinkPath,
   deepLinkUrl,
   matchWebPath,
-  // Exported for the fitness test as well as for `matchWebPath`: the rule that
-  // decides between two patterns a path matches has ONE definition (L2-7).
-  outranksWebPath,
   pathParamNames,
 } from "./deep-link-map.ts";
