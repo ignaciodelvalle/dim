@@ -172,6 +172,68 @@ export function grantForPet(
   return mine.find((g) => g.status === "accepted") ?? mine[0] ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// What the TITULAR'S cockpit says about a refusal, in its own words
+// ---------------------------------------------------------------------------
+
+/**
+ * Two API codes whose shared sentence is wrong on the DESIGNATE screen, and the
+ * sentence this screen says instead.
+ *
+ * `caretaker_forbidden` (A3-documento-credencial-05). Four rules share the
+ * code, so `error-copy.ts` names none of them: "Esta acción no es tuya para
+ * hacer. Actualizá la pantalla para ver cómo quedó." That is ANSWER-time copy —
+ * it is about an arrangement that moved — and on this screen nothing has been
+ * answered and nothing has moved. A caretaker who typed an address and a period
+ * reads it and refreshes, twice, and the screen comes back identical, because
+ * the refusal is about WHO THEY ARE and re-reading cannot change that. The
+ * mudanza copy is the shape that works (`move_forbidden`: "Sos cuidador/a de
+ * esta mascota: la mudanza la registra el titular") — name the relationship and
+ * who can do it.
+ *
+ * `caretaker_grant_exists` (A4-custodia-06). The shared sentence tells the
+ * person to "Terminá o retirá el que está antes de invitar a alguien más", and
+ * on this screen there may be nothing to terminate: `grantForPet` reads the
+ * caller's OWN outgoing grants, so a co-owner whose co-titular designated a
+ * dog-sitter sees an empty cockpit and an invite form. Advice to end something
+ * invisible is worse than no advice — and it is also not theirs to take:
+ * `endCaretakerGrant` refuses `revoke` unless `actorUserId ===
+ * grant.grantedByUserId`, so only the person who designated it can end it.
+ */
+export const CARETAKER_DESIGNATE_REFUSALS: Readonly<Record<string, string>> = {
+  caretaker_forbidden:
+    "El cuidado temporal lo designa el titular de la mascota. Si sos cuidador/a o cotitular, pedíselo a quien figura como titular.",
+  caretaker_grant_exists:
+    "Esta mascota ya tiene un cuidado en curso. Si no aparece en esta pantalla es porque lo designó otra persona: sólo quien lo designó puede terminarlo.",
+};
+
+/**
+ * The screen's sentence for an api-error code, or `null` to use the shared one.
+ *
+ * A LOOKUP AND NOT A SWITCH so the shared copy stays the default: this file
+ * overrides exactly the two sentences it can improve on, and every other code
+ * keeps the one `error-copy.ts` wrote for it.
+ */
+export function caretakerDesignateRefusalMessage(code: string): string | null {
+  return CARETAKER_DESIGNATE_REFUSALS[code] ?? null;
+}
+
+/**
+ * The refusals a RE-READ can answer — and the whole list (A4-custodia-04).
+ *
+ * The cockpit used to re-read after EVERY failure, which unmounts the
+ * designation form and takes the draft with it, so a refusal about a date
+ * arrived over an empty form. These two are the ones where something other than
+ * this submission moved: an arrangement was resolved by the other party, or one
+ * already exists. Everything else — a bad address, an impossible period, a
+ * caller who may not designate — is about the form the person is looking at,
+ * and re-reading answers nothing while costing them everything they typed.
+ */
+export const CARETAKER_STATE_MOVED_CODES: ReadonlySet<string> = new Set([
+  "caretaker_already_resolved",
+  "caretaker_grant_exists",
+]);
+
 export type CommandResult =
   | { ok: true; input: CaretakerCommandInput }
   | { ok: false; message: string; code: CaretakerCommandInputCode | null };

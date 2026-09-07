@@ -185,16 +185,22 @@ export default function AltaMascotaScreen() {
         </Text>
       )}
 
+      {/* THE FOUR-VERB RULE, WHICH THIS WIZARD WAS OUTSIDE OF (A2-alta-asentar-R05,
+          AGENTS.md §"Four verbs for primary buttons"). "Siguiente" is not one of
+          the four — the wizard verb is `Continuar` — and "Registrar" was bare,
+          which the rule forbids by name: the object goes in the label, so the
+          last step says WHAT it registers. The web says "Continuar" for the same
+          steps, so this is also parity rather than only style. */}
       <View style={styles.nav}>
         {isLast ? (
           <PrimaryButton
-            label={busy ? "Registrando…" : "Registrar"}
+            label={busy ? "Registrando…" : "Registrar mascota"}
             disabled={busy || !canAdvance(step, draft)}
             onPress={() => void send(false)}
           />
         ) : (
           <PrimaryButton
-            label="Siguiente"
+            label="Continuar"
             disabled={!canAdvance(step, draft)}
             onPress={() => setStepIndex((i) => Math.min(i + 1, WIZARD_STEPS.length - 1))}
           />

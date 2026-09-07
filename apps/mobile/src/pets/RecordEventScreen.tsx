@@ -71,6 +71,8 @@ import {
 } from "../ui/kit";
 import { credentialRoute } from "../ui/routes";
 import { SPACE } from "../ui/theme";
+import { useIsDirty } from "../ui/use-draft-dirty";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useReturnKeyChain } from "../ui/use-return-key-chain";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
@@ -98,10 +100,12 @@ import {
   kindSubtitle,
   kindTitle,
   noteCategoryLabel,
+  recordEventCta,
   sterilizationProcedureLabel,
   symptomSeverityLabel,
   validateDraft,
 } from "./record-event-view-model";
+import { DISCARD_COPY, confirmDiscard } from "./use-discard-guard";
 
 /** One sentence per failure arm. No arm may fall through to a generic shrug. */
 function failureMessage(result: ApiResult<EventRecordedV1>): string {
@@ -209,6 +213,16 @@ function EventForm({
   // moment they touch it rather than after the next submit.
   const [invalid, setInvalid] = useState<ReadonlySet<keyof EventDraft>>(() => new Set());
   const { anchorRef: errorAnchor, scrollRef } = useScrollToError(error);
+  // THE BACK GESTURE MAY NOT DISCARD TEN FILLED-IN FIELDS (A2-alta-asentar-08).
+  // Somebody finishing medicación·inicio nudges the Android back gesture while
+  // dismissing the keyboard and lands on the libreta with all of it gone.
+  //
+  // `useIsDirty` and NOT `draft !== emptyDraft()`: those are two different
+  // objects, so the comparison is true on mount and would ask the question of
+  // everyone who merely opened the form — see that hook's header. `done` clears
+  // it because the asiento is on the server and the screen is an ack.
+  const dirty = useIsDirty(draft) && state.phase !== "done";
+  const { allowLeave } = useDraftDiscardGuard(dirty);
   // ONE key for this whole asiento. `useRef` and not `useState` because a
   // re-render must not be able to produce a different key, and because nothing
   // renders from it. Never `restart()`-ed: this form IS one attempt, and the
@@ -268,15 +282,27 @@ function EventForm({
             written an asiento landed on the FRONT of the card and had to find
             the turn button to see what they had done. The asiento is on the
             back; so is the return. */}
+        {/* `allowLeave()` FIRST, and it is not decoration: the guard fires on
+            every navigation away, including the one this screen makes itself
+            after the asiento has landed. Two screens shipped without it in the
+            batch before this one (finding H1) and asked "¿Salir sin guardar?"
+            about a write that was already on the server. `app/alta.tsx` is the
+            precedent. `dirty` is false here anyway — `state.phase` is `done` —
+            and the call stays because a future edit to that condition must not
+            be able to trap somebody on an acknowledgement. */}
         <PrimaryButton
           label="Volver a la libreta"
-          onPress={() => router.replace(credentialRoute(publicToken, { face: "libreta" }))}
+          onPress={() => {
+            allowLeave();
+            router.replace(credentialRoute(publicToken, { face: "libreta" }));
+          }}
         />
       </Screen>
     );
   }
 
   const busy = state.phase === "sending";
+  const cta = recordEventCta(kind);
 
   return (
     <Screen keyboardAvoiding scrollRef={scrollRef}>
@@ -309,13 +335,23 @@ function EventForm({
         </Callout>
       ) : null}
 
+      {/* NAMES WHAT IT WRITES (A2-alta-asentar-R05). See `recordEventCta`. */}
       <PrimaryButton
-        label={busy ? "Guardando…" : "Guardar"}
+        label={busy ? cta.busyLabel : cta.label}
         disabled={busy}
         onPress={() => void submit(false)}
       />
+      {/* "ELEGIR OTRO TIPO" IS A DISCARD THE NAVIGATOR CANNOT SEE
+          (A2-alta-asentar-08). The screen stays and the FORM is remounted under
+          a new `key` — deliberately, so the new asiento gets its own idempotency
+          key — which takes every field with it. `beforeRemove` never fires, so
+          the confirm has to be asked here, in the same words. */}
       {onBack === null ? null : (
-        <SecondaryButton label="Elegir otro tipo" onPress={onBack} disabled={busy} />
+        <SecondaryButton
+          label="Elegir otro tipo"
+          onPress={() => (dirty ? confirmDiscard(DISCARD_COPY.form, onBack) : onBack())}
+          disabled={busy}
+        />
       )}
     </Screen>
   );

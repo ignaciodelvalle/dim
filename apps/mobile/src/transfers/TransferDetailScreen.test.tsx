@@ -30,7 +30,12 @@ jest.mock("../api/endpoints", () => ({
   sendTransferCommand: (...args: unknown[]) => mockSend(...args),
 }));
 
-jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
+const mockSignOut = jest.fn<(endedAt: string) => Promise<void>>();
+
+jest.mock("../auth/session-store", () => ({
+  sessionPort: {},
+  signOut: (endedAt: string) => mockSignOut(endedAt),
+}));
 
 import type { MyTransferV1, MyTransfersV1 } from "@dim/contract/api";
 import { TransferDetailScreen } from "./TransferDetailScreen";
@@ -80,6 +85,8 @@ const noop = () => {};
 beforeEach(() => {
   mockFetch.mockReset();
   mockSend.mockReset();
+  mockSignOut.mockReset();
+  mockSignOut.mockResolvedValue(undefined);
 });
 
 describe("finding the proposal", () => {
@@ -92,6 +99,43 @@ describe("finding the proposal", () => {
 
     await waitFor(() => expect(screen.getByText(/no sea para vos/)).toBeTruthy());
     expect(screen.queryByText(/no existe/i)).toBeNull();
+  });
+
+  it("offers the account switch, not just a Reintentar that cannot help (A4-custodia-11)", async () => {
+    // Two addresses, one link, and the wrong session. "Reintentar" re-reads the
+    // same hub for the same account, so it is the one control in this app that
+    // is guaranteed to produce what it already produced.
+    loads(aTransfer({ transferToken: "PTR-OTHER-0001" }));
+    render(<TransferDetailScreen transferToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/no sea para vos/)).toBeTruthy());
+    expect(screen.getByText(/entrá con esa cuenta/)).toBeTruthy();
+
+    fireEvent.press(screen.getByText("Entrar con otra cuenta"));
+
+    // AND IT KEEPS THE DESTINATION. `signOut(pathname)` makes the gate drop
+    // `next` for the screen it was pressed on, which is the one screen this
+    // sign-out is trying to reach.
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith(""));
+  });
+
+  it("names the RESOLVED cause too, and does not prescribe a sign-out for it (F9)", async () => {
+    // The `missing` arm covers two situations and the screen can distinguish
+    // neither — its own comment says so. The copy prescribed the account switch
+    // for BOTH, and the commoner one by far is a proposal that was accepted,
+    // cancelled or expired: for that person "Cerrá sesión y volvé a entrar con
+    // esa cuenta" costs them their session to go looking for something no
+    // account can show. The WEB may say it flatly because `relation ===
+    // "outsider"` is a fact its reader resolved; this screen has no such fact.
+    loads(aTransfer({ transferToken: "PTR-OTHER-0001" }));
+    render(<TransferDetailScreen transferToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/no sea para vos/)).toBeTruthy());
+    expect(screen.getByText(/no hay nada que hacer/)).toBeTruthy();
+    // The remedy is CONDITIONAL, and the button names the case it belongs to
+    // rather than telling whoever is reading to sign out.
+    expect(screen.getByText(/Si en cambio tenés otra cuenta/)).toBeTruthy();
+    expect(screen.queryByText("Cerrar sesión")).toBeNull();
   });
 
   it("shows the failure, not an absence, when the read itself failed", async () => {
@@ -143,6 +187,66 @@ describe("the controls come from capabilities, and the three are independent", (
     expect(screen.queryByText("Aceptar la titularidad")).toBeNull();
     expect(screen.getByText("Transferencia de Pampa")).toBeTruthy();
     expect(screen.getByText("Para: vecina@example.com")).toBeTruthy();
+  });
+});
+
+describe("withdrawing a proposal this person sent (A4-R-02)", () => {
+  function outgoing() {
+    return aTransfer({
+      direction: "outgoing",
+      counterpartyName: "Vecina",
+      toEmail: "vecina@example.com",
+      capabilities: { canAccept: false, canReject: false, canCancel: true },
+    });
+  }
+
+  it("asks a second time instead of cancelling on ONE tap", async () => {
+    // The thumb lands on it while scrolling to read the deadline and the
+    // proposal is gone for good, with the recipient notified. Accept takes two
+    // taps on this very screen; so does the web's own cancel.
+    loads(outgoing());
+    render(<TransferDetailScreen transferToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText("Retirar la propuesta")).toBeTruthy());
+    fireEvent.press(screen.getByText("Retirar la propuesta"));
+
+    expect(screen.getByText(/tenés que iniciar otra propuesta/)).toBeTruthy();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("sends the cancel on the SECOND tap", async () => {
+    loads(outgoing());
+    mockSend.mockResolvedValue({
+      outcome: "ok",
+      payload: {
+        command: "cancel",
+        changed: true,
+        transferToken: TOKEN,
+        petPublicToken: null,
+        recipientNeedsInvite: null,
+      },
+    });
+    render(<TransferDetailScreen transferToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText("Retirar la propuesta")).toBeTruthy());
+    fireEvent.press(screen.getByText("Retirar la propuesta"));
+    fireEvent.press(screen.getByText("Confirmar cancelación"));
+
+    await waitFor(() =>
+      expect(mockSend.mock.calls[0]?.[1]).toEqual({ command: "cancel", transferToken: TOKEN }),
+    );
+  });
+
+  it("backs out without sending anything", async () => {
+    loads(outgoing());
+    render(<TransferDetailScreen transferToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText("Retirar la propuesta")).toBeTruthy());
+    fireEvent.press(screen.getByText("Retirar la propuesta"));
+    fireEvent.press(screen.getByText("Atrás"));
+
+    expect(screen.getByText("Retirar la propuesta")).toBeTruthy();
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it("offers nothing on a resolved proposal", async () => {
@@ -285,7 +389,11 @@ describe("rejecting", () => {
 });
 
 describe("what is on screen", () => {
-  it("shows the addressee's e-mail — never a sender's, which the payload lacks", async () => {
+  it("shows the sender and the reason, and NOT the reader's own address (A4-R-04)", async () => {
+    // `toEmail` on an INCOMING proposal is the address of the person holding the
+    // phone. Printing it under "Email del receptor" beneath "Recibiste a Pampa"
+    // is the noise the view-model's own header calls out; the sender's address
+    // is not in the payload and cannot be (`profiles` has no email column).
     loads(aTransfer({ note: "se muda a otra provincia" }));
     render(<TransferDetailScreen transferToken={TOKEN} onAccepted={noop} />);
 
@@ -293,6 +401,26 @@ describe("what is on screen", () => {
     expect(screen.getByText("De: Vecina")).toBeTruthy();
     expect(screen.getByText("Regalo")).toBeTruthy();
     expect(screen.getByText("se muda a otra provincia")).toBeTruthy();
-    expect(screen.getByText("yo@example.com")).toBeTruthy();
+    expect(screen.queryByText("Email del receptor")).toBeNull();
+    expect(screen.queryByText("yo@example.com")).toBeNull();
+  });
+
+  it("still shows the recipient's address on an OUTGOING proposal", async () => {
+    // The non-vacuity half: with a display name, `transferCounterpartyLabel`
+    // renders "Para: Vecina" and this row is the only place the address the
+    // sender typed appears at all.
+    loads(
+      aTransfer({
+        direction: "outgoing",
+        counterpartyName: "Vecina",
+        toEmail: "vecina@example.com",
+        capabilities: { canAccept: false, canReject: false, canCancel: true },
+      }),
+    );
+    render(<TransferDetailScreen transferToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText("Transferencia de Pampa")).toBeTruthy());
+    expect(screen.getByText("Email del receptor")).toBeTruthy();
+    expect(screen.getByText("vecina@example.com")).toBeTruthy();
   });
 });

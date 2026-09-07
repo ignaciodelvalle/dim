@@ -154,6 +154,60 @@ export function kindSubtitle(kind: WritableKind): string {
   }
 }
 
+/**
+ * The primary button's two labels, per kind (A2-alta-asentar-R05).
+ *
+ * THE FOUR-VERB RULE, WHICH THIS SCREEN WAS OUTSIDE OF. AGENTS.md §"Four verbs
+ * for primary buttons" forbids a bare CTA by name — "Never bare ('Aceptar',
+ * 'Guardar', 'Publicar' on its own)" — and this screen's button said "Guardar"
+ * for all eleven forms, while the web says "Registrar vacuna" for the same act.
+ * The rule's own two reservations are honoured rather than flattened:
+ *
+ *   · `Registrar X` is for LOGGING AN OBSERVABLE EVENT, which is what nine of
+ *     these are.
+ *   · `Confirmar X` is for the definitive ones, and the rule names this exact
+ *     case as its example: "Closing a treatment is `Confirmar cierre`, not
+ *     `Registrar fin`."
+ *
+ * A note is neither: nothing was observed and nothing is being confirmed. It
+ * takes the fourth shape — a domain verb WITH its object — which is what keeps
+ * it out of the banned bare "Guardar".
+ *
+ * The busy label is here too and not composed at the call site, because the two
+ * have to agree about which verb this kind uses: "Guardando…" over "Registrar
+ * vacuna" is the same mismatch in miniature.
+ */
+export function recordEventCta(kind: WritableKind): { label: string; busyLabel: string } {
+  const registering = (object: string) => ({
+    label: `Registrar ${object}`,
+    busyLabel: "Registrando…",
+  });
+  switch (kind) {
+    case "vaccination":
+      return registering("vacuna");
+    case "weight":
+      return registering("peso");
+    case "deworming":
+      return registering("antiparasitario");
+    case "medication_start":
+      return registering("inicio de medicación");
+    case "medication_end":
+      return { label: "Confirmar cierre de medicación", busyLabel: "Confirmando…" };
+    case "vet_visit":
+      return registering("visita veterinaria");
+    case "clinical_info":
+      return registering("información clínica");
+    case "sterilization":
+      return registering("esterilización");
+    case "microchip":
+      return registering("microchip");
+    case "note":
+      return { label: "Guardar la nota", busyLabel: "Guardando…" };
+    case "symptom":
+      return registering("síntoma");
+  }
+}
+
 /** es-AR label for a sterilization procedure. */
 export function sterilizationProcedureLabel(procedure: SterilizationProcedure): string {
   switch (procedure) {

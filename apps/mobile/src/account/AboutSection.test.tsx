@@ -9,7 +9,7 @@
 // update can reach the phone AT ALL — and whether crash reporting actually
 // started on this launch. And it carries the manual update check (OTA-6).
 
-import { describe, expect, it, jest } from "@jest/globals";
+import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 import type { UpdatesPort } from "./update-check";
@@ -61,6 +61,7 @@ jest.mock("../observability/sentry", () => ({
 }));
 
 import { AboutSection } from "./AboutSection";
+import { setUpdateStaged } from "./foreground-update";
 
 /**
  * The port, defaulted to the SUCCESS shape of each call.
@@ -81,6 +82,14 @@ function fakeUpdates(overrides: Partial<UpdatesPort> = {}): UpdatesPort {
     ...overrides,
   };
 }
+
+// MODULE STATE, so it has to be put back. `stagedThisSession` outlives a
+// render on purpose — a bundle staged in the background is a fact about the
+// session, not about a card — and a test that left it set would seed every
+// later one with "Reiniciar ahora".
+beforeEach(() => {
+  setUpdateStaged(false);
+});
 
 describe("the about block", () => {
   it("shows the real version, the running update's id, and its channel", () => {
@@ -187,6 +196,86 @@ describe("the manual update check (OTA-6)", () => {
     fireEvent.press(screen.getByText("Buscar actualización"));
 
     await waitFor(() => expect(screen.getByText("Ya tenés la última versión.")).toBeTruthy());
+  });
+
+  it("opens on the RESTART when the foreground check already staged one (A6-cuenta-resiliencia-08)", () => {
+    // `useForegroundUpdateCheck` downloads silently while the app is resident.
+    // Without this the card would offer "Buscar actualización" over a bundle
+    // already on the device, and pressing it answers "Ya tenés la última
+    // versión" — true of what was DOWNLOADED and false of what is RUNNING,
+    // which is the sentence that left support with nothing to say.
+    baseline();
+    setUpdateStaged(true);
+    render(<AboutSection updates={fakeUpdates()} />);
+
+    expect(screen.getByText("Reiniciar ahora")).toBeTruthy();
+    expect(screen.getByText(/Hay una versión nueva lista/)).toBeTruthy();
+    expect(screen.queryByText("Buscar actualización")).toBeNull();
+  });
+
+  it("opens on the CHECK when nothing was staged", () => {
+    baseline();
+    render(<AboutSection updates={fakeUpdates()} />);
+    expect(screen.getByText("Buscar actualización")).toBeTruthy();
+  });
+
+  it("flips to the RESTART when a bundle is staged while the card is open (F8)", () => {
+    // The case above arranges the flag BEFORE the render, which is the only
+    // moment a `useState` initializer reads it. Ajustes is three taps down and
+    // people leave it open; the foreground check runs on its own while they do.
+    // Without a subscription the card sits on "Buscar actualización" over a
+    // bundle already on the device, and pressing it answers "Ya tenés la última
+    // versión" — the sentence this whole feature exists to eliminate, produced
+    // by the feature itself.
+    baseline();
+    render(<AboutSection updates={fakeUpdates()} />);
+    expect(screen.getByText("Buscar actualización")).toBeTruthy();
+
+    act(() => setUpdateStaged(true));
+
+    expect(screen.getByText("Reiniciar ahora")).toBeTruthy();
+    expect(screen.getByText(/Hay una versión nueva lista/)).toBeTruthy();
+  });
+
+  it("replaces 'Ya tenés la última versión' when a bundle lands after the check said so", async () => {
+    // The worst version of the same defect, and the one that names the sentence:
+    // the person taps, is told they are up to date, and the background stage
+    // lands a second later. The card kept the answer that had just become false.
+    baseline();
+    render(
+      <AboutSection
+        updates={fakeUpdates({ checkForUpdateAsync: async () => ({ isAvailable: false }) })}
+      />,
+    );
+    fireEvent.press(screen.getByText("Buscar actualización"));
+    await waitFor(() => expect(screen.getByText("Ya tenés la última versión.")).toBeTruthy());
+
+    act(() => setUpdateStaged(true));
+
+    expect(screen.queryByText("Ya tenés la última versión.")).toBeNull();
+    expect(screen.getByText("Reiniciar ahora")).toBeTruthy();
+  });
+
+  it("does NOT let a staged bundle paint over a restart that FAILED (M2 stays closed)", async () => {
+    // The control on the override. A background flag that replaced "No pudimos
+    // reiniciar la app" with "Reiniciá la app para empezar a usarla" would
+    // re-open finding M2 from the other side: the person taps, it fails, and the
+    // screen answers by looking exactly as it did before the tap.
+    baseline();
+    setUpdateStaged(true);
+    render(
+      <AboutSection
+        updates={fakeUpdates({
+          reloadAsync: async () => {
+            throw new Error("no");
+          },
+        })}
+      />,
+    );
+    fireEvent.press(screen.getByText("Reiniciar ahora"));
+
+    await waitFor(() => expect(screen.getByText(/No pudimos reiniciar la app/)).toBeTruthy());
+    expect(screen.queryByText(/Hay una versión nueva lista/)).toBeNull();
   });
 
   it("downloads what it finds and asks for a restart, without restarting by itself", async () => {

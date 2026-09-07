@@ -170,6 +170,31 @@ export function emptyOutgoingLabel(): string {
   return "No enviaste ninguna transferencia todavía.";
 }
 
+/**
+ * What the INITIATE screen says about `transfer_forbidden`
+ * (A3-documento-credencial-05).
+ *
+ * Three rules share that code — not the current owner, not the addressee, not
+ * the sender — so `error-copy.ts` names none of them and sends the reader to
+ * re-read: "Esta propuesta no es tuya para responder. Actualizá la pantalla."
+ * That is ANSWER-time copy. On the initiate form there is no proposal yet and
+ * nothing to respond to, so a caretaker who typed an address and tapped send
+ * reads a sentence about a thing that does not exist and an instruction that
+ * changes nothing — the refusal is about WHO THEY ARE, and refreshing produces
+ * the identical screen forever.
+ *
+ * Only ONE of the three rules is reachable from here (the owner check), which
+ * is what makes a specific sentence honest. The shape is the mudanza's
+ * (`move_forbidden`): name the relationship and who can do it.
+ */
+export const TRANSFER_INITIATE_FORBIDDEN_MESSAGE =
+  "La transferencia de la titularidad la inicia el titular. Si sos cuidador/a o cotitular de esta mascota, pedíselo a quien figura como titular.";
+
+/** The screen's own sentence for a code, or `null` to keep the shared one. */
+export function transferInitiateRefusalMessage(code: string): string | null {
+  return code === "transfer_forbidden" ? TRANSFER_INITIATE_FORBIDDEN_MESSAGE : null;
+}
+
 export type CommandResult =
   | { ok: true; input: TransferCommandInput }
   | { ok: false; message: string; code: TransferCommandInputCode | null };

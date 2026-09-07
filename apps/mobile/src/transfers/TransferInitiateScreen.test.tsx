@@ -17,41 +17,29 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { Alert, type StyleProp, StyleSheet, type TextStyle } from "react-native";
 
+import { createNavigationFake } from "../ui/navigation-fake";
 import { COLORS } from "../ui/theme";
 
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
-type RemoveEvent = { preventDefault: () => void; data: { action: unknown } };
-const mockListeners: ((event: RemoveEvent) => void)[] = [];
-
-// ONE navigation object, and an unsubscribe that really unsubscribes. Both
-// halves matter: React Navigation hands back a STABLE object (a fresh one per
-// render would re-run the guard's effect on every keystroke) and a real
-// unsubscribe (without it the fake accumulates one stale listener per render,
-// and firing the back gesture would ask the question several times over).
-const mockNavigation = {
-  addListener: (_type: string, cb: (event: RemoveEvent) => void) => {
-    mockListeners.push(cb);
-    return () => {
-      const at = mockListeners.indexOf(cb);
-      if (at >= 0) mockListeners.splice(at, 1);
-    };
-  },
-  dispatch: () => {},
-};
+// A REAL LISTENER REGISTRY, not the no-op stub this file used to carry
+// (finding H1, review 2026-09-07). The stub was `addListener: () => () => {}` —
+// the guard subscribed, the listener was never fired, and a whole class of
+// defect became untestable from any screen: this screen shipped without
+// `allowLeave`, so its OWN success navigation was intercepted with "¿Salir sin
+// guardar?" and nothing here could see it. What the guard DOES is still pinned
+// in ui/use-draft-discard-guard.test.tsx; what this registry adds is the ability
+// to ask whether THIS screen exempted its own exit.
+//
+// FROM THE SHARED FAKE since finding F4: the two properties it needs — a stable
+// object and a real unsubscribe — were hand-copied into this file, and a subtle
+// fake with four copies is a fake that degrades back into the stub in one of
+// them.
+const mockNav = createNavigationFake();
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-  // A REAL LISTENER REGISTRY, not the no-op stub this file used to carry
-  // (finding H1, review 2026-09-07). The stub was
-  // `addListener: () => () => {}` — the guard subscribed, the listener was
-  // never fired, and a whole class of defect became untestable from any screen:
-  // this screen shipped without `allowLeave`, so its OWN success navigation was
-  // intercepted with "¿Salir sin guardar?" and nothing here could see it. What
-  // the guard DOES is still pinned in ui/use-draft-discard-guard.test.tsx; what
-  // this registry adds is the ability to ask whether THIS screen exempted its
-  // own exit.
-  useNavigation: () => mockNavigation,
+  useNavigation: () => mockNav.navigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -101,22 +89,14 @@ function ok(transferToken: string) {
 
 /** Fire the back gesture at whatever the guard subscribed. */
 function pressBack(): { prevented: boolean } {
-  let prevented = false;
-  const event: RemoveEvent = {
-    preventDefault: () => {
-      prevented = true;
-    },
-    data: { action: { type: "POP" } },
-  };
-  for (const listener of mockListeners) listener(event);
-  return { prevented };
+  return { prevented: mockNav.pressBack().blocked };
 }
 
 let alerts: string[] = [];
 
 beforeEach(() => {
   mockSend.mockReset();
-  mockListeners.length = 0;
+  mockNav.reset();
   alerts = [];
   jest.spyOn(Alert, "alert").mockImplementation((title: string) => {
     alerts.push(title);
@@ -206,10 +186,14 @@ describe("sending", () => {
     });
   });
 
-  it("renders the server's refusal rather than guessing the rule locally", async () => {
-    // A co-owner passes every other pet guard in this app and is refused here,
-    // because `initiate` needs the ACTIVE `role='owner'` row. The screen has no
-    // flag for that and must not invent one.
+  it("renders the refusal in SEND-time words, not answer-time ones (A3-documento-credencial-05)", async () => {
+    // A co-owner or a caretaker passes every other pet guard in this app and is
+    // refused here, because `initiate` needs the ACTIVE `role='owner'` row. The
+    // screen has no flag for that and must not invent one — but the SENTENCE
+    // must be about sending, not about answering: "Esta propuesta no es tuya
+    // para responder. Actualizá la pantalla." describes a proposal that does not
+    // exist yet, and the refresh it asks for changes nothing, because the
+    // refusal is about who this person is.
     mockSend.mockResolvedValue({ outcome: "api-error", code: "transfer_forbidden" });
     renderScreen();
 
@@ -217,9 +201,8 @@ describe("sending", () => {
     fireEvent.press(screen.getByText("Regalo"));
     fireEvent.press(screen.getByText("Enviar la propuesta"));
 
-    await waitFor(() =>
-      expect(screen.getByText(/Esta propuesta no es tuya para responder/)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/la inicia el titular/)).toBeTruthy());
+    expect(screen.queryByText(/no es tuya para responder/)).toBeNull();
   });
 
   it("names the one-in-flight rule when the server reports it", async () => {

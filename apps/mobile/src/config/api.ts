@@ -173,6 +173,27 @@ export function publicCredentialPageUrl(publicToken: string): string {
 }
 
 /**
+ * The invitation link for one caretaker grant — the URL the titular can hand
+ * over themselves (A4-custodia-10).
+ *
+ * WHY THE TITULAR NEEDS IT AT ALL. When the invited address has no miMAR
+ * account the native write deliberately sends no e-mail — a magic link would
+ * land the recipient in a browser session on a phone that has this app — so the
+ * ack says "avisale vos". It said that while giving them nothing to hand over:
+ * the sister signs up, finds nothing, and the titular has no link to forward.
+ *
+ * Same origin and same table as `publicCredentialPageUrl`: the path comes from
+ * `@dim/contract/links`, which is what the invitation e-mail and the
+ * notification CTA both build `/cuidado/{token}` from, so a rename moves all
+ * three at once. Once verified App Links land this URL opens the app for
+ * somebody who has it and the browser for everybody else, which is exactly the
+ * behaviour an invitation to a person with no account needs.
+ */
+export function caretakerGrantPageUrl(grantToken: string): string {
+  return deepLinkUrl(API_BASE_URL, "caretakerGrant", { grantToken });
+}
+
+/**
  * The web URL where identity completion happens, for the pending-profile gate.
  *
  * `/registro` and not a native form: there is no native identity flow and this

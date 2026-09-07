@@ -42,11 +42,15 @@
 
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { crashReportingActive } from "../observability/sentry";
 import { Body, Card, Row } from "../ui/components";
 import { SecondaryButton } from "../ui/kit";
+// THE BINDING LIVES IN ITS OWN MODULE since finding F7: `app/_layout.tsx` needs
+// the port and must not import a settings Card to get it.
+import { EXPO_UPDATES_PORT } from "./expo-updates-port";
+import { isUpdateStaged, subscribeUpdateStaged } from "./foreground-update";
 import {
   type UpdateCheckState,
   type UpdatesPort,
@@ -112,26 +116,37 @@ function appInfo(): {
   return { version, update, channel, runtime, reporting };
 }
 
-/**
- * `expo-updates` behind the port `update-check.ts` declares.
- *
- * Built here rather than imported as the module itself because the module's
- * functions are native: bound as a value, the screen's test can hand the same
- * component a fake and exercise all four outcomes without a device.
- */
-const EXPO_UPDATES_PORT: UpdatesPort = {
-  isEnabled: Updates.isEnabled,
-  checkForUpdateAsync: () => Updates.checkForUpdateAsync(),
-  fetchUpdateAsync: () => Updates.fetchUpdateAsync(),
-  reloadAsync: () => Updates.reloadAsync(),
-};
-
 export function AboutSection({ updates = EXPO_UPDATES_PORT }: { updates?: UpdatesPort } = {}) {
   const { version, update, channel, runtime, reporting } = appInfo();
   const [state, setState] = useState<UpdateCheckState>({ phase: "idle" });
+  // OPENS ON THE STAGED BUNDLE WHEN THERE IS ONE, AND KEEPS WATCHING
+  // (A6-cuenta-resiliencia-08, corrected by finding F8). The foreground check
+  // downloads silently, so without this the card would offer "Buscar
+  // actualización" over a bundle already sitting on the device — and pressing it
+  // would answer "Ya tenés la última versión", which is true of what has been
+  // DOWNLOADED and false of what is RUNNING. That is the exact sentence that
+  // left support with nothing to say.
+  //
+  // IT WAS A `useState` INITIALIZER, which reads the flag ONCE. Ajustes is three
+  // taps down and people leave it open; a bundle staged while it is on screen
+  // never reached the card, and the card went on producing the sentence this
+  // feature exists to eliminate. `useSyncExternalStore` is the shape module
+  // state owes a component that has to stay right after mount.
+  const staged = useSyncExternalStore(subscribeUpdateStaged, isUpdateStaged);
+
+  // WHAT THE CARD IS ACTUALLY SHOWING, once the two sources are reconciled.
+  //
+  // A STAGED BUNDLE ONLY OVERRIDES THE TWO PHASES THAT WOULD BE LYING — `idle`
+  // (nothing has been asked) and `up-to-date` (the sentence itself). It
+  // deliberately does NOT override a failure: `restartForUpdate`'s rejection
+  // lands on `failed` with its own sentence, and a background flag that painted
+  // "Reiniciá la app" over "No pudimos reiniciar la app" would re-open finding
+  // M2 from the other side. Nor does it override a check in flight.
+  const view: UpdateCheckState =
+    staged && (state.phase === "idle" || state.phase === "up-to-date") ? { phase: "ready" } : state;
 
   const onPress = useCallback(async () => {
-    if (state.phase === "ready") {
+    if (view.phase === "ready") {
       // `restarting` FIRST, and that is a change from the first draft (finding
       // M2). The old comment here argued that a "Reiniciando…" label surviving a
       // rejection would be a screen frozen on a lie — true of a label with no
@@ -149,9 +164,9 @@ export function AboutSection({ updates = EXPO_UPDATES_PORT }: { updates?: Update
     setState(checked);
     if (checked.phase !== "downloading") return;
     setState(await downloadUpdate(updates));
-  }, [state.phase, updates]);
+  }, [view.phase, updates]);
 
-  const message = updateCheckMessage(state);
+  const message = updateCheckMessage(view);
 
   return (
     <Card title="Acerca de miMAR">
@@ -162,8 +177,8 @@ export function AboutSection({ updates = EXPO_UPDATES_PORT }: { updates?: Update
       <Row label="Reporte de errores" value={reporting} />
       <Body>Decinos esto si nos escribís por un problema.</Body>
       <SecondaryButton
-        label={updateActionLabel(state)}
-        disabled={updateActionBusy(state)}
+        label={updateActionLabel(view)}
+        disabled={updateActionBusy(view)}
         onPress={() => {
           void onPress();
         }}

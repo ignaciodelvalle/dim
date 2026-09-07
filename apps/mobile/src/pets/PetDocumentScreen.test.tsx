@@ -735,6 +735,168 @@ describe("PetDocumentScreen — the viewer line survives, per role", () => {
   });
 });
 
+describe("PetDocumentScreen — the face reads petStatus and the role (A3-documento-credencial-04)", () => {
+  function withStatus(petStatus: string) {
+    return {
+      status: OK({
+        petStatus,
+        ringStatus: "ok",
+        situation: null,
+        memorial: null,
+        pregnancyStatus: null,
+      }),
+    };
+  }
+
+  it("collapses a FALLECIDA animal to Compartir + Más, the web's own shape", async () => {
+    // The titular of a deceased animal was offered a red "Modo perdida" pill and
+    // "Transferir la titularidad" — which answers 409 "Abrí su ficha para ver
+    // por qué" while the person is standing in the ficha.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload(withStatus("deceased")),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("Compartir")).toBeOnTheScreen();
+    expect(screen.queryByText("Anotar")).toBeNull();
+    expect(screen.queryByText("Modo perdida")).toBeNull();
+
+    fireEvent.press(screen.getByText("Más"));
+    expect(screen.queryByText("Transferir la titularidad")).toBeNull();
+    expect(screen.queryByText("Cuidador temporal")).toBeNull();
+    expect(screen.queryByText("Devolución")).toBeNull();
+    // AND THE TWO FALSE PROMISES ABOUT THE WEB. Both destinations are hidden
+    // there for a deceased animal, so "Disponible en la web" was sending
+    // somebody to a browser to look for a page that is not on it either.
+    expect(screen.queryByText("Chapa física")).toBeNull();
+    expect(screen.queryByText("Acompañamiento de adopción")).toBeNull();
+    expect(screen.queryByText("Viaje y movilidad")).toBeNull();
+
+    // WHAT SURVIVES: corrections and who to call, which is exactly what the
+    // web's deceased early-return keeps (`MasSheet.helpers.ts:64-78`), plus the
+    // two read-only rows this app has and the browser does not.
+    expect(screen.getByText("Editar datos")).toBeOnTheScreen();
+    expect(screen.getByText("Contactos de emergencia")).toBeOnTheScreen();
+    expect(screen.getByText("Credencial pública")).toBeOnTheScreen();
+    expect(screen.getByText("Foto de la mascota")).toBeOnTheScreen();
+  });
+
+  it("draws the titular-only rows INERT for a co-owner, with the reason", async () => {
+    // The co-owner used to fill in the whole transfer form — address, motivo,
+    // comentario — before a refusal the web never lets them reach.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ viewer: { role: "co_owner", isTitular: false } }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Sos cotitular");
+    fireEvent.press(screen.getByText("Más"));
+
+    // The row is still THERE — a co-owner reading a face with a hole in it
+    // cannot tell a missing feature from a missing permission.
+    expect(screen.getByText("Transferir la titularidad")).toBeOnTheScreen();
+    expect(screen.getByText("Cuidador temporal")).toBeOnTheScreen();
+    expect(screen.getAllByText("Solo el titular").length).toBe(2);
+
+    mockPush.mockClear();
+    fireEvent.press(screen.getByText("Transferir la titularidad"));
+    fireEvent.press(screen.getByText("Cuidador temporal"));
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("offers a co-owner NEITHER find-home row — the web's destination refuses them", async () => {
+    // FINDING F2, review 2026-09-07. The `else` arm behind "Acompañamiento de
+    // adopción" covered `owner` AND `co_owner`, so a co-owner read "Disponible
+    // en la web", opened a browser and got a 404: `buscar-hogar/page.tsx` keeps
+    // only `owner` and `foster` on the ownership row and `notFound()`s the rest,
+    // and `MasSheet.helpers.ts:140` gates the row on `ownershipRole === "owner"`
+    // for that exact reason. Same shape as the 2026-08-20 defect, role axis.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ viewer: { role: "co_owner", isTitular: false } }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Sos cotitular");
+    fireEvent.press(screen.getByText("Más"));
+
+    expect(screen.queryByText("Acompañamiento de adopción")).toBeNull();
+    expect(screen.queryByText("Buscar hogar")).toBeNull();
+    // The control: the rows a co-owner DOES reach are still there, so this is a
+    // narrowed audience and not a fragment that stopped rendering.
+    expect(screen.getByText("Contactos de emergencia")).toBeOnTheScreen();
+    expect(screen.getByText("Editar datos")).toBeOnTheScreen();
+  });
+
+  it("keeps the two find-home labels on their own roles", async () => {
+    // The control that makes the case above mean something: the titular reads
+    // "Acompañamiento de adopción" and the foster reads "Buscar hogar" — one
+    // destination, two asks, and neither may vanish while the co-owner's does.
+    mockFetchOwnerPetDetail.mockResolvedValue({ outcome: "ok", payload: payload() });
+    const titular = render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    fireEvent.press(screen.getByText("Más"));
+    expect(screen.getByText("Acompañamiento de adopción")).toBeOnTheScreen();
+    expect(screen.queryByText("Buscar hogar")).toBeNull();
+    titular.unmount();
+
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ viewer: { role: "foster", isTitular: false } }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    fireEvent.press(screen.getByText("Más"));
+    expect(screen.getByText("Buscar hogar")).toBeOnTheScreen();
+    expect(screen.queryByText("Acompañamiento de adopción")).toBeNull();
+  });
+
+  it("keeps Modo perdida on a LOST animal while the titular-only rows go inert", async () => {
+    // THE DELIBERATE DIVERGENCE. The web drops "Marcar como perdida" on a lost
+    // animal because its LostCaseBlock carries "Marcar como encontrada"; this
+    // row IS that cockpit, so taking it away would hide the entry point in the
+    // one state where somebody needs it fastest. `status === "active"` still
+    // gates the two the web gates.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload(withStatus("lost")),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    expect(screen.getByText("Modo perdida")).toBeOnTheScreen();
+
+    fireEvent.press(screen.getByText("Más"));
+    expect(screen.getAllByText("No se puede en esta situación").length).toBe(2);
+    mockPush.mockClear();
+    fireEvent.press(screen.getByText("Transferir la titularidad"));
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("takes NOTHING away when the status section itself failed to load", async () => {
+    // `unavailable` means the server could not read the section, which is this
+    // face's founding distinction. A client that gated on an unread status
+    // would turn a pooler blip into a permissions message.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ status: UNAVAILABLE }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    expect(screen.getByText("Anotar")).toBeOnTheScreen();
+    expect(screen.getByText("Modo perdida")).toBeOnTheScreen();
+
+    fireEvent.press(screen.getByText("Más"));
+    expect(screen.queryByText("Solo el titular")).toBeNull();
+    mockPush.mockClear();
+    fireEvent.press(screen.getByText("Transferir la titularidad"));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: `/mascotas/${TOKEN}/transferir`,
+      params: { name: "Pampa" },
+    });
+  });
+});
+
 describe("PetDocumentScreen — a pull re-reads the document without taking it away", () => {
   // WHAT THIS BLOCK EXISTS FOR. "Actualizar" became a pull gesture on
   // 2026-09-03, and the screen adopted `pullToRefresh` WITHOUT the

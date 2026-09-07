@@ -289,6 +289,124 @@ export type OwnerFaceView = {
   issuedAt: string;
 };
 
+// ---------------------------------------------------------------------------
+// What the face may offer (A3-documento-credencial-04)
+// ---------------------------------------------------------------------------
+
+/**
+ * The web's own action gates, computed from the two facts the payload carries
+ * and this face was ignoring: `status.data.petStatus` and who the viewer is.
+ *
+ * WHAT WAS WRONG. The footer gated on `viewerRole` for the ORG path only, so a
+ * titular whose animal is registered as fallecida was offered a red "Modo
+ * perdida" pill and "Transferir la titularidad" — the second answers 409 "Abrí
+ * su ficha para ver por qué" while the person IS in the ficha — and a co-owner,
+ * a foster or the neighbour caring for the dog filled in the whole transfer form
+ * before a refusal the browser never lets them reach. Two "Disponible en la web"
+ * rows pointed at pages the web hides for a deceased animal, which is worse than
+ * a dead row: it is a promise about somewhere else.
+ *
+ * THE GATES ARE THE WEB'S, LINE FOR LINE. `PetActionRow.tsx:43-67` for the row
+ * (person path AND not deceased for Anotar/Editar; plus `petStatus === "active"`
+ * for Marcar como perdida) and `MasSheet.helpers.ts:67-118` for the sheet (the
+ * deceased early-return keeps corrections and who-to-call and nothing else;
+ * Transferir and Cuidador require `ownershipRole === "owner"` AND an active
+ * animal). `isTitular` IS that `ownershipRole === "owner"` — the contract says
+ * so and says a co-owner is deliberately false there.
+ *
+ * MODO PERDIDA IS THE ONE DELIBERATE DIVERGENCE. The web drops it on a LOST
+ * animal because "Marcar como encontrada" lives prominently in its
+ * `LostCaseBlock`; this app has no such block — the row IS the cockpit for both
+ * directions — so it stays for `lost` and goes only for `deceased`.
+ *
+ * A FAILED STATUS READ TAKES NOTHING AWAY. `unavailable` means the server could
+ * not read the section, which is this file's founding distinction, so an outage
+ * must not remove a control: the client gates only on what it KNOWS, and the
+ * server refusal is still the backstop it always was.
+ */
+export type OwnerFaceGates = {
+  /** KNOWN to be fallecida. False while the status section failed to load. */
+  isDeceased: boolean;
+  /**
+   * KNOWN to be in a situation other than `active` — lost or deceased. An
+   * UNREAD status is neither `isDeceased` nor this: both are phrased as "the
+   * server said so", which is what keeps an outage from removing a control.
+   */
+  isNotActive: boolean;
+  /** `ownershipRole === "owner"`: a co-owner is deliberately NOT one. */
+  isTitular: boolean;
+  canRecordEvent: boolean;
+  canOpenLostMode: boolean;
+  canEditIdentity: boolean;
+  /** The who-to-call row. Same audience as `canEditIdentity` — one destination. */
+  canSeeEmergencyContacts: boolean;
+  /**
+   * The foster's "Buscar hogar" row and the titular's "Acompañamiento de
+   * adopción" row — ONE destination, two labels, and two DIFFERENT audiences
+   * (finding F2, review 2026-09-07).
+   *
+   * They are two gates rather than an if/else on the role because the else arm
+   * is what went wrong: it covered `owner` AND `co_owner` AND `org_member`, so a
+   * co-owner read "Acompañamiento de adopción — Disponible en la web", opened a
+   * browser and got a 404. `buscar-hogar/page.tsx` filters its ownership row to
+   * `owner` or `foster` and `notFound()`s everything else, and the web's own row
+   * gates on `ownershipRole === "owner"` (`MasSheet.helpers.ts:134-146`) for
+   * exactly that reason — a titular tapped a live row and got a 404 on
+   * 2026-08-20, and this is the same defect on the role axis.
+   */
+  canSeeFindHome: boolean;
+  canSeeAdoptionSupport: boolean;
+  canTransfer: boolean;
+  canDesignateCaretaker: boolean;
+  canOpenReturn: boolean;
+  /** The "Disponible en la web" / "Próximamente" rows, which the web hides on a
+   *  deceased animal — its `chapita` row sits AFTER the deceased early-return,
+   *  and page.tsx nulls the data behind it. */
+  showWebOnlyRows: boolean;
+};
+
+export function ownerFaceGates(view: {
+  viewerRole: OwnerPetDetailViewerRole;
+  isTitular: boolean;
+  status: SectionView<OwnerPetStatusSection>;
+}): OwnerFaceGates {
+  // `null` = the section did not load. Every gate below reads it as "no fact",
+  // never as "not active": the permissive direction is the correct one here
+  // because the server refusal is still in place behind every one of them.
+  const petStatus = view.status.state === "ok" ? view.status.data.petStatus : null;
+  const isDeceased = petStatus === "deceased";
+  const isNotActive = petStatus !== null && petStatus !== "active";
+  const isCaretaker = view.viewerRole === "caretaker";
+  return {
+    isDeceased,
+    isNotActive,
+    isTitular: view.isTitular,
+    canRecordEvent: !isDeceased,
+    canOpenLostMode: !isDeceased,
+    canEditIdentity: !isCaretaker,
+    canSeeEmergencyContacts: !isCaretaker,
+    canSeeFindHome: view.viewerRole === "foster" && !isDeceased,
+    canSeeAdoptionSupport: view.isTitular && !isDeceased,
+    canTransfer: view.isTitular && !isNotActive,
+    canDesignateCaretaker: view.isTitular && !isNotActive,
+    canOpenReturn: !isDeceased,
+    showWebOnlyRows: !isDeceased,
+  };
+}
+
+/**
+ * WHY a titular-only row is inert, in one short line under its label.
+ *
+ * `null` when the row is live. The two reasons are kept apart because the moves
+ * are different: a co-owner has to ask the titular, and a titular whose animal
+ * is lost has to find it first.
+ */
+export function titularOnlyRowCaption(gates: OwnerFaceGates): string | null {
+  if (!gates.isTitular) return "Solo el titular";
+  if (gates.isNotActive) return "No se puede en esta situación";
+  return null;
+}
+
 export function buildOwnerFaceView(payload: OwnerPetDetailV1): OwnerFaceView {
   return {
     publicToken: payload.publicToken,

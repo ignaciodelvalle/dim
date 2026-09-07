@@ -19,30 +19,20 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { Alert } from "react-native";
 
+import { createNavigationFake } from "../ui/navigation-fake";
+
 const mockSubmit = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
-type RemoveEvent = { preventDefault: () => void; data: { action: unknown } };
-const mockListeners: ((event: RemoveEvent) => void)[] = [];
-
-// ONE navigation object, and an unsubscribe that really unsubscribes. Both
-// halves matter: React Navigation hands back a STABLE object (a fresh one per
-// render would re-run the guard's effect on every keystroke) and a real
-// unsubscribe (without it the fake accumulates one stale listener per render,
-// and firing the back gesture would ask the question several times over).
-const mockNavigation = {
-  addListener: (_type: string, cb: (event: RemoveEvent) => void) => {
-    mockListeners.push(cb);
-    return () => {
-      const at = mockListeners.indexOf(cb);
-      if (at >= 0) mockListeners.splice(at, 1);
-    };
-  },
-  dispatch: () => {},
-};
+// THE SHARED FAKE, not a fourth hand-written copy of it (finding F4, review
+// 2026-09-07). The two properties this needs — a STABLE object and a REAL
+// unsubscribe — are subtle enough that `ui/navigation-fake.ts` exists to own
+// them once; a per-file copy is how one of them degrades back into the no-op
+// stub without anybody noticing.
+const mockNav = createNavigationFake();
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-  useNavigation: () => mockNavigation,
+  useNavigation: () => mockNav.navigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -84,22 +74,14 @@ function fillTheForm() {
 
 /** Fire the back gesture at whatever the guard subscribed. */
 function pressBack(): { prevented: boolean } {
-  let prevented = false;
-  const event: RemoveEvent = {
-    preventDefault: () => {
-      prevented = true;
-    },
-    data: { action: { type: "POP" } },
-  };
-  for (const listener of mockListeners) listener(event);
-  return { prevented };
+  return { prevented: mockNav.pressBack().blocked };
 }
 
 let alerts: string[] = [];
 
 beforeEach(() => {
   mockSubmit.mockReset();
-  mockListeners.length = 0;
+  mockNav.reset();
   alerts = [];
   jest.spyOn(Alert, "alert").mockImplementation((title: string) => {
     alerts.push(title);

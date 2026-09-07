@@ -14,14 +14,22 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { TextInput } from "react-native";
+import { Alert, TextInput } from "react-native";
+
+import { createNavigationFake } from "../ui/navigation-fake";
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockRecordPetEvent = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+// A REAL LISTENER REGISTRY with a stable object and a working unsubscribe — see
+// `ui/navigation-fake.ts` for why both halves matter and what the stub they
+// replace made invisible.
+const mockNav = createNavigationFake();
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace, back: jest.fn() }),
+  useNavigation: () => mockNav.navigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -31,7 +39,31 @@ jest.mock("../api/endpoints", () => ({
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import { RecordEventScreen } from "./RecordEventScreen";
-import { RECORD_KINDS, kindTitle } from "./record-event-view-model";
+import { RECORD_KINDS, kindTitle, recordEventCta } from "./record-event-view-model";
+
+/** Every kind that has a form, including the one the picker does not offer. */
+const WRITABLE_KINDS = [...RECORD_KINDS, "medication_end"] as const;
+
+/**
+ * The primary submit, whatever this kind calls it.
+ *
+ * The label became per-kind with A2-alta-asentar-R05 ("Registrar vacuna",
+ * "Confirmar cierre de medicación", …) and none of the cases below is ABOUT the
+ * wording — they press the button that writes. Restating eleven strings across
+ * twenty-seven call sites would turn a copy change into a twenty-seven-line
+ * diff. The WORDING has its own case, with the literals written out, so a label
+ * that regressed still turns something red.
+ *
+ * It fails LOUDLY when it finds none or more than one, rather than returning
+ * `undefined` for an assertion two lines later to be confused by.
+ */
+function submitControl() {
+  const nodes = WRITABLE_KINDS.flatMap((kind) => screen.queryAllByText(recordEventCta(kind).label));
+  if (nodes.length !== 1) {
+    throw new Error(`expected exactly one submit control on screen, found ${nodes.length}`);
+  }
+  return nodes[0] as NonNullable<(typeof nodes)[number]>;
+}
 
 const TOKEN = "DIM-PAMP-0001";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
@@ -89,7 +121,111 @@ describe("RecordEventScreen — the picker", () => {
     render(<RecordEventScreen publicToken={TOKEN} />);
     fireEvent.press(screen.getByText("Peso"));
     expect(screen.getByLabelText("Peso (kg), obligatorio")).toBeOnTheScreen();
-    expect(screen.getByText("Guardar")).toBeOnTheScreen();
+    expect(submitControl()).toBeOnTheScreen();
+  });
+});
+
+describe("RecordEventScreen — the discard guard (A2-alta-asentar-08)", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+    mockNav.reset();
+  });
+
+  it("does NOT ask anything of somebody who typed nothing", () => {
+    // THE CASE THAT KEPT THIS GUARD OFF EIGHT SCREENS. `draft !== emptyDraft()`
+    // is true on mount — two different objects — so a naive predicate would
+    // interrupt everyone who opened the form and read the first field, and a
+    // guard people learn to dismiss is not there on the day it matters.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("asks before the back gesture discards a filled-in form", () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12,5");
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
+  });
+
+  it("asks before 'Elegir otro tipo' remounts the form under it", () => {
+    // A DISCARD THE NAVIGATOR CANNOT SEE: the screen stays and the form is
+    // remounted under a new `key`, taking every field with it. `beforeRemove`
+    // never fires, so nothing in the guard covers this on its own.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.press(screen.getByText("Peso"));
+    fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12,5");
+    fireEvent.press(screen.getByText("Elegir otro tipo"));
+
+    expect(alert).toHaveBeenCalledTimes(1);
+    // It asked and did NOT go back on its own — the form is still there.
+    expect(screen.getByLabelText("Peso (kg), obligatorio")).toBeOnTheScreen();
+  });
+
+  it("lets 'Elegir otro tipo' through untouched when nothing was typed", () => {
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.press(screen.getByText("Peso"));
+    fireEvent.press(screen.getByText("Elegir otro tipo"));
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(screen.getByText("¿Qué querés registrar?")).toBeOnTheScreen();
+  });
+
+  it("does NOT ask once the asiento is on the server", async () => {
+    // The guard fires on every navigation away, including the one this screen
+    // makes itself. Two screens shipped without `allowLeave` in the batch before
+    // this one and asked "¿Salir sin guardar?" about a write that had landed.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12,5");
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(screen.getByText("Volver a la libreta")).toBeOnTheScreen());
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    fireEvent.press(screen.getByText("Volver a la libreta"));
+    expect(alert).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalled();
+  });
+});
+
+describe("RecordEventScreen — the CTA names what it writes (A2-alta-asentar-R05)", () => {
+  // THE LITERALS LIVE HERE and nowhere else in this file. AGENTS.md's four-verb
+  // rule forbids a bare CTA by name ("Never bare ('Aceptar', 'Guardar',
+  // 'Publicar' on its own)") and this screen said "Guardar" for all eleven
+  // forms while the web said "Registrar vacuna" for the same act.
+  it("says 'Registrar vacuna' on a vaccination", () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="vaccination" />);
+    expect(screen.getByText("Registrar vacuna")).toBeOnTheScreen();
+    expect(screen.queryByText("Guardar")).toBeNull();
+  });
+
+  it("says 'Registrar peso' on a weight", () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    expect(screen.getByText("Registrar peso")).toBeOnTheScreen();
+  });
+
+  it("CONFIRMS a closure rather than registering an end", () => {
+    // The rule names this exact case: "Closing a treatment is `Confirmar
+    // cierre`, not `Registrar fin`." A screen that folded every kind into one
+    // "Registrar X" would read as correct and break that reservation.
+    render(
+      <RecordEventScreen publicToken={TOKEN} initialKind="medication_end" sourceEventId="evt-1" />,
+    );
+    expect(screen.getByText("Confirmar cierre de medicación")).toBeOnTheScreen();
+    expect(screen.queryByText(/Registrar fin/)).toBeNull();
+  });
+
+  it("does not call a note an observable event", () => {
+    // `Registrar X` is reserved for logging something observed. A note is
+    // neither observed nor confirmed, so it takes the fourth shape — a verb
+    // WITH its object, which is what keeps it out of the banned bare "Guardar".
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="note" />);
+    expect(screen.getByText("Guardar la nota")).toBeOnTheScreen();
+    expect(screen.queryByText("Guardar")).toBeNull();
+    expect(screen.queryByText("Registrar nota")).toBeNull();
   });
 });
 
@@ -99,7 +235,7 @@ describe("RecordEventScreen — a weight, end to end", () => {
 
     fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12,5");
     fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "20/08/2026");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     // The comma a person types on an es-AR keyboard is a decimal point.
@@ -122,7 +258,7 @@ describe("RecordEventScreen — a weight, end to end", () => {
     // agrees with a broken one.
     render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
     fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     fireEvent.press(await screen.findByText("Volver a la libreta"));
     expect(mockReplace).toHaveBeenCalledWith(`/mascotas/${TOKEN}?face=libreta`);
@@ -132,7 +268,7 @@ describe("RecordEventScreen — a weight, end to end", () => {
     mockRecordPetEvent.mockResolvedValue(recorded(true));
     render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
     fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
     expect(await screen.findByText(/no se duplicó/i)).toBeOnTheScreen();
   });
 
@@ -142,7 +278,7 @@ describe("RecordEventScreen — a weight, end to end", () => {
     // the network never sees a body that could not have been accepted.
     render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
     fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "500");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     expect(await screen.findByText("El peso no puede superar los 120 kg.")).toBeOnTheScreen();
     expect(mockRecordPetEvent).not.toHaveBeenCalled();
@@ -154,18 +290,18 @@ describe("RecordEventScreen — the refusals a person sees", () => {
     mockRecordPetEvent.mockResolvedValue({ outcome: "api-error", code: "event_date_future" });
     render(<RecordEventScreen publicToken={TOKEN} initialKind="note" />);
     fireEvent.changeText(screen.getByLabelText("Nota, obligatorio"), "Comió bien.");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     expect(await screen.findByText("La fecha no puede ser futura.")).toBeOnTheScreen();
     // A refused write leaves the form standing, with what was typed still in it.
-    expect(screen.getByText("Guardar")).toBeOnTheScreen();
+    expect(submitControl()).toBeOnTheScreen();
   });
 
   it("renders a transport failure as a transport failure, not as a refusal", async () => {
     mockRecordPetEvent.mockResolvedValue({ outcome: "unreachable", detail: "offline" });
     render(<RecordEventScreen publicToken={TOKEN} initialKind="note" />);
     fireEvent.changeText(screen.getByLabelText("Nota, obligatorio"), "Comió bien.");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
     expect(await screen.findByText(/Revisá tu conexión/)).toBeOnTheScreen();
   });
 
@@ -179,7 +315,7 @@ describe("RecordEventScreen — the refusals a person sees", () => {
     });
     render(<RecordEventScreen publicToken={TOKEN} initialKind="vaccination" />);
     fireEvent.changeText(screen.getByLabelText("Vacuna, obligatorio"), "Antirrábica");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     const confirm = await screen.findByText("Sí, registrar igual");
     expect(screen.getByText(/¿Querés registrar otro\?/)).toBeOnTheScreen();
@@ -210,7 +346,7 @@ describe("RecordEventScreen — medicación", () => {
     fireEvent.changeText(screen.getByLabelText("Fecha de inicio, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Primera dosis — día, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Primera dosis — hora, obligatorio"), "08:00");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({ firstDoseAt: "2026-08-20T08:00" });
@@ -225,7 +361,7 @@ describe("RecordEventScreen — medicación", () => {
       />,
     );
     fireEvent.changeText(screen.getByLabelText("Fecha de fin, obligatorio"), "20/08/2026");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({
@@ -238,7 +374,7 @@ describe("RecordEventScreen — medicación", () => {
 
   it("says so, instead of sending, when it was opened without the asiento it ends", async () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="medication_end" />);
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
     expect(await screen.findByText(/Abrila desde su asiento/)).toBeOnTheScreen();
     expect(mockRecordPetEvent).not.toHaveBeenCalled();
   });
@@ -250,9 +386,9 @@ describe("RecordEventScreen — the idempotency key", () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="note" />);
     fireEvent.changeText(screen.getByLabelText("Nota, obligatorio"), "Comió bien.");
 
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
     await screen.findByText(/No pudimos guardar el registro/);
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(2));
 
     // THE POINT OF THE HEADER. If the first attempt had in fact committed before
@@ -266,7 +402,7 @@ describe("RecordEventScreen — the idempotency key", () => {
 
     fireEvent.press(screen.getByText("Nota"));
     fireEvent.changeText(screen.getByLabelText("Nota, obligatorio"), "Comió bien.");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     const noteKey = sentKey(0);
 
@@ -275,7 +411,7 @@ describe("RecordEventScreen — the idempotency key", () => {
     screen.unmount();
     render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
     fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(2));
 
     expect(sentKey(1)).not.toBe(noteKey);
@@ -298,7 +434,7 @@ describe("RecordEventScreen — visita veterinaria", () => {
     fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Diagnóstico"), "Otitis externa");
     fireEvent.changeText(screen.getByLabelText("Veterinario/a"), "Dra. Sosa");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({
@@ -315,7 +451,7 @@ describe("RecordEventScreen — visita veterinaria", () => {
 
   it("shows the refusal when the motivo is missing, and sends nothing", async () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="vet_visit" />);
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() =>
       expect(screen.getByText("Falta el motivo de la visita.")).toBeOnTheScreen(),
@@ -334,7 +470,7 @@ describe("RecordEventScreen — información clínica", () => {
       "Radiografía de tórax",
     );
     fireEvent.changeText(screen.getByLabelText("Fecha, obligatorio"), "20/08/2026");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({
@@ -363,7 +499,7 @@ describe("RecordEventScreen — información clínica", () => {
       screen.getByLabelText("Estudio o procedimiento, obligatorio"),
       "Hemograma",
     );
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({ subKind: "lab_work" });
@@ -377,7 +513,7 @@ describe("RecordEventScreen — esterilización", () => {
     fireEvent.press(screen.getByText("Ovariectomía"));
     fireEvent.changeText(screen.getByLabelText("Fecha de la cirugía, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Clínica"), "Veterinaria del Parque");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({
@@ -400,7 +536,7 @@ describe("RecordEventScreen — microchip", () => {
     );
     fireEvent.changeText(screen.getByLabelText("Fecha de implantación, obligatorio"), "20/08/2026");
     fireEvent.changeText(screen.getByLabelText("Zona del cuerpo"), "Cuello, lado izquierdo");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({
@@ -415,7 +551,7 @@ describe("RecordEventScreen — microchip", () => {
 
   it("shows the refusal when the number is missing, and sends nothing", async () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="microchip" />);
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() =>
       expect(screen.getByText("Falta el número de microchip.")).toBeOnTheScreen(),
@@ -482,7 +618,7 @@ describe("RecordEventScreen — síntoma", () => {
       screen.getByLabelText("Qué le viste, obligatorio"),
       "Decaído, no come desde ayer",
     );
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toEqual({
@@ -501,7 +637,7 @@ describe("RecordEventScreen — síntoma", () => {
     fireEvent.changeText(screen.getByLabelText("Qué le viste, obligatorio"), "Vómitos");
     fireEvent.press(screen.getByText("Grave"));
     fireEvent.changeText(screen.getByLabelText("Desde cuándo (si sabés)"), "20/08/2026");
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({ severity: "severe", onsetAt: "2026-08-20" });
@@ -512,7 +648,7 @@ describe("RecordEventScreen — síntoma", () => {
     fireEvent.changeText(screen.getByLabelText("Qué le viste, obligatorio"), "Tos");
     fireEvent.press(screen.getByText("Leve"));
     fireEvent.press(screen.getByText("Leve"));
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({ severity: null });
@@ -520,7 +656,7 @@ describe("RecordEventScreen — síntoma", () => {
 
   it("refuses an empty description WITHOUT calling the server", async () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="symptom" />);
-    fireEvent.press(screen.getByText("Guardar"));
+    fireEvent.press(submitControl());
 
     expect(await screen.findByText("Contá qué le viste.")).toBeOnTheScreen();
     expect(mockRecordPetEvent).not.toHaveBeenCalled();

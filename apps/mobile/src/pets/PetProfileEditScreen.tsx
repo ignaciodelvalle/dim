@@ -54,6 +54,8 @@ import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
 import { movePetRoute } from "../ui/routes";
 import { COLORS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
+import { sameDraft } from "../ui/use-draft-dirty";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useReturnKeyChain } from "../ui/use-return-key-chain";
 
 import {
@@ -113,6 +115,24 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
   // below a conditional return.
   const identityChain = useReturnKeyChain(2);
   const contactsChain = useReturnKeyChain(4);
+
+  // THE BACK GESTURE MAY NOT DISCARD AN EDIT (A2-alta-asentar-08).
+  //
+  // TWO GROUPS, ONE QUESTION. This screen saves identity and contacts
+  // separately, so somebody may have a saved identity and an unsaved phone
+  // number — and the guard has to fire for either. The baseline is the SERVER'S
+  // payload rather than a value captured at mount, which on this screen is
+  // strictly better than a ref: `load` re-seeds both drafts after every landed
+  // save (the picker resolves "pitbull" to "Pit Bull Terrier"), so "dirty" means
+  // "differs from what is stored" and goes back to clean when a save lands.
+  const storedContacts = state.phase === "ready" ? emergencyDraftFrom(state.view) : null;
+  const dirty =
+    state.phase === "ready" &&
+    ((identity !== null && !sameDraft(identityDraftFrom(state.view), identity)) ||
+      // `emergencyDraftFrom` is nullable: a viewer this payload does not carry
+      // contacts for has no baseline, and no form to have typed into either.
+      (contacts !== null && storedContacts !== null && !sameDraft(storedContacts, contacts)));
+  useDraftDiscardGuard(dirty);
 
   const load = useCallback(async () => {
     setState({ phase: "loading" });

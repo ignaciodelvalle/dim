@@ -45,7 +45,8 @@ import type { TransferCommandInput } from "@dim/contract/input";
 import type { ApiResult } from "../api/client";
 import { fetchMyTransfers, sendTransferCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
-import { sessionPort } from "../auth/session-store";
+import { KEEP_DESTINATION_ON_SIGN_OUT } from "../auth/return-to";
+import { sessionPort, signOut } from "../auth/session-store";
 import { Body, Card, Loading, Row } from "../ui/components";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
 import { SPACE } from "../ui/theme";
@@ -111,6 +112,7 @@ export function TransferDetailScreen({
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingAccept, setConfirmingAccept] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -136,6 +138,7 @@ export function TransferDetailScreen({
       const result = await sendTransferCommand(sessionPort, input);
       setBusy(false);
       setConfirmingAccept(false);
+      setConfirmingCancel(false);
       setRejecting(false);
       if (result.outcome !== "ok") {
         setNotice({ tone: "err", message: failureMessage(result) });
@@ -182,8 +185,49 @@ export function TransferDetailScreen({
             No encontramos esta propuesta en tu cuenta. Puede que ya no esté disponible o que no sea
             para vos.
           </Body>
+          {/* THE REMEDY, WHICH THE WEB GIVES AND THIS SCREEN DID NOT (A4-custodia-11).
+              A person with two addresses opening the link on the wrong account read
+              "no sea para vos" and a "Reintentar" that can only produce the same
+              screen — the one refusal in this app where retrying is guaranteed to
+              be useless. `/cuidado/[grantToken]/page.tsx:86-89` says what to do.
+
+              BOTH CAUSES GET A SENTENCE, AND THE REMEDY IS ATTACHED TO ONE OF
+              THEM (finding F9, review 2026-09-07). The first draft prescribed
+              the account switch on EVERY `missing`, which covers a proposal that
+              simply resolved — accepted, cancelled, expired — far more often
+              than a wrong session. "Cerrá sesión y volvé a entrar con esa
+              cuenta" is a remedy for nothing in that case, and it sends somebody
+              out of their working account to look for a proposal that no longer
+              exists on any of them. The WEB may state the wrong-account theory
+              flatly because it KNOWS: `relation === "outsider"` is a fact its
+              reader resolved. This screen never learned who the addressee is, so
+              it names two possibilities and lets the reader pick the one that is
+              theirs. */}
+          <Body>
+            Si ya la aceptaron, la cancelaron o venció, no vas a poder verla acá y no hay nada que
+            hacer.
+          </Body>
+          <Body>
+            Si en cambio tenés otra cuenta, puede que se la hayan enviado a ese correo: entrá con
+            esa cuenta, o pedile a quien te la envió que la reenvíe a este correo.
+          </Body>
         </Card>
         <SecondaryButton label="Reintentar" onPress={() => void load()} />
+        {/* THE LABEL NAMES THE CASE IT BELONGS TO, which is what lets it be
+            offered unconditionally on an arm the screen cannot disambiguate
+            (finding F9). "Cerrar sesión" beside "puede que no sea para vos"
+            reads as this app's instruction to the person in front of it; "Entrar
+            con otra cuenta" is a door for the reader who already knows they have
+            a second address, and says nothing to the one whose proposal expired.
+
+            NOT `signOut(pathname)`. The gate suppresses `next` for the screen a
+            person deliberately closed (`signedOutHref`), and this is the one
+            sign-out whose whole purpose is to come BACK here with the other
+            account — see `KEEP_DESTINATION_ON_SIGN_OUT`. */}
+        <SecondaryButton
+          label="Entrar con otra cuenta"
+          onPress={() => void signOut(KEEP_DESTINATION_ON_SIGN_OUT)}
+        />
       </Screen>
     );
   }
@@ -212,7 +256,15 @@ export function TransferDetailScreen({
         {/* Only while there IS one. The status line under the title already says
             how an answered proposal ended. */}
         {deadline !== null && <Row label="Vencimiento" value={deadline} />}
-        <Row label="Email del receptor" value={transfer.toEmail} />
+        {/* OUTGOING ONLY (A4-R-04). On an incoming proposal `toEmail` is the
+            READER'S OWN address, and the view-model's header already calls that
+            noise: "Recibiste a Firu" followed by a row labelled "Email del
+            receptor" carrying the address of the person holding the phone. On an
+            outgoing one it is the only place the address appears when the
+            recipient has a display name. */}
+        {transfer.direction === "outgoing" && (
+          <Row label="Email del receptor" value={transfer.toEmail} />
+        )}
         {transfer.rejectionReason !== null && (
           <Row label="Motivo del rechazo" value={transfer.rejectionReason} />
         )}
@@ -287,14 +339,41 @@ export function TransferDetailScreen({
         </View>
       )}
 
+      {/* WITHDRAWING TAKES TWO TAPS TOO (A4-R-02). It is irreversible in the same
+          way accepting is — the proposal is cancelled for good and the recipient
+          is notified — and it sat one thumb-slip away while scrolling to read the
+          deadline. The web gates the same act behind "Confirmar cancelación"
+          (`AcceptTransferActions.tsx:165-211`); this screen already owns the
+          confirm-callout pattern for accept, so it is the same shape twice. */}
       {canCancel && (
         <View style={styles.actions}>
-          <SecondaryButton
-            label={busy ? "Retirando…" : "Retirar la propuesta"}
-            disabled={busy}
-            onPress={() => void run({ command: "cancel", transferToken: transfer.transferToken })}
-          />
-          <Body>Retirarla la cancela para siempre. Podés enviar una nueva después.</Body>
+          {confirmingCancel ? (
+            <Callout tone="warn">
+              <Body>Si después querés transferir de nuevo tenés que iniciar otra propuesta.</Body>
+              <PrimaryButton
+                tone="seal"
+                label={busy ? "Cancelando…" : "Confirmar cancelación"}
+                disabled={busy}
+                onPress={() =>
+                  void run({ command: "cancel", transferToken: transfer.transferToken })
+                }
+              />
+              <SecondaryButton
+                label="Atrás"
+                disabled={busy}
+                onPress={() => setConfirmingCancel(false)}
+              />
+            </Callout>
+          ) : (
+            <>
+              <SecondaryButton
+                label="Retirar la propuesta"
+                disabled={busy}
+                onPress={() => setConfirmingCancel(true)}
+              />
+              <Body>Retirarla la cancela para siempre. Podés enviar una nueva después.</Body>
+            </>
+          )}
         </View>
       )}
     </Screen>

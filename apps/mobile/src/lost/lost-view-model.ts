@@ -125,13 +125,91 @@ export function disclosureHelp(key: DisclosureKey): string {
 }
 
 /**
+ * Whether NOBODY can reach the person if this animal is found (A4-custodia-09).
+ *
+ * The three keys below are the only channels a finder has. Every one off means
+ * the credential shows a search notice and no way to answer it: whoever is
+ * holding the dog can log a sighting and nothing else. The web's wizard says so
+ * (`MarkLostWizard.tsx:489-497`) and this app did not, so the phone shipped a
+ * quieter version of a decision that costs somebody their animal.
+ *
+ * `discloseFirstNameWhenLost` and `discloseLastLocationWhenLost` are NOT in the
+ * set on purpose: a name and a place are things a finder reads, not ways to
+ * write back. `discloseCaretakerContactWhenLost` is out too, and that one is the
+ * judgement call — it needs the caretaker's own consent to publish anything, so
+ * the titular cannot know from this screen whether it is a live channel, and a
+ * warning that quietly disappeared on an unverifiable maybe would be worse than
+ * one that is occasionally over-cautious.
+ */
+const FINDER_CHANNELS = [
+  "disclosePhoneWhenLost",
+  "discloseEmailWhenLost",
+  "allowFinderFormWhenLost",
+] as const satisfies readonly DisclosureKey[];
+
+/**
+ * Takes ONLY the three keys it reads, not a whole `LostDisclosureV1`. The
+ * mark-lost DRAFT carries five of the six preferences — the caretaker one is
+ * the caretaker's to consent to and is not on the form — so a parameter typed
+ * as the full payload shape would have refused the caller that needs it most.
+ */
+export function noWayToReachYou(
+  disclosure: Pick<LostDisclosureV1, (typeof FINDER_CHANNELS)[number]>,
+): boolean {
+  return FINDER_CHANNELS.every((key) => disclosure[key] === false);
+}
+
+/**
  * The line a NON-editable preference shows instead of a switch.
  *
  * A row that simply disappeared would leave a caretaker wondering whether the
  * setting exists; a switch that answered 403 would be a control that lies. The
  * third option is the honest one: show the value, say whose decision it is.
+ *
+ * Declared HERE rather than below the rows it labels because `noContactWarning`
+ * ends its read-only arm with it (finding F11).
  */
 export const DISCLOSURE_TITULAR_ONLY_NOTE = "Solo el titular puede cambiar esto.";
+
+export const NO_CONTACT_TITLE = "Nadie va a poder contactarte";
+
+/**
+ * The same fact, for a reader who cannot act on it (finding F11, review
+ * 2026-09-07).
+ *
+ * "contactarTE" and "te recomendamos habilitar" both address the person reading
+ * as the one the finder would reach and the one who can open a channel. A
+ * caretaker or a co-owner is neither: `editableDisclosureKeys` comes back
+ * without the three finder channels for them, so the rows above the callout have
+ * no switches at all and they were being told to flip one.
+ */
+export const NO_CONTACT_TITLE_READ_ONLY = "Nadie va a poder avisar";
+
+/**
+ * Can this reader open any of the three channels the warning is about?
+ *
+ * Not "can they edit anything": a caretaker may hold
+ * `discloseCaretakerWhenLost` and still none of the finder channels, and the
+ * recommendation is specifically about those three.
+ */
+export function canOpenFinderChannel(editableKeys: readonly DisclosureKey[]): boolean {
+  const editable = new Set<string>(editableKeys);
+  return FINDER_CHANNELS.some((key) => editable.has(key));
+}
+
+/**
+ * The web's own sentence, with the animal's name in it.
+ *
+ * `canOpenChannel` decides whether it ends in an INSTRUCTION or in whose
+ * decision it is. Defaults to `true` because the mark-lost form's caller is by
+ * construction somebody who may set every one of these — it is drafting them.
+ */
+export function noContactWarning(petName: string, canOpenChannel = true): string {
+  if (!canOpenChannel) {
+    return `Sin teléfono, email ni formulario habilitados, quien encuentre a ${petName} no tiene forma de avisar. ${DISCLOSURE_TITULAR_ONLY_NOTE}`;
+  }
+  return `Sin teléfono, email ni formulario habilitados, quien encuentre a ${petName} no tiene forma de avisarte. Te recomendamos habilitar al menos el formulario: no muestra ninguno de tus datos.`;
+}
 
 /** The six preferences, in the order the web's own card lists them. */
 export function disclosureRows(

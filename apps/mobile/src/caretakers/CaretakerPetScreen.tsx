@@ -36,7 +36,7 @@
 // "actualizá" rather than "volvé a intentar".
 
 import { useCallback, useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Share, StyleSheet, View } from "react-native";
 
 import type { CaretakerCommandAckV1, MyCaretakerGrantV1 } from "@dim/contract/api";
 import {
@@ -49,6 +49,7 @@ import type { ApiResult } from "../api/client";
 import { fetchMyCaretakerGrants, sendCaretakerCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
+import { caretakerGrantPageUrl } from "../config/api";
 import { Body, Card, Loading, Row } from "../ui/components";
 import { isoToDateInput } from "../ui/date-input";
 import {
@@ -61,14 +62,18 @@ import {
   Title,
 } from "../ui/kit";
 import { SPACE } from "../ui/theme";
+import { useIsDirty } from "../ui/use-draft-dirty";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 
 import {
+  CARETAKER_STATE_MOVED_CODES,
   CARETAKER_WINDOW_DAYS,
   buildCancelCaretakerGrant,
   buildDesignateCaretaker,
   buildRevokeCaretakerGrant,
   caretakerCounterpartyLabel,
+  caretakerDesignateRefusalMessage,
   caretakerPeriodLabel,
   caretakerStatusLabel,
   grantForPet,
@@ -161,11 +166,36 @@ export function CaretakerPetScreen({
       setBusy(false);
       setConfirmingEnd(false);
       if (result.outcome !== "ok") {
-        setNotice({ tone: "err", message: failureMessage(result) });
-        // RE-READ ON FAILURE, ALWAYS. Without an idempotency key, a refusal after
-        // a timeout may mean the first attempt landed. The list is the only thing
-        // that can say which.
-        await load();
+        // THE SCREEN'S OWN SENTENCE FOR TWO CODES, and only on the command that
+        // can actually meet them from here (A3-documento-credencial-05,
+        // A4-custodia-06). `caretaker_forbidden` on a `revoke` is a different
+        // fact — you did not grant this one — and must keep the shared copy.
+        const shared = failureMessage(result);
+        setNotice({
+          tone: "err",
+          message:
+            result.outcome === "api-error" && input.command === "designate"
+              ? (caretakerDesignateRefusalMessage(result.code) ?? shared)
+              : shared,
+        });
+        // RE-READ ONLY WHEN THE SERVER'S STATE MOVED (A4-custodia-04). `load()`
+        // sets `phase: "loading"`, which UNMOUNTS `DesignateForm` and takes its
+        // draft with it — so a titular who typed the neighbour's address, the
+        // medication routine and a "Hasta" 200 days out read "Revisá las
+        // fechas…" over an empty form, and had to type all of it again to fix
+        // one day. The two codes below are the ones a re-read answers: something
+        // else really did change and the screen must show what. Every other
+        // refusal is about THIS submission and the form is what the person needs
+        // in front of them.
+        //
+        // The `unreachable` case is deliberately in the second group even though
+        // the write may have landed: a re-read has no network either, so it
+        // would replace the send's message with a read failure and destroy the
+        // draft on the way. The ack for a designation that in fact landed
+        // arrives on the next open of this screen.
+        if (result.outcome === "api-error" && CARETAKER_STATE_MOVED_CODES.has(result.code)) {
+          await load();
+        }
         return;
       }
       setNotice({ tone: "ok", message: ackLabel(result.payload) });
@@ -230,6 +260,23 @@ export function CaretakerPetScreen({
 }
 
 /**
+ * Hand the invitation over by hand, through the OS sheet.
+ *
+ * BEST-EFFORT AND SILENT ON REFUSAL, the rule `SharesScreen` and `PrivacyScreen`
+ * already follow: `Share.share` rejects when the person dismisses the sheet, and
+ * a dismissal is not an error to report back to them.
+ */
+async function shareInvitation(grantToken: string, subject: string): Promise<void> {
+  try {
+    await Share.share({
+      message: `Te invito a cuidar a ${subject} en miMAR: ${caretakerGrantPageUrl(grantToken)}`,
+    });
+  } catch {
+    // Dismissed. Nothing to say.
+  }
+}
+
+/**
  * The arrangement that exists, and the one lever the titular has over it.
  *
  * WHICH LEVER IS DECIDED BY `capabilities`, never by `status`. They happen to
@@ -257,6 +304,13 @@ function ExistingGrant({
   const { canCancel, canRevoke } = grant.capabilities;
   const counterparty = caretakerCounterpartyLabel(grant);
   const ending = canRevoke;
+  // NOBODY HAS BEEN TOLD (A4-custodia-10). `counterpartyName === null` on a
+  // pending invitation is the payload's way of saying the address has no
+  // profile behind it, which is exactly when the native write sends no mail and
+  // the ack says "avisale vos" — while giving the titular nothing to hand over.
+  // An ACCEPTED grant is excluded on purpose: that person is already in, and a
+  // live invitation link is not a thing to keep passing around.
+  const needsHandOff = grant.status === "pending" && grant.counterpartyName === null;
 
   const built = ending
     ? buildRevokeCaretakerGrant(grant.pet.publicToken, grant.grantToken)
@@ -273,6 +327,37 @@ function ExistingGrant({
             accepted it. */}
         <Row label="Qué puede hacer" value={grant.scopeSentence} />
       </Card>
+
+      {needsHandOff && (
+        <Card title="Todavía no le avisamos">
+          {/* THE TENSE IS THE FIX (finding F10, review 2026-09-07). This card
+              read "Esa dirección no tiene cuenta en miMAR" — a present-tense
+              claim about somebody else's account, derived from a fact captured
+              at DESIGNATION time. The proxy is exact then (the `handle_new_user`
+              trigger makes `counterpartyName === null` ⟺ the invitee has no
+              profile), and it never refreshes: `caretakerUserId` is written once
+              and never backfilled, so the day that person signs up the card goes
+              on saying they have no account — while `addressedToCaller` matches
+              them by e-mail and the invitation is already sitting in their app.
+              The titular then reads "no le mandamos nada" and chases somebody
+              who is looking at the invitation.
+
+              What is permanently true is what miMAR DID: no mail was sent, at
+              designation time, because there was nobody to send it to. That is
+              what the copy says now, and the rest is offered as the two
+              possibilities the client cannot tell apart. */}
+          <Body>
+            Cuando la designaste, esa dirección no tenía cuenta en miMAR, así que no le mandamos
+            nada. Si desde entonces se creó una cuenta con ese correo, la invitación ya le aparece
+            en su app. Si no, pasale vos el link: al abrirlo puede crear su cuenta y aceptar el
+            cuidado de {subject}.
+          </Body>
+          <SecondaryButton
+            label="Compartir el link de la invitación"
+            onPress={() => void shareInvitation(grant.grantToken, subject)}
+          />
+        </Card>
+      )}
 
       {(canCancel || canRevoke) &&
         (confirming ? (
@@ -355,6 +440,13 @@ function DesignateForm({
   // `DATE_INVALID` names both days, because the contract judges them together.
   const [invalidCode, setInvalidCode] = useState<CaretakerCommandInputCode | null>(null);
   const clearInvalid = () => setInvalidCode(null);
+
+  // THE BACK GESTURE MAY NOT DISCARD AN INVITATION IN PROGRESS
+  // (A2-alta-asentar-08). `startsAt` is PRE-FILLED with today, so a predicate
+  // that compared against a blank form would call this screen dirty on mount
+  // and ask the question of everybody who opened it; `useIsDirty` measures
+  // against what this form actually started with, which is that pre-filled day.
+  useDraftDiscardGuard(useIsDirty({ email, startsAt, endsAt, note }));
 
   const submit = useCallback(() => {
     // The CONTRACT's schema, run locally first, so a bad address or an impossible

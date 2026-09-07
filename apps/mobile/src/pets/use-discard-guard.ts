@@ -60,6 +60,24 @@ export const DISCARD_COPY = {
 } as const satisfies Record<string, DiscardCopy>;
 
 /**
+ * The same question, for a discard that is NOT a navigation
+ * (A2-alta-asentar-08).
+ *
+ * `beforeRemove` cannot see "Elegir otro tipo" on the asiento form: the screen
+ * stays, the FORM is remounted under a new `key`, and ten filled-in fields go
+ * with it — a discard as total as the back gesture and invisible to the
+ * navigator. Rather than a second Alert written at that call site, the words and
+ * the button order come from here, so the two ways of losing a form ask the same
+ * question.
+ */
+export function confirmDiscard(copy: DiscardCopy, onLeave: () => void): void {
+  Alert.alert(copy.title, copy.body, [
+    { text: copy.stay, style: "cancel" },
+    { text: copy.leave, style: "destructive", onPress: onLeave },
+  ]);
+}
+
+/**
  * Confirm-before-discard on any navigation away while `dirty`.
  *
  * Returns `allowLeave` — call it right before a PROGRAMMATIC exit that must
@@ -83,17 +101,10 @@ export function useDiscardGuard<A>(
     return navigation.addListener("beforeRemove", (e) => {
       if (!dirty || allowedRef.current) return;
       e.preventDefault();
-      Alert.alert(copy.title, copy.body, [
-        { text: copy.stay, style: "cancel" },
-        {
-          text: copy.leave,
-          style: "destructive",
-          onPress: () => {
-            allowedRef.current = true;
-            navigation.dispatch(e.data.action);
-          },
-        },
-      ]);
+      confirmDiscard(copy, () => {
+        allowedRef.current = true;
+        navigation.dispatch(e.data.action);
+      });
     });
   }, [navigation, dirty, copy]);
 

@@ -2,7 +2,10 @@
 //
 // Three of them are a11y; the fourth (L2-10, decimal fields) is not, and it is
 // here for the reason stated on the rule itself: this file is the only
-// instrument that reaches `apps/mobile/app/`, where jest does not go.
+// instrument that reaches `apps/mobile/app/`, where jest does not go. The
+// FIFTH (F4, the discard-guard navigation fake) is not a11y either, and its
+// reason is different again: it is a rule ABOUT TEST FILES, and a jest test
+// cannot be the thing that audits the jest suite it belongs to.
 //
 // Same instrument as mobile-screen-titles.test.ts: a root vitest fence that
 // SCANS apps/mobile source, so it runs inside test:verified without touching
@@ -60,6 +63,65 @@ const files = MOBILE_ROOTS.flatMap(walk).map((full) => ({
   rel: relative(resolve(__dirname, ".."), full).replaceAll("\\", "/"),
   content: readFileSync(full, "utf-8"),
 }));
+
+// ---------------------------------------------------------------------------
+// The TEST corpus, for rule 5 (F4). `walk` above deliberately skips `.test.*`;
+// this rule is about those files, so it needs its own walk.
+// ---------------------------------------------------------------------------
+
+function walkTests(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...walkTests(full));
+    else if (/\.test\.tsx?$/.test(name)) out.push(full);
+  }
+  return out;
+}
+
+const MOBILE_SRC = resolve(__dirname, "../apps/mobile/src");
+
+const testFiles = walkTests(MOBILE_SRC).map((full) => ({
+  full,
+  rel: relative(resolve(__dirname, ".."), full).replaceAll("\\", "/"),
+  content: readFileSync(full, "utf-8"),
+}));
+
+/** Every source module in `apps/mobile/src`, by absolute path with no extension. */
+const sourceByStem = new Map(
+  MOBILE_ROOTS.flatMap(walk).map((full) => [
+    full.replace(/\.tsx?$/, ""),
+    readFileSync(full, "utf-8"),
+  ]),
+);
+
+/**
+ * Does this module CALL or DEFINE the discard guard?
+ *
+ * Not a bare substring search: `ui/use-draft-dirty.ts` names the hook in prose
+ * ("`useDraftDiscardGuard` shipped on 2026-09-07") and does not use it, and a
+ * fence that accused a docblock would be trained away within a week.
+ */
+function touchesDiscardGuard(content: string): boolean {
+  return (
+    /\buseDraftDiscardGuard\s*\(/.test(content) ||
+    /export function useDraftDiscardGuard\b/.test(content)
+  );
+}
+
+/** The modules a test file imports by relative path, resolved to source text. */
+function relativeImportsOf(file: { full: string; content: string }): string[] {
+  const out: string[] = [];
+  const re = /from\s+["'](\.[^"']+)["']/g;
+  let match = re.exec(file.content);
+  while (match !== null) {
+    const stem = resolve(file.full, "..", match[1] as string).replace(/\.tsx?$/, "");
+    const source = sourceByStem.get(stem);
+    if (source !== undefined) out.push(source);
+    match = re.exec(file.content);
+  }
+  return out;
+}
 
 /**
  * Every `<Pressable` opening tag in `content`, as raw text. The tag ends at
@@ -228,6 +290,52 @@ describe("mobile a11y fences (C3)", () => {
     // a format with no width: every prefix of a decimal is another decimal.
     const kit = files.find((f) => f.rel.endsWith("src/ui/kit.tsx"));
     expect(kit?.content).toMatch(/maxLength=\{10\}/);
+  });
+
+  // RULE 5 (F4, review 2026-09-07) — THE SUBJECT IS THE FAKE, NOT ITS SPELLING.
+  //
+  // `ui/navigation-fake.ts` was built to end a stub that several screen tests
+  // carried by hand: `useNavigation: () => ({ addListener: () => () => {} })`.
+  // That object never fires the listener, so a screen with NO discard guard, or
+  // with one that intercepts its own success navigation, passes every case in
+  // the file — which is exactly how `AdoptionApplyScreen` shipped asking
+  // "¿Salir sin guardar?" over a postulación the shelter already had. The fake
+  // was written and two guarded screens were left on the stub anyway.
+  //
+  // A FENCE THAT ENUMERATED SPELLINGS WOULD MISS THE NEXT ONE. Banning the
+  // literal `addListener: () => () => {}` catches today's copies and nothing
+  // else: `addListener: () => noop`, a `jest.fn()` that returns undefined, a
+  // fresh object per call with a real unsubscribe — all of them reintroduce one
+  // half of the defect and none of them match. So the rule names the SUBJECT: a
+  // test that mocks the router for a module which uses the guard must get its
+  // navigation object from the one place that owns those two properties.
+  it("a guarded screen's test uses the shared navigation fake, never its own", () => {
+    const guarded: string[] = [];
+    const offenders: string[] = [];
+    for (const file of testFiles) {
+      if (!/jest\.mock\(\s*["']expo-router["']/.test(file.content)) continue;
+      if (!relativeImportsOf(file).some(touchesDiscardGuard)) continue;
+      guarded.push(file.rel);
+      if (!file.content.includes("createNavigationFake")) offenders.push(file.rel);
+    }
+    // NON-VACUITY, measured against the real corpus on 2026-09-07: TEN test
+    // files mock the router for a module that uses the guard — the eight guarded
+    // screens with jest coverage (asentar/RecordEvent, editar ficha, editar mis
+    // datos, mudanza, denuncia, transferir, postularme, modo perdida), plus
+    // CaretakerPetScreen and the guard's own binding test. The floor is 6: low
+    // enough to survive two screens being deleted or losing their router mock,
+    // high enough that a broken import walk — a renamed fake, a resolver that
+    // stops matching, `relativeImportsOf` returning [] — cannot reach it and
+    // sweep the rule clean. `expect([]).toEqual([])` over a filtered loop is the
+    // shape that passes forever when the filter breaks.
+    expect(
+      guarded.length,
+      `guarded screen tests seen: ${guarded.join(", ")}`,
+    ).toBeGreaterThanOrEqual(6);
+    expect(
+      offenders,
+      `These render a screen with a live \`useDraftDiscardGuard\` behind a hand-written \`useNavigation\`. A stub that never fires the listener cannot tell a guarded screen from an unguarded one — import \`createNavigationFake\` from src/ui/navigation-fake.ts:\n${offenders.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("EmptyState keeps its consumers — the primitive cannot quietly die", () => {

@@ -14,21 +14,21 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { render } from "@testing-library/react-native";
 import { Alert, Text } from "react-native";
 
-type RemoveEvent = { preventDefault: () => void; data: { action: unknown } };
+import { createNavigationFake } from "./navigation-fake";
 
-const mockListeners: ((event: RemoveEvent) => void)[] = [];
-const mockDispatched: unknown[] = [];
+// THE SHARED FAKE, AND NOT A HAND-WRITTEN ONE (finding F5, review 2026-09-07).
+// This file is the authority the screen tests defer to for "what the guard
+// DOES", and it was itself built on the two properties `navigation-fake.ts`
+// exists to fix: `useNavigation` returned a FRESH object per call, so the
+// guard's effect re-subscribed on every render, and the unsubscribe was
+// `() => undefined`, so nothing ever came off the list and `pressBack()` fired
+// every accumulated stale listener. Both defects flatter a guard — more
+// listeners, none of them removable — which is exactly the wrong direction for
+// the file everything else cites.
+const mockNav = createNavigationFake();
 
 jest.mock("expo-router", () => ({
-  useNavigation: () => ({
-    addListener: (_type: string, cb: (event: RemoveEvent) => void) => {
-      mockListeners.push(cb);
-      return () => undefined;
-    },
-    dispatch: (action: unknown) => {
-      mockDispatched.push(action);
-    },
-  }),
+  useNavigation: () => mockNav.navigation,
 }));
 
 import { DISCARD_COPY } from "../pets/use-discard-guard";
@@ -39,24 +39,10 @@ function Form({ dirty }: { dirty: boolean }) {
   return <Text>form</Text>;
 }
 
-/** Fire the back gesture at the listener the guard registered. */
-function pressBack(): { prevented: boolean } {
-  let prevented = false;
-  const event: RemoveEvent = {
-    preventDefault: () => {
-      prevented = true;
-    },
-    data: { action: { type: "POP" } },
-  };
-  for (const listener of mockListeners) listener(event);
-  return { prevented };
-}
-
 let alerts: { title: string; body?: string; buttons?: { text?: string }[] }[] = [];
 
 beforeEach(() => {
-  mockListeners.length = 0;
-  mockDispatched.length = 0;
+  mockNav.reset();
   alerts = [];
   jest
     .spyOn(Alert, "alert")
@@ -68,9 +54,8 @@ beforeEach(() => {
 describe("useDraftDiscardGuard", () => {
   it("stops the back gesture on a form that has been typed in", () => {
     render(<Form dirty />);
-    expect(mockListeners).toHaveLength(1);
 
-    expect(pressBack().prevented).toBe(true);
+    expect(mockNav.pressBack().blocked).toBe(true);
     expect(alerts).toHaveLength(1);
     // The FORM wording, not the alta wizard's: there is nothing to "seguir
     // cargando" on a single form, and "¿Salir del alta?" on the denuncia screen
@@ -88,7 +73,7 @@ describe("useDraftDiscardGuard", () => {
     // asks is a guard that gets dismissed without reading, and it would fire on
     // every person who opened a screen and changed their mind.
     render(<Form dirty={false} />);
-    expect(pressBack().prevented).toBe(false);
+    expect(mockNav.pressBack().blocked).toBe(false);
     expect(alerts).toHaveLength(0);
   });
 
@@ -97,9 +82,21 @@ describe("useDraftDiscardGuard", () => {
     // a wrapper that built its own object, or that read the wrong hook, would
     // pass every assertion above against a listener nobody ever fires.
     render(<Form dirty />);
-    expect(mockListeners).toHaveLength(1);
-    pressBack();
+    expect(mockNav.pressBack().blocked).toBe(true);
     // Nothing dispatched yet — the person has not answered the question.
-    expect(mockDispatched).toEqual([]);
+    expect(mockNav.dispatched).toEqual([]);
+  });
+
+  it("UNSUBSCRIBES, so a form that went clean stops asking", () => {
+    // What the old hand-written fake could not see: its unsubscribe was
+    // `() => undefined`, so the dirty render's listener stayed on the list
+    // forever and answered for every later one. A guard whose teardown does not
+    // work looks identical to a guard that works, right up to the day a screen
+    // that already navigated away blocks somebody else's back gesture.
+    const view = render(<Form dirty />);
+    view.rerender(<Form dirty={false} />);
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alerts).toHaveLength(0);
   });
 });

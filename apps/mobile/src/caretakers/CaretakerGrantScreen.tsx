@@ -47,7 +47,8 @@ import type { CaretakerCommandInput } from "@dim/contract/input";
 import type { ApiResult } from "../api/client";
 import { fetchMyCaretakerGrants, sendCaretakerCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
-import { sessionPort } from "../auth/session-store";
+import { KEEP_DESTINATION_ON_SIGN_OUT } from "../auth/return-to";
+import { sessionPort, signOut } from "../auth/session-store";
 import { Body, Card, Loading, Row } from "../ui/components";
 import { Callout, Choice, PrimaryButton, Screen, SecondaryButton, Title } from "../ui/kit";
 import { SPACE } from "../ui/theme";
@@ -208,8 +209,44 @@ export function CaretakerGrantScreen({
             No encontramos esta invitación en tu cuenta. Puede que ya no esté disponible o que no
             sea para vos.
           </Body>
+          {/* THE REMEDY THE WEB GIVES AND THIS SCREEN DID NOT (A4-custodia-11),
+              from `/cuidado/[grantToken]/page.tsx:86-89` — "Cerrá sesión y volvé
+              a entrar con la cuenta que recibió la invitación". Without it the
+              only control here is a "Reintentar" that produces the same screen.
+
+              ONE SENTENCE PER CAUSE, AND THE REMEDY BELONGS TO ONE OF THEM
+              (finding F9, review 2026-09-07). The comment above already names
+              two causes and the copy then prescribed the account switch for
+              both — including the one the hub makes commonest, a real invitation
+              of theirs that was answered, withdrawn or swept. Telling that
+              person to sign out is a remedy for nothing, and it costs them their
+              session to go looking for something no account can show. The WEB
+              may say it flatly because `relation === "outsider"` is a fact its
+              reader resolved; this screen never learned who the addressee is. */}
+          <Body>
+            Si ya la aceptaste, la rechazaste o la dieron de baja, no vas a poder verla acá y no hay
+            nada que hacer.
+          </Body>
+          <Body>
+            Si en cambio tenés otra cuenta, puede que se la hayan enviado a ese correo: entrá con
+            esa cuenta, o pedile a quien te invitó que la reenvíe a este correo.
+          </Body>
         </Card>
         <SecondaryButton label="Reintentar" onPress={() => void load()} />
+        {/* THE LABEL NAMES THE CASE IT BELONGS TO (finding F9): "Cerrar sesión"
+            next to "puede que no sea para vos" reads as an instruction to
+            whoever is looking at it, and this arm cannot tell who that is.
+            "Entrar con otra cuenta" is a door for the reader who knows they have
+            a second address and says nothing to the one whose invitation is
+            simply closed.
+
+            NOT `signOut(pathname)`: the gate suppresses `next` for the screen a
+            person deliberately closed, and this sign-out exists to come back
+            here. See `KEEP_DESTINATION_ON_SIGN_OUT`. */}
+        <SecondaryButton
+          label="Entrar con otra cuenta"
+          onPress={() => void signOut(KEEP_DESTINATION_ON_SIGN_OUT)}
+        />
       </Screen>
     );
   }

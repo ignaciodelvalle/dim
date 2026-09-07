@@ -16,9 +16,22 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
+
+import { createNavigationFake } from "../ui/navigation-fake";
 
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSave = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
+// A REAL LISTENER REGISTRY — a stable object and a working unsubscribe. See
+// `ui/navigation-fake.ts`; the screen had no `expo-router` mock at all before
+// the discard guard, so this is also what keeps `useNavigation` resolvable.
+const mockNav = createNavigationFake();
+
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useNavigation: () => mockNav.navigation,
+}));
 
 jest.mock("../api/endpoints", () => ({
   fetchMyProfile: (...args: unknown[]) => mockFetch(...args),
@@ -78,6 +91,85 @@ describe("loading", () => {
       expect(screen.getByText("No pudimos conectarnos. Revisá tu conexión.")).toBeTruthy();
       expect(screen.getByText("Reintentar")).toBeTruthy();
     });
+  });
+});
+
+describe("the discard guard (A2-alta-asentar-08)", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+    mockNav.reset();
+  });
+
+  it("does NOT ask anything of somebody who only opened the screen", async () => {
+    render(<EditProfileScreen />);
+    await screen.findByDisplayValue("Lucía");
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("asks before the back gesture discards an edited field", async () => {
+    render(<EditProfileScreen />);
+    fireEvent.changeText(await screen.findByDisplayValue("Lucía"), "Lucía Pérez");
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
+  });
+
+  it("goes back to CLEAN once the save landed and the form was re-seeded", async () => {
+    // The baseline is the SERVER'S payload rather than the value at mount, and
+    // this screen is where that matters most: `load` re-seeds the draft after
+    // every save because the writer TRIMS `displayName`, so the field ends up
+    // saying what was stored. A guard keyed to the mount value would go on
+    // asking about an edit that is already on the server.
+    render(<EditProfileScreen />);
+    fireEvent.changeText(await screen.findByDisplayValue("Lucía"), "Lucía Pérez");
+    mockFetch.mockResolvedValue(payload({ ...STORED, displayName: "Lucía Pérez" }));
+    fireEvent.press(screen.getByText("Guardar cambios"));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("is CLEAN after a save that landed even when the re-read could not confirm it", async () => {
+    // FINDING F1, review 2026-09-07. The case above uses a re-read that WORKED,
+    // and every screen passes that one. This is the one that hurts: one bar of
+    // signal, the write lands, the reload does not.
+    //
+    // `reloadFailed` keeps the PRE-SAVE payload on an outage — correctly; the
+    // alternative is a full-screen error over a save that succeeded — so a guard
+    // that compares the draft against `state.view` finds the OLD name there and
+    // blocks the back gesture with "Lo que escribiste hasta acá se pierde." over
+    // a value that is already on the server.
+    render(<EditProfileScreen />);
+    fireEvent.changeText(await screen.findByDisplayValue("Lucía"), "Lucía Pérez");
+    mockFetch.mockResolvedValue({ outcome: "unreachable" });
+    fireEvent.press(screen.getByText("Guardar cambios"));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    // The save landed and the screen says so; only the confirming read failed.
+    expect(screen.getByText("Tus datos fueron actualizados.")).toBeTruthy();
+    expect(screen.getByDisplayValue("Lucía Pérez")).toBeTruthy();
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("goes dirty again when somebody keeps typing after that failed re-read", async () => {
+    // The control that keeps the latch from being a blanket "never ask again":
+    // it is the baseline, not an off switch. An edit made AFTER the save still
+    // has to stop the back gesture.
+    render(<EditProfileScreen />);
+    fireEvent.changeText(await screen.findByDisplayValue("Lucía"), "Lucía Pérez");
+    mockFetch.mockResolvedValue({ outcome: "unreachable" });
+    fireEvent.press(screen.getByText("Guardar cambios"));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    fireEvent.changeText(screen.getByDisplayValue("Lucía Pérez"), "Lucía Pérez Gómez");
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
   });
 });
 

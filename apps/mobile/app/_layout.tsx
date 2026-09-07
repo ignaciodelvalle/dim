@@ -30,6 +30,12 @@ import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+// The PORT, not the settings card that used to export it (finding F7): this
+// module runs before the first paint, and reaching a four-line object literal
+// through a Card, the ui kit and expo-constants is a dependency nobody would
+// look for here.
+import { EXPO_UPDATES_PORT } from "../src/account/expo-updates-port";
+import { useForegroundUpdateCheck } from "../src/account/foreground-update";
 import { useSessionBootstrap } from "../src/auth/useSession";
 import { initSentry } from "../src/observability/sentry";
 import { useNavigationBreadcrumb } from "../src/observability/use-navigation-breadcrumb";
@@ -70,6 +76,13 @@ function RootLayout() {
   // font gate returns early — a hook that runs conditionally is not a hook, and
   // the cold-start screens are the ones whose order matters most.
   useNavigationBreadcrumb(usePathname());
+  // AN OTA HOTFIX HAS TO REACH A PHONE NOBODY RESTARTS (A6-cuenta-resiliencia-08).
+  // `checkAutomatically` is ON_LOAD, so a resident app never looks; this stages
+  // the bundle on the way back to the foreground, silently, so the next launch
+  // applies it instead of the one after that. It never reloads on its own — see
+  // `src/account/foreground-update.ts`. Called BEFORE the font gate returns
+  // early, like the breadcrumb above: a hook that runs conditionally is not one.
+  useForegroundUpdateCheck(EXPO_UPDATES_PORT);
 
   // THE FIRST PAINT WAITS FOR THE TYPEFACE, and the alternative is worse than a
   // pause. React Native draws immediately with the system face and re-lays-out

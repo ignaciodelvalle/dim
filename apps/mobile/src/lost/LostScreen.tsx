@@ -76,12 +76,16 @@ import {
 } from "../ui/kit";
 import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { COLORS, LABEL_TRACKING_EM, RADIUS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
+import { useIsDirty } from "../ui/use-draft-dirty";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 
 import {
   DISCLOSURE_TITULAR_ONLY_NOTE,
   type DisclosureKey,
   FEED_EMPTY_LABEL,
   type LostDraft,
+  NO_CONTACT_TITLE,
+  NO_CONTACT_TITLE_READ_ONLY,
   POSTER_UNAVAILABLE_NOTE,
   REPORT_ACTION_LABEL,
   REPORT_CATEGORY_OPTIONS,
@@ -92,6 +96,7 @@ import {
   buildReportContent,
   buildReportLastSeen,
   buildSetDisclosure,
+  canOpenFinderChannel,
   commandDoneLabel,
   commandUnchangedLabel,
   disclosureHelp,
@@ -104,6 +109,8 @@ import {
   feedItemTitle,
   feedTruncationNote,
   lostAdjective,
+  noContactWarning,
+  noWayToReachYou,
   reportCategoryLabel,
   shareSearchMessage,
   situationHeadline,
@@ -466,6 +473,30 @@ function Overview({
             onToggle={() => void onRun(unwrap(buildSetDisclosure(row.key, !row.value)), null)}
           />
         ))}
+        {/* THE SEARCH IS ALREADY RUNNING HERE, which is why this belongs on the
+            overview too and not only on the form (A4-custodia-09): a toggle
+            turned off weeks into a search leaves the credential with a notice
+            and no way to answer it.
+
+            AND THE SENTENCE DEPENDS ON WHO IS READING IT (finding F11, review
+            2026-09-07). The rows above this callout draw a switch only for the
+            keys in `editableDisclosureKeys`, and for a caretaker or a co-owner
+            none of the three finder channels is among them — so "Te recomendamos
+            habilitar al menos el formulario" was an instruction printed over
+            rows with no controls on them, addressed in the second person to
+            somebody the finder would not be contacting anyway. The FACT still
+            reaches them, because it is the fact that matters and they may be the
+            one standing next to the titular; the instruction does not. */}
+        {noWayToReachYou(view.disclosure) &&
+          (canOpenFinderChannel(view.capabilities.editableDisclosureKeys) ? (
+            <Callout tone="warn" title={NO_CONTACT_TITLE}>
+              <Body>{noContactWarning(view.petName)}</Body>
+            </Callout>
+          ) : (
+            <Callout tone="warn" title={NO_CONTACT_TITLE_READ_ONLY}>
+              <Body>{noContactWarning(view.petName, false)}</Body>
+            </Callout>
+          ))}
       </Card>
 
       <Card title="Cartel para imprimir">
@@ -583,6 +614,21 @@ function MarkLostForm({
   const [draft, setDraft] = useState<LostDraft>(() => emptyLostDraft());
   const [message, setMessage] = useState<string | null>(null);
 
+  // THE BACK GESTURE MAY NOT DISCARD A SEARCH IN PROGRESS (A2-alta-asentar-08).
+  // Eight free-text fields and five decisions about what gets published, filled
+  // in by somebody whose animal is missing — the worst moment in this app to
+  // lose a form to a gesture the platform teaches.
+  //
+  // FLATTENED, because `useIsDirty` compares values and `disclosure` is a nested
+  // object: without this the five toggles would be compared by reference and a
+  // changed one would read as "nothing typed". The key names do not collide.
+  //
+  // "Cancelar" IS NOT GUARDED, deliberately, unlike the asiento form's "Elegir
+  // otro tipo": that control does not say it discards anything, and this one is
+  // the word for exactly that.
+  const { disclosure, ...text } = draft;
+  useDraftDiscardGuard(useIsDirty({ ...text, ...disclosure }));
+
   function set<K extends keyof LostDraft>(field: K, value: LostDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
@@ -685,6 +731,16 @@ function MarkLostForm({
             onToggle={() => toggle(key)}
           />
         ))}
+        {/* THE WEB'S CALLOUT, PORTED (A4-custodia-09). Phone and email start
+            OFF, so a privacy-minded person only has to turn the finder form off
+            to publish a search nobody can answer — and nothing said so. It is a
+            WARNING and not a block: the choice is theirs, and the sentence names
+            the option that costs them nothing. */}
+        {noWayToReachYou(draft.disclosure) && (
+          <Callout tone="warn" title={NO_CONTACT_TITLE}>
+            <Body>{noContactWarning(view.petName)}</Body>
+          </Callout>
+        )}
       </Card>
 
       {message === null ? null : (

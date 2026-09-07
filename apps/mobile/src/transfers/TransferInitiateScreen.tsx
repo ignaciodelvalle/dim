@@ -42,6 +42,7 @@ import {
   TRANSFER_REASON_CHOICES,
   TRANSFER_WINDOW_DAYS,
   buildInitiateTransfer,
+  transferInitiateRefusalMessage,
 } from "./transfers-view-model";
 
 /** The four values, in the web's order, for the chooser. */
@@ -50,7 +51,10 @@ const REASON_VALUES: readonly OwnerTransferReason[] = TRANSFER_REASON_CHOICES.ma
 function failureMessage(result: ApiResult<unknown>): string {
   switch (result.outcome) {
     case "api-error":
-      return apiErrorMessage(result.code);
+      // The screen's own sentence first, the shared one otherwise. Only
+      // `transfer_forbidden` is overridden, and only here — on the DETAIL screen
+      // the shared answer-time copy is exactly right.
+      return transferInitiateRefusalMessage(result.code) ?? apiErrorMessage(result.code);
     case "unsupported-version":
       return "Esta versión de la app no puede enviar esta propuesta. Actualizá la app.";
     case "malformed":

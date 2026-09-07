@@ -19,12 +19,21 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
+
+import { createNavigationFake } from "../ui/navigation-fake";
 
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+// A REAL LISTENER REGISTRY — a stable object and a working unsubscribe. See
+// `ui/navigation-fake.ts`; a `useNavigation` stub that never fires its listener
+// makes a missing discard guard invisible.
+const mockNav = createNavigationFake();
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useNavigation: () => mockNav.navigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -116,6 +125,60 @@ describe("PetProfileEditScreen — the two halves are gated separately", () => {
     expect(screen.queryByText("Guardar datos")).toBeNull();
     // The other half is untouched by that refusal.
     expect(screen.getByText("Guardar contactos")).toBeOnTheScreen();
+  });
+});
+
+describe("PetProfileEditScreen — the discard guard (A2-alta-asentar-08)", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+    mockNav.reset();
+  });
+
+  it("does NOT ask anything of somebody who only opened the screen", async () => {
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    await screen.findByDisplayValue("Pampa");
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("asks before the back gesture discards an edited name", async () => {
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    fireEvent.changeText(await screen.findByDisplayValue("Pampa"), "Pampita");
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
+  });
+
+  it("watches the CONTACTS half too, which saves separately", async () => {
+    // Two save groups, one question: somebody may have saved the identity and
+    // still be holding an unsaved phone number, and a guard that watched only
+    // the first would let that one go.
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    fireEvent.changeText(await screen.findByDisplayValue("Vet Norte"), "Vet Sur");
+    expect(mockNav.pressBack().blocked).toBe(true);
+  });
+
+  it("goes back to CLEAN once the save landed and the form was re-seeded", async () => {
+    // The baseline is the SERVER'S payload, not a value captured at mount, so a
+    // landed save makes the screen quiet again — a guard measuring against the
+    // mount value would go on asking about an edit that is already stored.
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    fireEvent.changeText(await screen.findByDisplayValue("Pampa"), "Pampita");
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ identity: { name: "Pampita", breed: "Mestizo", color: "Atigrada" } }),
+    });
+    fireEvent.press(screen.getByText("Guardar datos"));
+    // WAIT ON THE RE-READ, not on the field: the input already shows "Pampita"
+    // from the local edit, so `findByDisplayValue` resolves before the save has
+    // even been sent and the assertion below would read a draft that is
+    // genuinely still dirty.
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
   });
 });
 

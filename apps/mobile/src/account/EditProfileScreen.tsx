@@ -31,7 +31,7 @@
 // field really does clear it, and there is no case where a field this screen did
 // not show gets erased by a save.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { MyProfileV1 } from "@dim/contract/api";
@@ -40,7 +40,6 @@ import {
   CONTACT_PHONE_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
   DISPLAY_NAME_MIN_LENGTH,
-  type MyProfileEditInput,
 } from "@dim/contract/input";
 
 import type { ApiResult } from "../api/client";
@@ -52,6 +51,8 @@ import { FONTS } from "../ui/fonts";
 import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
 import { type ReadyState, loaded, reloadFailed } from "../ui/reload-state";
 import { COLORS, LEADING, SPACE, TYPE } from "../ui/theme";
+import { sameDraft } from "../ui/use-draft-dirty";
+import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useReturnKeyChain } from "../ui/use-return-key-chain";
 
 import { type ProfileDraft, draftFrom, looksLikeArPhone, toEditInput } from "./profile-draft";
@@ -98,6 +99,12 @@ export function EditProfileScreen() {
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
 
+  // WHAT THE SERVER HAS, WHEN THE RE-READ COULD NOT CONFIRM IT (finding F1,
+  // review 2026-09-07). See the `dirty` computation below for the whole story;
+  // `null` means "the payload on screen is the authority", which it is on every
+  // load that landed.
+  const savedBaseline = useRef<ProfileDraft | null>(null);
+
   const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     // A RE-READ DOES NOT BLANK THE FORM (S-2). `load` runs again after every
     // landed save, and setting `loading` there replaced the six filled fields
@@ -111,6 +118,11 @@ export function EditProfileScreen() {
       // saying what was actually stored rather than what was typed.
       setDraft(draftFrom(result.payload as MyProfileV1));
       setState(loaded(result.payload as MyProfileV1));
+      // A LANDED READ RETIRES THE LATCH. The payload just confirmed what the
+      // server holds — including the trim the writer applied — so it is a better
+      // baseline than the values this screen posted, and keeping the latch would
+      // make the trim itself read as an unsaved edit.
+      savedBaseline.current = null;
       return;
     }
     // AND A FAILED RE-READ DOES NOT DELETE IT EITHER. The save LANDED — the
@@ -125,15 +137,18 @@ export function EditProfileScreen() {
   }, [load]);
 
   const save = useCallback(
-    async (input: MyProfileEditInput) => {
+    async (submitted: ProfileDraft) => {
       setBusy(true);
       setNotice(null);
-      const result = await saveMyProfile(sessionPort, input);
+      const result = await saveMyProfile(sessionPort, toEditInput(submitted));
       setBusy(false);
       if (result.outcome !== "ok") {
         setNotice({ tone: "err", message: failureMessage(result) });
         return;
       }
+      // THE WRITE LANDED, SO THE FORM IS CLEAN — whatever the re-read then does.
+      // Latched BEFORE the reload precisely because the reload is what may fail.
+      savedBaseline.current = submitted;
       setNotice({ tone: "ok", message: "Tus datos fueron actualizados." });
       // Re-read rather than trust the draft: see `load`.
       await load("refresh");
@@ -144,6 +159,33 @@ export function EditProfileScreen() {
   // Return-key advance across the six single-line fields (QOL 2026-09-01).
   // Above the early returns — hooks may not sit below a conditional return.
   const chain = useReturnKeyChain(6);
+
+  // THE BACK GESTURE MAY NOT DISCARD SIX EDITED FIELDS (A2-alta-asentar-08).
+  //
+  // THE BASELINE IS THE SERVER'S OWN ANSWER, not a value captured at mount, and
+  // on this screen that is strictly better than a ref: `load` re-seeds the draft
+  // from the payload after every landed save (the writer trims `displayName`),
+  // so comparing against the payload makes "dirty" mean "differs from what the
+  // server has" — it goes back to clean when a save lands, and it survives a
+  // re-read that changed nothing.
+  //
+  // …EXCEPT WHEN THE RE-READ IS THE THING THAT FAILED (finding F1, review
+  // 2026-09-07), WHICH IS THE ONE CASE THE PAYLOAD CANNOT ANSWER. `reloadFailed`
+  // keeps the PRE-SAVE payload on an outage-shaped failure — that is its whole
+  // job, and it is right — so on one bar of signal the sequence is: type a name,
+  // tap Guardar, the write LANDS, the re-read comes back unreachable, and the
+  // payload this comparison reads is still the old one. Without the latch the
+  // back gesture would then be blocked by "Lo que escribiste hasta acá se
+  // pierde." over a value that is already on the server: the H1 class this guard
+  // exists to prevent, pointed at the person who did everything right.
+  //
+  // So the baseline is "the last thing the server confirmed, or failing that the
+  // last thing it accepted". The latch is retired by the next landed read.
+  const dirty =
+    draft !== null &&
+    state.phase === "ready" &&
+    !sameDraft(savedBaseline.current ?? draftFrom(state.view), draft);
+  useDraftDiscardGuard(dirty);
 
   if (state.phase === "loading") return <Loading label="Abriendo tus datos…" />;
 
@@ -262,7 +304,7 @@ export function EditProfileScreen() {
         <PrimaryButton
           label={busy ? "Guardando…" : "Guardar cambios"}
           disabled={busy || !nameUsable}
-          onPress={() => void save(toEditInput(draft))}
+          onPress={() => void save(draft)}
         />
       </View>
 

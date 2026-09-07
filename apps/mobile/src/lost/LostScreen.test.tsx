@@ -17,6 +17,9 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
+
+import { createNavigationFake } from "../ui/navigation-fake";
 
 const mockPush = jest.fn();
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
@@ -32,8 +35,14 @@ const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
  */
 const mockFocusCallbacks: Array<() => void> = [];
 
+// A REAL LISTENER REGISTRY — see `ui/navigation-fake.ts`. The mark-lost form is
+// a PANE on this screen, so the discard the guard covers is a navigation away
+// from the whole screen with eight fields filled in.
+const mockNav = createNavigationFake();
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
+  useNavigation: () => mockNav.navigation,
   useFocusEffect: (callback: () => void) => {
     const { useEffect } = require("react");
     useEffect(() => {
@@ -323,6 +332,83 @@ describe("LostScreen — the privacy rows", () => {
     fireEvent.press(await screen.findByText("Mostrar mi email"));
     expect(await screen.findByText("Esa preferencia ya estaba así.")).toBeOnTheScreen();
   });
+
+  it("warns when the last contact channel is off, on the RUNNING search (A4-custodia-09)", async () => {
+    // The three channels off means the credential shows a search notice and no
+    // way to answer it: whoever is holding the dog can log a sighting and
+    // nothing else. The fixture's `allowFinderFormWhenLost: true` is the only
+    // one on, so this is the state one tap away from the default.
+    mockFetch.mockResolvedValue(
+      ok(
+        payload({
+          disclosure: {
+            discloseFirstNameWhenLost: true,
+            disclosePhoneWhenLost: false,
+            discloseEmailWhenLost: false,
+            discloseLastLocationWhenLost: true,
+            allowFinderFormWhenLost: false,
+            discloseCaretakerContactWhenLost: false,
+          },
+        }),
+      ),
+    );
+    render(<LostScreen publicToken={TOKEN} />);
+    expect(await screen.findByText("Nadie va a poder contactarte")).toBeOnTheScreen();
+    expect(
+      screen.getByText(/quien encuentre a Pampa no tiene forma de avisarte/),
+    ).toBeOnTheScreen();
+  });
+
+  it("stays quiet while ONE channel is still open", async () => {
+    // The non-vacuity half. A name and a last-seen place are things a finder
+    // READS, not ways to write back, so neither of them silences the warning —
+    // and the form alone is enough to keep it away.
+    render(<LostScreen publicToken={TOKEN} />);
+    await screen.findByText("Mostrar mi teléfono");
+    expect(screen.queryByText("Nadie va a poder contactarte")).toBeNull();
+  });
+
+  it("does not tell a reader with no switches to flip one (F11)", async () => {
+    // The rows above this callout draw a switch only for the keys in
+    // `editableDisclosureKeys`. A caretaker or a co-owner gets none of the three
+    // finder channels, so "Te recomendamos habilitar al menos el formulario" was
+    // an instruction printed over rows that carry "Solo el titular puede cambiar
+    // esto" — advice the person reading it cannot follow, addressed in the
+    // second person to somebody the finder would not be contacting anyway.
+    mockFetch.mockResolvedValue(
+      ok(
+        payload({
+          disclosure: {
+            discloseFirstNameWhenLost: true,
+            disclosePhoneWhenLost: false,
+            discloseEmailWhenLost: false,
+            discloseLastLocationWhenLost: true,
+            allowFinderFormWhenLost: false,
+            discloseCaretakerContactWhenLost: false,
+          },
+          capabilities: {
+            canMarkLost: false,
+            canReportLastSeen: true,
+            canMarkFound: false,
+            canReactivateSearch: false,
+            canReportContent: true,
+            editableDisclosureKeys: [],
+          },
+        }),
+      ),
+    );
+    render(<LostScreen publicToken={TOKEN} />);
+
+    // THE FACT STILL REACHES THEM — it is the fact that matters, and they may be
+    // the person standing next to the titular.
+    expect(await screen.findByText("Nadie va a poder avisar")).toBeOnTheScreen();
+    // Once per row that has no switch, PLUS the callout's own closing sentence:
+    // whose decision it is, said where the recommendation used to be.
+    expect(screen.getAllByText(/Solo el titular puede cambiar esto/).length).toBeGreaterThan(6);
+    // The instruction, and the second person, do not.
+    expect(screen.queryByText("Nadie va a poder contactarte")).toBeNull();
+    expect(screen.queryByText(/Te recomendamos habilitar/)).toBeNull();
+  });
 });
 
 describe("LostScreen — marcar perdida", () => {
@@ -352,6 +438,58 @@ describe("LostScreen — marcar perdida", () => {
       },
     });
     expect(sentKey()).toBeNull();
+  });
+
+  it("warns on the FORM when the last channel is switched off (A4-custodia-09)", async () => {
+    // Phone and email start OFF on the draft, so a privacy-minded person only
+    // has to turn the finder form off — one tap — to publish a search nobody can
+    // answer. The web's wizard says so; the phone said nothing.
+    render(<LostScreen publicToken={TOKEN} />);
+    fireEvent.press(await screen.findByText("Marcar como perdida"));
+    expect(screen.queryByText("Nadie va a poder contactarte")).toBeNull();
+
+    fireEvent.press(screen.getByText("Permitir que quien la encuentre me escriba"));
+
+    expect(screen.getByText("Nadie va a poder contactarte")).toBeOnTheScreen();
+    // A WARNING AND NOT A BLOCK: the choice is theirs and the button stays live.
+    expect(screen.getAllByText("Marcar como perdida").length).toBeGreaterThan(0);
+  });
+
+  it("guards the form against the back gesture, and stays quiet before it (A2-alta-asentar-08)", async () => {
+    // Eight free-text fields and five decisions about what gets published,
+    // filled in by somebody whose animal is missing — the worst moment in this
+    // app to lose a form to a gesture the platform teaches.
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    mockNav.reset();
+    alert.mockClear();
+
+    render(<LostScreen publicToken={TOKEN} />);
+    fireEvent.press(await screen.findByText("Marcar como perdida"));
+    // Nothing typed yet: opening the form may not interrupt anybody.
+    expect(mockNav.pressBack().blocked).toBe(false);
+
+    fireEvent.changeText(
+      screen.getByLabelText("Dónde la viste por última vez"),
+      "Plaza San Martín",
+    );
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
+    alert.mockRestore();
+  });
+
+  it("guards a DISCLOSURE decision too, not only the free text", async () => {
+    // `disclosure` is a nested object: compared by reference it would read as
+    // "nothing typed" after somebody switched the finder form off, which is one
+    // of the more consequential things they can do on this form.
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    mockNav.reset();
+
+    render(<LostScreen publicToken={TOKEN} />);
+    fireEvent.press(await screen.findByText("Marcar como perdida"));
+    fireEvent.press(screen.getByText("Mostrar mi teléfono"));
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    alert.mockRestore();
   });
 
   it("marks lost with NOTHING filled in — the fast path the wizard protects", async () => {

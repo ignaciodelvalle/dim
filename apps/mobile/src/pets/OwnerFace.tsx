@@ -51,6 +51,7 @@ import {
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import { FaceDivider, FaceSection, IDENTITY_POKE_OUT } from "./DocumentChromeNative";
 import {
+  type OwnerFaceGates,
   type OwnerFaceView,
   type SectionView,
   alertHeadline,
@@ -59,9 +60,11 @@ import {
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
+  ownerFaceGates,
   registeredBadgeWord,
   rehomeBannerLine,
   reminderDueLabel,
+  titularOnlyRowCaption,
   transitBannerLine,
   truncationNote,
 } from "./owner-face-view-model";
@@ -409,17 +412,29 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
  *   · Anotar — the write the libreta exists for; the server decides whether
  *     this caller may write.
  *
- * WHAT IS ROLE-GATED CLIENT-SIDE: only the DISABLED rows, because a dead
- * control has no server to refuse it. The gates mirror the web's own
- * (`deriveMasSheetItems`): a caretaker never sees Editar datos or Contactos
- * de emergencia; an org member gets Compartir and nothing owner-only.
+ * WHAT IS ROLE-GATED CLIENT-SIDE: the DISABLED rows, because a dead control has
+ * no server to refuse it — and, since A3-documento-credencial-04, the rows the
+ * web's own gates take away. The paragraph above is still the rule for the
+ * unconditional four; what it did NOT cover is the two facts the payload
+ * carries and this footer ignored: whether the animal is registered as
+ * fallecida, and whether this viewer is the titular. `ownerFaceGates` is where
+ * those two are read and why each gate is the web's; a caretaker never sees
+ * Editar datos or Contactos de emergencia, and an org member gets Compartir and
+ * nothing owner-only, both unchanged.
+ *
+ * "THE SERVER DECIDES" IS NOT AN ANSWER FOR A REFUSAL THAT ARRIVES AFTER A FORM.
+ * Transferir and Cuidador are refused for a non-titular only once the address,
+ * the dates and the note have been typed, and the sentence that comes back
+ * describes an arrangement the person cannot see. An INERT row with a caption
+ * says the same thing before the typing, and the server refusal stays exactly
+ * where it was.
  */
 function ActionFooter({ view }: { view: OwnerFaceView }) {
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isOrgViewer = view.viewerRole === "org_member";
-  const isCaretaker = view.viewerRole === "caretaker";
+  const gates = ownerFaceGates(view);
   const petName = view.identity.state === "ok" ? view.identity.data.name : null;
   const nameParams = petName === null ? {} : { name: petName };
 
@@ -441,25 +456,36 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
   return (
     <View style={styles.stack}>
       <View style={styles.actionRow}>
-        <FaceAction
-          icon="libreta"
-          label="Anotar"
-          accessibilityHint="Asentar un evento en la libreta."
-          onPress={() => router.push(recordEventRoute(view.publicToken))}
-        />
+        {/* DECEASED COLLAPSES THE ROW TO [Compartir][Más], which is the web's
+            own shape (`PetActionRow.tsx:22`, ADR-15/REQ-9.3). Not drawn inert
+            here, unlike the Más rows below: the pill row is four items wide and
+            a fallecida animal has no write left to offer, so two greyed pills
+            would be furniture about nothing. */}
+        {gates.canRecordEvent ? (
+          <FaceAction
+            icon="libreta"
+            label="Anotar"
+            accessibilityHint="Asentar un evento en la libreta."
+            onPress={() => router.push(recordEventRoute(view.publicToken))}
+          />
+        ) : null}
         <FaceAction
           icon="share"
           label="Compartir"
           accessibilityHint="Crear o revocar links de la libreta, y mostrarla en la credencial pública."
           onPress={() => router.push(sharesRoute(view.publicToken))}
         />
-        <FaceAction
-          icon="alert-triangle"
-          label="Modo perdida"
-          danger
-          accessibilityHint="Marcar la mascota como perdida, seguir la búsqueda o marcarla encontrada."
-          onPress={() => router.push(lostModeRoute(view.publicToken))}
-        />
+        {/* KEPT ON A LOST ANIMAL, where the web drops it — see `ownerFaceGates`.
+            The row is the cockpit for both directions here. */}
+        {gates.canOpenLostMode ? (
+          <FaceAction
+            icon="alert-triangle"
+            label="Modo perdida"
+            danger
+            accessibilityHint="Marcar la mascota como perdida, seguir la búsqueda o marcarla encontrada."
+            onPress={() => router.push(lostModeRoute(view.publicToken))}
+          />
+        ) : null}
         <FaceAction
           icon="ellipsis"
           label="Más"
@@ -468,109 +494,180 @@ function ActionFooter({ view }: { view: OwnerFaceView }) {
         />
       </View>
 
-      {moreOpen ? (
-        <View style={styles.moreList}>
-          {/* EDITAR DATOS LIVES HERE, not on the face, since 2026-09-04. The
-              face had five pills in a two-column grid, so the fifth stood
-              alone on a third row; the one to move is the one with no moment.
-              Anotar and Compartir both happen with the animal in front of you
-              (a symptom as it appears, a credential handed to a vet), and Modo
-              perdida is the emergency. Correcting a name or a colour is a
-              once-ever edit that can afford a tap.
+      {moreOpen ? <MoreList view={view} gates={gates} nameParams={nameParams} /> : null}
+    </View>
+  );
+}
 
-              FIRST IN THE LIST, and that position is the precedent rather than
-              a leftover: the web's `deriveMasSheetItems` opens with "Editar
-              datos y ficha". This row landed eighth when it was first moved,
-              because it was folded into the non-caretaker fragment further
-              down and inherited that fragment's place — citing the web for the
-              destination while contradicting it on the order. It carries its
-              own `isCaretaker` gate now so position and permission are two
-              decisions instead of one accident; the gate itself is unchanged
-              from the face row it replaces. */}
-          {isCaretaker ? null : (
-            <MoreRow
-              label="Editar datos"
-              accessibilityHint="Cambiar el nombre, la raza y el color. Queda registrado en la libreta."
-              onPress={() => router.push(editPetRoute(view.publicToken))}
-            />
-          )}
-          <MoreRow
-            label="Credencial pública"
-            onPress={() => router.push(publicCredentialRoute(view.publicToken))}
-          />
-          {/* LA FOTO — deliberately NOT behind `isCaretaker`, matching the
-              server's own gate: `POST /pets/{token}/photo` takes any holder
-              role, because `titular-only.ts` lists photos among what a
-              caretaker MAY do and a caretaker photographing the animal in
-              their care is the case the role exists for. Whether this BUILD
-              can pick a photo is the image-picker seam's answer, and the
-              screen this row opens says it honestly either way. */}
-          <MoreRow
-            label="Foto de la mascota"
-            accessibilityHint="Elegir la foto que muestra la credencial."
-            onPress={() => router.push(petPhotoRoute(view.publicToken))}
-          />
+/**
+ * The expanded "Más" list.
+ *
+ * ITS OWN COMPONENT SINCE A3-documento-credencial-04, and not for tidiness:
+ * the per-row gates the finding asked for pushed `ActionFooter` past the
+ * cognitive-complexity ceiling the repo lints for. The split is along the seam
+ * that was already there — the pill row is one decision, the sheet is another —
+ * and every gate it reads is precomputed in `ownerFaceGates`.
+ */
+function MoreList({
+  view,
+  gates,
+  nameParams,
+}: {
+  view: OwnerFaceView;
+  gates: OwnerFaceGates;
+  /** `{ name }` when the identity section loaded, `{}` when it did not. */
+  nameParams: { name?: string };
+}) {
+  const router = useRouter();
+  const titularOnlyCaption = titularOnlyRowCaption(gates);
+  return (
+    <View style={styles.moreList}>
+      {/* EDITAR DATOS LIVES HERE, not on the face, since 2026-09-04. The
+            face had five pills in a two-column grid, so the fifth stood
+            alone on a third row; the one to move is the one with no moment.
+            Anotar and Compartir both happen with the animal in front of you
+            (a symptom as it appears, a credential handed to a vet), and Modo
+            perdida is the emergency. Correcting a name or a colour is a
+            once-ever edit that can afford a tap.
+
+            FIRST IN THE LIST, and that position is the precedent rather than
+            a leftover: the web's `deriveMasSheetItems` opens with "Editar
+            datos y ficha". This row landed eighth when it was first moved,
+            because it was folded into the non-caretaker fragment further
+            down and inherited that fragment's place — citing the web for the
+            destination while contradicting it on the order. It carries its
+            own gate now so position and permission are two decisions instead
+            of one accident; the gate itself is unchanged from the face row it
+            replaces, and it is READ FROM `gates` rather than re-derived here
+            (finding F6): `canEditIdentity` was computed and never used while
+            this row tested `view.viewerRole` inline, which is the one thing
+            this component's docblock promises it does not do. */}
+      {gates.canEditIdentity ? (
+        <MoreRow
+          label="Editar datos"
+          accessibilityHint="Cambiar el nombre, la raza y el color. Queda registrado en la libreta."
+          onPress={() => router.push(editPetRoute(view.publicToken))}
+        />
+      ) : null}
+      <MoreRow
+        label="Credencial pública"
+        onPress={() => router.push(publicCredentialRoute(view.publicToken))}
+      />
+      {/* LA FOTO — deliberately NOT behind the caretaker gate, matching the
+            server's own gate: `POST /pets/{token}/photo` takes any holder
+            role, because `titular-only.ts` lists photos among what a
+            caretaker MAY do and a caretaker photographing the animal in
+            their care is the case the role exists for. Whether this BUILD
+            can pick a photo is the image-picker seam's answer, and the
+            screen this row opens says it honestly either way. */}
+      <MoreRow
+        label="Foto de la mascota"
+        accessibilityHint="Elegir la foto que muestra la credencial."
+        onPress={() => router.push(petPhotoRoute(view.publicToken))}
+      />
+      {/* TITULAR-ONLY AND ACTIVE-ONLY, the web's own pair of gates
+            (`MasSheet.helpers.ts:97-118`). A deceased animal loses both rows
+            outright — the web's deceased early-return sits above them — and
+            every other refusal is drawn inert with the reason, because the
+            alternative is a co-owner typing an address into a form whose
+            answer will describe an arrangement they cannot see. */}
+      {gates.isDeceased ? null : (
+        <>
           <MoreRow
             label="Transferir la titularidad"
             accessibilityHint="Ofrecerle esta mascota a otra persona. No cambia nada hasta que acepte."
-            onPress={() =>
-              router.push({ pathname: transferPetRoute(view.publicToken), params: nameParams })
+            caption={titularOnlyCaption ?? undefined}
+            onPress={
+              gates.canTransfer
+                ? () =>
+                    router.push({
+                      pathname: transferPetRoute(view.publicToken),
+                      params: nameParams,
+                    })
+                : undefined
             }
           />
           <MoreRow
             label="Cuidador temporal"
             accessibilityHint="Dejarle la mascota a alguien de confianza por un tiempo, o terminar un cuidado en curso."
-            onPress={() =>
-              router.push({ pathname: caretakerPetRoute(view.publicToken), params: nameParams })
+            caption={titularOnlyCaption ?? undefined}
+            onPress={
+              gates.canDesignateCaretaker
+                ? () =>
+                    router.push({
+                      pathname: caretakerPetRoute(view.publicToken),
+                      params: nameParams,
+                    })
+                : undefined
             }
           />
-          {/* DEVOLUCIÓN — incondicional para todo holder por vía persona, y esa
-              es una diferencia con la web que se declara en vez de esconderse.
-              `deriveMasSheetItems` sólo agrega su fila "Confirmar devolución"
-              cuando ya hay una propuesta pendiente, con lo cual el MODO DE
-              INICIACIÓN de esa misma página —proponerle la devolución al refugio
-              que te dio el animal en adopción, o al que te lo dio en tránsito—
-              no se alcanza desde ninguna navegación del navegador. La capacidad
-              existe en el servidor y en la página; lo que falta ahí es el enlace.
+        </>
+      )}
+      {/* DEVOLUCIÓN — incondicional para todo holder por vía persona, y esa
+            es una diferencia con la web que se declara en vez de esconderse.
+            `deriveMasSheetItems` sólo agrega su fila "Confirmar devolución"
+            cuando ya hay una propuesta pendiente, con lo cual el MODO DE
+            INICIACIÓN de esa misma página —proponerle la devolución al refugio
+            que te dio el animal en adopción, o al que te lo dio en tránsito—
+            no se alcanza desde ninguna navegación del navegador. La capacidad
+            existe en el servidor y en la página; lo que falta ahí es el enlace.
 
-              LA FILA NO ADIVINA NADA. Qué se puede hacer lo contesta el servidor
-              en `capabilities`, y los tres estados que no ofrecen nada dicen por
-              qué. Es la misma regla que la fila de "Contactos de emergencia" de
-              arriba: si el bloque al que lleva es accionable o no es del
-              servidor, no de la fila. */}
-          <MoreRow
-            label="Devolución"
-            accessibilityHint="Responder a quien quiere devolverte la mascota, o proponer devolvérsela a la organización que te la dio."
-            onPress={() => router.push(returnPetRoute(view.publicToken))}
-          />
-          <MoreRow label="Chapa física" caption="Disponible en la web" />
-          {isCaretaker ? null : (
-            <>
-              {view.viewerRole === "foster" ? (
-                <MoreRow label="Buscar hogar" caption="Disponible en la web" />
-              ) : (
-                <MoreRow label="Acompañamiento de adopción" caption="Disponible en la web" />
-              )}
-              {/* THE SAME DESTINATION AS "Editar datos" above, and that is the
-                  web's two `?sheet=` rows meeting a stack navigator: both
-                  halves live on one screen there. The row survives as its own
-                  entry point because the two promise different things — a
-                  person looking for "a quién llamamos" is not looking to edit a
-                  name — and because the web keeps it. Whether the block it
-                  lands on is EDITABLE is the server's call, not this row's: a
-                  co-owner and a foster reach it and are shown the reason
-                  instead of a form. Only the caretaker is hidden here, which is
-                  `deriveMasSheetItems`' own rule. */}
-              <MoreRow
-                label="Contactos de emergencia"
-                accessibilityHint="El veterinario y la persona a la que llamamos por esta mascota."
-                onPress={() => router.push(editPetRoute(view.publicToken))}
-              />
-            </>
-          )}
-          <MoreRow label="Viaje y movilidad" caption="Próximamente" />
-        </View>
+            LA FILA NO ADIVINA NADA. Qué se puede hacer lo contesta el servidor
+            en `capabilities`, y los tres estados que no ofrecen nada dicen por
+            qué. Es la misma regla que la fila de "Contactos de emergencia" de
+            arriba: si el bloque al que lleva es accionable o no es del
+            servidor, no de la fila. */}
+      {gates.canOpenReturn ? (
+        <MoreRow
+          label="Devolución"
+          accessibilityHint="Responder a quien quiere devolverte la mascota, o proponer devolvérsela a la organización que te la dio."
+          onPress={() => router.push(returnPetRoute(view.publicToken))}
+        />
       ) : null}
+      {/* THE TWO FALSE "Disponible en la web" ROWS. Both destinations are
+            hidden by the web for a deceased animal — `chapita` sits after the
+            deceased early-return and `page.tsx` nulls its data, and
+            buscar-hogar / acompañamiento is in the same suppressed block — so
+            on a fallecida pet these rows promised a page that does not exist
+            THERE either, which is worse than an inert row: it sends somebody
+            to a browser to look for it. */}
+      {gates.showWebOnlyRows ? (
+        <MoreRow label="Chapa física" caption="Disponible en la web" />
+      ) : null}
+      {/* ONE DESTINATION, TWO LABELS, TWO AUDIENCES — AND NOT AN `else`
+            (finding F2, review 2026-09-07). The else arm here covered `owner`
+            AND `co_owner` AND `org_member`, so a co-owner read "Acompañamiento
+            de adopción — Disponible en la web", went to a browser and got a
+            404: `buscar-hogar/page.tsx` keeps only `owner` and `foster` and
+            `notFound()`s the rest. That is the identical shape the web fixed on
+            2026-08-20 — a live row pointing at a page its own destination
+            refuses — just on the role axis instead of the status one. Both
+            gates now say who, in `ownerFaceGates`, where the audience is
+            testable without rendering. */}
+      {gates.canSeeFindHome ? (
+        <MoreRow label="Buscar hogar" caption="Disponible en la web" />
+      ) : null}
+      {gates.canSeeAdoptionSupport ? (
+        <MoreRow label="Acompañamiento de adopción" caption="Disponible en la web" />
+      ) : null}
+      {/* THE SAME DESTINATION AS "Editar datos" above, and that is the
+            web's two `?sheet=` rows meeting a stack navigator: both
+            halves live on one screen there. The row survives as its own
+            entry point because the two promise different things — a
+            person looking for "a quién llamamos" is not looking to edit a
+            name — and because the web keeps it. Whether the block it
+            lands on is EDITABLE is the server's call, not this row's: a
+            co-owner and a foster reach it and are shown the reason
+            instead of a form. Only the caretaker is hidden here, which is
+            `deriveMasSheetItems`' own rule. */}
+      {gates.canSeeEmergencyContacts ? (
+        <MoreRow
+          label="Contactos de emergencia"
+          accessibilityHint="El veterinario y la persona a la que llamamos por esta mascota."
+          onPress={() => router.push(editPetRoute(view.publicToken))}
+        />
+      ) : null}
+      {gates.showWebOnlyRows ? <MoreRow label="Viaje y movilidad" caption="Próximamente" /> : null}
     </View>
   );
 }

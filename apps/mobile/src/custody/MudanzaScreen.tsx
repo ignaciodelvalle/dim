@@ -51,6 +51,7 @@ import {
   type MoveDraft,
   buildMove,
   currentJurisdiction,
+  jurisdictionAfterMove,
   moveRecordedMessage,
   petNameFrom,
 } from "./mudanza-view-model";
@@ -138,6 +139,16 @@ export function MudanzaScreen({ publicToken }: { publicToken: string }) {
     // spelling, and a screen that echoed the typed value would be reporting a
     // registration that did not happen in those words.
     setNotice({ tone: "ok", message: moveRecordedMessage(result.payload.jurisdiction) });
+    // "DÓNDE FIGURA HOY" IS NOW STALE, and it is the card labelled "hoy"
+    // (A4-R-03). It was read on mount and left standing, so the ack naming the
+    // NEW locality sat directly under a card naming the old one. Patched from
+    // the same canonical pair the ack carries — see `jurisdictionAfterMove` for
+    // why this is not a re-read.
+    setState((current) =>
+      current.phase === "ready"
+        ? { ...current, where: jurisdictionAfterMove(result.payload.jurisdiction) }
+        : current,
+    );
     setDone(true);
   }, [draft, publicToken]);
 

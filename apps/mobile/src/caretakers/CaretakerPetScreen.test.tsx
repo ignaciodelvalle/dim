@@ -23,12 +23,20 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
+
+import { createNavigationFake } from "../ui/navigation-fake";
 
 const mockFetch = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+// A REAL LISTENER REGISTRY — see `ui/navigation-fake.ts`. A `useNavigation`
+// stub that never fires its listener makes a missing discard guard invisible.
+const mockNav = createNavigationFake();
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useNavigation: () => mockNav.navigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -37,6 +45,16 @@ jest.mock("../api/endpoints", () => ({
 }));
 
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
+
+import { Share } from "react-native";
+
+/**
+ * SPIED ON THE PUBLIC API, not mocked by internal file path — the rule
+ * `SharesScreen.test.tsx` states: a path mock works until React Native moves the
+ * file and then fails as "share was never called", which is a green-looking
+ * assertion about the one exit this invitation link has.
+ */
+const mockShare = jest.spyOn(Share, "share");
 
 import type { MyCaretakerGrantV1, MyCaretakerGrantsV1 } from "@dim/contract/api";
 import { CaretakerPetScreen } from "./CaretakerPetScreen";
@@ -92,6 +110,8 @@ function designateAck(inviteeNeedsAccount: boolean) {
 beforeEach(() => {
   mockFetch.mockReset();
   mockSend.mockReset();
+  mockShare.mockReset();
+  mockShare.mockResolvedValue({ action: "sharedAction" });
 });
 
 describe("the two states are never both offered", () => {
@@ -111,6 +131,69 @@ describe("the two states are never both offered", () => {
     await waitFor(() => expect(screen.getByText("Retirar la invitación")).toBeTruthy());
     expect(screen.queryByText("Invitar como cuidador/a")).toBeNull();
     expect(screen.getByText("Pendiente")).toBeTruthy();
+  });
+});
+
+describe("handing over an invitation nobody was told about (A4-custodia-10)", () => {
+  it("offers the link when the invited address has no account", async () => {
+    // The titular invites her sister, who has no miMAR account. The write sends
+    // no mail on purpose (a magic link would land her in a browser), so the ack
+    // says "avisale vos" — and there was nothing to hand over.
+    loads([aGrant({ counterpartyName: null })]);
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Todavía no le avisamos")).toBeTruthy());
+    fireEvent.press(screen.getByText("Compartir el link de la invitación"));
+
+    await waitFor(() => expect(mockShare).toHaveBeenCalled());
+    const message = (mockShare.mock.calls[0]?.[0] as { message: string }).message;
+    // The `/cuidado/{token}` address the invitation mail and the notification CTA
+    // both name — not a token on its own, which nobody can open.
+    expect(message).toContain(`/cuidado/${TOKEN}`);
+    expect(message).toContain("Pampa");
+  });
+
+  it("states the no-account fact in the PAST, because that is when it was measured (F10)", async () => {
+    // `counterpartyName === null` is an exact proxy for "no profile" AT
+    // DESIGNATION TIME and never refreshes: `caretakerUserId` is written once and
+    // never backfilled. So the day the sister signs up, this card would go on
+    // saying "esa dirección no tiene cuenta en miMAR, así que no le mandamos
+    // nada" — while `addressedToCaller` matches her by e-mail and the invitation
+    // is already in her app. The titular reads that and chases somebody who is
+    // looking at the thing they are chasing them about.
+    loads([aGrant({ counterpartyName: null })]);
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Todavía no le avisamos")).toBeTruthy());
+    expect(screen.getByText(/Cuando la designaste, esa dirección no tenía cuenta/)).toBeTruthy();
+    // And the OTHER possibility is named, because the client cannot tell which.
+    expect(screen.getByText(/ya le aparece en su app/)).toBeTruthy();
+    expect(screen.queryByText(/esa dirección no tiene cuenta/i)).toBeNull();
+  });
+
+  it("does NOT offer it once somebody is behind the address", async () => {
+    // `counterpartyName` non-null means the address has a profile: that person
+    // has the invitation in their own app, and a live invitation link is not a
+    // thing to keep passing around.
+    loads([aGrant({ counterpartyName: "Ana" })]);
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Retirar la invitación")).toBeTruthy());
+    expect(screen.queryByText("Compartir el link de la invitación")).toBeNull();
+  });
+
+  it("does NOT offer it on an ACCEPTED arrangement", async () => {
+    loads([
+      aGrant({
+        status: "accepted",
+        counterpartyName: null,
+        capabilities: { canAccept: false, canReject: false, canCancel: false, canRevoke: true },
+      }),
+    ]);
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Finalizar el cuidado ahora")).toBeTruthy());
+    expect(screen.queryByText("Compartir el link de la invitación")).toBeNull();
   });
 
   it("shows the end control on a live arrangement, and no form", async () => {
@@ -303,9 +386,13 @@ describe("the designation form", () => {
     expect(screen.getByLabelText("Hasta, obligatorio")).toBeTruthy();
   });
 
-  it("renders the server's refusal when the caller may not designate", async () => {
+  it("names the relationship on a refusal, not an answer that moved (A3-documento-credencial-05)", async () => {
     // A person-path holder whose role is `caretaker` — deny-list row
-    // `caretaker-sub-designation`. The screen does not pre-judge; it asks.
+    // `caretaker-sub-designation`. The screen does not pre-judge; it asks. What
+    // it may NOT do is hand back the shared sentence, which is answer-time copy:
+    // "Actualizá la pantalla para ver cómo quedó" describes an arrangement that
+    // moved, and nothing moved — the refusal is about who this person is, so
+    // refreshing produces the identical screen forever.
     loads([]);
     mockSend.mockResolvedValue({
       outcome: "api-error",
@@ -318,7 +405,119 @@ describe("the designation form", () => {
     fill({ email: "ana@example.com", endsAt: "15/09/2026" });
     fireEvent.press(screen.getByText("Invitar como cuidador/a"));
 
-    await waitFor(() => expect(screen.getByText(/no es tuya para hacer/)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(/El cuidado temporal lo designa el titular/)).toBeTruthy(),
+    );
+    expect(screen.queryByText(/no es tuya para hacer/)).toBeNull();
+  });
+
+  it("does not tell a co-owner to end a cuidado their screen never showed (A4-custodia-06)", async () => {
+    // Two co-titulares; one designated a dog-sitter. `grantForPet` reads the
+    // caller's OWN outgoing grants, so the other opens an EMPTY cockpit with an
+    // invite form — and the shared sentence answers "Terminá o retirá el que
+    // está", about something that is not on the screen and that they could not
+    // end anyway (`endCaretakerGrant` refuses `revoke` unless the actor is the
+    // granter).
+    loads([]);
+    mockSend.mockResolvedValue({
+      outcome: "api-error",
+      code: "caretaker_grant_exists",
+      retryAfterSeconds: null,
+    });
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
+    fill({ email: "ana@example.com", endsAt: "15/09/2026" });
+    fireEvent.press(screen.getByText("Invitar como cuidador/a"));
+
+    await waitFor(() => expect(screen.getByText(/lo designó otra persona/)).toBeTruthy());
+    expect(screen.queryByText(/Terminá o retirá el que está/)).toBeNull();
+  });
+
+  it("KEEPS the typed form when the refusal is about the form (A4-custodia-04)", async () => {
+    // The titular typed an address, a note with the medication routine and a
+    // "Hasta" the server refuses. The screen answered "Revisá las fechas…" over
+    // an EMPTY form, because every failure re-read and `load()` unmounts the
+    // form with its draft inside it.
+    loads([]);
+    mockSend.mockResolvedValue({
+      outcome: "api-error",
+      code: "caretaker_period_invalid",
+      retryAfterSeconds: null,
+    });
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    fill({ email: "vecina@example.com", endsAt: "15/09/2026" });
+    fireEvent.changeText(
+      screen.getByLabelText("Nota para quien cuida"),
+      "Media pastilla con la cena",
+    );
+    fireEvent.press(screen.getByText("Invitar como cuidador/a"));
+
+    await waitFor(() => expect(screen.getByText(/Revisá las fechas/)).toBeTruthy());
+    expect(screen.getByLabelText("Correo de la persona, obligatorio").props.value).toBe(
+      "vecina@example.com",
+    );
+    expect(screen.getByLabelText("Nota para quien cuida").props.value).toBe(
+      "Media pastilla con la cena",
+    );
+    // And it did NOT spend a round trip on a refusal a re-read cannot answer.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("still RE-READS when the refusal says the server's state moved", async () => {
+    // The non-vacuity half of the rule above: `caretaker_grant_exists` means
+    // something really is there, and the cockpit has to show it rather than keep
+    // offering a form that cannot succeed.
+    loads([]);
+    mockSend.mockResolvedValue({
+      outcome: "api-error",
+      code: "caretaker_grant_exists",
+      retryAfterSeconds: null,
+    });
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+
+    await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    fill({ email: "ana@example.com", endsAt: "15/09/2026" });
+    fireEvent.press(screen.getByText("Invitar como cuidador/a"));
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("the discard guard (A2-alta-asentar-08)", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+    mockNav.reset();
+  });
+
+  it("does NOT ask anything of somebody who only opened the form", async () => {
+    // `Desde` is PRE-FILLED with today, so a predicate that compared against a
+    // blank form would fire on mount for everybody who opened this screen.
+    loads([]);
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+    await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("asks before the back gesture discards a typed invitation", async () => {
+    loads([]);
+    render(<CaretakerPetScreen publicToken={PET} petName="Pampa" />);
+    await waitFor(() => expect(screen.getByText("Invitar como cuidador/a")).toBeTruthy());
+    fireEvent.changeText(
+      screen.getByLabelText("Correo de la persona, obligatorio"),
+      "vecina@example.com",
+    );
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
   });
 });
 

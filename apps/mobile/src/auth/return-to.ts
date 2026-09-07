@@ -59,6 +59,21 @@ export function endedByThePerson(reason: SessionEndReason | null): boolean {
 }
 
 /**
+ * The `endedAt` for a sign-out whose whole purpose is to come BACK to the screen
+ * it was pressed on — the deep-link "this is not for this account" arms
+ * (A4-custodia-11).
+ *
+ * `signedOutHref` suppresses `next` for the pathname the person was standing on,
+ * because "Cerrar sesión" normally means they are done with that screen. On an
+ * invitation or a proposal opened with the wrong address that reasoning inverts:
+ * the screen is the one thing they are trying to reach, and swallowing its
+ * destination is the failure the button exists to fix. Naming the empty string
+ * rather than writing `""` at the call site is what keeps that inversion
+ * legible — a bare `""` reads like a caller that had nothing to pass.
+ */
+export const KEEP_DESTINATION_ON_SIGN_OUT = "";
+
+/**
  * Where a signed-out visitor goes — the ONE decision the gate makes, composed
  * here rather than in the switch so it can be tested without a router.
  *

@@ -107,18 +107,51 @@ export type CurrentJurisdiction =
   | { kind: "none" }
   | { kind: "unavailable" };
 
+/**
+ * LOCALITY FIRST, PROVINCE SECOND — the order the web prints on the same locked
+ * row (`PetForm.tsx`: `[locality, province].filter(Boolean).join(", ")`). A
+ * person reads the smaller place first.
+ *
+ * One function rather than two copies, because `jurisdictionAfterMove` renders
+ * into the SAME card as `currentJurisdiction` and a divergence there would show
+ * one order above the other on one screen.
+ */
+function jurisdictionLabel(locality: string | null, province: string | null): string {
+  return [locality, province].filter(Boolean).join(", ");
+}
+
 export function currentJurisdiction(detail: OwnerPetDetailV1): CurrentJurisdiction {
   if (detail.identity.status !== "ok") return { kind: "unavailable" };
   const { jurisdictionProvince, jurisdictionLocality } = detail.identity.data;
   if (!jurisdictionProvince && !jurisdictionLocality) return { kind: "none" };
   return {
     kind: "known",
-    // LOCALITY FIRST, PROVINCE SECOND — the order the web prints on the same
-    // locked row (`PetForm.tsx`: `[locality, province].filter(Boolean).join(", ")`).
-    // A person reads the smaller place first.
-    label: [jurisdictionLocality, jurisdictionProvince].filter(Boolean).join(", "),
+    label: jurisdictionLabel(jurisdictionLocality, jurisdictionProvince),
     province: jurisdictionProvince ?? "",
     locality: jurisdictionLocality ?? null,
+  };
+}
+
+/**
+ * WHERE THE ANIMAL LIVES ONCE THE MOVE LANDED (A4-R-03).
+ *
+ * "Dónde figura hoy" is drawn from the read the screen did on MOUNT, and it was
+ * left standing after a successful move — so the ack ("San Carlos de Bariloche,
+ * Río Negro quedó registrada…") sat directly under a card still naming Santa
+ * Rosa, La Pampa, on one screen, and the card was the one labelled "hoy".
+ *
+ * The cure is the ACK'S OWN CANONICAL PAIR and not a re-read: the server has
+ * just told this screen, in the catalog's spelling, exactly what it stored.
+ * A second `GET /pets/{token}` would spend a round trip to learn what is already
+ * in hand and could fail, leaving the screen with no honest thing to draw at the
+ * only moment it is certain.
+ */
+export function jurisdictionAfterMove(jurisdiction: PetMoveJurisdictionV1): CurrentJurisdiction {
+  return {
+    kind: "known",
+    label: jurisdictionLabel(jurisdiction.locality, jurisdiction.province),
+    province: jurisdiction.province,
+    locality: jurisdiction.locality,
   };
 }
 

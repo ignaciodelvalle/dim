@@ -64,6 +64,30 @@ export type UpdateCheckState =
   /** No updates module in this install. Not a failure — a different build. */
   | { phase: "unsupported" };
 
+/**
+ * Whether THIS call may write a Sentry event (finding F3, review 2026-09-07).
+ *
+ * EVERY ARM BELOW REPORTS BECAUSE EVERY ARM WAS A DELIBERATE TAP. "A check that
+ * fails on every phone is a broken update URL and nothing else would say so"
+ * (OBS-2) is a statement about a person pressing a button: one event per tap,
+ * and a tap is rare and intentional.
+ *
+ * `useForegroundUpdateCheck` then began calling the same two functions
+ * UNATTENDED, on every foreground edge, throttled only to five minutes. On
+ * Argentine mobile data that is up to twelve events per hour per device, across
+ * fourteen testers, buffered offline and flushed in a burst when signal returns
+ * — and every one of them says `update-check-failed`, which is the exact tag
+ * OBS-2 exists to make legible. The signal would have become indistinguishable
+ * from ordinary connectivity, and the quota would have gone to it.
+ *
+ * So the BUTTON keeps reporting (default `true`, unchanged) and the background
+ * probe does not. A background failure is not evidence of anything: nobody was
+ * waiting for it, and the next tap on "Buscar actualización" reports it anyway.
+ */
+export type UpdateCallOptions = {
+  report?: boolean;
+};
+
 export const UPDATE_CHECK_LABEL = "Buscar actualización";
 export const UPDATE_RESTART_LABEL = "Reiniciar ahora";
 export const UPDATE_CHECKING_MESSAGE = "Buscando una versión nueva…";
@@ -113,7 +137,10 @@ export function updateCheckMessage(state: UpdateCheckState): string | null {
  * bundle that they already have the latest version — the one moment this
  * button exists for.
  */
-export async function checkForUpdate(port: UpdatesPort): Promise<UpdateCheckState> {
+export async function checkForUpdate(
+  port: UpdatesPort,
+  { report = true }: UpdateCallOptions = {},
+): Promise<UpdateCheckState> {
   if (!port.isEnabled) return { phase: "unsupported" };
   try {
     const result = await port.checkForUpdateAsync();
@@ -123,11 +150,11 @@ export async function checkForUpdate(port: UpdatesPort): Promise<UpdateCheckStat
     return { phase: "downloading" };
   } catch {
     // Reported, not swallowed: a check that fails on every phone is a broken
-    // update URL, and nothing else in the app would ever say so (OBS-2).
-    const correlationId = reportHandledFailure({
-      surface: "update",
-      failure: "update-check-failed",
-    });
+    // update URL, and nothing else in the app would ever say so (OBS-2). Unless
+    // nobody asked — see `UpdateCallOptions`.
+    const correlationId = report
+      ? reportHandledFailure({ surface: "update", failure: "update-check-failed" })
+      : undefined;
     return { phase: "failed", message: UPDATE_CHECK_FAILED_MESSAGE, correlationId };
   }
 }
@@ -143,27 +170,27 @@ export async function checkForUpdate(port: UpdatesPort): Promise<UpdateCheckStat
  * and the restart then changed nothing, which is precisely the "is it broken or
  * did it work?" this screen was built to end. See `UpdatesPort`.
  */
-export async function downloadUpdate(port: UpdatesPort): Promise<UpdateCheckState> {
+export async function downloadUpdate(
+  port: UpdatesPort,
+  { report = true }: UpdateCallOptions = {},
+): Promise<UpdateCheckState> {
+  const failed = (): UpdateCheckState => ({
+    phase: "failed",
+    message: UPDATE_DOWNLOAD_FAILED_MESSAGE,
+    correlationId: report
+      ? reportHandledFailure({ surface: "update", failure: "update-download-failed" })
+      : undefined,
+  });
   try {
     const fetched = await port.fetchUpdateAsync();
     // A ROLL BACK TO EMBEDDED IS ALSO `isNew: false`, and it is a real staged
     // outcome — the recall path `checkForUpdate`'s docblock is about. Reading
     // `isNew` alone here would answer "no pudimos descargarla" to the one person
     // whose broken bundle was just successfully recalled.
-    if (!fetched.isNew && fetched.isRollBackToEmbedded !== true) {
-      const correlationId = reportHandledFailure({
-        surface: "update",
-        failure: "update-download-failed",
-      });
-      return { phase: "failed", message: UPDATE_DOWNLOAD_FAILED_MESSAGE, correlationId };
-    }
+    if (!fetched.isNew && fetched.isRollBackToEmbedded !== true) return failed();
     return { phase: "ready" };
   } catch {
-    const correlationId = reportHandledFailure({
-      surface: "update",
-      failure: "update-download-failed",
-    });
-    return { phase: "failed", message: UPDATE_DOWNLOAD_FAILED_MESSAGE, correlationId };
+    return failed();
   }
 }
 

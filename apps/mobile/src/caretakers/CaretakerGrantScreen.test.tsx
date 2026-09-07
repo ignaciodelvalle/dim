@@ -37,7 +37,12 @@ jest.mock("../api/endpoints", () => ({
   sendCaretakerCommand: (...args: unknown[]) => mockSend(...args),
 }));
 
-jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
+const mockSignOut = jest.fn<(endedAt: string) => Promise<void>>();
+
+jest.mock("../auth/session-store", () => ({
+  sessionPort: {},
+  signOut: (endedAt: string) => mockSignOut(endedAt),
+}));
 
 import type { MyCaretakerGrantV1, MyCaretakerGrantsV1 } from "@dim/contract/api";
 import { CaretakerGrantScreen } from "./CaretakerGrantScreen";
@@ -84,6 +89,8 @@ const noop = () => {};
 beforeEach(() => {
   mockFetch.mockReset();
   mockSend.mockReset();
+  mockSignOut.mockReset();
+  mockSignOut.mockResolvedValue(undefined);
 });
 
 describe("finding the invitation", () => {
@@ -96,6 +103,39 @@ describe("finding the invitation", () => {
 
     await waitFor(() => expect(screen.getByText(/no sea para vos/)).toBeTruthy());
     expect(screen.queryByText(/no existe/i)).toBeNull();
+  });
+
+  it("offers the account switch, not just a Reintentar that cannot help (A4-custodia-11)", async () => {
+    // A person with two addresses opens the invitation signed in with the other
+    // one. "Reintentar" re-reads the same hub for the same account and produces
+    // the same screen — this is the one refusal in the app where retrying is
+    // guaranteed useless, and the web says so and offers the way out.
+    loads(aGrant({ grantToken: "CG-otro" }));
+    render(<CaretakerGrantScreen grantToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/no sea para vos/)).toBeTruthy());
+    expect(screen.getByText(/entrá con esa cuenta/)).toBeTruthy();
+
+    fireEvent.press(screen.getByText("Entrar con otra cuenta"));
+
+    // AND IT KEEPS THE DESTINATION. `signOut(pathname)` would make the gate drop
+    // `next` for exactly this screen, so signing in with the right account would
+    // land on the pet list and the invitation would be lost a second time.
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith(""));
+  });
+
+  it("names the CLOSED cause too, and does not prescribe a sign-out for it (F9)", async () => {
+    // The hub carries OPEN grants only, so an invitation the person already
+    // answered lands on this same arm — and it is the commoner of the two by
+    // far. Telling THAT person to sign out is a remedy for nothing that costs
+    // them their session.
+    loads(aGrant({ grantToken: "CG-otro" }));
+    render(<CaretakerGrantScreen grantToken={TOKEN} onAccepted={noop} />);
+
+    await waitFor(() => expect(screen.getByText(/no sea para vos/)).toBeTruthy());
+    expect(screen.getByText(/no hay nada que hacer/)).toBeTruthy();
+    expect(screen.getByText(/Si en cambio tenés otra cuenta/)).toBeTruthy();
+    expect(screen.queryByText("Cerrar sesión")).toBeNull();
   });
 
   it("shows the failure, not an absence, when the read itself failed", async () => {

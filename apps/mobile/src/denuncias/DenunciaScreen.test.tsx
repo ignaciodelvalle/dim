@@ -27,17 +27,25 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
+
+import { createNavigationFake } from "../ui/navigation-fake";
 
 const mockSend = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>();
 
 jest.mock("expo-linking", () => ({ openURL: (url: string) => mockOpenURL(url) }));
 
-// The discard guard on this screen reads the navigation object (critic gap 2).
-// A no-op stub: what the guard DOES is pinned in ui/use-draft-discard-guard.test.tsx;
-// here it only has to exist.
+// A REAL LISTENER REGISTRY, NOT THE NO-OP STUB (finding F4, review 2026-09-07).
+// `addListener: () => () => {}` never fires the listener, so it cannot tell a
+// guarded screen from an unguarded one — and this screen exempts its own
+// success with `phase.name !== "filed"` rather than with `allowLeave()`, which
+// is a decision `ui/use-draft-discard-guard.test.tsx` cannot see from where it
+// stands.
+const mockNav = createNavigationFake();
+
 jest.mock("expo-router", () => ({
-  useNavigation: () => ({ addListener: () => () => {}, dispatch: () => {} }),
+  useNavigation: () => mockNav.navigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -106,6 +114,7 @@ function fillFacts() {
 }
 
 beforeEach(() => {
+  mockNav.reset();
   mockSend.mockReset();
   mockOpenURL.mockReset();
 });
@@ -390,5 +399,48 @@ describe("two candidates with the SAME name are still two places (A5-ciudadanas-
 
     const after = screen.getAllByRole("radio", { name: twin });
     expect(after.map((row) => row.props.accessibilityState?.checked)).toEqual([false, true]);
+  });
+});
+
+describe("the discard guard (finding F4)", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+  });
+
+  it("says nothing to somebody who only opened the screen", async () => {
+    // The control. This form is long and somebody who opened it, read the "no se
+    // puede borrar" warning and changed their mind has typed nothing.
+    render(<DenunciaScreen />);
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("stops the back gesture once anything has been typed", async () => {
+    render(<DenunciaScreen />);
+    fillFacts();
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
+  });
+
+  it("lets go once the denuncia was FILED, which is a phase and not `allowLeave`", async () => {
+    // THE CASE THE NO-OP STUB COULD NOT SEE. The exemption is
+    // `phase.name !== "filed"`, so it lives in this screen and nowhere else.
+    // Without it, the person who just filed is asked whether they want to
+    // discard — over a receipt screen whose whole point is a reference code they
+    // have to keep, and on a denuncia that cannot be taken back anyway.
+    render(<DenunciaScreen />);
+    await searchAddress();
+    fireEvent.press(screen.getByText(PLACE_LABEL));
+    fillFacts();
+    mockSend.mockResolvedValueOnce(FILED_ACK);
+    fireEvent.press(screen.getByText("Enviar la denuncia"));
+    await screen.findByText("DEN-9KSC-MRMZ");
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
   });
 });

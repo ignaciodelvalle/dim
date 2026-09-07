@@ -26,17 +26,25 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
+
+import { createNavigationFake } from "../ui/navigation-fake";
 
 const mockFetchPet = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSendMove = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSearchLocalities = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+// A REAL LISTENER REGISTRY, NOT THE NO-OP STUB (finding F4, review 2026-09-07).
+// The stub this file carried — `addListener: () => () => {}` — never fires the
+// listener, so it cannot tell a guarded screen from an unguarded one, and this
+// screen exempts its own success with a `done` FLAG rather than `allowLeave()`:
+// nothing in `ui/use-draft-discard-guard.test.tsx` can see that decision,
+// because the flag lives here.
+const mockNav = createNavigationFake();
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-  // The guard on this screen reads the navigation object (critic gap 2). A
-  // no-op stub: what the guard DOES is pinned in ui/use-draft-discard-guard.test.tsx;
-  // here it only has to exist.
-  useNavigation: () => ({ addListener: () => () => {}, dispatch: () => {} }),
+  useNavigation: () => mockNav.navigation,
 }));
 
 jest.mock("../api/endpoints", () => ({
@@ -82,6 +90,7 @@ async function pickBariloche() {
 
 beforeEach(() => {
   jest.useFakeTimers({ doNotFake: ["nextTick"] });
+  mockNav.reset();
   mockFetchPet.mockReset();
   mockSendMove.mockReset();
   mockSearchLocalities.mockReset();
@@ -236,6 +245,25 @@ describe("MudanzaScreen — recording the move", () => {
     ).toBeOnTheScreen();
   });
 
+  it("stops saying the animal 'figura hoy' in the locality it just LEFT (A4-R-03)", async () => {
+    // The card is read on mount and was left standing: "Dónde figura hoy: La
+    // Plata, Buenos Aires" sat directly above "San Carlos de Bariloche, Río
+    // Negro quedó registrada…", on one screen, and the stale half is the one
+    // labelled "hoy".
+    render(<MudanzaScreen publicToken={TOKEN} />);
+    await screen.findByText("Mudanza de Pampa");
+    expect(screen.getByText("La Plata, Buenos Aires")).toBeOnTheScreen();
+
+    await pickBariloche();
+    fireEvent.press(screen.getByText("Registrar mudanza"));
+    await screen.findByText(/quedó registrada/);
+
+    expect(screen.queryByText("La Plata, Buenos Aires")).toBeNull();
+    // And it says the new one, in the CATALOG's spelling — the same canonical
+    // pair the ack carries, never the draft.
+    expect(screen.getByText("San Carlos de Bariloche, Río Negro")).toBeOnTheScreen();
+  });
+
   it("takes the form away once the move landed", async () => {
     // MUTATION APPLIED: never set `done`. Red — and the button would stay live
     // over a success message, so the next tap meets `move_same_locality` (409),
@@ -307,5 +335,49 @@ describe("MudanzaScreen — recording the move", () => {
     await pickBariloche();
     fireEvent.press(screen.getByText("Registrar mudanza"));
     expect(await screen.findByText(/ya es la localidad registrada/)).toBeOnTheScreen();
+  });
+});
+
+describe("MudanzaScreen — the discard guard (finding F4)", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+  });
+
+  it("says nothing to somebody who only opened the screen", async () => {
+    // The control. A guard that fires on an untouched form teaches people to
+    // dismiss it, and then it is not there on the day it mattered.
+    render(<MudanzaScreen publicToken={TOKEN} />);
+    await screen.findByText("Mudanza de Pampa");
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("stops the back gesture once a destination has been picked", async () => {
+    render(<MudanzaScreen publicToken={TOKEN} />);
+    await screen.findByText("Mudanza de Pampa");
+    await pickBariloche();
+
+    expect(mockNav.pressBack().blocked).toBe(true);
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
+  });
+
+  it("lets go once the move LANDED, which is a flag and not `allowLeave`", async () => {
+    // THE CASE THE NO-OP STUB COULD NOT SEE. This screen exempts its own success
+    // with `done` — `useDraftDiscardGuard(!done && draft !== EMPTY_MOVE_DRAFT)`
+    // — rather than by calling `allowLeave()`, so the decision lives HERE and
+    // nowhere else. Drop `setDone(true)` and the person who just registered a
+    // move is asked whether they want to discard it on the way out of an
+    // acknowledgement screen that has no form left on it.
+    render(<MudanzaScreen publicToken={TOKEN} />);
+    await screen.findByText("Mudanza de Pampa");
+    await pickBariloche();
+    fireEvent.press(screen.getByText("Registrar mudanza"));
+    await screen.findByText(/quedó registrada/);
+
+    expect(mockNav.pressBack().blocked).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
   });
 });
