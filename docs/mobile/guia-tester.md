@@ -10,7 +10,15 @@ Vas a recibir un link para sumarte a las pruebas internas de Google Play:
 
 https://play.google.com/apps/internaltest/4701563537823002634
 
-Abrilo desde tu celular Android, aceptá ser tester, y te lleva a la Play Store para instalar miMAR. Por ahora la app es solo para Android — todavía no hay versión para iPhone.
+**Abrilo desde tu celular Android** (no desde la computadora) y aceptá ser tester. Vas a ver un mensaje que confirma que ya sos tester.
+
+**Importante, y es donde más gente se traba:** después de aceptar, **cerrá el navegador y abrí la app Play Store del teléfono**. Buscá **miMAR** ahí adentro y descargala desde la app.
+
+Si intentás bajarla desde el navegador te va a decir *"no se encontró el elemento"*. No está roto: la tienda web no muestra apps que todavía están en pruebas, y la app sí.
+
+**La cuenta tiene que ser la misma.** El link se abre con la cuenta de Google del navegador y la descarga la hace la cuenta de la Play Store. Si tu teléfono tiene dos cuentas de Google, revisá que sea la misma que nos pasaste: abrí Play Store y tocá tu foto arriba a la derecha, ahí dice cuál está usando. Si te dice *"la descarga no está disponible en este momento"*, casi siempre es eso.
+
+Por ahora la app es solo para Android — todavía no hay versión para iPhone.
 
 ### Cómo te llegan las actualizaciones
 
@@ -42,12 +50,7 @@ Después de crear la cuenta vas a ver una pantalla que dice "Completá tu regist
 2. Tocá **Guardar**.
 3. Listo, entrás directo a "Mis mascotas". No hay que salir de la app ni volver a ingresar.
 
-El **DNI** es opcional y todavía se carga en la web. Tenés dos momentos para hacerlo:
-
-- **Antes de tocar Guardar**, desde esa misma pantalla, con el link **Prefiero completarlo en la web**.
-- **Después, cuando quieras**, entrando desde el navegador a `/cuenta/verificar-dni`. (Una vez que guardaste tu nombre, esa pantalla no vuelve a aparecer y el link deja de estar a mano — es a propósito: ya completaste el paso.)
-
-En los dos casos el navegador te va a pedir el mismo correo y la misma contraseña otra vez, porque no comparte la sesión de la app. Es esperado, y no es un mail de confirmación: no te vamos a mandar ninguno.
+Eso es todo lo que te pedimos. No hace falta DNI ni ningún otro documento.
 
 ## Registrar a tu mascota
 
