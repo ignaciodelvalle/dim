@@ -25,6 +25,7 @@ import {
   type MedicationFrequency,
   NOTE_CATEGORIES,
   type NoteCategory,
+  type OwnerMicrochipReplaceReason,
   type RecordEventInput,
   type RecordEventInputCode,
   STERILIZATION_PROCEDURES,
@@ -72,11 +73,29 @@ export const RECORD_KINDS = [
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 /** Every kind this screen can write, including the one reached from an asiento. */
-export type WritableKind = RecordKind | "medication_end";
+/**
+ * Every kind this screen can write, including the ones NOT in the picker.
+ *
+ * THREE ARE REACHED FROM SOMEWHERE ELSE, each for its own reason:
+ *   · `medication_end` — from the `medication_started` asiento it closes.
+ *   · `microchip_replace` — from the microchip the animal already has. There is
+ *     nothing to replace otherwise, and the server refuses with 409.
+ *   · `dangerous_breed_attestation` — from the compliance card that reads
+ *     "Atestación requerida". The regime has to apply, and only the server
+ *     knows whether it does; an unconditional row would be a form that refuses
+ *     most animals.
+ */
+export type WritableKind =
+  | RecordKind
+  | "medication_end"
+  | "microchip_replace"
+  | "dangerous_breed_attestation";
 
 const WRITABLE_KINDS: ReadonlySet<string> = new Set<WritableKind>([
   ...RECORD_KINDS,
   "medication_end",
+  "microchip_replace",
+  "dangerous_breed_attestation",
 ]);
 
 /**
@@ -120,6 +139,10 @@ export function kindTitle(kind: WritableKind): string {
       return "Nota";
     case "symptom":
       return "Síntoma";
+    case "microchip_replace":
+      return "Reemplazo de microchip";
+    case "dangerous_breed_attestation":
+      return "Atestación de raza peligrosa";
   }
 }
 
@@ -151,6 +174,14 @@ export function kindSubtitle(kind: WritableKind): string {
       // one asiento whose write can reach the sanitary authority, and a person
       // is entitled to know that while they can still decide not to send it.
       return "Algo que le viste y no te cierra. Si coincide con una enfermedad de notificación obligatoria, se avisa a la autoridad sanitaria.";
+    case "microchip_replace":
+      // SAYS WHAT IT RETIRES, because this is the one asiento that supersedes a
+      // previous identity rather than adding to the record. Somebody who read
+      // "microchip" and expected the implant form has to be able to tell them
+      // apart before they type a number.
+      return "El chip actual deja de ser el válido. Si hay uno nuevo, pasa a ser la identificación de tu mascota.";
+    case "dangerous_breed_attestation":
+      return "La declaración ante el registro que exige tu jurisdicción para perros potencialmente peligrosos.";
   }
 }
 
@@ -205,6 +236,33 @@ export function recordEventCta(kind: WritableKind): { label: string; busyLabel: 
       return { label: "Guardar la nota", busyLabel: "Guardando…" };
     case "symptom":
       return registering("síntoma");
+    case "microchip_replace":
+      return { label: "Registrar el reemplazo", busyLabel: "Registrando…" };
+    case "dangerous_breed_attestation":
+      return { label: "Registrar la atestación", busyLabel: "Registrando…" };
+  }
+}
+
+/**
+ * es-AR label for an owner's microchip-replacement motive.
+ *
+ * FIVE OF THE SPINE'S SEVEN — `duplicate_detected` and `fraud_detected` are
+ * professional findings that open a remediation case, and the contract does not
+ * admit them from an owner. There is nothing to label here that an owner cannot
+ * choose.
+ */
+export function microchipReplaceReasonLabel(reason: OwnerMicrochipReplaceReason): string {
+  switch (reason) {
+    case "damaged":
+      return "Chip dañado";
+    case "unreadable":
+      return "No se puede leer";
+    case "owner_request":
+      return "Solicitud del dueño";
+    case "device_failure":
+      return "Falla del dispositivo";
+    case "other":
+      return "Otro motivo";
   }
 }
 
@@ -366,6 +424,19 @@ export type EventDraft = {
   countryCode: string;
   implantedBy: string;
   locationOnBody: string;
+
+  // microchip_replace — a DIFFERENT act on the same identity. `newChipNumber`
+  // is deliberately not `chipNumber`: one form must not be able to send the
+  // implant's field where the replacement's belongs.
+  replaceReason: OwnerMicrochipReplaceReason;
+  newChipNumber: string;
+  replacedBy: string;
+
+  // dangerous_breed_attestation — the registry list is resolved per
+  // jurisdiction by the server, so the draft holds the CHOICE and not the
+  // options.
+  registry: string;
+  registryId: string;
   // esterilización
   procedure: SterilizationProcedure;
   // visita veterinaria
@@ -434,6 +505,11 @@ export function emptyDraft(now: Date = new Date()): EventDraft {
     countryCode: "",
     implantedBy: "",
     locationOnBody: "",
+    replaceReason: "damaged",
+    newChipNumber: "",
+    replacedBy: "",
+    registry: "",
+    registryId: "",
     // Pre-selected like `dewormingType` above, and for the same reason: these
     // are one-of-N chip rows whose active option is visible on screen, not a
     // hidden default. A blank required chooser is a form that refuses on submit
@@ -560,6 +636,28 @@ function draftToWire(
         countryCode: orNull(draft.countryCode),
         implantedBy: orNull(draft.implantedBy),
         locationOnBody: orNull(draft.locationOnBody),
+        notes: orNull(draft.notes),
+      };
+    case "microchip_replace":
+      // NO `previousChipNumber`. The server reads the animal's canonical chip
+      // itself; a field here would be this form asserting a fact it got from
+      // the same server, and a disagreement between the two would have to be
+      // adjudicated by somebody. `orNull` on the new number is what expresses a
+      // pure revocation — the contract refuses it for the wrong motive.
+      return {
+        kind,
+        reason: draft.replaceReason,
+        newChipNumber: orNull(draft.newChipNumber),
+        replacedBy: orNull(draft.replacedBy),
+        occurredAt: dateInputToIso(draft.occurredAt),
+        notes: orNull(draft.notes),
+      };
+    case "dangerous_breed_attestation":
+      return {
+        kind,
+        registry: draft.registry,
+        registryId: orNull(draft.registryId),
+        occurredAt: dateInputToIso(draft.occurredAt),
         notes: orNull(draft.notes),
       };
     case "sterilization":
@@ -753,6 +851,16 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "Escribí la fecha de inicio como DD/MM/AAAA.";
     case "ONSET_AT_INVALID":
       return "La fecha de inicio no existe. Revisá el día y el mes.";
+    case "MICROCHIP_REPLACE_REASON_INVALID":
+      return "Elegí un motivo de la lista.";
+    // NAMES THE WAY OUT, not just the refusal. The rule is a cross-field one —
+    // "sin chip nuevo" is only valid for two of the five motives — and a
+    // sentence that said "falta el número" would send the person to type one
+    // when what they may have wanted was the other motive.
+    case "MICROCHIP_REPLACE_NEW_CHIP_REQUIRED":
+      return "Con ese motivo hace falta el número del chip nuevo. Para dejar a tu mascota sin chip, elegí «Solicitud del dueño» o «Falla del dispositivo».";
+    case "PPP_REGISTRY_REQUIRED":
+      return "Elegí el registro donde hiciste la atestación.";
   }
 }
 
@@ -826,6 +934,12 @@ export function invalidFields(code: RecordEventInputCode | null): ReadonlySet<ke
       case "ONSET_AT_MALFORMED":
       case "ONSET_AT_INVALID":
         return ["onsetAt"];
+      case "MICROCHIP_REPLACE_REASON_INVALID":
+        return ["replaceReason"];
+      case "MICROCHIP_REPLACE_NEW_CHIP_REQUIRED":
+        return ["newChipNumber"];
+      case "PPP_REGISTRY_REQUIRED":
+        return ["registry"];
     }
   })();
   return new Set(fields);

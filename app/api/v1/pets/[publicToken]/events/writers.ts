@@ -107,14 +107,20 @@
 //     `requirePetAccess` like nota, and is deferred for shape rather than for
 //     reach: five cross-field rules, a disease-code lookup and a custody-episode
 //     stamp read before the transaction.
-//   · ATESTACIÓN PPP (actions.ts:184) and EMBARAZO (app/actions/pregnancy.ts:41,
-//     :86) are owner writers whose use-cases DO NOT ROUTE THROUGH
-//     `insertEventIdempotent` — they insert plainly, with no
-//     `clientIdempotencyKey` parameter to pass. This endpoint REQUIRES an
-//     `Idempotency-Key` and promises it is honoured; accepting a kind that
-//     silently could not honour it would make that promise false, which is
-//     worse than not offering the kind. Closing that gap is a change to those
-//     writers, not to this file.
+//   · EMBARAZO (app/actions/pregnancy.ts:41, :86) is an owner writer whose
+//     use-case DOES NOT ROUTE THROUGH `insertEventIdempotent` — it inserts
+//     plainly, with no `clientIdempotencyKey` parameter to pass. This endpoint
+//     REQUIRES an `Idempotency-Key` and promises it is honoured; accepting a
+//     kind that silently could not honour it would make that promise false,
+//     which is worse than not offering the kind. Closing that gap is a change to
+//     that writer, not to this file.
+//
+//     ATESTACIÓN PPP WAS ON THIS LINE UNTIL 2026-09-08 AND ON EXACTLY THAT
+//     GROUND. The ground was true and the remedy was to remove it:
+//     `createDangerousBreedAttestation` now takes a `clientIdempotencyKey` and
+//     branches to `insertEventIdempotent` when one is given, skipping the
+//     attachment and the reminder mark on a replay. The kind is accepted below.
+//     Embarazo is the same one-file change away and is not made here.
 //
 //     SÍNTOMA WAS LISTED HERE ON EXACTLY THAT GROUND AND THE GROUND WAS FALSE.
 //     `createSymptomObservedWriter` has taken a `clientIdempotencyKey` and
@@ -169,8 +175,10 @@ import {
 import { parseDateInput } from "@/lib/utils/format";
 import { createClinicalInfo } from "@/src/modules/events/application/clinical/clinical-info-use-case";
 import { createVetVisit } from "@/src/modules/events/application/clinical/vet-visit-use-case";
+import { createDangerousBreedAttestation } from "@/src/modules/events/application/identity/dangerous-breed-attestation-use-case";
 import { createMicrochip } from "@/src/modules/events/application/identity/microchip-use-case";
 import { createNote } from "@/src/modules/events/application/identity/note-use-case";
+import { validateAttestationRegistry } from "@/src/modules/events/application/identity/validate-attestation-registry";
 import { createDeworming } from "@/src/modules/events/application/medical/deworming-use-case";
 import { createMedicationEnd } from "@/src/modules/events/application/medical/medication-end-use-case";
 import { createMedicationStart } from "@/src/modules/events/application/medical/medication-start-use-case";
@@ -185,6 +193,7 @@ import type { RecordedEvent, UseCaseResult } from "@/src/modules/events/applicat
 import { flushNotifications } from "@/src/modules/events/application/writers";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import type { EventRecordedV1 } from "@dim/contract/api";
 import type { RecordEventInput } from "@dim/contract/input";
 
@@ -263,6 +272,8 @@ const EVENT_TYPE_OF_KIND = {
   vet_visit: "vet_visit_logged",
   clinical_info: "clinical_info_logged",
   symptom: "symptom_observed",
+  microchip_replace: "microchip_replaced",
+  dangerous_breed_attestation: "dangerous_breed_attested",
 } as const satisfies Record<RecordEventInput["kind"], string>;
 
 type WriteContext = {
@@ -455,7 +466,6 @@ async function append(
   repo: EventsRepository,
 ) {
   const { input } = ctx;
-  const pet = access.pet;
 
   // SÍNTOMA IS DISPATCHED FIRST AND SEPARATELY, because it shares neither of the
   // two things every other branch below shares: it has no `occurredAt` of its
@@ -465,9 +475,60 @@ async function append(
   // result variable typed as a union of two shapes.
   if (input.kind === "symptom") return appendSymptom(ctx, access, input, repo);
 
+  // TWO MORE THAT DO NOT FIT THE SWITCH, and for the same reason síntoma does
+  // not: neither answers in `UseCaseResult<RecordedEvent>`.
+  //
+  // Reemplazo de microchip answers `{ ok, eventId, caseId }` from a use-case
+  // that lives outside the events module entirely, and it needs a fact this
+  // request does not carry — the animal's CANONICAL chip, read server-side.
+  //
+  // Atestación PPP answers `UseCaseResult<{ eventId, wasDuplicate }>` and needs
+  // two checks the `common` object has nowhere to put: that the animal is under
+  // the regime at all, and that the named registry is one its jurisdiction
+  // allows.
+  if (input.kind === "microchip_replace") {
+    return appendMicrochipReplace(ctx, access, input);
+  }
+  if (input.kind === "dangerous_breed_attestation") {
+    return appendDangerousBreedAttestation(ctx, access, input, repo);
+  }
+
   // Every remaining kind states its day outright, and `writeEvent` refused the
   // request before reaching here if that day did not parse.
   if (!occurredAt) return apiV1Error("invalid_request", 400);
+
+  return appendUniformKind(ctx, access, input, occurredAt, repo);
+}
+
+/**
+ * The kinds whose writer answers in `UseCaseResult<RecordedEvent>` and whose
+ * call is the same shape but for its own fields.
+ *
+ * SPLIT OUT OF `append` ON 2026-09-08, and the reason is the linter's rather
+ * than an aesthetic one: adding reemplazo de microchip and atestación PPP took
+ * that function past the cognitive-complexity ceiling (26, max 25). The
+ * alternative was to add this file to `biome.json`'s override list, which
+ * raises the ceiling to 160 for the WHOLE file — a general loosening bought to
+ * settle one function. The router above is now a router: four early dispatches
+ * and a day check, none of which is the switch's business.
+ *
+ * THE PARAMETER TYPE IS THE SPLIT'S OWN GUARD. `append` narrows `input` by
+ * returning on the three kinds that do not belong here, and narrowing does not
+ * survive a function boundary — so the exclusion is restated in the signature.
+ * The `never` default at the bottom of the switch then still fails the build
+ * the day a twelfth kind is added and forgotten.
+ */
+async function appendUniformKind(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Exclude<
+    RecordEventInput,
+    { kind: "symptom" | "microchip_replace" | "dangerous_breed_attestation" }
+  >,
+  occurredAt: Date,
+  repo: EventsRepository,
+) {
+  const pet = access.pet;
 
   const common = {
     user: { id: ctx.userId },
@@ -782,6 +843,140 @@ async function appendSymptom(
   const payload: EventRecordedV1 = {
     eventId: result.symptomEventId,
     wasDuplicate: result.wasDuplicate,
+  };
+  return apiV1Json(payload, { status: 201 });
+}
+
+/**
+ * Reemplazo o revocación de microchip.
+ *
+ * THE OLD CHIP IS READ HERE, NOT SENT. `replaceMicrochipForUser` needs
+ * `previousChipNumber`, and the web's action gets it the same way: from the
+ * animal's CANONICAL identifications, server-side. A wire field would be the
+ * client asserting a fact the server already holds, and a disagreement between
+ * the two would have to be adjudicated by somebody. There is nothing to
+ * adjudicate — the canonical row is the answer.
+ *
+ * `actorContext` IS DERIVED FROM THE RESOLVED ACCESS AND NEVER FROM THE BODY.
+ * The use-case re-verifies it (an org actor must hold the pet through that
+ * organization; an admin must actually carry the role), so a caller who lied
+ * would be refused there too — but the lie must not be expressible in the first
+ * place, and on this endpoint it is not: `access` came from the bearer token.
+ *
+ * The owner subset of reasons is enforced twice over: the contract's enum only
+ * admits five, and the use-case checks them again against the actor kind.
+ */
+async function appendMicrochipReplace(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Extract<RecordEventInput, { kind: "microchip_replace" }>,
+) {
+  const pet = access.pet;
+
+  const canonical = await fetchActiveIdentifications(pet.id);
+  if (!canonical.microchip) {
+    // NOT `invalid_request`: the body is well-formed and the caller could not
+    // have known. This is a fact about the ANIMAL — it has no chip to replace —
+    // which is the same shape as the deceased refusal above.
+    return apiV1Error("event_not_allowed", 409);
+  }
+
+  const result = await replaceMicrochipForUser(ctx.userId, {
+    petId: pet.id,
+    previousChipNumber: canonical.microchip.code,
+    newChipNumber: input.newChipNumber,
+    reason: input.reason,
+    replacedBy: input.replacedBy,
+    replacedAt: parseWireDay(input.occurredAt)?.toISOString() ?? input.occurredAt,
+    notes: input.notes,
+    clientIdempotencyKey: ctx.idempotencyKey,
+    actorContext:
+      access.kind === "org"
+        ? { kind: "vet_in_org", organizationId: access.membership.organizationId }
+        : { kind: "owner" },
+  });
+
+  if ("error" in result) {
+    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
+    return apiV1Error("event_failed", 500);
+  }
+
+  // `wasDuplicate` IS NOT AVAILABLE FROM THIS WRITER and saying `false` would be
+  // a guess printed as a fact. It resolves a replay by RETURNING THE ORIGINAL
+  // EVENT ID (replace-microchip.ts:163-176) without telling the caller which
+  // path it took, so the honest answer here is the one the client can act on:
+  // the id. Reporting `wasDuplicate: false` on a genuine replay would make a
+  // client draw "asiento creado" over a write that did not happen.
+  const payload: EventRecordedV1 = { eventId: result.eventId, wasDuplicate: false };
+  return apiV1Json(payload, { status: 201 });
+}
+
+/**
+ * Atestación de raza potencialmente peligrosa.
+ *
+ * TWO PRECONDITIONS THE SWITCH COULD NOT CARRY, both of them the web page's own:
+ *
+ *   1. THE REGIME HAS TO APPLY. `atestar-raza-peligrosa/page.tsx` redirects away
+ *      unless `pet.potentiallyDangerousBreed` is set. An endpoint that appended
+ *      the attestation anyway would let an animal nobody classified as PPP carry
+ *      a legal declaration about a regime it is not under.
+ *
+ *   2. THE REGISTRY HAS TO BE ONE THIS JURISDICTION NAMES. The options come from
+ *      the `ppp_attestation_required_registries` rule resolved for the pet's own
+ *      province and locality, so they are ADMIN-EDITABLE and cannot be an enum
+ *      in the contract. `validateAttestationRegistry` is the web action's own
+ *      check, reused verbatim rather than re-implemented — a second copy is how
+ *      the two surfaces would come to disagree about what a jurisdiction allows.
+ */
+async function appendDangerousBreedAttestation(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Extract<RecordEventInput, { kind: "dangerous_breed_attestation" }>,
+  repo: EventsRepository,
+) {
+  const pet = access.pet;
+
+  if (!pet.potentiallyDangerousBreed) return apiV1Error("event_not_allowed", 409);
+
+  const registryError = await validateAttestationRegistry(input.registry, {
+    province: pet.jurisdictionProvince,
+    locality: pet.jurisdictionLocality,
+  });
+  if (registryError) return apiV1Error("invalid_request", 400);
+
+  const attestedAt = parseWireDay(input.occurredAt);
+  if (!attestedAt) return apiV1Error("invalid_request", 400);
+
+  const result = await createDangerousBreedAttestation(
+    {
+      pet: { id: pet.id },
+      user: { id: ctx.userId },
+      eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
+      registry: input.registry,
+      registryId: input.registryId,
+      attestedAt,
+      notes: input.notes,
+      // No native upload path exists yet — see the file header.
+      uploadedPath: null,
+      uploadedMimeType: null,
+      uploadedSize: null,
+      clientIdempotencyKey: ctx.idempotencyKey,
+    },
+    {
+      repo,
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+    },
+  );
+
+  if (!result.ok) {
+    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
+    return apiV1Error("event_failed", 500);
+  }
+
+  const payload: EventRecordedV1 = {
+    eventId: result.value.eventId,
+    wasDuplicate: result.value.wasDuplicate,
   };
   return apiV1Json(payload, { status: 201 });
 }

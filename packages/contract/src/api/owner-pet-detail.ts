@@ -344,6 +344,34 @@ export type OwnerPetPregnancyV1 = {
 export type OwnerPetPregnancySection = OwnerPetPregnancyV1 | null;
 
 // ---------------------------------------------------------------------------
+// PPP registries — the choices behind "Atestación requerida"
+// ---------------------------------------------------------------------------
+
+/**
+ * One registry the owner may name when attesting a potentially dangerous
+ * breed. Mirrors `PppAttestationRegistry` in the business-rules domain: the
+ * server resolves `ppp_attestation_required_registries` for the pet's OWN
+ * jurisdiction, so an admin editing the rule changes what the owner sees —
+ * the web page does the same resolve on every render.
+ */
+export type OwnerPetPppRegistryV1 = {
+  id: string;
+  label: string;
+  required: boolean;
+};
+
+/**
+ * `data: null` means "this animal is not under the PPP regime" — the same fact
+ * `derivePpp` reads from `pets.potentially_dangerous_breed` — so a client can
+ * gate the attestation door on this one field instead of pattern-matching a
+ * compliance card's label. An array (possibly empty) means the regime applies
+ * and these are the registries the jurisdiction names; an EMPTY array is a
+ * jurisdiction with the regime but no registry loaded, which the form must
+ * still accept — the web's form does, with a free-text registry.
+ */
+export type OwnerPetPppRegistriesSection = OwnerPetPppRegistryV1[] | null;
+
+// ---------------------------------------------------------------------------
 // The carousel
 // ---------------------------------------------------------------------------
 

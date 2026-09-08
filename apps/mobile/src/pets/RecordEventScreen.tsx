@@ -50,7 +50,8 @@ import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
-import type { EventRecordedV1 } from "@dim/contract/api";
+import type { EventRecordedV1, OwnerPetPppRegistryV1 } from "@dim/contract/api";
+import { OWNER_MICROCHIP_REPLACE_REASONS } from "@dim/contract/input";
 import type { ApiResult } from "../api/client";
 import { recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
@@ -99,6 +100,7 @@ import {
   invalidFields,
   kindSubtitle,
   kindTitle,
+  microchipReplaceReasonLabel,
   noteCategoryLabel,
   recordEventCta,
   sterilizationProcedureLabel,
@@ -392,6 +394,13 @@ function chainLength(kind: WritableKind, draft: EventDraft): number {
       return 1;
     case "symptom":
       return 1;
+    // Motivo is a chip row, so it is not in the chain: número nuevo, quién lo
+    // hizo, fecha.
+    case "microchip_replace":
+      return 3;
+    // Registro is a chip row for the same reason: id, fecha.
+    case "dangerous_breed_attestation":
+      return 2;
   }
 }
 
@@ -401,12 +410,23 @@ function Fields({
   draft,
   set,
   invalid,
+  pppRegistries = [],
 }: {
   kind: WritableKind;
   draft: EventDraft;
   set: <K extends keyof EventDraft>(field: K, value: EventDraft[K]) => void;
   /** The fields the last refusal named — they draw the red border. */
   invalid: ReadonlySet<keyof EventDraft>;
+  /**
+   * The registries this animal's JURISDICTION names for a PPP attestation,
+   * resolved server-side from `ppp_attestation_required_registries`.
+   *
+   * DEFAULTS TO NONE, and the empty case is a real one rather than a
+   * placeholder: a jurisdiction under the regime with no registry loaded is
+   * exactly what the web's form handles by letting the person write the
+   * registry themselves. Same two shapes here.
+   */
+  pppRegistries?: readonly OwnerPetPppRegistryV1[];
 }) {
   // The return key walks the single-line fields in draw order. `link()` hands
   // out the next slot each time it is called, and it is called in JSX order.
@@ -765,6 +785,85 @@ function Fields({
             placeholder="Cuello, lado izquierdo"
             {...link()}
           />
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+
+    case "microchip_replace":
+      return (
+        <>
+          <Choice
+            label="Motivo"
+            required
+            options={OWNER_MICROCHIP_REPLACE_REASONS}
+            selected={draft.replaceReason}
+            optionLabel={microchipReplaceReasonLabel}
+            onSelect={(value) => set("replaceReason", value)}
+          />
+          {/* NOT REQUIRED, and the asymmetry is the rule: leaving the animal
+              with no chip is a real outcome under two of the five motives. The
+              contract refuses the combination the other three make invalid, and
+              `MICROCHIP_REPLACE_NEW_CHIP_REQUIRED` is the sentence that names
+              the way out. A `required` here would take that outcome away. */}
+          <TextField
+            label="Número del chip nuevo"
+            mono
+            value={draft.newChipNumber}
+            invalid={invalid.has("newChipNumber")}
+            onChangeText={(v) => set("newChipNumber", v)}
+            placeholder="Dejalo vacío si no hay chip nuevo"
+            autoCapitalize="none"
+            autoCorrect={false}
+            inputMode="numeric"
+            {...link()}
+          />
+          <TextField
+            label="Realizado por"
+            value={draft.replacedBy}
+            onChangeText={(v) => set("replacedBy", v)}
+            {...link()}
+          />
+          {dateField("Fecha del reemplazo", "occurredAt", true)}
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+
+    case "dangerous_breed_attestation":
+      return (
+        <>
+          {pppRegistries.length > 0 ? (
+            <Choice
+              label="Registro"
+              required
+              options={pppRegistries.map((r) => r.id)}
+              selected={draft.registry.length > 0 ? draft.registry : null}
+              optionLabel={(id) => pppRegistries.find((r) => r.id === id)?.label ?? id}
+              onSelect={(value) => set("registry", value)}
+            />
+          ) : (
+            /* THE JURISDICTION NAMED NONE. The web's form lets the person write
+               the registry in that case rather than blocking the attestation,
+               and the server validates against the same (empty) rule for both
+               doors, so neither is stricter than the other. */
+            <TextField
+              label="Registro"
+              required
+              value={draft.registry}
+              invalid={invalid.has("registry")}
+              onChangeText={(v) => set("registry", v)}
+              placeholder="Dónde hiciste la atestación"
+              {...link()}
+            />
+          )}
+          <TextField
+            label="Número de registro"
+            value={draft.registryId}
+            onChangeText={(v) => set("registryId", v)}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            {...link()}
+          />
+          {dateField("Fecha de la atestación", "occurredAt", true)}
           <NotesField draft={draft} set={set} />
         </>
       );

@@ -230,8 +230,36 @@ export const RECORD_EVENT_INPUT_CODES = [
   "SYMPTOM_SEVERITY_INVALID",
   "ONSET_AT_MALFORMED",
   "ONSET_AT_INVALID",
+  "MICROCHIP_REPLACE_REASON_INVALID",
+  "MICROCHIP_REPLACE_NEW_CHIP_REQUIRED",
+  "PPP_REGISTRY_REQUIRED",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
+
+/**
+ * The reasons an OWNER may give for replacing or revoking a microchip.
+ *
+ * FIVE OF THE SEVEN the spine knows. `duplicate_detected` and `fraud_detected`
+ * are vet/admin findings — they open a `microchip_remediation` case — and the
+ * web's owner action refuses them at the door (`OWNER_REASONS` in
+ * `microchip-reemplazo/action.ts`). Same set here, for the same reason: a
+ * bearer token must not be able to file a finding only a professional makes.
+ */
+export const OWNER_MICROCHIP_REPLACE_REASONS = [
+  "damaged",
+  "unreadable",
+  "owner_request",
+  "device_failure",
+  "other",
+] as const;
+export type OwnerMicrochipReplaceReason = (typeof OWNER_MICROCHIP_REPLACE_REASONS)[number];
+
+/**
+ * The reasons under which `newChipNumber` may be null — a PURE REVOCATION that
+ * leaves the animal without a chip. Any other reason is a replacement and needs
+ * the new code. Mirrors `REVOCATION_REASONS` in the same web action.
+ */
+export const MICROCHIP_REVOCATION_REASONS = ["owner_request", "device_failure"] as const;
 
 /** `"YYYY-MM-DD"` — what `<input type="date">` posts. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -534,6 +562,74 @@ const symptom = z.object({
     .refine((v) => v === null || isRealDay(v), { error: "ONSET_AT_INVALID" }),
 });
 
+/**
+ * Reemplazo o revocación de microchip — `microchip_replaced` on the spine.
+ *
+ * NOT A SECOND `microchip`. The implant kind above appends a fact about a chip
+ * going in; this one RETIRES the canonical chip and, unless the reason is a
+ * revocation, writes the successor into `pet_identifications`. Different
+ * use-case (`replaceMicrochipForUser`), different table touched, and it always
+ * leaves an `audit_log` row — the only owner-recordable kind that does.
+ *
+ * NO `previousChipNumber` ON THE WIRE, deliberately. The web's action reads the
+ * pet's canonical chip server-side and refuses when there is none
+ * ("Esta mascota no tiene microchip registrado"); the endpoint does the same. A
+ * client that had to send the old code would be asserting a fact the server
+ * already holds, and a mismatch would have to be adjudicated somewhere.
+ *
+ * `occurredAt` is the web's `replacedAt`, renamed to the wire's one word for a
+ * day so the dispatcher routes it like every other dated kind.
+ */
+const microchipReplace = z.object({
+  kind: z.literal("microchip_replace"),
+  reason: z.enum(OWNER_MICROCHIP_REPLACE_REASONS, {
+    error: "MICROCHIP_REPLACE_REASON_INVALID",
+  }),
+  /**
+   * The successor chip's code, or null for a PURE revocation. Nullness is
+   * only valid under `MICROCHIP_REVOCATION_REASONS`; the cross-field rule is in
+   * the `superRefine` below, because a field-level schema cannot see `reason`.
+   */
+  newChipNumber: z
+    .union([z.string(), z.null()])
+    .nullish()
+    .transform((v) => {
+      const trimmed = typeof v === "string" ? v.trim() : "";
+      return trimmed.length === 0 ? null : trimmed;
+    }),
+  replacedBy: optionalText,
+  occurredAt,
+  notes: optionalText,
+});
+
+/**
+ * Atestación de raza potencialmente peligrosa — `dangerous_breed_attested`.
+ *
+ * REACHED FROM THE COMPLIANCE CARD, NOT THE PICKER. The web's page redirects
+ * away unless `pet.potentiallyDangerousBreed` is set, so an unconditional row
+ * in the asentar menu would be a form that refuses most animals. The endpoint
+ * enforces the same precondition; the app's job is to offer the door only
+ * where the card reads "Atestación requerida".
+ *
+ * `registry` is a jurisdiction-resolved choice — the options come from the
+ * `ppp_attestation_required_registries` business rule for the pet's own
+ * province/locality, carried on the owner pet detail as `pppRegistries`. Not a
+ * fixed enum: an admin editing the rule changes what the owner may pick, so no
+ * membership check lives here beyond "non-empty".
+ *
+ * `occurredAt` is the web's `attestedAt`.
+ */
+const dangerousBreedAttestation = z.object({
+  kind: z.literal("dangerous_breed_attestation"),
+  registry: z
+    .string({ error: "PPP_REGISTRY_REQUIRED" })
+    .trim()
+    .min(1, { error: "PPP_REGISTRY_REQUIRED" }),
+  registryId: optionalText,
+  occurredAt,
+  notes: optionalText,
+});
+
 export const recordEventInputSchema = z
   .discriminatedUnion("kind", [
     vaccination,
@@ -547,8 +643,29 @@ export const recordEventInputSchema = z
     vetVisit,
     clinicalInfo,
     symptom,
+    microchipReplace,
+    dangerousBreedAttestation,
   ])
   .superRefine((input, ctx) => {
+    // THE ONE CROSS-FIELD RULE OF A REPLACEMENT: leaving the animal with no
+    // chip is only a valid outcome under the two revocation reasons. The web's
+    // action refuses the same combination with the same words
+    // ("Para dejar la mascota sin chip, el motivo debe ser…"); here it is a
+    // code the app turns into that sentence.
+    if (input.kind === "microchip_replace") {
+      const isRevocation = (MICROCHIP_REVOCATION_REASONS as readonly string[]).includes(
+        input.reason,
+      );
+      if (input.newChipNumber === null && !isRevocation) {
+        ctx.addIssue({
+          code: "custom",
+          message: "MICROCHIP_REPLACE_NEW_CHIP_REQUIRED",
+          path: ["newChipNumber"],
+        });
+      }
+      return;
+    }
+
     if (input.kind !== "medication_start") return;
 
     if (input.frequency === "custom") {

@@ -387,3 +387,97 @@ describe("recordEventInputSchema — síntoma", () => {
     expect(codeFor({ kind: "symptom", freeText: long })).toBe(null);
   });
 });
+
+// Two builders, so every case below reads as the ONE thing it varies. Written
+// out per-case they wrapped past the line limit and the assertion disappeared
+// into the body.
+const replace = (over: Record<string, unknown> = {}) => ({
+  kind: "microchip_replace",
+  reason: "damaged",
+  newChipNumber: "982000999999999",
+  occurredAt: A_DAY,
+  ...over,
+});
+
+const attest = (over: Record<string, unknown> = {}) => ({
+  kind: "dangerous_breed_attestation",
+  registry: "caba_4078",
+  occurredAt: A_DAY,
+  ...over,
+});
+
+describe("recordEventInputSchema — reemplazo de microchip", () => {
+  // NOT A SECOND `microchip`. The implant kind appends a fact about a chip going
+  // in; this one RETIRES the canonical chip. Both live in one union and a caller
+  // that confused them would write the wrong act into a legal record, so the
+  // fields are deliberately not shared: `chipNumber` belongs to the implant and
+  // `newChipNumber` to the replacement.
+  it("accepts the five owner motives", () => {
+    for (const reason of ["damaged", "unreadable", "owner_request", "device_failure", "other"]) {
+      expect(codeFor(replace({ reason }))).toBe(null);
+    }
+  });
+
+  it("refuses the two that are a professional's finding", () => {
+    // The web's owner action refuses these at the door for the same reason: they
+    // open a `microchip_remediation` case, and a bearer token must not be able to
+    // file a finding only a vet or an admin makes.
+    expect(codeFor(replace({ reason: "duplicate_detected" }))).toBe(
+      "MICROCHIP_REPLACE_REASON_INVALID",
+    );
+    expect(codeFor(replace({ reason: "fraud_detected" }))).toBe("MICROCHIP_REPLACE_REASON_INVALID");
+  });
+
+  it("lets a REVOCATION leave the animal with no chip, under the two motives that mean it", () => {
+    // Chipless is a real outcome, not an incomplete form — which is why this is
+    // the kind's one cross-field rule, and why it is asserted in both directions
+    // rather than only as a refusal.
+    for (const reason of ["owner_request", "device_failure"]) {
+      expect(codeFor(replace({ reason, newChipNumber: null }))).toBe(null);
+      // Blank says the same thing as null: an untouched field.
+      expect(codeFor(replace({ reason, newChipNumber: "   " }))).toBe(null);
+    }
+  });
+
+  it("refuses a missing new chip under the three motives that are a REPLACEMENT", () => {
+    for (const reason of ["damaged", "unreadable", "other"]) {
+      expect(codeFor(replace({ reason, newChipNumber: null }))).toBe(
+        "MICROCHIP_REPLACE_NEW_CHIP_REQUIRED",
+      );
+    }
+  });
+
+  it("holds the replacement to the same calendar as every other dated kind", () => {
+    expect(codeFor(replace({ occurredAt: "20/08/2026" }))).toBe("OCCURRED_AT_MALFORMED");
+    expect(codeFor(replace({ occurredAt: "2026-02-30" }))).toBe("OCCURRED_AT_INVALID");
+  });
+
+  it("carries NO previousChipNumber, because the server reads it", () => {
+    const parsed = recordEventInputSchema.parse(replace());
+    // A field here would be the client asserting a fact the server already
+    // holds, and a disagreement between the two would have to be adjudicated by
+    // somebody. There is nothing to adjudicate: the canonical row is the answer.
+    expect("previousChipNumber" in parsed).toBe(false);
+  });
+});
+
+describe("recordEventInputSchema — atestación de raza peligrosa", () => {
+  it("requires a registry and nothing else beyond the day", () => {
+    expect(codeFor(attest())).toBe(null);
+    expect(codeFor(attest({ registry: "  " }))).toBe("PPP_REGISTRY_REQUIRED");
+  });
+
+  it("does NOT constrain WHICH registry — that is the jurisdiction's answer", () => {
+    // The options come from `ppp_attestation_required_registries` resolved for
+    // the animal's own province and locality, so they are ADMIN-EDITABLE. An
+    // enum here would be a fixed list this package must be republished to
+    // change, and it would refuse a registry an admin legitimately added. The
+    // SERVER checks membership (`validateAttestationRegistry`); this only
+    // refuses an empty one.
+    expect(codeFor(attest({ registry: "un-registro-que-nadie-cargo" }))).toBe(null);
+  });
+
+  it("holds the attestation to the same calendar", () => {
+    expect(codeFor(attest({ occurredAt: "2026-02-30" }))).toBe("OCCURRED_AT_INVALID");
+  });
+});
