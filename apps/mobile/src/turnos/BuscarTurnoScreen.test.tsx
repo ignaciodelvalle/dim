@@ -384,7 +384,21 @@ describe("choosing the zone", () => {
     fireEvent.changeText(screen.getByLabelText("Localidad"), "Bolsón");
     await waitFor(() => expect(screen.getByText("El Bolsón")).toBeTruthy());
     fireEvent.press(screen.getByText("El Bolsón"));
-    await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(3));
+
+    // WAITS FOR THE SCREEN, NOT FOR THE MOCK, and the difference is what made
+    // this test flaky. It used to `waitFor(mockSearch).toHaveBeenCalledTimes(3)`
+    // and then reach for the button on the very next line — but the CALL and
+    // the RENDER are two events with a state update between them. The search
+    // having been requested does not mean its results are on screen; in
+    // between, the screen draws "Buscando turnos…" and this control does not
+    // exist yet.
+    //
+    // MEASURED 2026-09-08: 20/20 in isolation, red inside the full 101-suite
+    // jest run, where the extra load widens exactly that gap. The old line was
+    // synchronising on a proxy for the thing it needed. `findByText` waits for
+    // the thing itself.
+    await screen.findByText("Elegir otro servicio");
+    expect(mockSearch).toHaveBeenCalledTimes(3);
 
     fireEvent.press(screen.getByText("Elegir otro servicio"));
     await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(4));
