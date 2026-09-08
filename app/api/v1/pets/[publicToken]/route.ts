@@ -47,6 +47,7 @@ import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-lim
 import { createClientFromBearer } from "@/lib/supabase/bearer";
 import { loadOwnerPetDetail } from "@/src/modules/pets/application/read/load-owner-pet-detail";
 import { buildOwnerPetDetailV1 } from "./payload";
+import { resolvePppRegistries } from "./ppp-registries";
 
 export const dynamic = "force-dynamic";
 
@@ -237,6 +238,7 @@ export async function GET(
     pregnancyStatus: access.pet.pregnancyStatus ?? null,
     accessPath,
     detail,
+    pppRegistries: await resolvePppRegistries(access.pet),
     now: new Date(),
   });
 

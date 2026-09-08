@@ -40,11 +40,13 @@ import type {
   OwnerPetDetailViewerRole,
   OwnerPetIdentitySection,
   OwnerPetObligationCardV1,
+  OwnerPetPppRegistriesSection,
   OwnerPetPregnancySection,
   OwnerPetRemindersSection,
   OwnerPetStatusSection,
   PublicPetStatus,
 } from "@dim/contract/api";
+import type { CredentialSection } from "@dim/contract/api";
 import {
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
   OWNER_PET_DETAIL_STALE_AFTER_MS,
@@ -126,6 +128,20 @@ export function buildOwnerPetDetailV1(input: {
   pregnancyStatus: string | null;
   accessPath: "owner" | "org";
   detail: OwnerPetDetail;
+  /**
+   * The registries the pet's OWN jurisdiction names for a PPP attestation,
+   * already resolved.
+   *
+   * ARRIVES AS A WHOLE SECTION rather than as a payload this function derives,
+   * because deriving it is a DATABASE READ — `ppp_attestation_required_registries`
+   * is admin-editable and resolved per jurisdiction — and everything else here
+   * is a pure mapping over a `detail` the caller already loaded. The route owns
+   * the read, its budget, and the `unavailable` it degrades to; this function
+   * owns the shape.
+   *
+   * `data: null` means the animal is not under the regime at all.
+   */
+  pppRegistries: CredentialSection<OwnerPetPppRegistriesSection>;
   now: Date;
 }): OwnerPetDetailV1 {
   const { detail, now } = input;
@@ -293,6 +309,7 @@ export function buildOwnerPetDetailV1(input: {
     banners: { status: "ok", data: banners },
     cases: { status: "ok", data: cases },
     pregnancy: { status: "ok", data: pregnancy },
+    pppRegistries: input.pppRegistries,
     carousel: { status: "ok", data: carousel },
   };
 }

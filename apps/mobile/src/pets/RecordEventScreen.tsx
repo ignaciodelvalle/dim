@@ -47,7 +47,7 @@
 // step has to know which event it is claiming for, which is its own work unit.
 
 import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { EventRecordedV1, OwnerPetPppRegistryV1 } from "@dim/contract/api";
@@ -57,7 +57,7 @@ import {
   dangerousBreedRegistryLabel,
 } from "@dim/contract/input";
 import type { ApiResult } from "../api/client";
-import { recordPetEvent } from "../api/endpoints";
+import { fetchOwnerPetDetail, recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card } from "../ui/components";
@@ -198,6 +198,52 @@ type FormPhase =
   | { phase: "confirming-same-day" }
   | { phase: "done"; wasDuplicate: boolean };
 
+/**
+ * The registries THIS animal's jurisdiction names for a PPP attestation.
+ *
+ * READ IN THE BACKGROUND, AND THE FORM NEVER WAITS FOR IT. The attestation
+ * field is already correct without this read: it falls back to
+ * `DANGEROUS_BREED_REGISTRIES`, which is the same set `buildRegistryOptions`
+ * uses on the web when a jurisdiction has loaded none — and the empty payload
+ * is the common case, because `ppp_attestation_required_registries` defaults to
+ * an empty list everywhere. So there is no loading state and no error state
+ * here: a failed read leaves the person with the national list, which is what
+ * the web would have shown them anyway.
+ *
+ * WHAT IT ADDS is the half a constant cannot have. The rule is admin-editable
+ * and resolved per province and locality; without this read, an admin loading
+ * CABA's registries would change what a web owner sees and not what an app
+ * owner sees.
+ *
+ * ONLY FOR THE ONE KIND THAT ASKS. Every other form on this screen would be
+ * paying for a pet-detail read it has no field for.
+ */
+function usePppRegistries(kind: WritableKind, publicToken: string) {
+  const [registries, setRegistries] = useState<readonly OwnerPetPppRegistryV1[]>([]);
+
+  useEffect(() => {
+    if (kind !== "dangerous_breed_attestation") return;
+    let alive = true;
+    void (async () => {
+      const result = await fetchOwnerPetDetail(sessionPort, publicToken);
+      // THE GUARD IS AGAINST AN UNMOUNTED FORM, not against a stale read: this
+      // fires once per mount and there is no second request to supersede it.
+      if (!alive || result.outcome !== "ok") return;
+      const section = result.payload.pppRegistries;
+      // `unavailable` is a read that did not answer and `null` is an animal
+      // outside the regime. Neither is "this jurisdiction names no registry",
+      // and only that last one may replace the fallback.
+      if (section.status !== "ok" || section.data === null) return;
+      setRegistries(section.data);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [kind, publicToken]);
+
+  return registries;
+}
+
 function EventForm({
   kind,
   publicToken,
@@ -211,6 +257,7 @@ function EventForm({
   onBack: (() => void) | null;
 }) {
   const router = useRouter();
+  const pppRegistries = usePppRegistries(kind, publicToken);
   const [draft, setDraft] = useState<EventDraft>(() => emptyDraft());
   const [state, setState] = useState<FormPhase>({ phase: "editing" });
   const [error, setError] = useState<string | null>(null);
@@ -318,7 +365,7 @@ function EventForm({
         <Body>{kindSubtitle(kind)}</Body>
       </View>
 
-      <Fields kind={kind} draft={draft} set={set} invalid={invalid} />
+      <Fields kind={kind} draft={draft} set={set} invalid={invalid} pppRegistries={pppRegistries} />
 
       <Card>
         <Body>{RECORD_IMMUTABILITY_NOTE}</Body>
@@ -845,14 +892,25 @@ function Fields({
       //
       // So the fallback here is the SAME fallback the server uses, and the
       // jurisdiction's own list replaces it when the payload carries one.
+      const fallback = DANGEROUS_BREED_REGISTRIES.map((id) => ({
+        id,
+        label: dangerousBreedRegistryLabel(id),
+        required: false,
+      }));
+      // "OTRO REGISTRO" SURVIVES A RESOLVED LIST, because `buildRegistryOptions`
+      // appends it unconditionally on the web (DangerousBreedAttestationForm.tsx:56)
+      // and `allowedAttestationRegistries` accepts it unconditionally on the
+      // server. A jurisdiction naming two registries must not take away the
+      // answer of an owner registered in a third province.
       const registries =
         pppRegistries.length > 0
-          ? pppRegistries
-          : DANGEROUS_BREED_REGISTRIES.map((id) => ({
-              id,
-              label: dangerousBreedRegistryLabel(id),
-              required: false,
-            }));
+          ? pppRegistries.some((r) => r.id === "other")
+            ? pppRegistries
+            : [
+                ...pppRegistries,
+                { id: "other", label: dangerousBreedRegistryLabel("other"), required: false },
+              ]
+          : fallback;
       return (
         <>
           <Choice

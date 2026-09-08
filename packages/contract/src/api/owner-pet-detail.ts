@@ -456,5 +456,6 @@ export type OwnerPetDetailV1 = {
   banners: CredentialSection<OwnerPetBannersSection>;
   cases: CredentialSection<OwnerPetCasesSection>;
   pregnancy: CredentialSection<OwnerPetPregnancySection>;
+  pppRegistries: CredentialSection<OwnerPetPppRegistriesSection>;
   carousel: CredentialSection<OwnerPetCarouselSection>;
 };

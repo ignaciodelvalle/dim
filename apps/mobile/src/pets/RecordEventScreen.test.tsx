@@ -21,6 +21,7 @@ import { createNavigationFake } from "../ui/navigation-fake";
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockRecordPetEvent = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockFetchOwnerPetDetail = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
 // A REAL LISTENER REGISTRY with a stable object and a working unsubscribe — see
 // `ui/navigation-fake.ts` for why both halves matter and what the stub they
@@ -34,6 +35,10 @@ jest.mock("expo-router", () => ({
 
 jest.mock("../api/endpoints", () => ({
   recordPetEvent: (...args: unknown[]) => mockRecordPetEvent(...args),
+  // NOT OPTIONAL EVEN THOUGH ONE FORM READS IT. A module mock replaces the
+  // whole module: an export left out of it is `undefined` at the call site, and
+  // the attestation form would throw on mount rather than fail an assertion.
+  fetchOwnerPetDetail: (...args: unknown[]) => mockFetchOwnerPetDetail(...args),
 }));
 
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
@@ -666,5 +671,67 @@ describe("RecordEventScreen — síntoma", () => {
     render(<RecordEventScreen publicToken={TOKEN} />);
     fireEvent.press(screen.getByText("Síntoma"));
     expect(screen.getByLabelText("Qué le viste, obligatorio")).toBeOnTheScreen();
+  });
+});
+
+describe("atestación PPP — the registry list is the jurisdiction's, and it degrades to the nation's", () => {
+  /** The pet-detail payload, cut down to the one section this form reads. */
+  function detail(section: unknown) {
+    return { outcome: "ok", payload: { pppRegistries: section } };
+  }
+
+  beforeEach(() => {
+    mockFetchOwnerPetDetail.mockReset();
+    mockRecordPetEvent.mockReset();
+  });
+
+  it("offers the two national registries plus Otro registro before any read answers", async () => {
+    // THE FORM IS CORRECT WITHOUT THE READ, which is the whole reason it does
+    // not block on one. A pending promise is the state a person sees first, and
+    // on a slow connection it is the state they fill the form in.
+    mockFetchOwnerPetDetail.mockReturnValue(new Promise(() => {}));
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="dangerous_breed_attestation" />);
+
+    expect(screen.getByText("CABA · Ley 4078")).toBeTruthy();
+    expect(screen.getByText("Prov. Bs. As. · Ley 14.107")).toBeTruthy();
+    expect(screen.getByText("Otro registro")).toBeTruthy();
+  });
+
+  it("replaces them with the jurisdiction's own list, and KEEPS Otro registro", async () => {
+    // `buildRegistryOptions` appends "Otro registro" unconditionally on the web
+    // and the server accepts it unconditionally; a jurisdiction naming its own
+    // registries must not take that answer away from an owner registered in a
+    // third province.
+    mockFetchOwnerPetDetail.mockResolvedValue(
+      detail({
+        status: "ok",
+        data: [{ id: "prov_neuquen", label: "Neuquén · Registro provincial", required: true }],
+      }),
+    );
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="dangerous_breed_attestation" />);
+
+    await waitFor(() => expect(screen.getByText("Neuquén · Registro provincial")).toBeTruthy());
+    expect(screen.getByText("Otro registro")).toBeTruthy();
+    // NON-VACUITY: the national fallback is GONE, not merely joined.
+    expect(screen.queryByText("CABA · Ley 4078")).toBeNull();
+  });
+
+  it("keeps the national list when the section says the read did not answer", async () => {
+    // `unavailable` is not "this jurisdiction names none". Printing an empty
+    // list over a read that failed would leave the person with no answer at all.
+    mockFetchOwnerPetDetail.mockResolvedValue(detail({ status: "unavailable" }));
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="dangerous_breed_attestation" />);
+
+    await waitFor(() => expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("CABA · Ley 4078")).toBeTruthy();
+  });
+
+  it("does NOT read the pet detail for a form with no registry field", async () => {
+    // Every other kind would be paying for a pet-detail round trip it has no
+    // field for.
+    mockFetchOwnerPetDetail.mockResolvedValue(detail({ status: "ok", data: null }));
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="note" />);
+
+    expect(mockFetchOwnerPetDetail).not.toHaveBeenCalled();
   });
 });

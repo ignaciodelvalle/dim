@@ -31,6 +31,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildOwnerPetDetailV1 } from "@/app/api/v1/pets/[publicToken]/payload";
 import type { OwnerPetDetail } from "@/src/modules/pets/application/read/load-owner-pet-detail";
+import type { CredentialSection, OwnerPetPppRegistriesSection } from "@dim/contract/api";
 
 const NOW = new Date("2026-08-25T12:00:00Z");
 const SELF = "DIM-PAMP-0001";
@@ -80,6 +81,8 @@ function build(input: {
   petStatus?: string;
   accessPath?: "owner" | "org";
   carousel: Parameters<typeof detailStub>[0];
+  /** The section the ROUTE resolves; this file's subject is the carousel. */
+  pppRegistries?: CredentialSection<OwnerPetPppRegistriesSection>;
 }) {
   return buildOwnerPetDetailV1({
     publicToken: SELF,
@@ -87,6 +90,7 @@ function build(input: {
     pregnancyStatus: null,
     accessPath: input.accessPath ?? "owner",
     detail: detailStub(input.carousel),
+    pppRegistries: input.pppRegistries ?? { status: "ok", data: null },
     now: NOW,
   });
 }
