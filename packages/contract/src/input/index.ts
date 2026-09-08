@@ -131,6 +131,7 @@ export {
 } from "./share.ts";
 export {
   CLINICAL_SUB_KINDS,
+  DANGEROUS_BREED_REGISTRIES,
   DEWORMING_TYPES,
   MAX_CUSTOM_HOURS,
   MAX_DURATION_DAYS,
@@ -145,7 +146,9 @@ export {
   STERILIZATION_PROCEDURES,
   SYMPTOM_SEVERITIES,
   type ClinicalSubKind,
+  type DangerousBreedRegistry,
   type DewormingType,
+  dangerousBreedRegistryLabel,
   type MedicationFrequency,
   type NoteCategory,
   type OwnerMicrochipReplaceReason,

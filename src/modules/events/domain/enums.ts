@@ -43,9 +43,13 @@ export { CLINICAL_SUB_KINDS, type ClinicalSubKind } from "@dim/contract/input";
 // Dangerous-breed registries
 // ---------------------------------------------------------------------------
 
-export const DANGEROUS_BREED_REGISTRIES = ["caba_4078", "prov_14107", "other"] as const;
-
-export type DangerousBreedRegistry = (typeof DANGEROUS_BREED_REGISTRIES)[number];
+// MOVED TO `@dim/contract/input` on 2026-09-08 and re-exported here, so this
+// module's four importers keep reading ONE array. The native app needs the same
+// list to draw the same options, and it can only import the contract.
+export { DANGEROUS_BREED_REGISTRIES, type DangerousBreedRegistry } from "@dim/contract/input";
+// Imported as well as re-exported: `allowedAttestationRegistries` below reads
+// the value, and a bare `export … from` re-exports without binding it here.
+import { DANGEROUS_BREED_REGISTRIES } from "@dim/contract/input";
 
 /**
  * Lote A4 — the registries the attestation SERVER accepts for a pet's

@@ -1,11 +1,18 @@
 // Use-case test: createDangerousBreedAttestation
 //
 // RED → GREEN TDD. Tests cover:
-//   - Happy path: plain insert (NOT idempotent) + markPppReminderRead.
+//   - Happy path: the KEYLESS plain insert + markPppReminderRead.
 //   - Attachment inserted when uploadedPath provided.
-//   - No clientIdempotencyKey — PARITY QUIRK: this is a non-idempotent plain insert.
-//   - markPppReminderRead always called (spec: mark unread reminder as read).
+//   - With a key: insertEventIdempotent instead, and never both.
+//   - On a replay: the original id, and neither the attachment nor the reminder.
+//   - markPppReminderRead called on every first write (spec: mark the unread
+//     reminder as read).
 //   - Auth parity: requireAlivePetAccess at edge.
+//
+// THE HEADER SAID "NOT IDEMPOTENT" AS A FLAT FACT until 2026-09-08, when the
+// writer grew the key the v1 endpoint requires. Both paths are exercised here
+// because "which insert does it call" is now an ANSWER TO AN INPUT, and a test
+// file that describes only one of them describes a writer that no longer exists.
 
 import { describe, expect, it, vi } from "vitest";
 import type { EventsRepository } from "../../infrastructure/events-repository";

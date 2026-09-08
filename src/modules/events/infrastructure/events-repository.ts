@@ -4,8 +4,14 @@
 //   - All write methods accept an optional `executor` param (DbOrTx) to support
 //     both top-level calls and participation in a db.transaction().
 //   - Exposes BOTH insertEventIdempotent AND insertEvent (plain) — the asymmetry
-//     is load-bearing. dangerousBreed + doseTaken + symptom-writer + outbreak_signal
-//     + cascade events are intentionally PLAIN inserts.
+//     is load-bearing, but WHO takes which is not a property of the kind: it is
+//     a property of whether that call was given a key. doseTaken,
+//     outbreak_signal and the cascade events are PLAIN because nothing upstream
+//     holds a key to pass. The symptom writer (since 2026-06-07) and the
+//     dangerous-breed attestation (since 2026-09-08) take one when their caller
+//     has one and fall back to the plain insert when it does not — which is what
+//     lets `POST /api/v1/pets/{token}/events` require an `Idempotency-Key` and
+//     honour it for both.
 //   - Projection write-through: updateWeightProjection, updateMicrochipBackfill
 //     (only if null), updateStatusProjection, updateDeceased.
 //   - Outbox enqueue delegates to lib/event-outbox-enqueue (reuse, not duplicate).
@@ -125,8 +131,10 @@ export class EventsRepository {
 
   /**
    * Insert an event without idempotency (plain insert).
-   * Used for non-idempotent events: dangerousBreed, doseTaken, cascade events,
-   * outbreak_signal, symptom-writer path.
+   * Used where no key exists to honour: doseTaken, cascade events,
+   * outbreak_signal, and the keyless fallback of the symptom writer and the
+   * dangerous-breed attestation — both of which reach for the idempotent twin
+   * when their caller does hand them a key.
    *
    * The payload is validated against the per-type Zod schema at this boundary
    * — an invalid payload throws EventPayloadValidationError before any row is

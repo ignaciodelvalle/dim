@@ -92,7 +92,12 @@ export async function createDangerousBreedAttestation(
   let wasDuplicate = false;
 
   const eventId = await transaction(async (tx) => {
-    // Single insert — payload is final. PLAIN insert: no idempotency key.
+    // Single insert — payload is final. THE INSERT IS PLAIN ONLY WHEN NO KEY
+    // WAS GIVEN: the web's form posts none and keeps that path; the v1
+    // endpoint requires an `Idempotency-Key` and gets `insertEventIdempotent`
+    // below, whose no-op answer short-circuits the attachment and the
+    // reminder mark. The line said PLAIN unconditionally until 2026-09-08,
+    // which is the day the branch under it stopped being true.
     // attached_documents is NOT stored in the payload: the attachments table
     // already provides the join via event_id (same pattern as
     // sterilization / microchip / vaccination, preserving append-only discipline).

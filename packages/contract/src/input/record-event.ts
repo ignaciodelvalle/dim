@@ -237,6 +237,54 @@ export const RECORD_EVENT_INPUT_CODES = [
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
 
 /**
+ * The registries a PPP attestation may name when the animal's jurisdiction
+ * has overridden nothing — the NATIONAL FALLBACK.
+ *
+ * MOVED HERE FROM `src/modules/events/domain/enums.ts` on 2026-09-08, which
+ * re-exports it so its four existing importers keep reading ONE array. Same
+ * move `STERILIZATION_PROCEDURES` got and for the same reason: a copy of these
+ * three ids living in this package while the server kept its own literal is
+ * exactly the drift this package exists to stop.
+ *
+ * IT IS A FALLBACK AND NOT THE ANSWER. `allowedAttestationRegistries` uses the
+ * jurisdiction's own `ppp_attestation_required_registries` rule when it has
+ * one, and this list only when it has none — plus `other`, always, on both
+ * paths. A client that showed only these three to a jurisdiction that named
+ * its own would be offering the wrong registries; a client that showed a FREE
+ * TEXT BOX would be offering something the server refuses outright, because
+ * the accepted set is a membership check and is never empty.
+ *
+ * That second mistake was shipped and caught in review the same day: the app's
+ * attestation form fell back to a text input, which could only ever produce a
+ * 400 unless the person happened to type an internal id.
+ */
+export const DANGEROUS_BREED_REGISTRIES = ["caba_4078", "prov_14107", "other"] as const;
+export type DangerousBreedRegistry = (typeof DANGEROUS_BREED_REGISTRIES)[number];
+
+/**
+ * es-AR label for a fallback registry.
+ *
+ * The SAME three strings `lib/events/events.ts` prints on the asiento's own
+ * row, so the form a person fills and the ledger line they read afterwards
+ * name the registry identically.
+ */
+export function dangerousBreedRegistryLabel(id: string): string {
+  switch (id) {
+    case "caba_4078":
+      return "CABA · Ley 4078";
+    case "prov_14107":
+      return "Prov. Bs. As. · Ley 14.107";
+    case "other":
+      return "Otro registro";
+    default:
+      // A registry a jurisdiction named itself. Its own label travels with it
+      // on the wire; this is only reached when a client asks for a label it
+      // was not given, and the id is better than an empty row.
+      return id;
+  }
+}
+
+/**
  * The reasons an OWNER may give for replacing or revoking a microchip.
  *
  * FIVE OF THE SEVEN the spine knows. `duplicate_detected` and `fraud_detected`

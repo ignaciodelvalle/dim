@@ -1,11 +1,12 @@
-// `POST /api/v1/pets/{publicToken}/events` — record one of the eleven asientos
-// an owner may write: vacuna, peso, antiparasitario, medicación inicio,
-// medicación fin, nota, microchip, esterilización, visita veterinaria,
-// información clínica, síntoma.
+// `POST /api/v1/pets/{publicToken}/events` — record one of the thirteen
+// asientos an owner may write: vacuna, peso, antiparasitario, medicación
+// inicio, medicación fin, nota, microchip, reemplazo de microchip,
+// esterilización, visita veterinaria, información clínica, síntoma,
+// atestación de raza potencialmente peligrosa.
 //
-// ONE ENDPOINT, ELEVEN KINDS, AND THE SPINE'S OWN SHAPE. `pet_events` is a
-// single append-only table discriminated by `event_type`. Eleven sibling URLs
-// would be eleven copies of one bearer check, one idempotency contract, one
+// ONE ENDPOINT, THIRTEEN KINDS, AND THE SPINE'S OWN SHAPE. `pet_events` is a
+// single append-only table discriminated by `event_type`. Thirteen sibling URLs
+// would be thirteen copies of one bearer check, one idempotency contract, one
 // limiter pair and one access guard, kept in agreement by hand and drifting the
 // first time somebody edited ten of them. The body's `kind` is the
 // discriminator the table already has.
@@ -16,16 +17,17 @@
 // (`POST .../events/{eventId}/amend`), which is why 201 is the only success.
 //
 // WHO MAY WRITE is decided in `./writers.ts`, against the web's own guards, and
-// it is NOT uniform across the eleven: ten mirror `requireAlivePetAccess` (any
-// current holder; an org member with `event.write`; never on a deceased
-// animal) and NOTA mirrors the same capability rule on the org path — since the
-// PO ratified the org ficha's gate as the rule (2026-08-26) — but a deceased
-// animal still accepts one, because that half is a fact about the ANIMAL and a
-// memorial note is the one thing a grieving owner may still write. That file
-// states it at length — along with which owner
-// writers deliberately did NOT cross, and on what evidence, and which of the
-// eleven fans out past the animal's own record — and this one does not restate
-// it, because two copies of a rule is how the copies disagree.
+// it is NOT uniform across the thirteen: ten mirror `requireAlivePetAccess`
+// (any current holder; an org member with `event.write`; never on a deceased
+// animal), and TWO — nota and reemplazo de microchip — mirror the same
+// capability rule on the org path while still being accepted on a DECEASED
+// animal, because that half is a fact about the ANIMAL: a memorial note is the
+// one thing a grieving owner may still write, and a chip recovered from an
+// animal that died still has to stop pointing at it. That file states it at
+// length — along with which owner writers deliberately did NOT cross, and on
+// what evidence, and which of the thirteen fans out past the animal's own
+// record — and this one does not restate it, because two copies of a rule is
+// how the copies disagree.
 //
 // `Idempotency-Key` IS REQUIRED, AND IT IS HONOURED
 // ---------------------------------------------------------------------------
@@ -40,7 +42,7 @@
 //
 // A replay resolves to the first attempt's event and answers 201 with
 // `wasDuplicate: true`. Nothing is appended twice, no reminder is scheduled
-// twice, no cache is re-derived twice: every one of the eleven use-cases skips
+// twice, no cache is re-derived twice: every one of the thirteen use-cases skips
 // every side effect when the idempotent insert reports a no-op — the canonical
 // `pet_identifications` row a microchip asiento writes included, and the whole
 // outbreak-signal fan-out a síntoma would otherwise repeat.

@@ -36,5 +36,9 @@ export const replaceMicrochipSchema = z.object({
 export type ReplaceMicrochipInput = z.infer<typeof replaceMicrochipSchema>;
 
 export type ReplaceMicrochipResult =
-  | { ok: true; eventId: string; caseId: string | null }
-  | { error: string };
+  | { ok: true; eventId: string; caseId: string | null; wasDuplicate: boolean }
+  // `denied` marks the actor-pet gate's own refusal — the caller is
+  // authenticated and the body is well-formed, they simply do not hold this pet
+  // in a role the act allows. An HTTP door answers 403 for that and 500 for the
+  // rest; without the flag it could only tell them apart by message text.
+  | { error: string; denied?: boolean };

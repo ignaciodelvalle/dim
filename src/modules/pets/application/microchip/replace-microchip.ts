@@ -45,6 +45,23 @@ const ADMIN_REASONS = [...VET_REASONS, "fraud_detected"] as const;
 const REVOCATION_REASONS = ["fraud_detected", "device_failure", "owner_request"] as const;
 
 // ---------------------------------------------------------------------------
+// Access refusal
+// ---------------------------------------------------------------------------
+
+/**
+ * The actor-pet gate said no.
+ *
+ * ADDED 2026-09-08 BECAUSE THE CATCH BELOW FLATTENS EVERYTHING. Every throw in
+ * the transaction became one `{ error }` string, and `POST /api/v1/pets/{token}
+ * /events` answered all of them with 500 + Sentry. A sanctuary that OWNS the
+ * animal resolves to `vet_in_org`, whose gate demands `shelter_custody` or
+ * `foster` — a request the system refuses exactly as designed, reported as a
+ * server fault and paging an engineer. A refusal is not a fault; this class is
+ * what lets the caller tell them apart without matching on message text.
+ */
+class MicrochipAccessDeniedError extends Error {}
+
+// ---------------------------------------------------------------------------
 // Inner writer — testable without Next.js request context.
 //
 // The outer action (replaceMicrochipAction) gates via the Supabase session.
@@ -91,7 +108,7 @@ export async function replaceMicrochipForUser(
 
   type PendingNotification = typeof notifications.$inferInsert;
   const pendingNotifications: PendingNotification[] = [];
-  let result: { ok: true; eventId: string; caseId: string | null };
+  let result: { ok: true; eventId: string; caseId: string | null; wasDuplicate: boolean };
 
   try {
     result = await db.transaction(async (tx) => {
@@ -112,7 +129,8 @@ export async function replaceMicrochipForUser(
             ),
           )
           .limit(1);
-        if (!ownership) throw new Error("No active ownership for this user on this pet.");
+        if (!ownership)
+          throw new MicrochipAccessDeniedError("No active ownership for this user on this pet.");
       } else if (parsed.actorContext.kind === "vet_in_org") {
         const [custody] = await tx
           .select({ id: ownerships.id })
@@ -127,7 +145,7 @@ export async function replaceMicrochipForUser(
           )
           .limit(1);
         if (!custody)
-          throw new Error(
+          throw new MicrochipAccessDeniedError(
             "Organization does not hold active shelter_custody or foster on this pet.",
           );
       } else {
@@ -147,7 +165,7 @@ export async function replaceMicrochipForUser(
           profile.accountType !== "institutional" ||
           profile.deactivatedAt !== null
         ) {
-          throw new Error("Caller does not have active admin role.");
+          throw new MicrochipAccessDeniedError("Caller does not have active admin role.");
         }
       }
 
@@ -171,7 +189,17 @@ export async function replaceMicrochipForUser(
           )
           .limit(1);
         if (existingEvent) {
-          return { ok: true, eventId: existingEvent.id, caseId: existingEvent.caseId };
+          // WAS `wasDuplicate`-LESS UNTIL 2026-09-08, and the caller could not
+          // tell a replay from a first write. `POST /api/v1/pets/{token}/events`
+          // has to answer that boolean — its contract says `true` means the key
+          // resolved to an event that already existed, which is exactly this
+          // branch — so the fact travels instead of being re-derived.
+          return {
+            ok: true,
+            eventId: existingEvent.id,
+            caseId: existingEvent.caseId,
+            wasDuplicate: true,
+          };
         }
       }
 
@@ -425,11 +453,12 @@ export async function replaceMicrochipForUser(
         }
       }
 
-      return { ok: true, eventId: event.id, caseId };
+      return { ok: true, eventId: event.id, caseId, wasDuplicate: false };
     });
   } catch (err) {
     return {
       error: `replaceMicrochipForUser failed: ${err instanceof Error ? err.message : String(err)}`,
+      ...(err instanceof MicrochipAccessDeniedError ? { denied: true } : {}),
     };
   }
 

@@ -51,7 +51,11 @@ import { useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { EventRecordedV1, OwnerPetPppRegistryV1 } from "@dim/contract/api";
-import { OWNER_MICROCHIP_REPLACE_REASONS } from "@dim/contract/input";
+import {
+  DANGEROUS_BREED_REGISTRIES,
+  OWNER_MICROCHIP_REPLACE_REASONS,
+  dangerousBreedRegistryLabel,
+} from "@dim/contract/input";
 import type { ApiResult } from "../api/client";
 import { recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
@@ -828,33 +832,37 @@ function Fields({
         </>
       );
 
-    case "dangerous_breed_attestation":
+    case "dangerous_breed_attestation": {
+      // ALWAYS A CHOICE, NEVER A TEXT BOX, and the first version of this screen
+      // got that wrong in a way worth recording: it fell back to a free-text
+      // registry when the jurisdiction named none, on the belief that the web
+      // does the same. The web does not, and neither does the server — the
+      // accepted set is a MEMBERSHIP CHECK (`allowedAttestationRegistries`) and
+      // it is never empty: with no jurisdiction override it falls back to the
+      // national list plus `other`. A text box could therefore only ever
+      // produce a 400, unless the person happened to type an internal id like
+      // `caba_4078`. Caught in review the same day it was written.
+      //
+      // So the fallback here is the SAME fallback the server uses, and the
+      // jurisdiction's own list replaces it when the payload carries one.
+      const registries =
+        pppRegistries.length > 0
+          ? pppRegistries
+          : DANGEROUS_BREED_REGISTRIES.map((id) => ({
+              id,
+              label: dangerousBreedRegistryLabel(id),
+              required: false,
+            }));
       return (
         <>
-          {pppRegistries.length > 0 ? (
-            <Choice
-              label="Registro"
-              required
-              options={pppRegistries.map((r) => r.id)}
-              selected={draft.registry.length > 0 ? draft.registry : null}
-              optionLabel={(id) => pppRegistries.find((r) => r.id === id)?.label ?? id}
-              onSelect={(value) => set("registry", value)}
-            />
-          ) : (
-            /* THE JURISDICTION NAMED NONE. The web's form lets the person write
-               the registry in that case rather than blocking the attestation,
-               and the server validates against the same (empty) rule for both
-               doors, so neither is stricter than the other. */
-            <TextField
-              label="Registro"
-              required
-              value={draft.registry}
-              invalid={invalid.has("registry")}
-              onChangeText={(v) => set("registry", v)}
-              placeholder="Dónde hiciste la atestación"
-              {...link()}
-            />
-          )}
+          <Choice
+            label="Registro"
+            required
+            options={registries.map((r) => r.id)}
+            selected={draft.registry.length > 0 ? draft.registry : null}
+            optionLabel={(id) => registries.find((r) => r.id === id)?.label ?? id}
+            onSelect={(value) => set("registry", value)}
+          />
           <TextField
             label="Número de registro"
             value={draft.registryId}
@@ -867,6 +875,7 @@ function Fields({
           <NotesField draft={draft} set={set} />
         </>
       );
+    }
 
     case "note":
       return (

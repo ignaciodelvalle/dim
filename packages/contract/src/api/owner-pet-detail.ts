@@ -367,7 +367,15 @@ export type OwnerPetPppRegistryV1 = {
  * compliance card's label. An array (possibly empty) means the regime applies
  * and these are the registries the jurisdiction names; an EMPTY array is a
  * jurisdiction with the regime but no registry loaded, which the form must
- * still accept — the web's form does, with a free-text registry.
+ * still accept.
+ *
+ * WHAT THE FORM DOES WITH AN EMPTY ARRAY IS NOT FREE TEXT, and this docblock
+ * said it was until 2026-09-08. `buildRegistryOptions`
+ * (DangerousBreedAttestationForm.tsx:45) falls back to the two national
+ * registries and always appends "Otro registro"; the native form falls back to
+ * `DANGEROUS_BREED_REGISTRIES`, which is that same set. A typed registry would
+ * be refused by `validateAttestationRegistry` anyway — a field that accepts
+ * what the server rejects is a trap, not a permission.
  */
 export type OwnerPetPppRegistriesSection = OwnerPetPppRegistryV1[] | null;
 

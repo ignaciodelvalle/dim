@@ -1,4 +1,4 @@
-// The eleven owner writers, behind `POST /api/v1/pets/{publicToken}/events`.
+// The thirteen owner writers, behind `POST /api/v1/pets/{publicToken}/events`.
 //
 // Split out of `route.ts` for the reason the amend endpoint split its own
 // handler: that file's subject is "is this request well formed", and this one's
@@ -8,7 +8,7 @@
 //
 // WHO MAY WRITE — VERIFIED AGAINST THE WEB, NOT ASSUMED, AND NOT UNIFORM
 // ---------------------------------------------------------------------------
-// TEN OF THE ELEVEN are guarded on the web by `requireAlivePetAccess(publicToken)`,
+// TEN OF THE THIRTEEN are guarded on the web by `requireAlivePetAccess(publicToken)`,
 // cited at the GUARD CALL rather than at the function that contains it — a
 // function's first line drifts every time somebody adds a parameter, and the
 // line that matters is the one naming the rule:
@@ -32,9 +32,17 @@
 //   · Never on a DECEASED animal: a closed life record accepts no new clinical
 //     events.
 //
-// THE ELEVENTH — NOTA (`createNoteAction`, actions.ts:257) — IS GUARDED BY
-// `requirePetAccess` PLUS AN ORG CAPABILITY CHECK THE ACTION PERFORMS ITSELF,
-// and the asymmetry that remains is now HALF of what it used to be.
+// THE OTHER THREE EACH ANSWER TO A DIFFERENT DOOR, and none of them to that
+// one. They are listed here rather than folded into the table above, because
+// what they share is only that the table does not describe them:
+//
+//   nota                `createNoteAction`            actions.ts:257
+//   reemplazo microchip `replaceMicrochipAction`      microchip-reemplazo/action.ts:25
+//   atestación PPP      the page's own action         atestar-raza-peligrosa/page.tsx:14
+//
+// NOTA IS GUARDED BY `requirePetAccess` PLUS AN ORG CAPABILITY CHECK THE ACTION
+// PERFORMS ITSELF, and the asymmetry that remains is now HALF of what it used
+// to be.
 //
 // It used to be both halves. `requirePetAccess` checks neither capability nor
 // life status, so a nota needed no `event.write` on the org path AND was
@@ -50,20 +58,33 @@
 // WHAT SURVIVES, AND IT IS THE HALF THAT MATTERED: a nota is still accepted on
 // a DECEASED animal, on both doors. A memorial note is the one thing a grieving
 // owner may still write into the libreta, and an endpoint that "tidied up" the
-// eleven into one guard would take it away. The PO ratified a rule about the
+// thirteen into one guard would take it away. The PO ratified a rule about the
 // CALLER; the closed life record is a fact about the ANIMAL, and widening that
 // would be a second, unratified behaviour change.
+//
+// REEMPLAZO DE MICROCHIP JOINED IT THERE ON 2026-09-08, from the same evidence
+// and not from a family resemblance: its owner door is `requireOwnedPetByToken`
+// (microchip-reemplazo/action.ts:25), which checks life status no more than
+// `requirePetAccess` does. A chip recovered from an animal that died still has
+// to stop pointing at it, and that revocation is exactly what a blanket 409
+// here refused while the web accepted it.
+//
+// ATESTACIÓN PPP DID NOT, and it is the near miss worth naming: it arrived in
+// the same work unit, through the same `requireOwnedPetByToken`, and its PAGE
+// redirects a deceased pet away (atestar-raza-peligrosa/page.tsx:22). For that
+// one the 409 IS the parity. The cohort was never the unit of this decision.
 //
 // The remaining asymmetry is enforced BY CONSTRUCTION rather than by
 // resemblance: both doors resolve through one query
 // (`resolvePetHolderAccess`), and the only branch below is the
-// `kind === "note"` early return in `checkWriteGuard` — which now sits AFTER
-// the capability check rather than in front of it.
+// `kind === "note" || kind === "microchip_replace"` early return in
+// `checkWriteGuard` — which sits AFTER the capability check rather than in
+// front of it, so the exemption is from the ANIMAL's half of the guard only.
 //
 // SÍNTOMA IS THE ONE WHOSE WRITE LEAVES THE ANIMAL'S OWN RECORD
 // ---------------------------------------------------------------------------
-// Ten of these eleven append a fact and, at most, schedule a reminder for the
-// household. `createSymptomObservedWriter` runs the free text through the
+// Twelve of these thirteen append a fact and, at most, schedule a reminder or
+// notify the household. `createSymptomObservedWriter` runs the free text through the
 // disease matcher and, for every REPORTABLE disease flagged alertable, appends
 // a system-authored `outbreak_signal`, enqueues an ENO outbox row and routes
 // notifications to the jurisdiction's authorities — and when the animal is
@@ -96,7 +117,7 @@
 //     fact, it OPENS A CASE — a `rabies_observation_started` cascade, a
 //     10-day observation lifecycle and an authority fan-out across
 //     jurisdictions. That belongs in its own work unit with its own contract,
-//     not as a twelfth branch of a switch whose other eleven only append.
+//     not as a fourteenth branch of a switch whose other thirteen only append.
 //   · PERDIDA / ENCONTRADA (`setPetLostAction` actions.ts:851,
 //     `setPetFoundAction` actions.ts:1005) mutate `pets.status` and carry
 //     disclosure preferences, an enriched description and an alert fan-out.
@@ -145,7 +166,7 @@
 //     holds a validated matrícula. Re-deriving either would be a native write
 //     claiming a verification nobody gave it.
 //
-// NO ATTACHMENTS ON THIS PATH. Ten of the eleven web forms offer a file and
+// NO ATTACHMENTS ON THIS PATH. Eleven of the thirteen web forms offer a file and
 // every call below passes `uploadedPath: null`, because a native upload needs a
 // signed URL and that whole path is blocked. Stated here rather than left as
 // three nulls a reader has to interpret. It costs the four WU-L kinds more than
@@ -155,6 +176,7 @@
 // exception that does not pay it: its web form takes no file either, so the
 // native one loses nothing.
 
+import { findExistingByKey } from "@/lib/events/event-idempotency";
 import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
@@ -357,8 +379,8 @@ export async function writeEvent(ctx: WriteContext) {
  * retry or reword), the missing capability is about the CALLER (403).
  *
  * THE ORDER OF THE TWO CHECKS IS THE RULE, and it changed on 2026-08-26. The
- * caller-side check now runs FIRST and applies to all eleven kinds; only the
- * animal-side one is skipped for a nota. Written this way rather than as a
+ * caller-side check now runs FIRST and applies to all thirteen kinds; only the
+ * animal-side one is skipped, and for two of them. Written this way rather than as a
  * second `kind === "note"` branch inside the org arm because the asymmetry is
  * now exactly one line long, and a reader can see which half of the guard the
  * nota is exempt from without holding two conditions in their head.
@@ -375,12 +397,22 @@ async function checkWriteGuard(
     if (!granted.has("event.write")) return apiV1Error("event_forbidden", 403);
   }
 
-  // ABOUT THE ANIMAL — and the nota is still exempt, on BOTH doors. A closed
-  // life record refuses clinical facts; a memorial note is the one thing a
-  // grieving owner (or the shelter that held the animal when it died) may still
-  // write. `createNoteAction` still guards with `requirePetAccess` and not the
-  // alive variant, which is what keeps this line honest.
-  if (kind === "note") return null;
+  // ABOUT THE ANIMAL — and TWO kinds are exempt, on BOTH doors. A closed life
+  // record refuses clinical facts; a memorial note is the one thing a grieving
+  // owner (or the shelter that held the animal when it died) may still write,
+  // and a microchip replacement is a REGISTRY act rather than a clinical one —
+  // a chip recovered from an animal that died still has to stop pointing at it,
+  // which is precisely the `device_failure` / `owner_request` revocation.
+  // `createNoteAction` guards with `requirePetAccess` and the owner's
+  // replacement door with `requireOwnedPetByToken` (microchip-reemplazo/
+  // action.ts:25), neither of them an alive variant — that is what keeps these
+  // two names honest rather than chosen.
+  //
+  // THE PPP ATTESTATION IS NOT AMONG THEM, and it is the near miss worth
+  // naming: it is the other kind added the same day, and its page redirects a
+  // deceased pet away (atestar-raza-peligrosa/page.tsx:22). For that one the
+  // 409 below IS the parity, so exempting the cohort would have been wrong.
+  if (kind === "note" || kind === "microchip_replace") return null;
 
   if (access.pet.status === "deceased") return apiV1Error("event_not_allowed", 409);
 
@@ -478,7 +510,7 @@ async function append(
   // TWO MORE THAT DO NOT FIT THE SWITCH, and for the same reason síntoma does
   // not: neither answers in `UseCaseResult<RecordedEvent>`.
   //
-  // Reemplazo de microchip answers `{ ok, eventId, caseId }` from a use-case
+  // Reemplazo de microchip answers `{ ok, eventId, caseId, wasDuplicate }` from a use-case
   // that lives outside the events module entirely, and it needs a fact this
   // request does not carry — the animal's CANONICAL chip, read server-side.
   //
@@ -509,14 +541,14 @@ async function append(
  * that function past the cognitive-complexity ceiling (26, max 25). The
  * alternative was to add this file to `biome.json`'s override list, which
  * raises the ceiling to 160 for the WHOLE file — a general loosening bought to
- * settle one function. The router above is now a router: four early dispatches
+ * settle one function. The router above is now a router: three early dispatches
  * and a day check, none of which is the switch's business.
  *
  * THE PARAMETER TYPE IS THE SPLIT'S OWN GUARD. `append` narrows `input` by
  * returning on the three kinds that do not belong here, and narrowing does not
  * survive a function boundary — so the exclusion is restated in the signature.
  * The `never` default at the bottom of the switch then still fails the build
- * the day a twelfth kind is added and forgotten.
+ * the day a fourteenth kind is added and forgotten.
  */
 async function appendUniformKind(
   ctx: WriteContext,
@@ -875,9 +907,21 @@ async function appendMicrochipReplace(
 
   const canonical = await fetchActiveIdentifications(pet.id);
   if (!canonical.microchip) {
+    // THE REPLAY CHECK RUNS BEFORE THE REFUSAL, and the order is the whole
+    // point. A PURE REVOCATION (`newChipNumber: null`) leaves the animal with
+    // no active chip, so the retry of the request that just SUCCEEDED arrives
+    // at a pet whose canonical row is empty — and a bare 409 here would refuse
+    // the one caller the `Idempotency-Key` exists to protect, forever, on a
+    // write that already happened. Ask the ledger whether this key wrote before
+    // concluding there is nothing to replace.
+    const replayed = await findExistingByKey(pet.id, "microchip_replaced", ctx.idempotencyKey);
+    if (replayed) {
+      const replayPayload: EventRecordedV1 = { eventId: replayed.id, wasDuplicate: true };
+      return apiV1Json(replayPayload, { status: 201 });
+    }
+
     // NOT `invalid_request`: the body is well-formed and the caller could not
-    // have known. This is a fact about the ANIMAL — it has no chip to replace —
-    // which is the same shape as the deceased refusal above.
+    // have known. This is a fact about the ANIMAL — it has no chip to replace.
     return apiV1Error("event_not_allowed", 409);
   }
 
@@ -897,17 +941,25 @@ async function appendMicrochipReplace(
   });
 
   if ("error" in result) {
+    // A GATE REFUSAL IS NOT A FAULT. The writer's actor-pet gate rejects a
+    // caller who holds the pet in a role this act does not allow — an
+    // organization that OWNS the animal outright resolves to `vet_in_org`,
+    // whose gate demands `shelter_custody` or `foster` — and that is a 403 the
+    // client can read, not a 500 that also pages an engineer at 3am about a
+    // request the system handled exactly as designed.
+    if (result.denied) return apiV1Error("event_forbidden", 403);
     reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
     return apiV1Error("event_failed", 500);
   }
 
-  // `wasDuplicate` IS NOT AVAILABLE FROM THIS WRITER and saying `false` would be
-  // a guess printed as a fact. It resolves a replay by RETURNING THE ORIGINAL
-  // EVENT ID (replace-microchip.ts:163-176) without telling the caller which
-  // path it took, so the honest answer here is the one the client can act on:
-  // the id. Reporting `wasDuplicate: false` on a genuine replay would make a
-  // client draw "asiento creado" over a write that did not happen.
-  const payload: EventRecordedV1 = { eventId: result.eventId, wasDuplicate: false };
+  // `wasDuplicate` now TRAVELS from the writer rather than being guessed here.
+  // It resolves a replay by returning the original event id; until 2026-09-08
+  // it did so silently and this line answered a flat `false`, which told a
+  // client to draw "asiento creado" over a write that had not happened.
+  const payload: EventRecordedV1 = {
+    eventId: result.eventId,
+    wasDuplicate: result.wasDuplicate,
+  };
   return apiV1Json(payload, { status: 201 });
 }
 

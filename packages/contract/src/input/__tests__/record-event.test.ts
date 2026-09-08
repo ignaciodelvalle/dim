@@ -452,11 +452,14 @@ describe("recordEventInputSchema — reemplazo de microchip", () => {
     expect(codeFor(replace({ occurredAt: "2026-02-30" }))).toBe("OCCURRED_AT_INVALID");
   });
 
-  it("carries NO previousChipNumber, because the server reads it", () => {
-    const parsed = recordEventInputSchema.parse(replace());
-    // A field here would be the client asserting a fact the server already
-    // holds, and a disagreement between the two would have to be adjudicated by
-    // somebody. There is nothing to adjudicate: the canonical row is the answer.
+  it("DROPS a previousChipNumber a client sends, because the server reads it", () => {
+    // THE FIELD IS FED ON PURPOSE. Asserting its absence from a body that never
+    // carried one is vacuous: it passes against a schema that would have kept
+    // the field, and against one that never had a rule at all. What has to hold
+    // is that a client asserting the previous chip cannot get that assertion
+    // past the wire — there is nothing to adjudicate between the two answers,
+    // the canonical row is the answer.
+    const parsed = recordEventInputSchema.parse(replace({ previousChipNumber: "982000111111111" }));
     expect("previousChipNumber" in parsed).toBe(false);
   });
 });

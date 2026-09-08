@@ -50,6 +50,24 @@ const control = vi.hoisted(() => ({
   symptomResult: null as null | (() => unknown),
   /** Every dep object the symptom writer was handed. Proves the flush is wired. */
   symptomDeps: [] as Array<Record<string, unknown>>,
+  /**
+   * `replaceMicrochipForUser`'s answer. It lives OUTSIDE the events module and
+   * answers in its own shape — `{ok, eventId, caseId, wasDuplicate}` or
+   * `{error, denied?}` — so it cannot share `writeResult`.
+   */
+  replaceResult: null as null | (() => unknown),
+  /**
+   * What `findExistingByKey` finds for this request's key. Non-null means the
+   * key already wrote — the case a PURE REVOCATION's retry lands in, where the
+   * animal has no chip left and the naive answer is 409 forever.
+   */
+  replayEvent: null as null | { id: string },
+  /** The attestation writer's answer. */
+  attestResult: null as null | (() => unknown),
+  /** Non-null → the jurisdiction does not name that registry. */
+  registryError: null as string | null,
+  /** Every `reportError` call. A refusal that pages an engineer is a defect. */
+  reported: [] as string[],
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -161,6 +179,39 @@ vi.mock("@/lib/infra/pet-identifiers", () => ({
   }),
 }));
 
+vi.mock("@/src/modules/pets/application/microchip/replace-microchip", () => ({
+  replaceMicrochipForUser: async (userId: string, input: Record<string, unknown>) => {
+    control.writes.push({ kind: "microchip_replace", input: { ...input, userId } });
+    return control.replaceResult
+      ? control.replaceResult()
+      : { ok: true, eventId: EVENT_ID, caseId: null, wasDuplicate: false };
+  },
+}));
+
+vi.mock("@/lib/events/event-idempotency", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/events/event-idempotency")>();
+  return { ...actual, findExistingByKey: async () => control.replayEvent };
+});
+
+vi.mock("@/src/modules/events/application/identity/dangerous-breed-attestation-use-case", () => ({
+  createDangerousBreedAttestation: async (input: Record<string, unknown>) => {
+    control.writes.push({ kind: "dangerous_breed_attestation", input });
+    return control.attestResult
+      ? control.attestResult()
+      : { ok: true, value: { eventId: EVENT_ID, wasDuplicate: false }, notifications: [] };
+  },
+}));
+
+vi.mock("@/src/modules/events/application/identity/validate-attestation-registry", () => ({
+  validateAttestationRegistry: async () => control.registryError,
+}));
+
+vi.mock("@/lib/infra/report-error", () => ({
+  reportError: (scope: string) => {
+    control.reported.push(scope);
+  },
+}));
+
 vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/supabase/bearer")>();
   return {
@@ -193,6 +244,9 @@ function petRow(overrides: Record<string, unknown> = {}) {
     name: "Pampa",
     status: "active",
     dateOfBirth: "2020-01-01",
+    // The PPP regime's own precondition. Off by default: an attestation about a
+    // regime nobody placed the animal under is the thing the endpoint refuses.
+    potentiallyDangerousBreed: false,
     // The animal's SURVEILLANCE CONTEXT, which only síntoma reads: species and
     // jurisdiction decide which authorities a signal reaches, and the
     // observation status decides whether a rabies match is an ordinary report
@@ -223,6 +277,18 @@ function orgAccess(overrides: Record<string, unknown> = {}) {
 
 const A_VACCINE = { kind: "vaccination", vaccineName: "Antirrábica", occurredAt: A_PAST_DAY };
 const A_NOTE = { kind: "note", text: "Comió bien toda la semana.", occurredAt: A_PAST_DAY };
+/** A PURE REVOCATION - no new chip - under one of the two motives that allow it. */
+const A_REVOCATION = {
+  kind: "microchip_replace",
+  reason: "owner_request",
+  newChipNumber: null,
+  occurredAt: A_PAST_DAY,
+};
+const AN_ATTESTATION = {
+  kind: "dangerous_breed_attestation",
+  registry: "caba_4078",
+  occurredAt: A_PAST_DAY,
+};
 
 async function call(
   body: unknown = A_VACCINE,
@@ -255,6 +321,11 @@ beforeEach(() => {
   control.writeResult = null;
   control.symptomResult = null;
   control.symptomDeps = [];
+  control.replaceResult = null;
+  control.replayEvent = null;
+  control.attestResult = null;
+  control.registryError = null;
+  control.reported = [];
 });
 
 describe("POST .../events — the guard is the web's, and it is not uniform", () => {
@@ -946,5 +1017,132 @@ describe("POST .../events — what a síntoma puts on the spine, and what it may
     const response = await call({ kind: "symptom", freeText: "   " });
     expect(response.status).toBe(400);
     expect(control.writes).toEqual([]);
+  });
+});
+
+describe("POST .../events - reemplazo de microchip, whose web door is not the alive one", () => {
+  const owner =
+    (over: Record<string, unknown> = {}) =>
+    () => ({ kind: "owner", pet: petRow(over), holderRole: "owner" });
+
+  it("ACCEPTS a replacement on a DECEASED animal, because `requireOwnedPetByToken` does", async () => {
+    // NOT A FAMILY RESEMBLANCE TO NOTA. The owner's own door
+    // (microchip-reemplazo/action.ts:25) is `requireOwnedPetByToken`, which
+    // checks life status no more than `requirePetAccess` does - and the act
+    // that needs it most is exactly this one: a chip recovered from an animal
+    // that died still has to stop pointing at it.
+    control.access = owner({ status: "deceased" });
+    control.canonicalChip = "982000111111111";
+    const response = await call(A_REVOCATION);
+    expect(response.status).toBe(201);
+    expect(control.writes.map((w) => w.kind)).toEqual(["microchip_replace"]);
+  });
+
+  it("still REFUSES the PPP attestation on a deceased animal - its own page redirects one away", async () => {
+    // THE NEAR MISS. Both kinds arrived the same day through the same
+    // `requireOwnedPetByToken`, and exempting the cohort would have been wrong:
+    // `atestar-raza-peligrosa/page.tsx:22` sends a deceased pet back, so here
+    // the 409 IS the parity.
+    control.access = owner({ status: "deceased", potentiallyDangerousBreed: true });
+    const response = await call(AN_ATTESTATION);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "event_not_allowed" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("REPLAYS a pure revocation instead of refusing the retry it exists for", async () => {
+    // THE DEFECT THIS PAIRING WAS WRITTEN FOR. A revocation succeeds and leaves
+    // the animal chipless; the client's retry - same key, as the endpoint
+    // demands - arrives at a pet with no canonical chip, and a bare "nothing to
+    // replace" would answer 409 forever to a write that already happened.
+    control.access = owner();
+    control.canonicalChip = null;
+    control.replayEvent = { id: "ev-original" };
+    const response = await call(A_REVOCATION);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ eventId: "ev-original", wasDuplicate: true });
+    // NON-VACUITY: the replay is answered from the ledger, not by writing again.
+    expect(control.writes).toEqual([]);
+  });
+
+  it("answers 409 when there is no chip AND the key wrote nothing", async () => {
+    // The other half of the branch above, without which the replay check could
+    // be swallowing a genuine refusal.
+    control.access = owner();
+    control.canonicalChip = null;
+    control.replayEvent = null;
+    const response = await call(A_REVOCATION);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "event_not_allowed" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("answers 403 - not 500 - when the actor-pet gate refuses the caller", async () => {
+    // A sanctuary that OWNS the animal resolves to `vet_in_org`, whose gate
+    // demands `shelter_custody` or `foster`. That is a refusal the client can
+    // read, not a server fault, and it must not page anyone at 3am.
+    control.access = owner();
+    control.canonicalChip = "982000111111111";
+    control.replaceResult = () => ({
+      error: "replaceMicrochipForUser failed: Organization does not hold custody.",
+      denied: true,
+    });
+    const response = await call(A_REVOCATION);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "event_forbidden" });
+    expect(control.reported).toEqual([]);
+  });
+
+  it("keeps 500 + a report for a genuine failure, so the two are not one answer", async () => {
+    control.access = owner();
+    control.canonicalChip = "982000111111111";
+    control.replaceResult = () => ({ error: "constraint pet_events_x violated" });
+    const response = await call(A_REVOCATION);
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "event_failed" });
+    expect(control.reported).toEqual(["api-v1-event"]);
+  });
+
+  it("carries the WRITER'S wasDuplicate rather than a flat false", async () => {
+    // The writer resolves a replay by returning the original event id. Until
+    // 2026-09-08 this endpoint printed `false` over that, telling a client to
+    // draw "asiento creado" for a write that had not happened.
+    control.access = owner();
+    control.canonicalChip = "982000111111111";
+    control.replaceResult = () => ({
+      ok: true,
+      eventId: "ev-original",
+      caseId: null,
+      wasDuplicate: true,
+    });
+    const response = await call(A_REVOCATION);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ eventId: "ev-original", wasDuplicate: true });
+  });
+
+  it("refuses an attestation for an animal nobody placed under the regime", async () => {
+    control.access = owner({ potentiallyDangerousBreed: false });
+    const response = await call(AN_ATTESTATION);
+    expect(response.status).toBe(409);
+    expect(control.writes).toEqual([]);
+  });
+
+  it("refuses a registry the pet's jurisdiction does not name", async () => {
+    control.access = owner({ potentiallyDangerousBreed: true });
+    control.registryError = "PPP_REGISTRY_NOT_ALLOWED";
+    const response = await call(AN_ATTESTATION);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("writes the attestation when the regime applies and the registry is named", async () => {
+    control.access = owner({ potentiallyDangerousBreed: true });
+    const response = await call(AN_ATTESTATION);
+    expect(response.status).toBe(201);
+    expect(control.writes.map((w) => w.kind)).toEqual(["dangerous_breed_attestation"]);
+    // The key the endpoint demands reaches the writer, which is the whole
+    // reason the kind stopped being excluded.
+    expect(control.writes[0].input.clientIdempotencyKey).toBe(KEY);
   });
 });
