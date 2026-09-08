@@ -4,11 +4,38 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { rederivePregnancyStatus } from "./rederive-pregnancy-status";
 import type { RecordPregnancyResult, RecordPregnancyStartedParams } from "./types";
 
-// Species-specific gestation window. Spec PR6 + §9 reminders.
-const PREGNANCY_DURATION_WEEKS: Record<string, number> = {
-  dog: 9,
-  cat: 9,
-  other: 9,
+// Species-specific gestation window, in DAYS. Spec PR6 + §9 reminders.
+//
+// IT WAS IN WEEKS UNTIL 2026-09-07, and the unit is the reason this changed
+// rather than a preference. The table held three species at "9 weeks"; opening
+// it to the rest of the app's catalogue (PO decision, same day) is what broke
+// the unit, because a RABBIT gestates about 32 days — 4.6 weeks. Whole weeks
+// can only say 28 or 35, which is three days early or three days late on a
+// pregnancy that lasts a month: a ~10% error where the same slip on a dog is
+// ~5%. `expectedBirthAt` is shown to an owner as the probable birth date and
+// drives the checkup reminder schedule, so the unit has to be able to express
+// the animal.
+//
+// Values are the veterinary averages, checked 2026-09-07 rather than recalled:
+// dog 62-64, cat 58-65, rabbit 30-35, guinea pig 56-74, ferret ~42. The number
+// taken is the middle of each range; every one of these is a RANGE in the
+// source, which is exactly why the field is called "probable".
+//
+// `other` KEEPS A DOG'S NUMBER, and that is a known lie rather than an
+// oversight. It is the pre-existing behaviour (`other: 9` weeks = 63 days) and
+// it is left alone deliberately: the honest answer for a species this build
+// cannot name is "no probable date", and that means a nullable
+// `expectedBirthAt` in `OwnerPetPregnancyV1` plus a reminder schedule with
+// nothing to schedule against — a contract change, not a table row. Flagged to
+// the PO 2026-09-07; until it is decided, an `other` pregnancy predicts like a
+// dog and says so nowhere.
+export const PREGNANCY_DURATION_DAYS: Record<string, number> = {
+  dog: 63,
+  cat: 64,
+  rabbit: 32,
+  guinea_pig: 68,
+  ferret: 42,
+  other: 63,
 };
 
 export async function recordPregnancyStartedWriter(
@@ -17,7 +44,7 @@ export async function recordPregnancyStartedWriter(
   if (params.pet.sex !== "female") {
     return { ok: false, error: "Solo se pueden registrar embarazos en hembras." };
   }
-  if (!Object.hasOwn(PREGNANCY_DURATION_WEEKS, params.pet.species)) {
+  if (!Object.hasOwn(PREGNANCY_DURATION_DAYS, params.pet.species)) {
     return { ok: false, error: "Especie no soportada para embarazos." };
   }
   if (params.pet.pregnancyStatus === "in_progress") {
@@ -29,12 +56,22 @@ export async function recordPregnancyStartedWriter(
   }
 
   const now = params.now ?? new Date();
-  const speciesWeeks = PREGNANCY_DURATION_WEEKS[params.pet.species];
-  const weeksRemaining =
+  const speciesDays = PREGNANCY_DURATION_DAYS[params.pet.species];
+  // `weeksAtDiagnosis` stays in WEEKS — it is what the form asks a person, and
+  // "¿de cuántas semanas?" is how a vet says it. Only the table changed unit, so
+  // the conversion happens here, once.
+  //
+  // The clamp at 0 is load-bearing for the short species: the form bounds the
+  // answer at 12 weeks, which is longer than a rabbit's ENTIRE gestation, so an
+  // impossible answer would otherwise produce a birth date in the past. Clamped,
+  // the worst case is "probable birth today" and a schedule with no reminders in
+  // it — degenerate but harmless. A species-aware bound on the form is the real
+  // fix and belongs with the form, not here.
+  const daysRemaining =
     params.weeksAtDiagnosis !== null
-      ? Math.max(speciesWeeks - params.weeksAtDiagnosis, 0)
-      : speciesWeeks;
-  const expectedBirthAt = new Date(params.occurredAt.getTime() + weeksRemaining * 7 * 86400000);
+      ? Math.max(speciesDays - params.weeksAtDiagnosis * 7, 0)
+      : speciesDays;
+  const expectedBirthAt = new Date(params.occurredAt.getTime() + daysRemaining * 86400000);
 
   let eventId = "";
   let reminderCount = 0;
