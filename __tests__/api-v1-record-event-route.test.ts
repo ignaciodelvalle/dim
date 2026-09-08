@@ -72,6 +72,10 @@ const control = vi.hoisted(() => ({
   deathResult: null as null | (() => unknown),
   /** The open custody-episode case the endpoint finds for the pet, or null. */
   custodyCase: null as null | { id: string },
+  /** The event this request's key already wrote, or null for a first write. */
+  replayedDeath: null as null | { id: string },
+  /** Every titular-alert call a caretaker-filed death produced. */
+  caretakerAlerts: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -194,8 +198,21 @@ vi.mock("@/src/modules/pets/application/microchip/replace-microchip", () => ({
 
 vi.mock("@/lib/events/event-idempotency", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/events/event-idempotency")>();
-  return { ...actual, findExistingByKey: async () => control.replayEvent };
+  return {
+    ...actual,
+    // Two kinds ask this question and they ask about different event types, so
+    // the stub answers per type rather than with one value for both.
+    findExistingByKey: async (_petId: string, eventType: string) =>
+      eventType === "death_recorded" ? control.replayedDeath : control.replayEvent,
+  };
 });
+
+vi.mock("@/lib/infra/caretaker-activity-alert", () => ({
+  notifyTitularOfCaretakerDeath: async (input: Record<string, unknown>) => {
+    control.caretakerAlerts.push(input);
+    return { notified: [] };
+  },
+}));
 
 vi.mock("@/src/modules/events/application/identity/dangerous-breed-attestation-use-case", () => ({
   createDangerousBreedAttestation: async (input: Record<string, unknown>) => {
@@ -354,6 +371,8 @@ beforeEach(() => {
   control.reported = [];
   control.deathResult = null;
   control.custodyCase = null;
+  control.replayedDeath = null;
+  control.caretakerAlerts = [];
 });
 
 describe("POST .../events — the guard is the web's, and it is not uniform", () => {
@@ -1229,12 +1248,79 @@ describe("POST .../events — fallecimiento, el asiento que cierra el registro",
     expect(control.writes[0].input.custodyEpisodeCaseId).toBeNull();
   });
 
-  it("answers the RESOLVED event id on a replay, not the null insert id", async () => {
-    // THE DEFECT THE `eventId` FIELD WAS ADDED FOR. On a replay the writer
-    // inserts nothing and runs no cascade, so `insertedEventId` is correctly
-    // null — and answering a client with a null id would break this endpoint's
-    // own contract on exactly the retry the `Idempotency-Key` exists to serve.
+  it("REPLAYS the retry of a death that already committed, on the DECEASED pet it left behind", async () => {
+    // THE STATE THE FIRST VERSION OF THIS TEST COULD NOT REACH, and that is why
+    // it proved nothing: it forged an ACTIVE pet carrying a `death_recorded`
+    // row under this key — a combination this endpoint's own writer cannot
+    // produce, because a death sets `status: "deceased"` in the same
+    // transaction. So the field was green in the suite and unreachable on the
+    // wire.
+    //
+    // The real sequence: the app's 10s abort fires while the five-way cascade
+    // is still committing, the form returns to editing holding the SAME key,
+    // the person taps again — and meets the animal their own write just marked
+    // deceased. Answering 409 there tells a grieving person their record was
+    // refused on the one write nobody can repeat, while it is in fact committed.
+    control.access = owner({ status: "deceased" });
+    control.replayedDeath = { id: "ev-original" };
+    const response = await call(A_DEATH);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ eventId: "ev-original", wasDuplicate: true });
+    // NON-VACUITY: answered from the ledger, not by running the cascade again.
+    expect(control.writes).toEqual([]);
+  });
+
+  it("still refuses a SECOND death under a NEW key, which is the web's own refusal", async () => {
+    // The other half of the branch above. Without this, the replay check could
+    // be swallowing a refusal that must stand.
+    control.access = owner({ status: "deceased" });
+    control.replayedDeath = null;
+    const response = await call(A_DEATH);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "event_not_allowed" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("NULLS a disease code the cause did not ask for, whatever the client sent", async () => {
+    // The native form clears it, but the form is not the authority. Any other
+    // client could otherwise store `cause: "accident"` with
+    // `disease_code: "rabies_confirmed"` and `is_reportable: false` — a
+    // permanent claim of a confirmed rabies death that raised no authority
+    // signal, in a row that is append-only and not amendable.
     control.access = owner();
+    await call({ ...A_DEATH, cause: "accident", diseaseCode: "rabies_confirmed" });
+    expect(control.writes[0].input.diseaseCode).toBeNull();
+    expect(control.writes[0].input.isReportable).toBe(false);
+  });
+
+  it("TELLS THE TITULAR when a caretaker is the one who filed it", async () => {
+    // The compensating control the web has and this door shipped without. A
+    // caretaker holds the animal; the titular owns it — and `death_recorded` is
+    // not amendable, so there is no correction path to discover it late.
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow(),
+      holderRole: "caretaker",
+    });
+    const response = await call(A_DEATH);
+    expect(response.status).toBe(201);
+    expect(control.caretakerAlerts).toHaveLength(1);
+    expect(control.caretakerAlerts[0]).toMatchObject({ eventId: EVENT_ID, petId: PET_ID });
+  });
+
+  it("does NOT tell the titular when the holder IS the titular", async () => {
+    // NON-VACUITY: an alert that fired for everyone would pass the case above
+    // and spam the owner about their own act.
+    control.access = owner();
+    await call(A_DEATH);
+    expect(control.caretakerAlerts).toEqual([]);
+  });
+
+  it("does NOT re-tell the titular on a replay — nothing was inserted", async () => {
+    // Guarded on `insertedEventId`, not `eventId`: that is what those two
+    // fields are FOR. A titular told twice that their animal died is the exact
+    // harm the distinction prevents.
+    control.access = () => ({ kind: "owner", pet: petRow(), holderRole: "caretaker" });
     control.deathResult = () => ({
       ok: true,
       eventId: "ev-original",
@@ -1244,9 +1330,8 @@ describe("POST .../events — fallecimiento, el asiento que cierra el registro",
       diseaseCode: null,
       authoritySignal: null,
     });
-    const response = await call(A_DEATH);
-    expect(response.status).toBe(201);
-    expect(await response.json()).toEqual({ eventId: "ev-original", wasDuplicate: true });
+    await call(A_DEATH);
+    expect(control.caretakerAlerts).toEqual([]);
   });
 
   it("refuses a cause outside the nine the web offers, before writing", async () => {

@@ -287,6 +287,28 @@ function EventForm({
   // moment they touch it rather than after the next submit.
   const [invalid, setInvalid] = useState<ReadonlySet<keyof EventDraft>>(() => new Set());
 
+  // A DISEASE PICKED BEFORE THE SPECIES ARRIVED MAY NOT SURVIVE IT.
+  //
+  // THE SAME DEFECT AS THE REGISTRY BELOW, REINTRODUCED THE SAME DAY three
+  // screens down, which is the argument for this comment existing. The picker
+  // shows the WHOLE catalog until `useOwnerPetFacts` answers, then narrows to
+  // the animal's species. Somebody on a slow link taps "Toxoplasmosis" — cat
+  // only, and REPORTABLE — the read lands with `species: "dog"`, the chip
+  // vanishes, and the draft keeps it. `validateDraft` passes (the contract only
+  // asks that the code be in the catalog, not that it fit the species) and
+  // `resolveDeathReportable` then raises an authority signal for a disease that
+  // animal cannot have.
+  useEffect(() => {
+    if (kind !== "death") return;
+    if (species === null) return;
+    const offered = deathDiseaseOptions(species);
+    setDraft((current) =>
+      current.diseaseCode.length > 0 && !offered.some((d) => d.id === current.diseaseCode)
+        ? { ...current, diseaseCode: "" }
+        : current,
+    );
+  }, [kind, species]);
+
   // A REGISTRY PICKED FROM THE FALLBACK MAY NOT SURVIVE THE JURISDICTION'S OWN
   // LIST ARRIVING. `usePppRegistries` swaps the chips mid-form; before this
   // effect, a person on a slow link who tapped "CABA · Ley 4078" and then kept

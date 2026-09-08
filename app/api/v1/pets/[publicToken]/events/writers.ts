@@ -202,6 +202,7 @@
 import { findExistingByKey } from "@/lib/events/event-idempotency";
 import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import { notifyTitularOfCaretakerDeath } from "@/lib/infra/caretaker-activity-alert";
 import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import {
@@ -439,7 +440,20 @@ async function checkWriteGuard(
   // naming: it is the other kind added the same day, and its page redirects a
   // deceased pet away (atestar-raza-peligrosa/page.tsx:22). For that one the
   // 409 below IS the parity, so exempting the cohort would have been wrong.
-  if (kind === "note" || kind === "microchip_replace") return null;
+  //
+  // FALLECIMIENTO IS THE THIRD NAME HERE SINCE 2026-09-08, and it is exempt for
+  // a reason opposite to the other two. Nota and reemplazo are exempt because
+  // their web doors ACCEPT a deceased animal. A death does not — but it is the
+  // only kind whose own SUCCESS invalidates its own precondition: the write
+  // sets `pets.status = 'deceased'`, so the retry of the request that just
+  // committed arrives at an animal this gate refuses. That is a 409 answered to
+  // the one caller the `Idempotency-Key` exists to protect, on the one write
+  // nobody can repeat, and the app's 10s abort makes it reachable rather than
+  // theoretical. `appendDeath` therefore refuses a deceased animal ITSELF,
+  // after asking the ledger whether this key already wrote — which is also
+  // closer to the web, whose door is `requirePetAccess` plus its own refusal
+  // line (actions.ts:1172) rather than an alive-gated guard.
+  if (kind === "note" || kind === "microchip_replace" || kind === "death") return null;
 
   if (access.pet.status === "deceased") return apiV1Error("event_not_allowed", 409);
 
@@ -1038,6 +1052,23 @@ async function appendDeath(
   const occurredAt = parseWireDay(input.occurredAt);
   if (!occurredAt) return apiV1Error("invalid_request", 400);
 
+  // THE ANIMAL-SIDE REFUSAL, AND THE REPLAY CHECK THAT MUST PRECEDE IT.
+  // `checkWriteGuard` exempts this kind precisely so these two can be ordered.
+  // A death that succeeded left the animal deceased, so the retry of that very
+  // request would meet the refusal below — forever, on a write that already
+  // happened. Same remedy as the pure microchip revocation above; same reason.
+  if (pet.status === "deceased") {
+    const replayed = await findExistingByKey(pet.id, "death_recorded", ctx.idempotencyKey);
+    if (replayed) {
+      const replayPayload: EventRecordedV1 = { eventId: replayed.id, wasDuplicate: true };
+      return apiV1Json(replayPayload, { status: 201 });
+    }
+    // A SECOND death under a NEW key. The web refuses this with its own
+    // sentence ("Esta mascota ya está registrada como fallecida."); here it is
+    // the same refusal in the endpoint's vocabulary.
+    return apiV1Error("event_not_allowed", 409);
+  }
+
   const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
 
   const result = await createDeathRecord(
@@ -1065,7 +1096,15 @@ async function appendDeath(
       vetContactedOwner: input.vetContactedOwner,
       vetDecidedAlone: input.vetDecidedAlone,
       ownerToPrivateCrematorium: input.ownerToPrivateCrematorium,
-      diseaseCode: input.diseaseCode,
+      // NULLED WHEN THE CAUSE IS NOT A DISEASE, exactly as the web action decides
+      // it (`cause === "disease" && diseaseCodeRaw ? diseaseCodeRaw : null`).
+      // The native form already clears it, but the FORM is not the authority:
+      // any other client written to this contract could otherwise store
+      // `cause: "accident", disease_code: "rabies_confirmed", is_reportable:
+      // false` — a permanent assertion of a confirmed rabies death that raised
+      // no authority signal, in a row that is append-only and that
+      // `AMENDABLE_EVENT_TYPES` does not admit. Nobody could ever correct it.
+      diseaseCode: input.cause === "disease" ? input.diseaseCode : null,
       confirmedByLab: input.confirmedByLab,
       // DERIVED HERE, never taken off the wire — see the header.
       isReportable: resolveDeathReportable(input.cause, input.diseaseCode),
@@ -1087,6 +1126,36 @@ async function appendDeath(
   if (!result.ok) {
     reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
     return apiV1Error("event_failed", 500);
+  }
+
+  // THE TITULAR HEARS ABOUT IT WHEN SOMEBODY ELSE FILED IT.
+  //
+  // A caretaker holds the animal; the titular owns it. The web treats a
+  // caretaker-filed death as urgent news for the titular
+  // (`announceCaretakerDeathRecord`, caretaker-activity-alert.ts:133) and this
+  // door shipped without it — so the one act a titular cannot undo, filed by
+  // somebody who is not them, would have reached them through no channel at
+  // all. `death_recorded` is not in `AMENDABLE_EVENT_TYPES`: there is no
+  // correction path to discover it late.
+  //
+  // GUARDED ON `insertedEventId` AND NOT `eventId`, which is exactly the
+  // distinction those two fields exist for: on a replay nothing was inserted
+  // and no cascade ran, so re-notifying would tell a titular twice that their
+  // animal died. Same guard the web applies (caretaker-activity-alert.ts:137).
+  if (access.kind === "owner" && access.holderRole === "caretaker" && result.insertedEventId) {
+    try {
+      await notifyTitularOfCaretakerDeath({
+        petId: pet.id,
+        petName: pet.name,
+        petPublicToken: pet.publicToken,
+        caretakerUserId: ctx.userId,
+        eventId: result.insertedEventId,
+      });
+    } catch (err) {
+      // The record DID land. A failed notification must not turn a committed
+      // death into a client-visible failure the person would retry.
+      reportError("api-v1-event-caretaker-death", err, { userId: ctx.userId });
+    }
   }
 
   // `eventId` AND NOT `insertedEventId`, and the difference is the whole reason

@@ -943,6 +943,64 @@ describe("fallecimiento — el asiento que cierra el registro", () => {
     expect(mockRecordPetEvent).not.toHaveBeenCalled();
   });
 
+  it("DESCARTA una enfermedad que el catálogo deja de ofrecer cuando llega la especie", async () => {
+    // EL MISMO DEFECTO QUE EL REGISTRO PPP, REINTRODUCIDO EL MISMO DÍA tres
+    // pantallas más abajo — y peor, porque acá el valor que sobrevive dispara
+    // una señal a la autoridad sanitaria. En un link lento el selector muestra
+    // el catálogo entero antes de saber la especie; alguien con un PERRO elige
+    // "Toxoplasmosis", que es de gatos y es NOTIFICABLE. Cuando llega la
+    // especie el chip desaparece y, sin este borrado, el borrador lo conserva.
+    let resolveDetail: (value: unknown) => void = () => {};
+    mockFetchOwnerPetDetail.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    fireEvent.press(screen.getByText("Enfermedad"));
+
+    // Sin especie todavía, el catálogo entero — incluidas las de gato.
+    await waitFor(() => expect(screen.getByText("Panleucopenia felina")).toBeTruthy());
+    fireEvent.press(screen.getByText("Panleucopenia felina"));
+
+    await act(async () => {
+      resolveDetail(detail("dog"));
+    });
+
+    await waitFor(() => expect(screen.queryByText("Panleucopenia felina")).toBeNull());
+    fireEvent.press(submitControl());
+
+    // Se refuta ACÁ, sobre un campo que la persona puede volver a contestar —
+    // en vez de escribir en el libro una enfermedad que ese animal no puede
+    // tener, en una fila que después nadie puede corregir.
+    await waitFor(() => expect(screen.getByText("Elegí de qué enfermedad murió.")).toBeTruthy());
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("CONSERVA una enfermedad que la especie sí admite", async () => {
+    // NO-VACUIDAD: un borrado incondicional pasaría el caso de arriba y le
+    // tiraría la respuesta a quien contestó bien.
+    let resolveDetail: (value: unknown) => void = () => {};
+    mockFetchOwnerPetDetail.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    fireEvent.press(screen.getByText("Enfermedad"));
+    await waitFor(() => expect(screen.getByText("Rabia (confirmada)")).toBeTruthy());
+    fireEvent.press(screen.getByText("Rabia (confirmada)"));
+
+    await act(async () => {
+      resolveDetail(detail("dog"));
+    });
+
+    await waitFor(() => expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(1));
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({ kind: "death", diseaseCode: "rabies_confirmed" });
+  });
+
   it("manda la causa y la fecha en el asiento más simple que se puede escribir", async () => {
     render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
     fireEvent.press(screen.getByText("Natural / vejez"));
