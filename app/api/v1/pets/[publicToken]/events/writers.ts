@@ -202,6 +202,7 @@
 import { findExistingByKey } from "@/lib/events/event-idempotency";
 import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
+import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import {
   OWNER_AUTHORSHIP,
@@ -224,6 +225,7 @@ import { createDangerousBreedAttestation } from "@/src/modules/events/applicatio
 import { createMicrochip } from "@/src/modules/events/application/identity/microchip-use-case";
 import { createNote } from "@/src/modules/events/application/identity/note-use-case";
 import { validateAttestationRegistry } from "@/src/modules/events/application/identity/validate-attestation-registry";
+import { createDeathRecord } from "@/src/modules/events/application/lifecycle/death-record-use-case";
 import { createDeworming } from "@/src/modules/events/application/medical/deworming-use-case";
 import { createMedicationEnd } from "@/src/modules/events/application/medical/medication-end-use-case";
 import { createMedicationStart } from "@/src/modules/events/application/medical/medication-start-use-case";
@@ -236,6 +238,7 @@ import type { RecordedEvent, UseCaseResult } from "@/src/modules/events/applicat
 // into a shared module is refused by two fences. Imported from the module that
 // is already allowed to hold that insert.
 import { flushNotifications } from "@/src/modules/events/application/writers";
+import { resolveDeathReportable } from "@/src/modules/events/domain/death-rules";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
@@ -319,6 +322,7 @@ const EVENT_TYPE_OF_KIND = {
   symptom: "symptom_observed",
   microchip_replace: "microchip_replaced",
   dangerous_breed_attestation: "dangerous_breed_attested",
+  death: "death_recorded",
 } as const satisfies Record<RecordEventInput["kind"], string>;
 
 type WriteContext = {
@@ -548,6 +552,14 @@ async function append(
     return appendDangerousBreedAttestation(ctx, access, input, repo);
   }
 
+  // AND THE FOURTH, for the same reason as the other three plus one of its own:
+  // `createDeathRecord` answers in its own shape, and it needs a fact this
+  // request does not carry — the pet's OPEN CUSTODY CASE, which the event is
+  // filed against so a shelter's intake episode closes with the animal.
+  if (input.kind === "death") {
+    return appendDeath(ctx, access, input, repo);
+  }
+
   // Every remaining kind states its day outright, and `writeEvent` refused the
   // request before reaching here if that day did not parse.
   if (!occurredAt) return apiV1Error("invalid_request", 400);
@@ -578,7 +590,7 @@ async function appendUniformKind(
   access: Exclude<PetHolderAccess, { kind: "none" }>,
   input: Exclude<
     RecordEventInput,
-    { kind: "symptom" | "microchip_replace" | "dangerous_breed_attestation" }
+    { kind: "symptom" | "microchip_replace" | "dangerous_breed_attestation" | "death" }
   >,
   occurredAt: Date,
   repo: EventsRepository,
@@ -979,6 +991,109 @@ async function appendMicrochipReplace(
   // It resolves a replay by returning the original event id; until 2026-09-08
   // it did so silently and this line answered a flat `false`, which told a
   // client to draw "asiento creado" over a write that had not happened.
+  const payload: EventRecordedV1 = {
+    eventId: result.eventId,
+    wasDuplicate: result.wasDuplicate,
+  };
+  return apiV1Json(payload, { status: 201 });
+}
+
+/**
+ * Fallecimiento — el asiento terminal.
+ *
+ * THE ONLY KIND ON THIS ENDPOINT WHOSE WRITE CLOSES THINGS RATHER THAN ADDING
+ * ONE. In one transaction it marks the animal deceased, ends every active
+ * foster, closes up to three cases, undoes a re-homing sponsorship while
+ * telling the applicants, and — when the animal was under an antirrabic
+ * observation — closes it with an URGENT notice to the health authority. All of
+ * that already exists and is tested; this function's whole job is to hand it
+ * the two facts the request does not carry and to answer in the endpoint's
+ * vocabulary.
+ *
+ * THE DECEASED GATE IS NOT EXEMPTED, and that IS the parity. Unlike nota and
+ * reemplazo de microchip, the web's own door refuses here too — with its own
+ * line rather than with a guard: `createDeathRecordAction` reads
+ * `requirePetAccess` (accepting a non-alive pet) and then refuses at
+ * actions.ts:1172 with "Esta mascota ya está registrada como fallecida." So a
+ * second death on one animal answers 409 from `checkWriteGuard`, which is the
+ * same refusal in a different sentence.
+ *
+ * TWO FACTS THE SERVER SUPPLIES, and neither may come off the wire:
+ *
+ *   · THE OPEN CUSTODY CASE. `findOpenCaseForPetAndKind(pet.id,
+ *     "custody_episode")` — a client naming a case id would be a client
+ *     choosing which episode a death closes.
+ *   · WHETHER THE DEATH IS REPORTABLE. `resolveDeathReportable` reads the
+ *     disease catalog; a client asserting `isReportable` would be a client
+ *     deciding whether a health authority hears about a zoonosis.
+ */
+async function appendDeath(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Extract<RecordEventInput, { kind: "death" }>,
+  repo: EventsRepository,
+) {
+  const pet = access.pet;
+
+  const occurredAt = parseWireDay(input.occurredAt);
+  if (!occurredAt) return apiV1Error("invalid_request", 400);
+
+  const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+
+  const result = await createDeathRecord(
+    {
+      pet: {
+        id: pet.id,
+        name: pet.name,
+        status: pet.status,
+        rabiesObservationStatus: pet.rabiesObservationStatus ?? null,
+        jurisdictionProvince: pet.jurisdictionProvince ?? null,
+        jurisdictionLocality: pet.jurisdictionLocality ?? null,
+      },
+      recordedByUserId: ctx.userId,
+      eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
+      cause: input.cause,
+      causeDetail: input.causeDetail,
+      confirmedByVet: input.confirmedByVet,
+      vetName: input.vetName,
+      dispositionMethod: input.dispositionMethod,
+      facility: input.facility,
+      occurredAt,
+      notes: input.notes,
+      deathAtClinic: input.deathAtClinic,
+      clinicName: input.clinicName,
+      vetContactedOwner: input.vetContactedOwner,
+      vetDecidedAlone: input.vetDecidedAlone,
+      ownerToPrivateCrematorium: input.ownerToPrivateCrematorium,
+      diseaseCode: input.diseaseCode,
+      confirmedByLab: input.confirmedByLab,
+      // DERIVED HERE, never taken off the wire — see the header.
+      isReportable: resolveDeathReportable(input.cause, input.diseaseCode),
+      // No native upload path exists yet — see the file header.
+      uploadedPath: null,
+      uploadedMimeType: null,
+      uploadedSize: null,
+      clientIdempotencyKey: ctx.idempotencyKey,
+      custodyEpisodeCaseId: custodyCase?.id ?? null,
+    },
+    {
+      repo,
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+      flushNotifications,
+    },
+  );
+
+  if (!result.ok) {
+    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
+    return apiV1Error("event_failed", 500);
+  }
+
+  // `eventId` AND NOT `insertedEventId`, and the difference is the whole reason
+  // that field was added on 2026-09-08. `insertedEventId` is null on a replay —
+  // correctly, because nothing was inserted and no cascade ran — and answering
+  // a client with a null id would break the endpoint's own contract on exactly
+  // the retry the `Idempotency-Key` exists to serve.
   const payload: EventRecordedV1 = {
     eventId: result.eventId,
     wasDuplicate: result.wasDuplicate,

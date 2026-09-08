@@ -21,7 +21,8 @@
 //                updateRabiesObservationStatus(completed_dead).
 //   - Post-tx: flushNotifications + signalAuthorityReport (if reportable + diseaseCode) +
 //              urgent authority fan-out (if rabiesObservationClosed AND jurisdiction set).
-//   - Result: { ok: true, rabiesObservationClosed, diseaseCode, insertedEventId }
+//   - Result: { ok: true, eventId, wasDuplicate, insertedEventId,
+//               rabiesObservationClosed, diseaseCode, authoritySignal }
 //   - CRITICAL: all cascades SKIP on idempotency noop.
 //   - LOCK FIRST (WU6/7 review, M-1): the transaction's first statement is the
 //     pet advisory lock (`lockPetForDeathRecord`) — CASCADE A closes foster
@@ -111,6 +112,23 @@ export type CreateDeathRecordInput = {
 export type CreateDeathRecordResult =
   | {
       ok: true;
+      /**
+       * The event this write RESOLVED TO — the row inserted, or the row a
+       * replayed `clientIdempotencyKey` found. Always present on success.
+       *
+       * ADDED 2026-09-08, ALONGSIDE `insertedEventId` RATHER THAN REPLACING IT,
+       * and the distinction is load-bearing. `insertedEventId` answers "did I
+       * insert something", which is the question `announceCaretakerDeathRecord`
+       * (caretaker-activity-alert.ts:137) correctly asks before notifying a
+       * titular a second time about one death. This field answers a different
+       * one — "which event is this" — and `POST /api/v1/pets/{token}/events`
+       * cannot honour its `{eventId, wasDuplicate}` contract without it.
+       * Collapsing them would have made the web re-notify on every retry.
+       */
+      eventId: string;
+      /** `true` when the key resolved to an event that already existed. */
+      wasDuplicate: boolean;
+      /** `null` on a replay: nothing was inserted, so no cascade ran. */
       insertedEventId: string | null;
       rabiesObservationClosed: boolean;
       diseaseCode: string | null;
@@ -184,6 +202,11 @@ export async function createDeathRecord(
   } = input;
 
   let insertedEventId: string | null = null;
+  // Captured BEFORE the noop return below, which is the whole point: the
+  // transaction knows which event the key resolved to even when it inserts
+  // nothing, and that fact used to die at the `return`.
+  let resolvedEventId: string | null = null;
+  let wasDuplicate = false;
   let rabiesObservationClosed = false;
   const pendingNotifications: NewNotification[] = [];
 
@@ -230,6 +253,9 @@ export async function createDeathRecord(
         } as Parameters<typeof deps.repo.insertEventIdempotent>[0],
         tx as Parameters<typeof deps.repo.insertEventIdempotent>[1],
       );
+
+      resolvedEventId = event.id;
+      wasDuplicate = deathNoop;
 
       // CRITICAL: all cascades skip on noop (idempotency guard).
       if (deathNoop) return;
@@ -507,5 +533,21 @@ export async function createDeathRecord(
     }
   }
 
-  return { ok: true, insertedEventId, rabiesObservationClosed, diseaseCode, authoritySignal };
+  // `resolvedEventId` is non-null on every path that reaches here: the
+  // transaction either inserted a row or found the one the key already wrote.
+  // A null would mean the transaction returned without touching the spine,
+  // which the catch above has already turned into an error result.
+  if (resolvedEventId === null) {
+    return { ok: false, error: "createDeathRecord: the transaction resolved no event." };
+  }
+
+  return {
+    ok: true,
+    eventId: resolvedEventId,
+    wasDuplicate,
+    insertedEventId,
+    rabiesObservationClosed,
+    diseaseCode,
+    authoritySignal,
+  };
 }

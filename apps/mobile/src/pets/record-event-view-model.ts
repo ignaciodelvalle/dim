@@ -18,7 +18,9 @@ import {
   type ClinicalSubKind,
   DANGEROUS_BREED_REGISTRIES,
   DEWORMING_TYPES,
+  type DeathCause,
   type DewormingType,
+  type DispositionMethod,
   MAX_CUSTOM_HOURS,
   MAX_DURATION_DAYS,
   MAX_WEIGHT_KG,
@@ -33,10 +35,12 @@ import {
   SYMPTOM_SEVERITIES,
   type SterilizationProcedure,
   type SymptomSeverity,
+  type VetContactValue,
   dangerousBreedRegistryLabel,
   firstRecordEventInputCode,
   recordEventInputSchema,
 } from "@dim/contract/input";
+import { diseasesForSpecies, findDisease } from "@dim/contract/reference";
 
 import { dateInputToIso, isoToDateInput } from "../ui/date-input";
 
@@ -91,13 +95,38 @@ export type WritableKind =
   | RecordKind
   | "medication_end"
   | "microchip_replace"
-  | "dangerous_breed_attestation";
+  | "dangerous_breed_attestation"
+  | "death";
 
-const WRITABLE_KINDS: ReadonlySet<string> = new Set<WritableKind>([
+/**
+ * A yes/no answer, and `null` for one nobody gave yet.
+ *
+ * NOT A `boolean` IN THE DRAFT, and the kit is the reason: it has no switch,
+ * only `Choice`, and a `Choice` over two options is the better control here
+ * anyway. A switch has two states and shows one of them as the default, so a
+ * person who never touched it has still "answered". "¿El veterinario decidió
+ * sin contactarte?" is not a question that may have a default answer — it is
+ * the field a professional dispute would turn on.
+ */
+export type YesNo = "si" | "no";
+export const YES_NO: readonly YesNo[] = ["si", "no"];
+
+/**
+ * Every kind that has a form, including the ones the picker does not offer.
+ *
+ * EXPORTED SO NOBODY RESTATES IT. The screen's test file kept its own copy and
+ * it went stale THREE TIMES in one week — once per kind added — each time
+ * failing with "expected exactly one submit control, found 0", which reads like
+ * a broken screen and is a list that never learned a name. A fence that
+ * enumerates the members instead of pointing at the list is the fence this repo
+ * already has a rule about.
+ */
+export const WRITABLE_KINDS: ReadonlySet<WritableKind> = new Set<WritableKind>([
   ...RECORD_KINDS,
   "medication_end",
   "microchip_replace",
   "dangerous_breed_attestation",
+  "death",
 ]);
 
 /**
@@ -113,7 +142,10 @@ const WRITABLE_KINDS: ReadonlySet<string> = new Set<WritableKind>([
  * where the person was going — rather than render a form for `undefined`.
  */
 export function isWritableKind(value: string): value is WritableKind {
-  return WRITABLE_KINDS.has(value);
+  // The cast, not a looser set type: the SET is typed by its members so a test
+  // can spread it and get `WritableKind[]`, and this predicate is the one place
+  // that asks about an unknown string.
+  return (WRITABLE_KINDS as ReadonlySet<string>).has(value);
 }
 
 /** The title of the form for one kind. */
@@ -145,6 +177,8 @@ export function kindTitle(kind: WritableKind): string {
       return "Reemplazo de microchip";
     case "dangerous_breed_attestation":
       return "Atestación de raza peligrosa";
+    case "death":
+      return "Fallecimiento";
   }
 }
 
@@ -184,6 +218,11 @@ export function kindSubtitle(kind: WritableKind): string {
       return "El chip actual deja de ser el válido. Si hay uno nuevo, pasa a ser la identificación de tu mascota.";
     case "dangerous_breed_attestation":
       return "La declaración ante el registro que exige tu jurisdicción para perros potencialmente peligrosos.";
+    case "death":
+      // SAYS WHAT SE CIERRA, and it is the only subtitle that warns rather than
+      // describes. Este asiento termina el registro del animal: después sólo se
+      // admiten notas. Una persona tiene derecho a saberlo antes, no después.
+      return "Cierra el registro del animal. Se dan de baja los tránsitos abiertos y los casos en curso, y después sólo se pueden agregar notas.";
   }
 }
 
@@ -242,6 +281,11 @@ export function recordEventCta(kind: WritableKind): { label: string; busyLabel: 
       return { label: "Registrar el reemplazo", busyLabel: "Registrando…" };
     case "dangerous_breed_attestation":
       return { label: "Registrar la atestación", busyLabel: "Registrando…" };
+    case "death":
+      // NOT "Registrar el fallecimiento". The verb matters on the one form that
+      // closes a life record: "asentar" is what a libreta does, and it does not
+      // ask a grieving person to "registrar" their animal one last time.
+      return { label: "Asentar el fallecimiento", busyLabel: "Asentando…" };
   }
 }
 
@@ -439,6 +483,22 @@ export type EventDraft = {
   // options.
   registry: string;
   registryId: string;
+
+  // fallecimiento — el asiento terminal. `vetName` NO está acá: ya existe para
+  // visita veterinaria y significa lo mismo, igual que `performedBy` lo comparten
+  // esterilización e información clínica.
+  cause: DeathCause | null;
+  causeDetail: string;
+  diseaseCode: string;
+  confirmedByLab: YesNo | null;
+  confirmedByVet: YesNo | null;
+  deathAtClinic: YesNo | null;
+  clinicName: string;
+  vetContactedOwner: VetContactValue | null;
+  vetDecidedAlone: YesNo | null;
+  dispositionMethod: DispositionMethod | null;
+  facility: string;
+  ownerToPrivateCrematorium: YesNo | null;
   // esterilización
   procedure: SterilizationProcedure;
   // visita veterinaria
@@ -512,6 +572,18 @@ export function emptyDraft(now: Date = new Date()): EventDraft {
     replacedBy: "",
     registry: "",
     registryId: "",
+    cause: null,
+    causeDetail: "",
+    diseaseCode: "",
+    confirmedByLab: null,
+    confirmedByVet: null,
+    deathAtClinic: null,
+    clinicName: "",
+    vetContactedOwner: null,
+    vetDecidedAlone: null,
+    dispositionMethod: null,
+    facility: "",
+    ownerToPrivateCrematorium: null,
     // Pre-selected like `dewormingType` above, and for the same reason: these
     // are one-of-N chip rows whose active option is visible on screen, not a
     // hidden default. A blank required chooser is a form that refuses on submit
@@ -660,6 +732,32 @@ function draftToWire(
         registry: draft.registry,
         registryId: orNull(draft.registryId),
         occurredAt: dateInputToIso(draft.occurredAt),
+        notes: orNull(draft.notes),
+      };
+    case "death":
+      return {
+        kind,
+        // `cause` may be null here and the contract refuses it — that is the
+        // point. A default would let somebody file "no la sé" without ever
+        // having been asked.
+        cause: draft.cause,
+        causeDetail: orNull(draft.causeDetail),
+        occurredAt: dateInputToIso(draft.occurredAt),
+        confirmedByVet: draft.confirmedByVet === "si",
+        vetName: orNull(draft.vetName),
+        dispositionMethod: draft.dispositionMethod,
+        facility: orNull(draft.facility),
+        deathAtClinic: draft.deathAtClinic === "si",
+        clinicName: orNull(draft.clinicName),
+        vetContactedOwner: draft.vetContactedOwner,
+        vetDecidedAlone: draft.vetDecidedAlone === "si",
+        ownerToPrivateCrematorium: draft.ownerToPrivateCrematorium === "si",
+        // ONLY WHEN THE CAUSE IS A DISEASE, exactly as the web action decides it
+        // (`cause === "disease" && diseaseCodeRaw ? diseaseCodeRaw : null`).
+        // Somebody who picks "Enfermedad", names one, then changes their mind to
+        // "Accidente" must not ship the disease they abandoned.
+        diseaseCode: draft.cause === "disease" ? orNull(draft.diseaseCode) : null,
+        confirmedByLab: draft.confirmedByLab === "si",
         notes: orNull(draft.notes),
       };
     case "sterilization":
@@ -863,6 +961,22 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "Con ese motivo hace falta el número del chip nuevo. Para dejar a tu mascota sin chip, elegí «Solicitud del dueño» o «Falla del dispositivo».";
     case "PPP_REGISTRY_REQUIRED":
       return "Elegí el registro donde hiciste la atestación.";
+    case "DEATH_CAUSE_INVALID":
+      return "Elegí la causa del fallecimiento.";
+    case "DEATH_DISPOSITION_INVALID":
+      return "Esa opción de destino del cuerpo no es válida.";
+    case "DEATH_VET_CONTACT_INVALID":
+      return "Esa respuesta sobre el contacto del veterinario no es válida.";
+    case "DEATH_CLINIC_REQUIRES_AT_CLINIC":
+      return "Pusiste el nombre de una clínica pero no marcaste que falleció en una veterinaria.";
+    case "DEATH_VET_CONTACT_REQUIRES_AT_CLINIC":
+      return "El contacto del veterinario sólo aplica si falleció en una veterinaria.";
+    case "DEATH_VET_DECIDED_REQUIRES_NO_CONTACT":
+      return "Solo podés marcar que el veterinario decidió sin consultarte si no logró contactarte.";
+    case "DEATH_DISEASE_CODE_REQUIRED":
+      return "Elegí de qué enfermedad murió.";
+    case "DEATH_DISEASE_CODE_UNKNOWN":
+      return "No reconocemos esa enfermedad. Elegila de la lista.";
   }
 }
 
@@ -942,6 +1056,20 @@ export function invalidFields(code: RecordEventInputCode | null): ReadonlySet<ke
         return ["newChipNumber"];
       case "PPP_REGISTRY_REQUIRED":
         return ["registry"];
+      case "DEATH_CAUSE_INVALID":
+        return ["cause"];
+      case "DEATH_DISPOSITION_INVALID":
+        return ["dispositionMethod"];
+      case "DEATH_VET_CONTACT_INVALID":
+      case "DEATH_VET_CONTACT_REQUIRES_AT_CLINIC":
+        return ["vetContactedOwner"];
+      case "DEATH_CLINIC_REQUIRES_AT_CLINIC":
+        return ["clinicName"];
+      case "DEATH_VET_DECIDED_REQUIRES_NO_CONTACT":
+        return ["vetDecidedAlone"];
+      case "DEATH_DISEASE_CODE_REQUIRED":
+      case "DEATH_DISEASE_CODE_UNKNOWN":
+        return ["diseaseCode"];
     }
   })();
   return new Set(fields);
@@ -1017,4 +1145,90 @@ export function attestationRegistryOptions(
     }));
   }
   return resolved.some((r) => r.id === "other") ? [...resolved] : [...resolved, other];
+}
+
+// ---------------------------------------------------------------------------
+// Fallecimiento — las etiquetas
+// ---------------------------------------------------------------------------
+
+/** es-AR label for a cause of death. The nine the web offers, in its own words. */
+export function deathCauseLabel(cause: DeathCause): string {
+  switch (cause) {
+    case "known":
+      return "La conozco";
+    case "unknown":
+      return "No la sé";
+    case "natural":
+      return "Natural / vejez";
+    case "disease":
+      return "Enfermedad";
+    case "accident":
+      return "Accidente";
+    case "euthanasia":
+      return "Eutanasia";
+    case "sudden":
+      return "Muerte súbita";
+    case "violent":
+      return "Violenta";
+    case "other":
+      return "Otra";
+  }
+}
+
+/** es-AR label for what was done with the body. */
+export function dispositionMethodLabel(method: DispositionMethod): string {
+  switch (method) {
+    case "cremation_collective":
+      return "Cremación colectiva";
+    case "cremation_individual_ashes":
+      return "Cremación individual (con cenizas)";
+    case "authorized_cemetery":
+      return "Cementerio habilitado";
+    case "owner_burial":
+      return "Entierro propio";
+    case "household_waste":
+      return "Residuos domiciliarios";
+    case "rendering":
+      return "Recolección sanitaria";
+    case "unknown":
+      return "No sé";
+  }
+}
+
+/** es-AR label for whether the vet reached the owner. */
+export function vetContactLabel(value: VetContactValue): string {
+  switch (value) {
+    case "yes":
+      return "Sí, me contactó";
+    case "no":
+      return "No me contactó";
+    case "not_applicable":
+      return "No aplica";
+  }
+}
+
+/** es-AR label for a yes/no answer. */
+export function yesNoLabel(value: YesNo): string {
+  return value === "si" ? "Sí" : "No";
+}
+
+/**
+ * The diseases this animal's species can be recorded as having died of.
+ *
+ * READS THE CONTRACT'S OWN CATALOG, which is why the picker can exist at all:
+ * `DEATH_DISEASE_CODE_UNKNOWN` is checked on the wire against this same list,
+ * so a code this function offers is a code the server accepts. It moved into
+ * `@dim/contract/reference` with this kind (2026-09-08) for exactly that.
+ *
+ * `species` null or unknown returns the full catalog — the same widening the
+ * server's `diseasesForSpecies` applies, and for the same reason: with no
+ * species to filter by, hiding options would be inventing a constraint.
+ */
+export function deathDiseaseOptions(species: string | null): { id: string; label: string }[] {
+  return diseasesForSpecies(species).map((d) => ({ id: d.code, label: d.label }));
+}
+
+/** The es-AR label of a disease code, or the code when the catalog does not know it. */
+export function diseaseLabel(code: string): string {
+  return findDisease(code)?.label ?? code;
 }

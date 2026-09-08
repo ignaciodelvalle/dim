@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEATH_CAUSES,
   MAX_WEIGHT_KG,
   firstRecordEventInputCode,
   recordEventInputSchema,
@@ -482,5 +483,85 @@ describe("recordEventInputSchema — atestación de raza peligrosa", () => {
 
   it("holds the attestation to the same calendar", () => {
     expect(codeFor(attest({ occurredAt: "2026-02-30" }))).toBe("OCCURRED_AT_INVALID");
+  });
+});
+
+const death = (over: Record<string, unknown> = {}) => ({
+  kind: "death",
+  cause: "natural",
+  occurredAt: A_DAY,
+  ...over,
+});
+
+describe("recordEventInputSchema — fallecimiento", () => {
+  it("pide una causa, y no inventa una por defecto", () => {
+    // "No la sé" es una respuesta que la persona da. Un default la daría por
+    // ella, en el asiento que cierra el registro de un animal.
+    expect(codeFor(death())).toBe(null);
+    expect(codeFor(death({ cause: undefined }))).toBe("DEATH_CAUSE_INVALID");
+    expect(codeFor(death({ cause: "asesinato" }))).toBe("DEATH_CAUSE_INVALID");
+  });
+
+  it("acepta las nueve causas que la web le ofrece al dueño", () => {
+    // NO es un subconjunto, a diferencia de los motivos de reemplazo de chip:
+    // no hay nada acá que un dueño no pueda decir sobre su propio animal.
+    for (const cause of DEATH_CAUSES) {
+      const extra = cause === "disease" ? { diseaseCode: "rabies_confirmed" } : {};
+      expect(codeFor(death({ cause, ...extra }))).toBe(null);
+    }
+  });
+
+  it("exige la enfermedad cuando la causa ES una enfermedad, y la exige del catálogo", () => {
+    expect(codeFor(death({ cause: "disease" }))).toBe("DEATH_DISEASE_CODE_REQUIRED");
+    expect(codeFor(death({ cause: "disease", diseaseCode: "  " }))).toBe(
+      "DEATH_DISEASE_CODE_REQUIRED",
+    );
+    expect(codeFor(death({ cause: "disease", diseaseCode: "gripe_de_pinguino" }))).toBe(
+      "DEATH_DISEASE_CODE_UNKNOWN",
+    );
+    expect(codeFor(death({ cause: "disease", diseaseCode: "rabies_confirmed" }))).toBe(null);
+  });
+
+  it("no pide enfermedad cuando la causa no es una enfermedad", () => {
+    // NO-VACUIDAD de la regla anterior: si pidiera siempre, el caso de arriba
+    // pasaría igual y no probaría nada sobre la condición.
+    expect(codeFor(death({ cause: "accident" }))).toBe(null);
+  });
+
+  it("ata el nombre de la clínica a haber fallecido en una", () => {
+    expect(codeFor(death({ clinicName: "Vet Central" }))).toBe("DEATH_CLINIC_REQUIRES_AT_CLINIC");
+    expect(codeFor(death({ clinicName: "Vet Central", deathAtClinic: true }))).toBe(null);
+  });
+
+  it("ata la pregunta del contacto a haber fallecido en una veterinaria", () => {
+    expect(codeFor(death({ vetContactedOwner: "no" }))).toBe(
+      "DEATH_VET_CONTACT_REQUIRES_AT_CLINIC",
+    );
+    expect(codeFor(death({ vetContactedOwner: "no", deathAtClinic: true }))).toBe(null);
+  });
+
+  it("sólo admite 'decidió sin consultarte' cuando NO logró contactar", () => {
+    // El campo del que dependería una disputa profesional. Bajo "sí" o "no
+    // aplica" la afirmación es una contradicción, y este asiento es el que
+    // alguien podría llevar a un colegio.
+    const atClinic = { deathAtClinic: true, vetDecidedAlone: true };
+    expect(codeFor(death({ ...atClinic, vetContactedOwner: "yes" }))).toBe(
+      "DEATH_VET_DECIDED_REQUIRES_NO_CONTACT",
+    );
+    expect(codeFor(death({ ...atClinic, vetContactedOwner: "not_applicable" }))).toBe(
+      "DEATH_VET_DECIDED_REQUIRES_NO_CONTACT",
+    );
+    expect(codeFor(death({ ...atClinic, vetContactedOwner: "no" }))).toBe(null);
+  });
+
+  it("deja el destino del cuerpo en null, porque 'no sé' es una respuesta real", () => {
+    expect(codeFor(death({ dispositionMethod: null }))).toBe(null);
+    expect(codeFor(death({ dispositionMethod: "owner_burial" }))).toBe(null);
+    expect(codeFor(death({ dispositionMethod: "al_rio" }))).toBe("DEATH_DISPOSITION_INVALID");
+  });
+
+  it("sostiene el mismo calendario que todo otro asiento con fecha", () => {
+    expect(codeFor(death({ occurredAt: "20/08/2026" }))).toBe("OCCURRED_AT_MALFORMED");
+    expect(codeFor(death({ occurredAt: "2026-02-30" }))).toBe("OCCURRED_AT_INVALID");
   });
 });

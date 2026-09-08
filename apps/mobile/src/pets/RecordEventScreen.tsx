@@ -51,7 +51,12 @@ import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { EventRecordedV1, OwnerPetPppRegistryV1 } from "@dim/contract/api";
-import { OWNER_MICROCHIP_REPLACE_REASONS } from "@dim/contract/input";
+import {
+  DEATH_CAUSES,
+  DISPOSITION_METHODS,
+  OWNER_MICROCHIP_REPLACE_REASONS,
+  VET_CONTACT_VALUES,
+} from "@dim/contract/input";
 import type { ApiResult } from "../api/client";
 import { fetchOwnerPetDetail, recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
@@ -93,9 +98,14 @@ import {
   STERILIZATION_PROCEDURE_OPTIONS,
   SYMPTOM_SEVERITY_OPTIONS,
   type WritableKind,
+  YES_NO,
   attestationRegistryOptions,
   clinicalSubKindLabel,
+  deathCauseLabel,
+  deathDiseaseOptions,
   dewormingTypeLabel,
+  diseaseLabel,
+  dispositionMethodLabel,
   emptyDraft,
   frequencyLabel,
   invalidFields,
@@ -107,6 +117,8 @@ import {
   sterilizationProcedureLabel,
   symptomSeverityLabel,
   validateDraft,
+  vetContactLabel,
+  yesNoLabel,
 } from "./record-event-view-model";
 import { DISCARD_COPY, confirmDiscard } from "./use-discard-guard";
 
@@ -215,17 +227,29 @@ type FormPhase =
  * ONLY FOR THE ONE KIND THAT ASKS. Every other form on this screen would be
  * paying for a pet-detail read it has no field for.
  */
-function usePppRegistries(kind: WritableKind, publicToken: string) {
+function useOwnerPetFacts(kind: WritableKind, publicToken: string) {
   const [registries, setRegistries] = useState<readonly OwnerPetPppRegistryV1[]>([]);
+  const [species, setSpecies] = useState<string | null>(null);
 
   useEffect(() => {
-    if (kind !== "dangerous_breed_attestation") return;
+    // TWO KINDS ASK, and one read answers both: the PPP form needs the
+    // jurisdiction's registries, and the death form needs the animal's SPECIES
+    // to filter the disease catalog. Every other form would be paying for a
+    // pet-detail round trip it has no field for.
+    if (kind !== "dangerous_breed_attestation" && kind !== "death") return;
     let alive = true;
     void (async () => {
       const result = await fetchOwnerPetDetail(sessionPort, publicToken);
       // THE GUARD IS AGAINST AN UNMOUNTED FORM, not against a stale read: this
       // fires once per mount and there is no second request to supersede it.
       if (!alive || result.outcome !== "ok") return;
+      // `identity` is ok on every healthy read; a degraded section leaves the
+      // species null, which `deathDiseaseOptions` reads as 'no species to filter
+      // by' and answers with the full catalog — the same widening the server
+      // applies. Never an empty picker.
+      if (result.payload.identity.status === "ok") {
+        setSpecies(result.payload.identity.data.species);
+      }
       const section = result.payload.pppRegistries;
       // `unavailable` is a read that did not answer and `null` is an animal
       // outside the regime. Neither is "this jurisdiction names no registry",
@@ -238,7 +262,7 @@ function usePppRegistries(kind: WritableKind, publicToken: string) {
     };
   }, [kind, publicToken]);
 
-  return registries;
+  return { registries, species };
 }
 
 function EventForm({
@@ -254,7 +278,7 @@ function EventForm({
   onBack: (() => void) | null;
 }) {
   const router = useRouter();
-  const pppRegistries = usePppRegistries(kind, publicToken);
+  const { registries: pppRegistries, species } = useOwnerPetFacts(kind, publicToken);
   const [draft, setDraft] = useState<EventDraft>(() => emptyDraft());
   const [state, setState] = useState<FormPhase>({ phase: "editing" });
   const [error, setError] = useState<string | null>(null);
@@ -384,7 +408,14 @@ function EventForm({
         <Body>{kindSubtitle(kind)}</Body>
       </View>
 
-      <Fields kind={kind} draft={draft} set={set} invalid={invalid} pppRegistries={pppRegistries} />
+      <Fields
+        kind={kind}
+        draft={draft}
+        set={set}
+        invalid={invalid}
+        pppRegistries={pppRegistries}
+        species={species}
+      />
 
       <Card>
         <Body>{RECORD_IMMUTABILITY_NOTE}</Body>
@@ -471,6 +502,12 @@ function chainLength(kind: WritableKind, draft: EventDraft): number {
     // Registro is a chip row for the same reason: id, fecha.
     case "dangerous_breed_attestation":
       return 2;
+    // TRES FIJOS —detalle de la causa, fecha, establecimiento— más los dos que
+    // aparecen sólo si la persona los abre. Las respuestas de tipo chip (causa,
+    // enfermedad, laboratorio, clínica, contacto, decisión, destino) no están en
+    // la cadena porque no se tipean.
+    case "death":
+      return 3 + (draft.deathAtClinic === "si" ? 1 : 0) + (draft.confirmedByVet === "si" ? 1 : 0);
   }
 }
 
@@ -481,6 +518,7 @@ function Fields({
   set,
   invalid,
   pppRegistries = [],
+  species = null,
 }: {
   kind: WritableKind;
   draft: EventDraft;
@@ -497,6 +535,8 @@ function Fields({
    * registry themselves. Same two shapes here.
    */
   pppRegistries?: readonly OwnerPetPppRegistryV1[];
+  /** The animal's species, for the death form's disease picker. `null` = unknown. */
+  species?: string | null;
 }) {
   // The return key walks the single-line fields in draw order. `link()` hands
   // out the next slot each time it is called, and it is called in JSX order.
@@ -935,6 +975,149 @@ function Fields({
             {...link()}
           />
           {dateField("Fecha de la atestación", "occurredAt", true)}
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+    }
+
+    case "death": {
+      // THE ONLY FORM ON THIS SCREEN THAT CLOSES A RECORD, and the only one
+      // whose fields appear and disappear as the person answers. Each reveal
+      // mirrors the web's own conditional block; what does NOT mirror it is the
+      // CLEARING below, which the web does not do and which this screen learned
+      // three days ago from the PPP registry: when an answer stops applying,
+      // the value it gated goes with it. Otherwise somebody names a clinic,
+      // changes their mind about where the animal died, and ships a combination
+      // the server refuses — about a field no longer on screen.
+      const isDisease = draft.cause === "disease";
+      const atClinic = draft.deathAtClinic === "si";
+      const byVet = draft.confirmedByVet === "si";
+      const diseases = deathDiseaseOptions(species);
+      return (
+        <>
+          <Choice
+            label="Causa"
+            required
+            options={DEATH_CAUSES}
+            selected={draft.cause}
+            optionLabel={deathCauseLabel}
+            onSelect={(value) => {
+              set("cause", value);
+              if (value !== "disease") {
+                set("diseaseCode", "");
+                set("confirmedByLab", null);
+              }
+            }}
+          />
+          <TextField
+            label="Detalle"
+            value={draft.causeDetail}
+            onChangeText={(v) => set("causeDetail", v)}
+            placeholder="Lo que sepas, en tus palabras"
+            {...link()}
+          />
+          {isDisease ? (
+            <>
+              <Choice
+                label="Enfermedad"
+                required
+                options={diseases.map((d) => d.id)}
+                selected={draft.diseaseCode.length > 0 ? draft.diseaseCode : null}
+                optionLabel={diseaseLabel}
+                onSelect={(value) => set("diseaseCode", value)}
+              />
+              <Choice
+                label="¿Lo confirmó un laboratorio?"
+                options={YES_NO}
+                selected={draft.confirmedByLab}
+                optionLabel={yesNoLabel}
+                onSelect={(value) => set("confirmedByLab", value)}
+              />
+            </>
+          ) : null}
+          {dateField("Fecha del fallecimiento", "occurredAt", true)}
+          <Choice
+            label="¿Falleció en una veterinaria?"
+            options={YES_NO}
+            selected={draft.deathAtClinic}
+            optionLabel={yesNoLabel}
+            onSelect={(value) => {
+              set("deathAtClinic", value);
+              if (value !== "si") {
+                set("clinicName", "");
+                set("vetContactedOwner", null);
+                set("vetDecidedAlone", null);
+              }
+            }}
+          />
+          {atClinic ? (
+            <>
+              <TextField
+                label="Nombre de la veterinaria"
+                value={draft.clinicName}
+                invalid={invalid.has("clinicName")}
+                onChangeText={(v) => set("clinicName", v)}
+                {...link()}
+              />
+              <Choice
+                label="¿El veterinario te contactó?"
+                options={VET_CONTACT_VALUES}
+                selected={draft.vetContactedOwner}
+                optionLabel={vetContactLabel}
+                onSelect={(value) => {
+                  set("vetContactedOwner", value);
+                  if (value !== "no") set("vetDecidedAlone", null);
+                }}
+              />
+              {draft.vetContactedOwner === "no" ? (
+                <Choice
+                  label="¿Decidió sin consultarte?"
+                  options={YES_NO}
+                  selected={draft.vetDecidedAlone}
+                  optionLabel={yesNoLabel}
+                  onSelect={(value) => set("vetDecidedAlone", value)}
+                />
+              ) : null}
+            </>
+          ) : null}
+          <Choice
+            label="¿Lo confirmó un veterinario?"
+            options={YES_NO}
+            selected={draft.confirmedByVet}
+            optionLabel={yesNoLabel}
+            onSelect={(value) => {
+              set("confirmedByVet", value);
+              if (value !== "si") set("vetName", "");
+            }}
+          />
+          {byVet ? (
+            <TextField
+              label="Nombre del veterinario"
+              value={draft.vetName}
+              onChangeText={(v) => set("vetName", v)}
+              {...link()}
+            />
+          ) : null}
+          <Choice
+            label="¿Qué se hizo con el cuerpo?"
+            options={DISPOSITION_METHODS}
+            selected={draft.dispositionMethod}
+            optionLabel={dispositionMethodLabel}
+            onSelect={(value) => set("dispositionMethod", value)}
+          />
+          <Choice
+            label="¿Lo llevaste a un crematorio privado?"
+            options={YES_NO}
+            selected={draft.ownerToPrivateCrematorium}
+            optionLabel={yesNoLabel}
+            onSelect={(value) => set("ownerToPrivateCrematorium", value)}
+          />
+          <TextField
+            label="Establecimiento"
+            value={draft.facility}
+            onChangeText={(v) => set("facility", v)}
+            {...link()}
+          />
           <NotesField draft={draft} set={set} />
         </>
       );

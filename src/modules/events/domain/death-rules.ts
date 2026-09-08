@@ -11,35 +11,24 @@ import { isReportable } from "@/lib/reference/diseases";
 // Constants
 // ---------------------------------------------------------------------------
 
-export const DEATH_CAUSES = [
-  "known",
-  "unknown",
-  "natural",
-  "disease",
-  "accident",
-  "euthanasia",
-  "sudden",
-  "violent",
-  "other",
-] as const;
-
-export type DeathCause = (typeof DEATH_CAUSES)[number];
-
-export const DISPOSITION_METHODS = [
-  "cremation_collective",
-  "cremation_individual_ashes",
-  "authorized_cemetery",
-  "owner_burial",
-  "household_waste",
-  "rendering",
-  "unknown",
-] as const;
-
-export type DispositionMethod = (typeof DISPOSITION_METHODS)[number];
-
-export const VET_CONTACT_VALUES = ["yes", "no", "not_applicable"] as const;
-
-export type VetContactValue = (typeof VET_CONTACT_VALUES)[number];
+// RE-EXPORTED FROM THE CONTRACT, not declared twice. The three lists moved to
+// `@dim/contract/input` on 2026-09-08 with the `death` kind, because the native
+// form has to draw the same options the wire accepts — and two hand-kept copies
+// of one vocabulary is how a form comes to offer a cause the server refuses.
+//
+// THIS MODULE IS STILL THE WRITE-SIDE AUTHORITY. What lives here is the part a
+// client may not hold: `validateDeathCrossFields`, which the server runs
+// whatever the wire said, and `resolveDeathReportable`, which decides whether a
+// health authority hears about a zoonosis. The contract carries the vocabulary;
+// the judgement stays here. Same split as the PPP registries three days ago.
+export {
+  DEATH_CAUSES,
+  type DeathCause,
+  DISPOSITION_METHODS,
+  type DispositionMethod,
+  VET_CONTACT_VALUES,
+  type VetContactValue,
+} from "@dim/contract/input";
 
 // ---------------------------------------------------------------------------
 // Cross-field validation

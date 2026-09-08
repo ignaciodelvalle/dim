@@ -62,6 +62,8 @@
 
 import { z } from "zod";
 
+import { findDisease } from "../reference/diseases.ts";
+
 import { isRealArDay } from "./ar-calendar-day.ts";
 
 /**
@@ -233,6 +235,14 @@ export const RECORD_EVENT_INPUT_CODES = [
   "MICROCHIP_REPLACE_REASON_INVALID",
   "MICROCHIP_REPLACE_NEW_CHIP_REQUIRED",
   "PPP_REGISTRY_REQUIRED",
+  "DEATH_CAUSE_INVALID",
+  "DEATH_DISPOSITION_INVALID",
+  "DEATH_VET_CONTACT_INVALID",
+  "DEATH_CLINIC_REQUIRES_AT_CLINIC",
+  "DEATH_VET_CONTACT_REQUIRES_AT_CLINIC",
+  "DEATH_VET_DECIDED_REQUIRES_NO_CONTACT",
+  "DEATH_DISEASE_CODE_REQUIRED",
+  "DEATH_DISEASE_CODE_UNKNOWN",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
 
@@ -259,6 +269,54 @@ export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
  * 400 unless the person happened to type an internal id.
  */
 export const DANGEROUS_BREED_REGISTRIES = ["caba_4078", "prov_14107", "other"] as const;
+
+/**
+ * The nine causes of death, and the owner gets ALL NINE.
+ *
+ * Unlike `OWNER_MICROCHIP_REPLACE_REASONS`, which is five of the spine's seven
+ * because two of them are professional findings, there is nothing here an owner
+ * may not say about their own animal — checked against the web's own radio list
+ * (`fallecimiento/DeathRecordForm.tsx:177-185`), which offers the nine.
+ *
+ * Mirrors `DEATH_CAUSES` in `src/modules/events/domain/death-rules.ts`; that
+ * module remains the write-side authority and re-exports these from here, so
+ * the two cannot drift into disagreement about what a cause is.
+ */
+export const DEATH_CAUSES = [
+  "known",
+  "unknown",
+  "natural",
+  "disease",
+  "accident",
+  "euthanasia",
+  "sudden",
+  "violent",
+  "other",
+] as const;
+export type DeathCause = (typeof DEATH_CAUSES)[number];
+
+/** What was done with the body. `null` is a valid answer — many people do not know. */
+export const DISPOSITION_METHODS = [
+  "cremation_collective",
+  "cremation_individual_ashes",
+  "authorized_cemetery",
+  "owner_burial",
+  "household_waste",
+  "rendering",
+  "unknown",
+] as const;
+export type DispositionMethod = (typeof DISPOSITION_METHODS)[number];
+
+/**
+ * Whether the veterinarian reached the owner before acting.
+ *
+ * THREE VALUES AND NOT A BOOLEAN, because "no aplica" is a different fact from
+ * "no la contactó" — the first says the animal did not die at a clinic, the
+ * second is the precondition of `vetDecidedAlone`, which is the field a dispute
+ * would turn on.
+ */
+export const VET_CONTACT_VALUES = ["yes", "no", "not_applicable"] as const;
+export type VetContactValue = (typeof VET_CONTACT_VALUES)[number];
 export type DangerousBreedRegistry = (typeof DANGEROUS_BREED_REGISTRIES)[number];
 
 /**
@@ -678,6 +736,126 @@ const dangerousBreedAttestation = z.object({
   notes: optionalText,
 });
 
+/**
+ * Fallecimiento — the terminal asiento.
+ *
+ * THE LARGEST MEMBER OF THIS UNION, and every field earns its place by being a
+ * question the web form asks. What it does NOT carry is as deliberate: no
+ * `custodyEpisodeCaseId` (the server finds the open custody case itself), no
+ * `isReportable` (derived from the disease code by
+ * `resolveDeathReportable`), and no jurisdiction — a death is a fact about an
+ * animal whose jurisdiction the server already holds.
+ *
+ * FOUR CROSS-FIELD RULES live in the `superRefine` below rather than here,
+ * because each of them reads two fields at once and zod's object shape cannot.
+ * They are the same four `validateDeathCrossFields` enforces on the web, which
+ * stays the write-side authority — these codes exist so the app can refuse the
+ * combination BEFORE a round trip, with a sentence about the field the person
+ * is looking at.
+ */
+const death = z.object({
+  kind: z.literal("death"),
+  cause: z.enum(DEATH_CAUSES, { error: "DEATH_CAUSE_INVALID" }),
+  causeDetail: optionalText,
+  occurredAt,
+  confirmedByVet: z.boolean().optional().default(false),
+  vetName: optionalText,
+  // NULLABLE ON PURPOSE. "No sé qué se hizo con el cuerpo" is a real answer and
+  // the web's select starts blank; a required field here would invent a
+  // certainty the person does not have.
+  dispositionMethod: z
+    .enum(DISPOSITION_METHODS, { error: "DEATH_DISPOSITION_INVALID" })
+    .nullish()
+    .transform((v) => v ?? null),
+  facility: optionalText,
+  deathAtClinic: z.boolean().optional().default(false),
+  clinicName: optionalText,
+  vetContactedOwner: z
+    .enum(VET_CONTACT_VALUES, { error: "DEATH_VET_CONTACT_INVALID" })
+    .nullish()
+    .transform((v) => v ?? null),
+  vetDecidedAlone: z.boolean().optional().default(false),
+  ownerToPrivateCrematorium: z.boolean().optional().default(false),
+  diseaseCode: optionalText,
+  confirmedByLab: z.boolean().optional().default(false),
+  notes: optionalText,
+});
+
+/**
+ * The four cross-field rules of a death record.
+ *
+ * ITS OWN FUNCTION FOR THE LINTER'S REASON, not an aesthetic one: adding this
+ * kind took `superRefine` past the cognitive-complexity ceiling. The
+ * alternative was to add this file to the override list, which raises the
+ * ceiling for the WHOLE contract — a general loosening bought to settle one
+ * block. Same trade, same answer, as the endpoint's `appendUniformKind` split.
+ *
+ * The rules and their order are `validateDeathCrossFields`'s
+ * (death-rules.ts:66-95). That function stays the write-side authority and
+ * refuses the same combinations in es-AR prose; these are codes the app turns
+ * into a sentence pointing at the field the person is looking at, before a
+ * round trip rather than after one.
+ */
+function refineDeath(
+  input: {
+    cause: string;
+    clinicName: string | null;
+    deathAtClinic: boolean;
+    vetContactedOwner: string | null;
+    vetDecidedAlone: boolean;
+    diseaseCode: string | null;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  // A clinic name without "falleció en una veterinaria" is a half-answered
+  // question, not extra information.
+  if (input.clinicName !== null && !input.deathAtClinic) {
+    ctx.addIssue({
+      code: "custom",
+      message: "DEATH_CLINIC_REQUIRES_AT_CLINIC",
+      path: ["clinicName"],
+    });
+  }
+  if (input.vetContactedOwner !== null && !input.deathAtClinic) {
+    ctx.addIssue({
+      code: "custom",
+      message: "DEATH_VET_CONTACT_REQUIRES_AT_CLINIC",
+      path: ["vetContactedOwner"],
+    });
+  }
+  // THE FIELD A DISPUTE WOULD TURN ON. "El veterinario decidió sin
+  // contactarme" only means something when the answer to "¿te contactó?"
+  // was NO — under "sí" or "no aplica" it is a contradiction, and this
+  // record is the one a person may later take to a colegio profesional.
+  if (input.vetDecidedAlone && input.vetContactedOwner !== "no") {
+    ctx.addIssue({
+      code: "custom",
+      message: "DEATH_VET_DECIDED_REQUIRES_NO_CONTACT",
+      path: ["vetDecidedAlone"],
+    });
+  }
+  if (input.cause === "disease") {
+    if (input.diseaseCode === null) {
+      ctx.addIssue({
+        code: "custom",
+        message: "DEATH_DISEASE_CODE_REQUIRED",
+        path: ["diseaseCode"],
+      });
+    } else if (!findDisease(input.diseaseCode)) {
+      // THE CATALOG IS THE CONTRACT'S OWN, which is why this check can live
+      // on the wire at all. It moved into `@dim/contract/reference` with
+      // this kind (2026-09-08) so the native picker draws the same codes
+      // the server accepts — a picker that cannot name them could only ever
+      // produce a 400.
+      ctx.addIssue({
+        code: "custom",
+        message: "DEATH_DISEASE_CODE_UNKNOWN",
+        path: ["diseaseCode"],
+      });
+    }
+  }
+}
+
 export const recordEventInputSchema = z
   .discriminatedUnion("kind", [
     vaccination,
@@ -693,6 +871,7 @@ export const recordEventInputSchema = z
     symptom,
     microchipReplace,
     dangerousBreedAttestation,
+    death,
   ])
   .superRefine((input, ctx) => {
     // THE ONE CROSS-FIELD RULE OF A REPLACEMENT: leaving the animal with no
@@ -711,6 +890,11 @@ export const recordEventInputSchema = z
           path: ["newChipNumber"],
         });
       }
+      return;
+    }
+
+    if (input.kind === "death") {
+      refineDeath(input, ctx);
       return;
     }
 

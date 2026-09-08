@@ -11,6 +11,14 @@
 // matching (the write-side authority, `lib/domain/breed-validation.ts`). A
 // catalog a client can render is not a decision a client may make.
 export {
+  DISEASES,
+  type DiseaseDef,
+  type DiseaseSpecies,
+  diseasesForSpecies,
+  findDisease,
+  isReportable,
+} from "./diseases.ts";
+export {
   ALL_BREEDS,
   CAT_BREEDS,
   DOG_BREEDS,

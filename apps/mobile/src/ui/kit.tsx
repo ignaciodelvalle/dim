@@ -543,7 +543,15 @@ export function Choice<T extends string>({
   return (
     <View style={styles.choiceField}>
       <FieldLabel required={required}>{label}</FieldLabel>
-      <View style={styles.choiceRow} accessibilityRole="radiogroup">
+      {/* THE GROUP CARRIES THE QUESTION. `FieldLabel` above is a sibling, not a
+          binding: a screen reader walking chip by chip announces "Sí, radio
+          button, checked" with nothing saying WHICH question that answers. It
+          was invisible while every form had at most one yes/no row; the
+          fallecimiento form has three on one screen — "¿falleció en una
+          veterinaria?", "¿lo confirmó un veterinario?", "¿crematorio privado?"
+          — and three identical pairs of chips is when the omission becomes a
+          person unable to fill in the form. */}
+      <View style={styles.choiceRow} accessibilityRole="radiogroup" accessibilityLabel={label}>
         {options.map((option) => {
           const active = option === selected;
           return (

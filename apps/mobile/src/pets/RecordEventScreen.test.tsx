@@ -44,25 +44,23 @@ jest.mock("../api/endpoints", () => ({
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
 import { RecordEventScreen } from "./RecordEventScreen";
-import { RECORD_KINDS, kindTitle, recordEventCta } from "./record-event-view-model";
+import {
+  RECORD_KINDS,
+  WRITABLE_KINDS as WRITABLE_KIND_SET,
+  kindTitle,
+  recordEventCta,
+} from "./record-event-view-model";
 
 /**
- * Every kind that has a form, including the three the picker does not offer.
+ * Every kind that has a form.
  *
- * THE LIST WENT STALE ON 2026-09-08 and the failure was confusing rather than
- * loud: `microchip_replace` and `dangerous_breed_attestation` reach their forms
- * from a compliance card rather than from the picker, so `RECORD_KINDS` does
- * not carry them — and `submitControl` below, which searches for the CTA of
- * every kind in this list, could not find theirs. A test that rendered either
- * form and pressed submit died with "found 0 submit controls", which reads like
- * a broken screen and is actually a helper that never learned two names.
+ * DERIVED, NOT RESTATED. This file kept a hand-written copy and it went stale
+ * three times in one week — once per kind added — each time failing with
+ * "expected exactly one submit control, found 0", which reads like a broken
+ * screen and was a list that never learned a name. Pointing at the view-model's
+ * own set makes that impossible: a kind it does not know cannot be written.
  */
-const WRITABLE_KINDS = [
-  ...RECORD_KINDS,
-  "medication_end",
-  "microchip_replace",
-  "dangerous_breed_attestation",
-] as const;
+const WRITABLE_KINDS = [...WRITABLE_KIND_SET];
 
 /**
  * The primary submit, whatever this kind calls it.
@@ -690,9 +688,23 @@ describe("RecordEventScreen — síntoma", () => {
 });
 
 describe("atestación PPP — the registry list is the jurisdiction's, and it degrades to the nation's", () => {
-  /** The pet-detail payload, cut down to the one section this form reads. */
-  function detail(section: unknown) {
-    return { outcome: "ok", payload: { pppRegistries: section } };
+  /**
+   * The pet-detail payload, cut down to the two sections these forms read.
+   *
+   * `identity` IS NOT OPTIONAL HERE even though only the death form reads it:
+   * one hook serves both kinds off one request, so a fixture missing a section
+   * the contract guarantees does not test a degraded server — it tests a
+   * payload that cannot exist, and the throw it produces looks like a screen
+   * bug. Caught the day the death form started reading the species.
+   */
+  function detail(section: unknown, species: string | null = "dog") {
+    return {
+      outcome: "ok",
+      payload: {
+        identity: { status: "ok", data: { species } },
+        pppRegistries: section,
+      },
+    };
   }
 
   beforeEach(() => {
@@ -822,5 +834,121 @@ describe("atestación PPP — the registry list is the jurisdiction's, and it de
     render(<RecordEventScreen publicToken={TOKEN} initialKind="note" />);
 
     expect(mockFetchOwnerPetDetail).not.toHaveBeenCalled();
+  });
+});
+
+describe("fallecimiento — el asiento que cierra el registro", () => {
+  function detail(species: string | null = "dog") {
+    return {
+      outcome: "ok",
+      payload: {
+        identity: { status: "ok", data: { species } },
+        pppRegistries: { status: "ok", data: null },
+      },
+    };
+  }
+
+  beforeEach(() => {
+    mockFetchOwnerPetDetail.mockReset();
+    mockRecordPetEvent.mockReset();
+    mockFetchOwnerPetDetail.mockResolvedValue(detail());
+    mockRecordPetEvent.mockResolvedValue(recorded());
+  });
+
+  it("avisa lo que cierra ANTES del formulario, no después de enviarlo", async () => {
+    // La única subtitle de esta pantalla que advierte en vez de describir. Una
+    // persona tiene derecho a saber que esto da de baja tránsitos y casos
+    // mientras todavía puede decidir no hacerlo.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    expect(screen.getByText(/Cierra el registro del animal/)).toBeTruthy();
+  });
+
+  it("no muestra el selector de enfermedad hasta que la causa es Enfermedad", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    expect(screen.queryByText("Rabia (confirmada)")).toBeNull();
+
+    fireEvent.press(screen.getByText("Enfermedad"));
+    await waitFor(() => expect(screen.getByText("Rabia (confirmada)")).toBeTruthy());
+  });
+
+  it("filtra el catálogo por la especie del animal", async () => {
+    // El catálogo es dog/cat-céntrico y el servidor filtra igual. Ofrecerle
+    // panleucopenia felina al dueño de un perro es ofrecerle un código que su
+    // propio animal no puede tener.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    await waitFor(() => expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(1));
+    fireEvent.press(screen.getByText("Enfermedad"));
+
+    await waitFor(() => expect(screen.getByText("Brucelosis canina (B. canis)")).toBeTruthy());
+    expect(screen.queryByText("Panleucopenia felina")).toBeNull();
+  });
+
+  it("DESCARTA la enfermedad elegida cuando la causa deja de ser Enfermedad", async () => {
+    // EL MISMO DEFECTO QUE EL REGISTRO PPP, en otra forma: alguien elige
+    // "Enfermedad", nombra una, y después cambia a "Accidente". Sin este
+    // borrado el borrador sigue cargando la enfermedad abandonada, el campo ya
+    // no está en pantalla, y el servidor recibe una causa que no la pide con un
+    // código que sí mandó.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    fireEvent.press(screen.getByText("Enfermedad"));
+    await waitFor(() => expect(screen.getByText("Rabia (confirmada)")).toBeTruthy());
+    fireEvent.press(screen.getByText("Rabia (confirmada)"));
+
+    fireEvent.press(screen.getByText("Accidente"));
+    await waitFor(() => expect(screen.queryByText("Rabia (confirmada)")).toBeNull());
+
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({ kind: "death", cause: "accident", diseaseCode: null });
+  });
+
+  it("DESCARTA los datos de la clínica cuando deja de haber fallecido en una", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    fireEvent.press(screen.getByText("No la sé"));
+    // `getAllByText` Y NO `getByText`: esta pantalla tiene TRES filas sí/no a la
+    // vez y las tres dicen lo mismo. La primera en orden de dibujo es
+    // "¿Falleció en una veterinaria?" — y que haga falta contarlas es la razón
+    // por la que el grupo de `Choice` ahora lleva su pregunta como etiqueta
+    // accesible.
+    fireEvent.press(screen.getAllByText("Sí")[0] as never);
+
+    // La veterinaria aparece, y con ella la pregunta del contacto.
+    await waitFor(() => expect(screen.getByText("Nombre de la veterinaria")).toBeTruthy());
+    fireEvent.press(screen.getByText("No me contactó"));
+    await waitFor(() => expect(screen.getByText("¿Decidió sin consultarte?")).toBeTruthy());
+
+    // Y al decir que NO falleció en una veterinaria, las tres se van juntas.
+    fireEvent.press(screen.getAllByText("No")[0] as never);
+    await waitFor(() => expect(screen.queryByText("Nombre de la veterinaria")).toBeNull());
+    expect(screen.queryByText("¿Decidió sin consultarte?")).toBeNull();
+
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({
+      kind: "death",
+      deathAtClinic: false,
+      clinicName: null,
+      vetContactedOwner: null,
+      vetDecidedAlone: false,
+    });
+  });
+
+  it("refuse sin causa, ANTES de llamar al servidor", async () => {
+    // `cause` no tiene default a propósito: "no la sé" es una respuesta que la
+    // persona da, no una que el formulario dé por ella.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    fireEvent.press(submitControl());
+
+    await waitFor(() => expect(screen.getByText("Elegí la causa del fallecimiento.")).toBeTruthy());
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("manda la causa y la fecha en el asiento más simple que se puede escribir", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+    fireEvent.press(screen.getByText("Natural / vejez"));
+    fireEvent.press(submitControl());
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({ kind: "death", cause: "natural" });
   });
 });

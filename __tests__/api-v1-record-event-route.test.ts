@@ -68,6 +68,10 @@ const control = vi.hoisted(() => ({
   registryError: null as string | null,
   /** Every `reportError` call. A refusal that pages an engineer is a defect. */
   reported: [] as string[],
+  /** `createDeathRecord`'s answer — its own shape, not `UseCaseResult`. */
+  deathResult: null as null | (() => unknown),
+  /** The open custody-episode case the endpoint finds for the pet, or null. */
+  custodyCase: null as null | { id: string },
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -206,6 +210,27 @@ vi.mock("@/src/modules/events/application/identity/validate-attestation-registry
   validateAttestationRegistry: async () => control.registryError,
 }));
 
+vi.mock("@/src/modules/events/application/lifecycle/death-record-use-case", () => ({
+  createDeathRecord: async (input: Record<string, unknown>) => {
+    control.writes.push({ kind: "death", input });
+    return control.deathResult
+      ? control.deathResult()
+      : {
+          ok: true,
+          eventId: EVENT_ID,
+          wasDuplicate: false,
+          insertedEventId: EVENT_ID,
+          rabiesObservationClosed: false,
+          diseaseCode: null,
+          authoritySignal: null,
+        };
+  },
+}));
+
+vi.mock("@/lib/infra/case-helpers", () => ({
+  findOpenCaseForPetAndKind: async () => control.custodyCase,
+}));
+
 vi.mock("@/lib/infra/report-error", () => ({
   reportError: (scope: string) => {
     control.reported.push(scope);
@@ -284,6 +309,7 @@ const A_REVOCATION = {
   newChipNumber: null,
   occurredAt: A_PAST_DAY,
 };
+const A_DEATH = { kind: "death", cause: "natural", occurredAt: A_PAST_DAY };
 const AN_ATTESTATION = {
   kind: "dangerous_breed_attestation",
   registry: "caba_4078",
@@ -326,6 +352,8 @@ beforeEach(() => {
   control.attestResult = null;
   control.registryError = null;
   control.reported = [];
+  control.deathResult = null;
+  control.custodyCase = null;
 });
 
 describe("POST .../events — the guard is the web's, and it is not uniform", () => {
@@ -1144,5 +1172,116 @@ describe("POST .../events - reemplazo de microchip, whose web door is not the al
     // The key the endpoint demands reaches the writer, which is the whole
     // reason the kind stopped being excluded.
     expect(control.writes[0].input.clientIdempotencyKey).toBe(KEY);
+  });
+});
+
+describe("POST .../events — fallecimiento, el asiento que cierra el registro", () => {
+  const owner =
+    (over: Record<string, unknown> = {}) =>
+    () => ({
+      kind: "owner",
+      pet: petRow(over),
+      holderRole: "owner",
+    });
+
+  it("REFUSES a death on an animal already recorded dead — and that IS the parity", async () => {
+    // The web reaches this refusal by its own route: `createDeathRecordAction`
+    // guards with `requirePetAccess`, which accepts a non-alive pet, and then
+    // refuses at actions.ts:1172 with "Esta mascota ya está registrada como
+    // fallecida." So the blanket 409 here is the same rule in a different
+    // sentence — unlike nota and reemplazo de microchip, this kind gets NO
+    // exemption, and asserting that is what stops a future reader from adding
+    // one by family resemblance.
+    control.access = owner({ status: "deceased" });
+    const response = await call(A_DEATH);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "event_not_allowed" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("DERIVES whether the death is reportable — a client may not assert it", async () => {
+    // The wire has no `isReportable` field and this is why: that boolean decides
+    // whether a health authority hears about a zoonosis. `resolveDeathReportable`
+    // reads the catalog server-side, so a client naming rabies gets the
+    // consequence and a client CLAIMING the consequence gets nothing.
+    control.access = owner();
+    await call({ ...A_DEATH, cause: "disease", diseaseCode: "rabies_confirmed" });
+    expect(control.writes[0].input.isReportable).toBe(true);
+
+    control.writes = [];
+    await call({ ...A_DEATH, cause: "accident" });
+    expect(control.writes[0].input.isReportable).toBe(false);
+  });
+
+  it("finds the pet's OPEN CUSTODY CASE itself and files the death against it", async () => {
+    // A client naming a case id would be a client choosing which shelter
+    // episode a death closes.
+    control.access = owner();
+    control.custodyCase = { id: "case-custodia-1" };
+    await call(A_DEATH);
+    expect(control.writes[0].input.custodyEpisodeCaseId).toBe("case-custodia-1");
+  });
+
+  it("passes null when the animal is in nobody's custody episode", async () => {
+    control.access = owner();
+    control.custodyCase = null;
+    await call(A_DEATH);
+    expect(control.writes[0].input.custodyEpisodeCaseId).toBeNull();
+  });
+
+  it("answers the RESOLVED event id on a replay, not the null insert id", async () => {
+    // THE DEFECT THE `eventId` FIELD WAS ADDED FOR. On a replay the writer
+    // inserts nothing and runs no cascade, so `insertedEventId` is correctly
+    // null — and answering a client with a null id would break this endpoint's
+    // own contract on exactly the retry the `Idempotency-Key` exists to serve.
+    control.access = owner();
+    control.deathResult = () => ({
+      ok: true,
+      eventId: "ev-original",
+      wasDuplicate: true,
+      insertedEventId: null,
+      rabiesObservationClosed: false,
+      diseaseCode: null,
+      authoritySignal: null,
+    });
+    const response = await call(A_DEATH);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ eventId: "ev-original", wasDuplicate: true });
+  });
+
+  it("refuses a cause outside the nine the web offers, before writing", async () => {
+    control.access = owner();
+    const response = await call({ ...A_DEATH, cause: "asesinato" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toEqual([]);
+  });
+
+  it("refuses a disease code the catalog does not know", async () => {
+    // The catalog moved into the contract with this kind so the app can draw a
+    // picker of the codes the server accepts; this is the other half of that.
+    control.access = owner();
+    const response = await call({
+      ...A_DEATH,
+      cause: "disease",
+      diseaseCode: "gripe_de_pinguino",
+    });
+    expect(response.status).toBe(400);
+    expect(control.writes).toEqual([]);
+  });
+
+  it("refuses 'el veterinario decidió solo' when the vet DID reach the owner", async () => {
+    // The field a professional dispute would turn on. Under "sí" or "no aplica"
+    // the claim is a contradiction, and this record is the one somebody may
+    // later take to a colegio.
+    control.access = owner();
+    const response = await call({
+      ...A_DEATH,
+      deathAtClinic: true,
+      vetContactedOwner: "yes",
+      vetDecidedAlone: true,
+    });
+    expect(response.status).toBe(400);
+    expect(control.writes).toEqual([]);
   });
 });
