@@ -17,7 +17,7 @@
 // (`POST .../events/{eventId}/amend`), which is why 201 is the only success.
 //
 // WHO MAY WRITE is decided in `./writers.ts`, against the web's own guards, and
-// it is NOT uniform across the thirteen: ten mirror `requireAlivePetAccess`
+// it is NOT uniform across the thirteen: ELEVEN mirror `requireAlivePetAccess`
 // (any current holder; an org member with `event.write`; never on a deceased
 // animal), and TWO — nota and reemplazo de microchip — mirror the same
 // capability rule on the org path while still being accepted on a DECEASED

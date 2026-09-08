@@ -22,6 +22,7 @@ import {
   profiles,
 } from "@/db";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
+import { replaceMicrochipSchema } from "@/src/modules/pets/application/microchip/types";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -736,5 +737,66 @@ describe("replaceMicrochipForUser — idempotency guard (projection-writes audit
     expect(second.eventId).not.toBe(first.eventId);
 
     await resetPrimaryChip();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The idempotency key: ONE definition, not two
+// ---------------------------------------------------------------------------
+//
+// PURE SCHEMA CASES, no fixture — the parse runs before anything touches the
+// database, which is the whole point: the key used to be refused HERE, after
+// the endpoint had already accepted it at the door, and the refusal came back
+// as a bare `{ error }` with no `denied` flag. `POST /api/v1/pets/{token}/events`
+// reads that as a server fault and answers 500 + Sentry, forever, on every
+// retry of an idempotent request.
+
+describe("replaceMicrochipSchema — the key the endpoint accepts is the key this schema accepts", () => {
+  const base = {
+    petId: "11111111-1111-4111-8111-111111111111",
+    previousChipNumber: "982000111111111",
+    newChipNumber: null,
+    reason: "device_failure",
+    replacedAt: "2026-08-20T12:00:00.000Z",
+    actorContext: { kind: "owner" as const },
+  };
+
+  it("accepts a key whose version nibble is not 1-8, as the wire contract does", () => {
+    // THE EXACT SHAPE THAT USED TO 500. Zod 4's versionless `.uuid()` pins the
+    // version nibble to [1-8] and the variant nibble to [89abAB]; the contract's
+    // `IDEMPOTENCY_KEY_PATTERN` pins neither, on purpose, and the Postgres
+    // `uuid` column accepts the same wider set. Only ~1 in 8 uniformly random
+    // hex keys clears both nibble classes, and the contract invites exactly
+    // that generator.
+    const parsed = replaceMicrochipSchema.safeParse({
+      ...base,
+      clientIdempotencyKey: "aaaaaaaa-bbbb-0ccc-dddd-eeeeeeeeeeee",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("accepts the ordinary v4 key the app generates", () => {
+    // NON-VACUITY: a schema that accepted everything would pass the case above
+    // too. This one and the refusal below are what make it mean something.
+    const parsed = replaceMicrochipSchema.safeParse({
+      ...base,
+      clientIdempotencyKey: "55555555-5555-4555-8555-555555555555",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("still refuses a key that is not 8-4-4-4-12 hex, which the column could not store", () => {
+    // The floor the contract's own docblock names: "what is refused is anything
+    // that would not survive the cast".
+    expect(
+      replaceMicrochipSchema.safeParse({ ...base, clientIdempotencyKey: "not-a-uuid" }).success,
+    ).toBe(false);
+  });
+
+  it("still accepts an absent key, because three web doors send none", () => {
+    expect(replaceMicrochipSchema.safeParse({ ...base }).success).toBe(true);
+    expect(replaceMicrochipSchema.safeParse({ ...base, clientIdempotencyKey: null }).success).toBe(
+      true,
+    );
   });
 });

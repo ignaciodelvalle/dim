@@ -8,6 +8,7 @@ import { describe, expect, it } from "@jest/globals";
 
 import {
   RECORD_KINDS,
+  attestationRegistryOptions,
   emptyDraft,
   inputCodeMessage,
   isWritableKind,
@@ -194,5 +195,34 @@ describe("isWritableKind — the route boundary", () => {
     // which is where the person was going.
     expect(isWritableKind("death_recorded")).toBe(false);
     expect(isWritableKind("")).toBe(false);
+  });
+});
+
+describe("attestationRegistryOptions", () => {
+  it("falls back to the national pair plus Otro registro when the jurisdiction named none", () => {
+    // The common case in production: the rule defaults to an empty list
+    // everywhere, and this is exactly what the web offers there.
+    expect(attestationRegistryOptions([]).map((r) => r.id)).toEqual([
+      "caba_4078",
+      "prov_14107",
+      "other",
+    ]);
+  });
+
+  it("replaces the fallback with the jurisdiction's list and KEEPS Otro registro", () => {
+    const options = attestationRegistryOptions([
+      { id: "prov_neuquen", label: "Neuquén · Registro provincial", required: true },
+    ]);
+    expect(options.map((r) => r.id)).toEqual(["prov_neuquen", "other"]);
+    // NON-VACUITY: the national pair is GONE, not merely joined.
+    expect(options.some((r) => r.id === "caba_4078")).toBe(false);
+  });
+
+  it("does not append a second Otro registro when the jurisdiction already named one", () => {
+    const options = attestationRegistryOptions([
+      { id: "other", label: "Otro", required: false },
+      { id: "prov_neuquen", label: "Neuquén", required: true },
+    ]);
+    expect(options.filter((r) => r.id === "other")).toHaveLength(1);
   });
 });

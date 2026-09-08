@@ -51,11 +51,7 @@ import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { EventRecordedV1, OwnerPetPppRegistryV1 } from "@dim/contract/api";
-import {
-  DANGEROUS_BREED_REGISTRIES,
-  OWNER_MICROCHIP_REPLACE_REASONS,
-  dangerousBreedRegistryLabel,
-} from "@dim/contract/input";
+import { OWNER_MICROCHIP_REPLACE_REASONS } from "@dim/contract/input";
 import type { ApiResult } from "../api/client";
 import { fetchOwnerPetDetail, recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
@@ -97,6 +93,7 @@ import {
   STERILIZATION_PROCEDURE_OPTIONS,
   SYMPTOM_SEVERITY_OPTIONS,
   type WritableKind,
+  attestationRegistryOptions,
   clinicalSubKindLabel,
   dewormingTypeLabel,
   emptyDraft,
@@ -265,6 +262,28 @@ function EventForm({
   // Cleared per field as the person edits it, so the box stops being red the
   // moment they touch it rather than after the next submit.
   const [invalid, setInvalid] = useState<ReadonlySet<keyof EventDraft>>(() => new Set());
+
+  // A REGISTRY PICKED FROM THE FALLBACK MAY NOT SURVIVE THE JURISDICTION'S OWN
+  // LIST ARRIVING. `usePppRegistries` swaps the chips mid-form; before this
+  // effect, a person on a slow link who tapped "CABA · Ley 4078" and then kept
+  // filling the form was left with a chip row that had silently lost its
+  // highlight — scrolled out of view — and a draft that still carried
+  // `caba_4078`. The form's own validation passes (the contract asks only for a
+  // non-empty string), so the refusal arrived from the SERVER, as
+  // `PPP_REGISTRY_NOT_ALLOWED`, on a value the app itself had offered.
+  //
+  // Clearing it is the honest repair: the draft then agrees with what is on
+  // screen, and the next submit is refused LOCALLY with "elegí un registro" —
+  // a sentence about a choice they can make, in the place they make it.
+  useEffect(() => {
+    if (kind !== "dangerous_breed_attestation") return;
+    const offered = attestationRegistryOptions(pppRegistries);
+    setDraft((current) =>
+      current.registry.length > 0 && !offered.some((r) => r.id === current.registry)
+        ? { ...current, registry: "" }
+        : current,
+    );
+  }, [kind, pppRegistries]);
   const { anchorRef: errorAnchor, scrollRef } = useScrollToError(error);
   // THE BACK GESTURE MAY NOT DISCARD TEN FILLED-IN FIELDS (A2-alta-asentar-08).
   // Somebody finishing medicación·inicio nudges the Android back gesture while
@@ -892,25 +911,11 @@ function Fields({
       //
       // So the fallback here is the SAME fallback the server uses, and the
       // jurisdiction's own list replaces it when the payload carries one.
-      const fallback = DANGEROUS_BREED_REGISTRIES.map((id) => ({
-        id,
-        label: dangerousBreedRegistryLabel(id),
-        required: false,
-      }));
-      // "OTRO REGISTRO" SURVIVES A RESOLVED LIST, because `buildRegistryOptions`
-      // appends it unconditionally on the web (DangerousBreedAttestationForm.tsx:56)
-      // and `allowedAttestationRegistries` accepts it unconditionally on the
-      // server. A jurisdiction naming two registries must not take away the
-      // answer of an owner registered in a third province.
-      const registries =
-        pppRegistries.length > 0
-          ? pppRegistries.some((r) => r.id === "other")
-            ? pppRegistries
-            : [
-                ...pppRegistries,
-                { id: "other", label: dangerousBreedRegistryLabel("other"), required: false },
-              ]
-          : fallback;
+      // `attestationRegistryOptions` is the single answer to "what may be
+      // chosen" — the reconciliation effect in `EventForm` asks it the same
+      // question, and a second inline copy here is what let a stale draft
+      // survive a list swap once already.
+      const registries = attestationRegistryOptions(pppRegistries);
       return (
         <>
           <Choice

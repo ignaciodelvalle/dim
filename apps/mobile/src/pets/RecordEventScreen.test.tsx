@@ -13,7 +13,7 @@
 // they can press, and what leaves the device when they do.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { Alert, TextInput } from "react-native";
 
 import { createNavigationFake } from "../ui/navigation-fake";
@@ -46,8 +46,23 @@ jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 import { RecordEventScreen } from "./RecordEventScreen";
 import { RECORD_KINDS, kindTitle, recordEventCta } from "./record-event-view-model";
 
-/** Every kind that has a form, including the one the picker does not offer. */
-const WRITABLE_KINDS = [...RECORD_KINDS, "medication_end"] as const;
+/**
+ * Every kind that has a form, including the three the picker does not offer.
+ *
+ * THE LIST WENT STALE ON 2026-09-08 and the failure was confusing rather than
+ * loud: `microchip_replace` and `dangerous_breed_attestation` reach their forms
+ * from a compliance card rather than from the picker, so `RECORD_KINDS` does
+ * not carry them — and `submitControl` below, which searches for the CTA of
+ * every kind in this list, could not find theirs. A test that rendered either
+ * form and pressed submit died with "found 0 submit controls", which reads like
+ * a broken screen and is actually a helper that never learned two names.
+ */
+const WRITABLE_KINDS = [
+  ...RECORD_KINDS,
+  "medication_end",
+  "microchip_replace",
+  "dangerous_breed_attestation",
+] as const;
 
 /**
  * The primary submit, whatever this kind calls it.
@@ -683,6 +698,9 @@ describe("atestación PPP — the registry list is the jurisdiction's, and it de
   beforeEach(() => {
     mockFetchOwnerPetDetail.mockReset();
     mockRecordPetEvent.mockReset();
+    // The append succeeds unless a case says otherwise — these cases are about
+    // WHICH registry leaves the device, not about how a refusal renders.
+    mockRecordPetEvent.mockResolvedValue(recorded());
   });
 
   it("offers the two national registries plus Otro registro before any read answers", async () => {
@@ -724,6 +742,77 @@ describe("atestación PPP — the registry list is the jurisdiction's, and it de
 
     await waitFor(() => expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(1));
     expect(screen.getByText("CABA · Ley 4078")).toBeTruthy();
+  });
+
+  it("DROPS a registry chosen from the fallback when the jurisdiction's list arrives without it", async () => {
+    // THE DEFECT THIS RECONCILIATION EXISTS FOR, and it only bites on a slow
+    // link. The fallback chips render, the person picks one and keeps filling
+    // the form, and THEN the jurisdiction's own list replaces the options. The
+    // chip row loses its highlight — scrolled out of view by now — while the
+    // draft still holds `caba_4078`, so the form's own validation passes and
+    // the refusal arrives from the SERVER, about a value the app itself
+    // offered. Clearing it makes the draft agree with the screen, and the next
+    // submit is refused HERE, in the place the person can act on it.
+    let resolveDetail: (value: unknown) => void = () => {};
+    mockFetchOwnerPetDetail.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="dangerous_breed_attestation" />);
+
+    fireEvent.press(screen.getByText("CABA · Ley 4078"));
+
+    await act(async () => {
+      resolveDetail(
+        detail({
+          status: "ok",
+          data: [{ id: "prov_neuquen", label: "Neuquén · Registro provincial", required: true }],
+        }),
+      );
+    });
+
+    await waitFor(() => expect(screen.getByText("Neuquén · Registro provincial")).toBeTruthy());
+    expect(screen.queryByText("CABA · Ley 4078")).toBeNull();
+
+    fireEvent.press(submitControl());
+
+    // THE TWO HALVES THAT MATTER: the person is told what to do, and nothing
+    // left the device carrying the id the server would have refused.
+    await waitFor(() =>
+      expect(screen.getByText("Elegí el registro donde hiciste la atestación.")).toBeTruthy(),
+    );
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("KEEPS a registry the jurisdiction's list still offers", async () => {
+    // NON-VACUITY. A reconciliation that cleared the field on every list swap
+    // would pass the case above and quietly throw away a valid answer. "Otro
+    // registro" survives every list, which makes it the honest probe.
+    let resolveDetail: (value: unknown) => void = () => {};
+    mockFetchOwnerPetDetail.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="dangerous_breed_attestation" />);
+
+    fireEvent.press(screen.getByText("Otro registro"));
+
+    await act(async () => {
+      resolveDetail(
+        detail({
+          status: "ok",
+          data: [{ id: "prov_neuquen", label: "Neuquén · Registro provincial", required: true }],
+        }),
+      );
+    });
+
+    await waitFor(() => expect(screen.getByText("Neuquén · Registro provincial")).toBeTruthy());
+    fireEvent.press(submitControl());
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toMatchObject({ kind: "dangerous_breed_attestation", registry: "other" });
   });
 
   it("does NOT read the pet detail for a form with no registry field", async () => {

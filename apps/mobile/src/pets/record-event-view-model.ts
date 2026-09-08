@@ -16,6 +16,7 @@
 import {
   CLINICAL_SUB_KINDS,
   type ClinicalSubKind,
+  DANGEROUS_BREED_REGISTRIES,
   DEWORMING_TYPES,
   type DewormingType,
   MAX_CUSTOM_HOURS,
@@ -32,6 +33,7 @@ import {
   SYMPTOM_SEVERITIES,
   type SterilizationProcedure,
   type SymptomSeverity,
+  dangerousBreedRegistryLabel,
   firstRecordEventInputCode,
   recordEventInputSchema,
 } from "@dim/contract/input";
@@ -971,3 +973,48 @@ export const SAME_DAY_PROMPT_LABEL =
  */
 export const RECORD_IMMUTABILITY_NOTE =
   "Los asientos no se editan ni se borran. Si te equivocás, se corrige agregando una corrección encima.";
+
+// ---------------------------------------------------------------------------
+// Atestación PPP — the registries a person may choose from
+// ---------------------------------------------------------------------------
+
+/**
+ * The option set for the attestation's "Registro" field.
+ *
+ * ONE FUNCTION BECAUSE THE FORM NEEDS THE SAME ANSWER TWICE, and the first
+ * version computed it once — inline in the render — which is what let a defect
+ * in. The jurisdiction's list arrives from a background read AFTER the form is
+ * already on screen, and a registry the person had already picked from the
+ * fallback stayed in the draft while disappearing from the chips: no highlight
+ * above the fold, a draft that still held `caba_4078`, and a server that
+ * answered `PPP_REGISTRY_NOT_ALLOWED` on submit. The reconciliation needs to
+ * ask "is this id still on offer", and it must ask the SAME question the chips
+ * answer, not a second copy of it.
+ *
+ * `resolved` empty means the jurisdiction named none — the FALLBACK case, and
+ * a fact rather than a failure: `ppp_attestation_required_registries` defaults
+ * to an empty list everywhere, so this is the common path, and the national
+ * pair is exactly what `buildRegistryOptions` offers on the web.
+ *
+ * "Otro registro" is appended unconditionally, as the web appends it
+ * (DangerousBreedAttestationForm.tsx:56) and the server accepts it
+ * (`allowedAttestationRegistries`). A jurisdiction naming two registries must
+ * not take away the answer of an owner registered in a third province.
+ */
+export function attestationRegistryOptions(
+  resolved: readonly { id: string; label: string; required: boolean }[],
+): { id: string; label: string; required: boolean }[] {
+  const other = {
+    id: "other",
+    label: dangerousBreedRegistryLabel("other"),
+    required: false,
+  };
+  if (resolved.length === 0) {
+    return DANGEROUS_BREED_REGISTRIES.map((id) => ({
+      id,
+      label: dangerousBreedRegistryLabel(id),
+      required: false,
+    }));
+  }
+  return resolved.some((r) => r.id === "other") ? [...resolved] : [...resolved, other];
+}

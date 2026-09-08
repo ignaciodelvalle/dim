@@ -8,7 +8,7 @@
 //
 // WHO MAY WRITE — VERIFIED AGAINST THE WEB, NOT ASSUMED, AND NOT UNIFORM
 // ---------------------------------------------------------------------------
-// TEN OF THE THIRTEEN are guarded on the web by `requireAlivePetAccess(publicToken)`,
+// ELEVEN OF THE THIRTEEN are guarded on the web by `requireAlivePetAccess(publicToken)`,
 // cited at the GUARD CALL rather than at the function that contains it — a
 // function's first line drifts every time somebody adds a parameter, and the
 // line that matters is the one naming the rule:
@@ -23,6 +23,18 @@
 //   visita veterinaria  `createVetVisitAction`        actions.ts:361
 //   información clínica `createClinicalInfoAction`    actions.ts:448
 //   síntoma             `createSymptomObservedAction` actions.ts:762
+//   atestación PPP      `createDangerousBreedAttestationAction` actions.ts:186
+//
+// THE LAST ROW MOVED HERE ON 2026-09-08, out of the "different door" list
+// below, and the correction is worth keeping because the citation it replaced
+// was the kind this file exists to forbid. It pointed at
+// `atestar-raza-peligrosa/page.tsx:22`, a `redirect()` in a server component —
+// which a direct POST to the server action never executes, so it is a page
+// nicety and not a guard. A maintainer applying this file's own method to that
+// line would have concluded the web has no life-status check for the kind and
+// moved it into the exempt list, widening the endpoint to accept a legal PPP
+// declaration on a deceased animal that `actions.ts:186` refuses. The 409 was
+// right; the reason recorded for it was not.
 //
 // Read literally, that guard is:
 //
@@ -32,13 +44,21 @@
 //   · Never on a DECEASED animal: a closed life record accepts no new clinical
 //     events.
 //
-// THE OTHER THREE EACH ANSWER TO A DIFFERENT DOOR, and none of them to that
-// one. They are listed here rather than folded into the table above, because
-// what they share is only that the table does not describe them:
+// THE OTHER TWO EACH ANSWER TO A DIFFERENT DOOR, and neither to that one. They
+// are listed here rather than folded into the table above, because what they
+// share is only that the table does not describe them:
 //
-//   nota                `createNoteAction`            actions.ts:257
-//   reemplazo microchip `replaceMicrochipAction`      microchip-reemplazo/action.ts:25
-//   atestación PPP      the page's own action         atestar-raza-peligrosa/page.tsx:14
+//   nota                `createNoteAction`             actions.ts:257
+//   reemplazo microchip `replaceMicrochipOwnerAction`  microchip-reemplazo/action.ts:25
+//
+// THE SECOND NAME WAS WRONG UNTIL 2026-09-08 and the line was right, which is
+// the worse of the two mistakes: `replaceMicrochipAction` DOES exist, at
+// app/actions/microchip.ts:38, and it is a DIFFERENT door whose only edge check
+// is `requireLiveUser()` (:46) — the ownership check for that one lives inside
+// the writer instead. A reader who greps the name they were given lands there
+// and concludes the owner's replacement door performs no pet-access check at
+// all. The door meant here is `replaceMicrochipOwnerAction`, whose guard call
+// is `requireOwnedPetByToken` on the cited line.
 //
 // NOTA IS GUARDED BY `requirePetAccess` PLUS AN ORG CAPABILITY CHECK THE ACTION
 // PERFORMS ITSELF, and the asymmetry that remains is now HALF of what it used
@@ -70,9 +90,12 @@
 // here refused while the web accepted it.
 //
 // ATESTACIÓN PPP DID NOT, and it is the near miss worth naming: it arrived in
-// the same work unit, through the same `requireOwnedPetByToken`, and its PAGE
-// redirects a deceased pet away (atestar-raza-peligrosa/page.tsx:22). For that
-// one the 409 IS the parity. The cohort was never the unit of this decision.
+// the same work unit and its 409 IS the parity — because its write door,
+// `createDangerousBreedAttestationAction`, guards with `requireAlivePetAccess`
+// (actions.ts:186) like the other ten. The page's redirect is a courtesy on top
+// of that, not the reason. The cohort was never the unit of this decision: two
+// kinds that arrived together resolve OPPOSITELY, and only reading each one's
+// own door tells you which way.
 //
 // The remaining asymmetry is enforced BY CONSTRUCTION rather than by
 // resemblance: both doors resolve through one query
