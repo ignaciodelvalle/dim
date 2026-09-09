@@ -11,10 +11,58 @@ import {
   applyOutboxFilters,
   buildBreachCue,
   buildStatusLabel,
+  describeEnoNotification,
   externalDeliveryNote,
   isPendingExternalTransmission,
   isSlaBreached,
 } from "@/lib/infra/outbox-list";
+import {
+  ENO_DISEASES_AR,
+  diseaseCodeToEnoCode,
+} from "@/src/modules/surveillance/domain/eno-catalog";
+
+// ---------------------------------------------------------------------------
+// describeEnoNotification — the legal queue's "Enfermedad · plazo legal" cell
+// (2026-09-09). Reads the enqueue-time payload snapshot; bridges the code the
+// SAME way the SLA was minted (event-outbox-rules.ts), so the hours shown are
+// the hours the row's sla_due_at came from.
+// ---------------------------------------------------------------------------
+
+describe("describeEnoNotification", () => {
+  it("names the catalog disease and its statutory window for a snapshot carrying disease_code", () => {
+    // Every catalog entry must round-trip through the bridge — the cell is
+    // only honest if the code the enqueue rule accepted is the code we read.
+    for (const disease of ENO_DISEASES_AR) {
+      expect(describeEnoNotification({ disease_code: disease.code, sub_kind: "x" })).toEqual({
+        diseaseLabel: disease.label,
+        legalHours: disease.notifyHours,
+      });
+    }
+    // The catalog's first entry is rabies: 24 h, the number the deck quotes.
+    expect(describeEnoNotification({ disease_code: "rabies" })).toEqual({
+      diseaseLabel: "Rabia",
+      legalHours: 24,
+    });
+  });
+
+  it("bridges a diseases.ts code through diseaseCodeToEnoCode, never a second mapping", () => {
+    const bridged = diseaseCodeToEnoCode("rabies");
+    expect(describeEnoNotification({ disease_code: "rabies" })?.diseaseLabel).toBe(
+      ENO_DISEASES_AR.find((d) => d.code === bridged)?.label,
+    );
+  });
+
+  it("returns null — never an invented disease — for a non-ENO code, a missing code, or a malformed snapshot", () => {
+    expect(describeEnoNotification({ disease_code: "not_a_disease" })).toBeNull();
+    expect(describeEnoNotification({ disease_code: "" })).toBeNull();
+    expect(describeEnoNotification({ disease_code: 42 })).toBeNull();
+    expect(describeEnoNotification({ sub_kind: "disease_diagnosis" })).toBeNull();
+    expect(describeEnoNotification(null)).toBeNull();
+    expect(describeEnoNotification(undefined)).toBeNull();
+    expect(describeEnoNotification("rabies")).toBeNull();
+    expect(describeEnoNotification([])).toBeNull();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // isSlaBreached — breach predicate

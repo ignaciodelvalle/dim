@@ -9,7 +9,7 @@
 // navigation (serverNavCommit), so the URL/query contract is unchanged.
 
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-import { desc, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -18,44 +18,45 @@ import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { describeEnoNotification } from "@/lib/infra/outbox-list";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
-import { OUTBOX_PAGE_LIMIT, buildOutboxWhere } from "@/lib/infra/outbox-query";
+import {
+  OUTBOX_PAGE_LIMIT,
+  type OutboxSearchParams,
+  buildOutboxWhere,
+  outboxOrderBy,
+  outboxSupportsKeyset,
+  parseOutboxFilters,
+} from "@/lib/infra/outbox-query";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { buildOutboxDomainAxes } from "@/lib/ui/outbox-filter-axes";
 import { pluralizeEs } from "@/lib/utils/format";
-import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 export default async function AdminOutboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    status?: string;
-    target_kind?: string;
-    breach?: string;
-    province?: string;
-    cursor?: string;
-  }>;
+  searchParams: Promise<OutboxSearchParams & { cursor?: string }>;
 }) {
   await requireAdminOrRedirect();
 
   const sp = await searchParams;
-  // Q1: a repeated filter param (?status=a&status=b) hands Next a string[]
-  // — raw `.trim()` on that throws (500).
-  const filters = {
-    status: trimmedSearchParam(sp.status),
-    target_kind: trimmedSearchParam(sp.target_kind),
-    breach: trimmedSearchParam(sp.breach),
-    province: trimmedSearchParam(sp.province),
-  };
-  const rawCursor = sp.cursor;
+  // Shared parser with /gob/outbox (Q1-safe on repeated params; an unknown
+  // ?preset= is simply no preset). `preset=eno` is the legal-notification
+  // queue — the same filter + order on both twins (lib/infra/outbox-query.ts).
+  const filters = parseOutboxFilters(sp);
+  const preset = filters.preset ?? null;
+  // Keyset cursors are minted over the recency order only; a preset view is
+  // deadline-ordered and renders ONE page (outboxSupportsKeyset).
+  const paginates = outboxSupportsKeyset(preset);
+  const rawCursor = paginates ? sp.cursor : undefined;
   const cursor = decodeCursor(rawCursor);
 
   const hasFilters = Object.values(filters).some(Boolean);
 
   // Shared builder with /gob/outbox (#26 D3) — admin passes NO jurisdiction
   // scope (universal). The filter-building SQL (status/target_kind/province/
-  // breach + keyset cursor) lives in lib/infra/outbox-query.ts so the two
-  // surfaces can never silently diverge again.
+  // breach/preset + keyset cursor) lives in lib/infra/outbox-query.ts so the
+  // two surfaces can never silently diverge again.
   const whereClause = buildOutboxWhere(filters, { cursor });
 
   // Fetch limit+1 to detect hasMore for keyset pagination (PERF-5).
@@ -63,7 +64,7 @@ export default async function AdminOutboxPage({
     .select()
     .from(eventNotificationOutbox)
     .where(whereClause)
-    .orderBy(desc(eventNotificationOutbox.createdAt), desc(eventNotificationOutbox.id))
+    .orderBy(...outboxOrderBy(preset))
     .limit(OUTBOX_PAGE_LIMIT + 1);
 
   const hasMore = rawRows.length > OUTBOX_PAGE_LIMIT;
@@ -92,6 +93,7 @@ export default async function AdminOutboxPage({
 
   // Pagination links — filter params exclude cursor so changing a filter resets to page 1.
   const filterParams: Record<string, string | undefined> = {
+    ...(preset ? { preset } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.target_kind ? { target_kind: filters.target_kind } : {}),
     ...(filters.breach ? { breach: filters.breach } : {}),
@@ -99,7 +101,7 @@ export default async function AdminOutboxPage({
   };
   const lastRow = rows.at(-1);
   const olderLink =
-    hasMore && lastRow
+    paginates && hasMore && lastRow
       ? olderHref("/admin/outbox", filterParams, { ts: lastRow.createdAt, id: lastRow.id })
       : null;
   const newerLink = rawCursor ? newerHref("/admin/outbox", filterParams) : null;
@@ -108,7 +110,11 @@ export default async function AdminOutboxPage({
     <div className="space-y-6">
       <ScreenHeader
         eyebrow="Admin"
-        title="Bandeja de salida de notificaciones"
+        title={
+          preset === "eno"
+            ? "Cola ENO — avisos legales pendientes"
+            : "Bandeja de salida de notificaciones"
+        }
         // Subtítulo ESTABLE, y sin voz de debug en ninguna de sus ramas: las dos
         // hablaban de "filas" y una además reemplazaba la descripción de la
         // pantalla por un conteo que la tabla ya muestra.
@@ -173,10 +179,26 @@ export default async function AdminOutboxPage({
         <OpCard>
           <OutboxTable
             rows={rows}
-            caption="Cola de notificaciones salientes con estado SLA, destino y acciones"
+            caption={
+              preset === "eno"
+                ? "Cola de avisos legales pendientes de toda la plataforma, con enfermedad, plazo legal y estado SLA"
+                : "Cola de notificaciones salientes con estado SLA, destino y acciones"
+            }
             petTokenBySourceEventId={sourceEventPetTokenMap}
             detailHrefFor={(row) => `/admin/outbox/${row.id}`}
+            enoDetailFor={
+              preset === "eno" ? (row) => describeEnoNotification(row.payloadSnapshot) : undefined
+            }
           />
+          {/* A preset view is deadline-ordered and renders ONE page: say so when
+              the queue is longer, instead of a "más antiguos" link that would
+              re-sort on the next page (outboxSupportsKeyset). */}
+          {!paginates && hasMore && (
+            <p className="px-3 pt-3 text-sm text-ln-op-mute">
+              Se muestran los {OUTBOX_PAGE_LIMIT} vencimientos más próximos. Acotá por estado o
+              provincia para ver el resto.
+            </p>
+          )}
         </OpCard>
       )}
 

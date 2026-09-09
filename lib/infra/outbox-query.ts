@@ -33,13 +33,14 @@
 //                              jurisdiction predicate iff scope is provided"
 //                              assertion this contract implies.
 
-import { type SQL, and, eq, lt, sql } from "drizzle-orm";
+import { type SQL, and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { eventNotificationOutbox } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { keysetWhere } from "@/lib/utils/keyset-pagination";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 /** Set of canonical province names for filter validation. */
 export const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));
@@ -55,11 +56,72 @@ const VALID_TARGET_KIND_VALUES: readonly string[] = [
   "internal_dashboard",
 ];
 
+// ---------------------------------------------------------------------------
+// Presets — a URL alias (`?preset=`) for a curated view of the queue, so a nav
+// entry can deep-link it. ONE preset today:
+//
+//   eno — the LEGAL-notification queue: rows bound for an external authority
+//         (`eno_authority` — the ENO catalog's notifiable diseases, each with
+//         a statutory `notifyHours`; `govt_webhook` — the jurisdiction's own
+//         receiving system). Ordered by legal deadline, breached first — see
+//         outboxOrderBy. `audit_export` / `internal_dashboard` are OUR
+//         bookkeeping, not a legal duty, so they stay out of it.
+//
+// A preset is a FILTER + an ORDER, never a second page: both /gob/outbox and
+// /admin/outbox read it through the same builder, so the twins cannot drift.
+// ---------------------------------------------------------------------------
+
+export const OUTBOX_PRESET_IDS = ["eno"] as const;
+export type OutboxPresetId = (typeof OUTBOX_PRESET_IDS)[number];
+
+/** The target kinds that carry a LEGAL notification duty (the `eno` preset). */
+export const ENO_PRESET_TARGET_KINDS: readonly OutboxTargetKind[] = [
+  "eno_authority",
+  "govt_webhook",
+];
+
+/** `?preset=` → a known preset id, or null for anything else (unknown = no preset, never an error). */
+export function parseOutboxPreset(
+  raw: string | string[] | null | undefined,
+): OutboxPresetId | null {
+  const value = trimmedSearchParam(raw ?? undefined);
+  return value && (OUTBOX_PRESET_IDS as readonly string[]).includes(value)
+    ? (value as OutboxPresetId)
+    : null;
+}
+
 export interface OutboxQueryFilters {
   status?: string;
   target_kind?: string;
   breach?: string;
   province?: string;
+  /** A curated view (see the Presets block above). Null/undefined = the whole bandeja. */
+  preset?: OutboxPresetId | null;
+}
+
+/** The raw searchParams shape both outbox pages receive (a repeated key arrives as string[]). */
+export type OutboxSearchParams = {
+  status?: string | string[];
+  target_kind?: string | string[];
+  breach?: string | string[];
+  province?: string | string[];
+  preset?: string | string[];
+};
+
+/**
+ * Parse the page's raw searchParams into the builder's filters — ONCE, for
+ * both twins. Q1-safe: a repeated key (`?status=a&status=b`) hands Next a
+ * string[], which a raw `.trim()` used to turn into a 500; trimmedSearchParam
+ * collapses it. An unknown `?preset=` is simply no preset.
+ */
+export function parseOutboxFilters(sp: OutboxSearchParams): OutboxQueryFilters {
+  return {
+    status: trimmedSearchParam(sp.status),
+    target_kind: trimmedSearchParam(sp.target_kind),
+    breach: trimmedSearchParam(sp.breach),
+    province: trimmedSearchParam(sp.province),
+    preset: parseOutboxPreset(sp.preset),
+  };
 }
 
 export interface BuildOutboxWhereOptions {
@@ -112,6 +174,13 @@ export function buildOutboxWhere(
       eq(eventNotificationOutbox.targetKind, filters.target_kind as OutboxTargetKind),
     );
   }
+  // Preset: the legal-notification queue narrows to the external-authority
+  // target kinds. AND-composed with a single target_kind filter (never OR'd):
+  // a kind outside the preset then matches nothing, which is the honest
+  // answer to "show me audit exports inside the legal queue".
+  if (filters.preset === "eno") {
+    conditions.push(inArray(eventNotificationOutbox.targetKind, [...ENO_PRESET_TARGET_KINDS]));
+  }
   // Province: only push condition when the value is a known canonical province name.
   if (filters.province && VALID_PROVINCE_NAMES.has(filters.province)) {
     conditions.push(eq(eventNotificationOutbox.targetJurisdictionProvince, filters.province));
@@ -138,4 +207,43 @@ export function buildOutboxWhere(
   if (cursorClause) conditions.push(cursorClause);
 
   return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+/**
+ * ORDER BY for the list, by preset.
+ *
+ *   - no preset → recency: (created_at DESC, id DESC) — the order the keyset
+ *     cursor paginates over (keysetWhere compares the same (ts, id) pair).
+ *   - `eno`     → the legal queue: rows ALREADY past their statutory deadline
+ *     first (status = 'pending' AND sla_due_at < now()), then the nearest
+ *     deadline first (sla_due_at ASC), id ASC as the tie-break. A delivered
+ *     or failed row never "breaches", so it sorts after every open breach
+ *     regardless of its own deadline.
+ *
+ * Exported so the two twins and the unit test read ONE definition of "what
+ * comes first in the legal queue".
+ */
+export function outboxOrderBy(preset: OutboxPresetId | null | undefined): SQL[] {
+  if (preset === "eno") {
+    return [
+      desc(
+        sql`(${eventNotificationOutbox.status} = 'pending' AND ${eventNotificationOutbox.slaDueAt} < now())`,
+      ),
+      asc(eventNotificationOutbox.slaDueAt),
+      asc(eventNotificationOutbox.id),
+    ];
+  }
+  return [desc(eventNotificationOutbox.createdAt), desc(eventNotificationOutbox.id)];
+}
+
+/**
+ * Keyset cursors are minted over the recency order only — a cursor's
+ * (created_at, id) pair says nothing about a row's position in a
+ * deadline-ordered list. A preset view therefore takes NO cursor and renders
+ * ONE page (OUTBOX_PAGE_LIMIT rows, nearest deadlines first) with an honest
+ * "showing the N nearest" note when more exist, instead of a "más antiguos"
+ * link that would silently re-sort on the next page.
+ */
+export function outboxSupportsKeyset(preset: OutboxPresetId | null | undefined): boolean {
+  return !preset;
 }

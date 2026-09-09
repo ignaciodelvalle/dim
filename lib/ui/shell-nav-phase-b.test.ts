@@ -67,6 +67,9 @@ const GOB_HREF_SNAPSHOT = new Set([
   // 2026-08-10 with no nav entry. Argued in full in nav-presets.test.ts's copy
   // of this set.
   "/gob/observaciones",
+  // ADDED 2026-09-09 — Cola ENO, a preset of /gob/outbox (`?preset=eno`).
+  // Argued in nav-presets.test.ts's copy of this set.
+  "/gob/outbox?preset=eno",
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([

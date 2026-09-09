@@ -15,14 +15,38 @@ import {
   buildStatusLabel,
 } from "@/components/ui/dashboard/OutboxTable";
 import type { OutboxStatus } from "@/db";
+import type { OutboxPresetId } from "@/lib/infra/outbox-query";
 
-/** Builds the status/target_kind/breach axes shared by both outbox pages. */
+/** es-AR label of each preset, for the "Vista" axis and the page headers. */
+export const OUTBOX_PRESET_LABEL: Record<OutboxPresetId, string> = {
+  eno: "Cola ENO (aviso legal)",
+};
+
+/**
+ * Builds the preset/status/target_kind/breach axes shared by both outbox
+ * pages. The "Vista" axis leads: it is the ONE control that changes what the
+ * list IS (the legal-notification queue vs the whole bandeja) rather than
+ * narrowing it, and its param (`?preset=`) is also the deep-link alias the
+ * nav uses (lib/infra/outbox-query.ts, Presets).
+ */
 export function buildOutboxDomainAxes(filters: {
   status?: string;
   target_kind?: string;
   breach?: string;
+  preset?: OutboxPresetId | null;
 }): OpFilterAxis[] {
   return [
+    {
+      id: "preset",
+      label: "Vista",
+      paramKey: "preset",
+      options: (Object.keys(OUTBOX_PRESET_LABEL) as OutboxPresetId[]).map((id) => ({
+        value: id,
+        label: OUTBOX_PRESET_LABEL[id],
+      })),
+      current: filters.preset ?? null,
+      allLabel: "Toda la bandeja",
+    },
     {
       id: "status",
       label: "Estado",

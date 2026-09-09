@@ -468,6 +468,17 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
         matchPrefix: "/gob/panorama",
       },
       { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
+      // Cola ENO (2026-09-09): the legal-notification queue — outbox rows bound
+      // for an external authority (eno_authority / govt_webhook), ordered by
+      // statutory deadline, breached first. It is a PRESET of /gob/outbox
+      // (`?preset=eno`, lib/infra/outbox-query.ts), not a second page: the
+      // same builder, the same table, one more column (disease · plazo legal).
+      // Sits beside Vigilancia because it answers the surveillance question
+      // ("¿qué aviso legal vence primero?"), while the bare "Bandeja de salida"
+      // entry below stays the operational whole. No matchPrefix on purpose:
+      // the active state is computed on the pathname, and /gob/outbox already
+      // belongs to the Bandeja entry — two highlights would be a lie.
+      { href: "/gob/outbox?preset=eno", label: "Cola ENO" },
       { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
       // /gob/observaciones shipped on 2026-08-10 and the nav entry did not.
       // Every other absent /gob route in this file carries a comment saying it

@@ -514,6 +514,13 @@ const GOB_HREF_SNAPSHOT = new Set([
   // was to already know the URL — for a queue running a 10-day legal clock.
   // Mirrored in lib/ui/shell-nav-phase-b.test.ts's copy of this set.
   "/gob/observaciones",
+  // ADDED 2026-09-09 — Cola ENO, the legal-notification queue. A PRESET of
+  // /gob/outbox (`?preset=eno`): the rows bound for an external authority,
+  // ordered by statutory deadline, breached first. Same query-string idiom as
+  // the Panorama entry above; sits in Situación beside Vigilancia because it
+  // answers the surveillance question, while the bare /gob/outbox stays the
+  // operational whole in Bandeja operativa. Mirrored in shell-nav-phase-b.
+  "/gob/outbox?preset=eno",
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {

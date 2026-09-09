@@ -19,6 +19,7 @@ import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { OutboxStatus } from "@/db";
 import {
   type BreachCue,
+  type EnoNotificationDetail,
   buildBreachCue,
   buildStatusLabel,
   externalDeliveryNote,
@@ -94,6 +95,8 @@ export interface OutboxTableRow {
   sourceEventId: string;
   attempts: number;
   createdAt: Date;
+  /** The enqueue-time payload snapshot — read by `enoDetailFor` (legal queue) only. */
+  payloadSnapshot?: unknown;
 }
 
 export interface OutboxTableProps {
@@ -107,6 +110,14 @@ export interface OutboxTableProps {
   petTokenBySourceEventId?: Map<string, string>;
   /** Returns the detail href for a row, or null to render an inert "—" cell. */
   detailHrefFor: (row: OutboxTableRow) => string | null;
+  /**
+   * Legal-queue view (`?preset=eno`): when provided, an extra "Enfermedad ·
+   * plazo legal" column renders what it returns per row (the disease behind
+   * the notification and the statutory window its SLA was minted from — see
+   * describeEnoNotification), or "—" when the snapshot carries none. Omitted
+   * on the whole-bandeja view, where most rows have no disease to name.
+   */
+  enoDetailFor?: (row: OutboxTableRow) => EnoNotificationDetail | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +135,7 @@ export function OutboxTable({
   caption,
   petTokenBySourceEventId,
   detailHrefFor,
+  enoDetailFor,
 }: OutboxTableProps) {
   return (
     <div className="overflow-x-auto">
@@ -140,6 +152,11 @@ export function OutboxTable({
             <th scope="col" className={TH_CLS}>
               Jurisdicción
             </th>
+            {enoDetailFor && (
+              <th scope="col" className={TH_CLS}>
+                Enfermedad · plazo legal
+              </th>
+            )}
             <th scope="col" className={TH_CLS}>
               Evento origen
             </th>
@@ -192,6 +209,22 @@ export function OutboxTable({
                   )}
                 </td>
                 <td className="py-2 px-3 text-sm text-ln-op-ink-2">{jurisdiction || "—"}</td>
+                {enoDetailFor &&
+                  (() => {
+                    const eno = enoDetailFor(row);
+                    return (
+                      <td className="py-2 px-3 text-sm text-ln-op-ink-2 whitespace-nowrap">
+                        {eno ? (
+                          <>
+                            {eno.diseaseLabel}
+                            <span className="text-ln-op-mute"> · {eno.legalHours} h</span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    );
+                  })()}
                 <td className="py-2 px-3">
                   {petToken ? (
                     <Link

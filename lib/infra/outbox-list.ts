@@ -5,12 +5,45 @@
 // importable in test environments.
 
 import type { OutboxStatus } from "@/db";
+import { diseaseCodeToEnoCode, getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export type BreachCue = "delivered" | "ok" | "breach" | "failed";
+
+/** What the legal queue shows per row beside the deadline: which disease, and the statutory window. */
+export type EnoNotificationDetail = {
+  /** es-AR disease label from the ENO catalog (e.g. "Rabia"). */
+  diseaseLabel: string;
+  /** The catalog's statutory notification window, in hours — the number the SLA was minted from. */
+  legalHours: number;
+};
+
+/**
+ * Read the disease behind an outbox row from its `payload_snapshot`.
+ *
+ * The enqueue path (lib/events/event-outbox-enqueue.ts) snapshots the FULL
+ * event payload — no rule defines `buildSnapshot` today — so an ENO row
+ * carries the source event's `disease_code` (a diseases.ts code). It is
+ * bridged to the ENO catalog the same way the SLA was computed at enqueue
+ * time (lib/events/event-outbox-rules.ts: diseaseCodeToEnoCode → getEnoDisease),
+ * so the "plazo legal" shown here is the window the row's `sla_due_at` was
+ * minted from, never a second opinion.
+ *
+ * Null when the snapshot carries no recognisable disease (a non-ENO row, a
+ * legacy snapshot, a malformed payload) — the caller renders "—", never
+ * invents a disease.
+ */
+export function describeEnoNotification(payloadSnapshot: unknown): EnoNotificationDetail | null {
+  if (typeof payloadSnapshot !== "object" || payloadSnapshot === null) return null;
+  const code = (payloadSnapshot as Record<string, unknown>).disease_code;
+  if (typeof code !== "string" || code.length === 0) return null;
+  const disease = getEnoDisease(diseaseCodeToEnoCode(code));
+  if (!disease) return null;
+  return { diseaseLabel: disease.label, legalHours: disease.notifyHours };
+}
 
 export interface OutboxListFilters {
   status?: string;

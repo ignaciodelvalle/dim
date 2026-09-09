@@ -22,7 +22,6 @@
 // but a govt viewer always does (see the `profile.role === "govt"` branch
 // below), and buildOutboxWhere fails CLOSED for an empty scope array.
 
-import { desc } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -39,11 +38,15 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, eventNotificationOutbox } from "@/db";
 import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
-import { buildBreachCue } from "@/lib/infra/outbox-list";
+import { buildBreachCue, describeEnoNotification } from "@/lib/infra/outbox-list";
 import {
   OUTBOX_PAGE_LIMIT,
+  type OutboxSearchParams,
   VALID_PROVINCE_NAMES,
   buildOutboxWhere,
+  outboxOrderBy,
+  outboxSupportsKeyset,
+  parseOutboxFilters,
 } from "@/lib/infra/outbox-query";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
@@ -52,18 +55,11 @@ import { buildOutboxDomainAxes } from "@/lib/ui/outbox-filter-axes";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 export default async function GobOutboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    status?: string;
-    target_kind?: string;
-    breach?: string;
-    province?: string;
-    cursor?: string;
-  }>;
+  searchParams: Promise<OutboxSearchParams & { cursor?: string }>;
 }) {
   const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
 
@@ -85,14 +81,11 @@ export default async function GobOutboxPage({
 
   const sp = await searchParams;
   const actor = { role: profile.role } as const;
-  // Q1: a repeated filter param (?status=a&status=b) hands Next a string[]
-  // — raw `.trim()` on that throws (500).
-  const filters = {
-    status: trimmedSearchParam(sp.status),
-    target_kind: trimmedSearchParam(sp.target_kind),
-    breach: trimmedSearchParam(sp.breach),
-    province: trimmedSearchParam(sp.province),
-  };
+  // Shared parser with /admin/outbox (Q1-safe on repeated params; an unknown
+  // ?preset= is simply no preset). `preset=eno` is the legal-notification
+  // queue — the same filter + order on both twins (lib/infra/outbox-query.ts).
+  const filters = parseOutboxFilters(sp);
+  const preset = filters.preset ?? null;
 
   // Build a scoped ProjectionContext for DashboardFreshnessFooter.
   // The outbox page has no period picker — trailing12m is the default window.
@@ -122,7 +115,10 @@ export default async function GobOutboxPage({
     adminProvince,
   });
 
-  const rawCursor = sp.cursor;
+  // Keyset cursors are minted over the recency order only; a preset view is
+  // deadline-ordered and renders ONE page (outboxSupportsKeyset).
+  const paginates = outboxSupportsKeyset(preset);
+  const rawCursor = paginates ? sp.cursor : undefined;
   const cursor = decodeCursor(rawCursor);
 
   const hasFilters = Object.values(filters).some(Boolean);
@@ -130,9 +126,9 @@ export default async function GobOutboxPage({
   // Shared builder with /admin/outbox (#26 D3). Jurisdiction scope (privacy
   // invariant, see module doc comment): govt passes its own active
   // assignments (hasAccess above already guarantees jurisdictions.length > 0
-  // whenever profile.role === "govt" reaches this point); admin passes
-  // `undefined` (omit the key) — no jurisdiction clause, universal scope,
-  // identical to /admin/outbox.
+  // whenever profile.role === "govt" reaches this point); admin / national
+  // pass `undefined` (omit the key) — no jurisdiction clause, universal
+  // scope, identical to /admin/outbox.
   const whereClause = buildOutboxWhere(filters, {
     jurisdiction: universal ? undefined : jurisdictions,
     cursor,
@@ -142,7 +138,7 @@ export default async function GobOutboxPage({
     .select()
     .from(eventNotificationOutbox)
     .where(whereClause)
-    .orderBy(desc(eventNotificationOutbox.createdAt), desc(eventNotificationOutbox.id))
+    .orderBy(...outboxOrderBy(preset))
     .limit(OUTBOX_PAGE_LIMIT + 1);
 
   const hasMore = rawRows.length > OUTBOX_PAGE_LIMIT;
@@ -151,6 +147,7 @@ export default async function GobOutboxPage({
   const breachCount = rows.filter((r) => buildBreachCue(r.status, r.slaDueAt) === "breach").length;
 
   const filterParams: Record<string, string | undefined> = {
+    ...(preset ? { preset } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.target_kind ? { target_kind: filters.target_kind } : {}),
     ...(filters.breach ? { breach: filters.breach } : {}),
@@ -158,7 +155,7 @@ export default async function GobOutboxPage({
   };
   const lastRow = rows.at(-1);
   const olderLink =
-    hasMore && lastRow
+    paginates && hasMore && lastRow
       ? olderHref("/gob/outbox", filterParams, { ts: lastRow.createdAt, id: lastRow.id })
       : null;
   const newerLink = rawCursor ? newerHref("/gob/outbox", filterParams) : null;
@@ -173,16 +170,23 @@ export default async function GobOutboxPage({
     <div className="space-y-6">
       <ScreenHeader
         eyebrow="Gobierno"
-        title="Bandeja de salida — tu jurisdicción"
+        title={
+          preset === "eno"
+            ? "Cola ENO — avisos legales pendientes"
+            : "Bandeja de salida — tu jurisdicción"
+        }
         subtitle={
           <>
             {/* Subtítulo ESTABLE: filtrar no lo reemplaza. Antes el conteo lo
                 pisaba con "N filas con los filtros aplicados" — reintroducía la
                 voz de debug ("filas") que ya habíamos sacado, y decía algo que
                 el estado vacío de abajo ya dice. El encabezado explica QUÉ es
-                esta pantalla; cuántas filas quedaron lo cuenta la tabla. */}
+                esta pantalla; cuántas filas quedaron lo cuenta la tabla. La
+                vista ENO sí cambia la frase: es otra pregunta, no otro filtro. */}
             <p className="text-md text-ln-op-ink-2">
-              Envíos a autoridades y sistemas desde tu jurisdicción.
+              {preset === "eno"
+                ? "Notificaciones con plazo legal a la autoridad sanitaria y a tu sistema receptor, ordenadas por vencimiento: primero las ya vencidas."
+                : "Envíos a autoridades y sistemas desde tu jurisdicción."}
             </p>
             <ViewScopeCaption scope={narrowedView} />
           </>
@@ -249,9 +253,25 @@ export default async function GobOutboxPage({
               source-event → pet links, so petTokenBySourceEventId is omitted. */}
           <OutboxTable
             rows={rows}
-            caption="Cola de notificaciones salientes para tu jurisdicción, con estado SLA, destino y acciones"
+            caption={
+              preset === "eno"
+                ? "Cola de avisos legales pendientes para tu jurisdicción, con enfermedad, plazo legal y estado SLA"
+                : "Cola de notificaciones salientes para tu jurisdicción, con estado SLA, destino y acciones"
+            }
             detailHrefFor={(row) => (profile.role === "admin" ? `/admin/outbox/${row.id}` : null)}
+            enoDetailFor={
+              preset === "eno" ? (row) => describeEnoNotification(row.payloadSnapshot) : undefined
+            }
           />
+          {/* A preset view is deadline-ordered and renders ONE page: say so when
+              the queue is longer, instead of a "más antiguos" link that would
+              re-sort on the next page (outboxSupportsKeyset). */}
+          {!paginates && hasMore && (
+            <p className="px-3 pt-3 text-sm text-ln-op-mute">
+              Se muestran los {OUTBOX_PAGE_LIMIT} vencimientos más próximos. Acotá por estado o
+              provincia para ver el resto.
+            </p>
+          )}
         </OpCard>
       )}
 
