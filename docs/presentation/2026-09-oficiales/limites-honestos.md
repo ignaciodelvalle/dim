@@ -283,11 +283,19 @@ general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
   `0211`— y viene con una barrera independiente del nombre y su prueba en
   `__tests__/rls/pet-events-write-lockdown.test.ts`. Commit `ff4f3a5a1`.
 
-  **APLICARLA A LA BASE VIVA SIGUE PENDIENTE, y es una decisión del responsable
-  de producto.** Esa distinción no es un tecnicismo y no se puede colapsar en la
-  sala: una política escrita no protege nada hasta que corre contra la base. Este
-  repositorio ya aprendió esa lección por las malas — "aplicada no es cerrada"—
-  y decir "cerrado" acá sería el error caro, en la dirección opuesta al de D.1.
+  **APLICADA A LA BASE VIVA EL 2026-09-08.** Hasta ese día esta entrada decía que
+  la migración no estaba escrita, y después que estaba escrita y sin aplicar. Se
+  deja el rastro porque la distinción importa y en la sala no se puede colapsar:
+  una política escrita no protege nada hasta que corre contra la base.
+
+  **Y lo que permite decir "cerrado" no es que el comando haya contestado "ok".**
+  La migración lleva su propia comprobación de estado final adentro de la
+  transacción, y verifica las dos direcciones: falla si sobrevive cualquier
+  política de escritura alcanzable por un usuario —buscando por comportamiento y
+  no por nombre, que es exactamente el caso del renombre— y falla si se llevó
+  puesta la política de lectura, porque un dueño tiene que seguir leyendo su
+  propio historial. La transacción commiteó, así que las dos condiciones se
+  cumplieron.
 - **Fuente:** `db/migrations/0190_titular_only_rls.sql`;
   `docs/reviews/2026-09-fresh/lenses/A02.md`;
   `docs/reviews/2026-09-fresh/BACKLOG.md`.
