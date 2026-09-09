@@ -9,6 +9,7 @@ import { describe, expect, it } from "@jest/globals";
 import {
   RECORD_KINDS,
   attestationRegistryOptions,
+  conditionalKinds,
   emptyDraft,
   inputCodeMessage,
   isWritableKind,
@@ -224,5 +225,67 @@ describe("attestationRegistryOptions", () => {
       { id: "prov_neuquen", label: "Neuquén", required: true },
     ]);
     expect(options.filter((r) => r.id === "other")).toHaveLength(1);
+  });
+});
+
+describe("conditionalKinds — the one rule both conditional rows share", () => {
+  const facts = (o: Partial<Parameters<typeof conditionalKinds>[0]> = {}) => ({
+    sex: "female",
+    species: "dog",
+    pregnancyStatus: "none",
+    ...o,
+  });
+
+  it("offers the START to a female of a known species with no follow-up open", () => {
+    expect(conditionalKinds(facts())).toEqual(["pregnancy_start"]);
+  });
+
+  it("offers the END, and ONLY the end, while a follow-up is open", () => {
+    const offered = conditionalKinds(facts({ pregnancyStatus: "in_progress" }));
+    expect(offered).toEqual(["pregnancy_end"]);
+    // NON-VACUITY: the two halves are mutually exclusive. A "registrar embarazo"
+    // row here would offer a form the server refuses with `pregnancy_already_open`.
+    expect(offered).not.toContain("pregnancy_start");
+  });
+
+  it("offers the start again once a previous pregnancy has been closed", () => {
+    // `completed_live_birth` is what `rederivePregnancyStatus` writes. Anything
+    // that is not `in_progress` is a closed record, and a closed record does not
+    // block the next gestation.
+    expect(conditionalKinds(facts({ pregnancyStatus: "completed_live_birth" }))).toEqual([
+      "pregnancy_start",
+    ]);
+  });
+
+  it("offers NOTHING to a male, whatever the pregnancy status says", () => {
+    expect(conditionalKinds(facts({ sex: "male" }))).toEqual([]);
+    // Even a cache that somehow says in_progress: the sex is the harder fact.
+    expect(conditionalKinds(facts({ sex: "male", pregnancyStatus: "in_progress" }))).toEqual([]);
+  });
+
+  it("offers NOTHING for a species this build cannot date a gestation for", () => {
+    expect(conditionalKinds(facts({ species: "parrot" }))).toEqual([]);
+    // NON-VACUITY: the same animal with a species the table names DOES get a row,
+    // so the emptiness above is the species and not the fixture.
+    expect(conditionalKinds(facts({ species: "rabbit" }))).toEqual(["pregnancy_start"]);
+  });
+
+  it("OFFERS BOTH when the read came back degraded, rather than hiding them", () => {
+    // The decision this function exists to make. A read that failed leaves every
+    // fact null, and hiding a capability then is a dead end the person cannot see
+    // — the app would silently stop being able to record a pregnancy. Offering
+    // costs a round trip and a sentence that names the real reason, from the
+    // server, which is authoritative where this function only guesses.
+    expect(conditionalKinds({ sex: null, species: null, pregnancyStatus: null })).toEqual([
+      "pregnancy_start",
+      "pregnancy_end",
+    ]);
+  });
+
+  it("still refuses on the fact it DOES have when only the other one is unknown", () => {
+    // A partial read is not a failed one: a known male is a male whatever the
+    // species section said.
+    expect(conditionalKinds({ sex: "male", species: null, pregnancyStatus: null })).toEqual([]);
+    expect(conditionalKinds({ sex: null, species: "parrot", pregnancyStatus: null })).toEqual([]);
   });
 });

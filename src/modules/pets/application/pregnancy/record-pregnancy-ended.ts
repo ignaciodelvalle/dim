@@ -5,6 +5,7 @@ import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { db, notifications, petEvents, reminders } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { rederivePregnancyStatus } from "./rederive-pregnancy-status";
 import type { RecordPregnancyEndedParams, RecordPregnancyResult } from "./types";
 
@@ -20,20 +21,27 @@ export async function recordPregnancyEndedWriter(
     return {
       ok: false,
       error: "Esta mascota no tiene un embarazo activo para cerrar.",
+      notAllowed: "none_open",
     };
   }
   if (params.outcome !== "live_birth" && params.liveBirthsCount !== null) {
     return {
       ok: false,
       error: "live_births_count solo es válido si el resultado es parto exitoso.",
+      notAllowed: "births_mismatch",
     };
   }
   if (params.outcome === "live_birth" && (params.liveBirthsCount ?? 0) < 1) {
-    return { ok: false, error: "Indicá la cantidad de crías nacidas vivas (mínimo 1)." };
+    return {
+      ok: false,
+      error: "Indicá la cantidad de crías nacidas vivas (mínimo 1).",
+      notAllowed: "births_mismatch",
+    };
   }
 
   const now = params.now ?? new Date();
   let eventId = "";
+  let wasDuplicate = false;
   try {
     await db.transaction(async (tx) => {
       const payload = validateEventPayload("clinical_info_logged", {
@@ -46,20 +54,42 @@ export async function recordPregnancyEndedWriter(
         live_births_count: params.outcome === "live_birth" ? params.liveBirthsCount : null,
         vet_consulted: params.vetConsulted,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
-          petId: params.pet.id,
-          eventType: "clinical_info_logged",
-          occurredAt: params.occurredAt,
-          recordedAt: now,
-          recordedByUserId: params.recordedByUserId,
-          ...params.eventAuthorship,
-          payload,
-          notes: params.notes,
-        })
-        .returning();
+      // Idempotent when a key is given, plain when not — see the started
+      // writer's twin of this block for why the split exists.
+      const values = {
+        petId: params.pet.id,
+        eventType: "clinical_info_logged" as const,
+        occurredAt: params.occurredAt,
+        recordedAt: now,
+        recordedByUserId: params.recordedByUserId,
+        ...params.eventAuthorship,
+        payload,
+        notes: params.notes,
+        ...(params.clientIdempotencyKey
+          ? { clientIdempotencyKey: params.clientIdempotencyKey }
+          : {}),
+      };
+
+      let event: { id: string };
+      if (params.clientIdempotencyKey) {
+        const inserted = await insertEventIdempotent(
+          values as Parameters<typeof insertEventIdempotent>[0],
+          tx as Parameters<typeof insertEventIdempotent>[1],
+        );
+        event = inserted.event;
+        wasDuplicate = inserted.wasNoop;
+      } else {
+        const [row] = await tx.insert(petEvents).values(values).returning();
+        event = row;
+      }
       eventId = event.id;
+
+      // SKIPPED ON A REPLAY. The cancellation of the open checkup reminders is
+      // idempotent by nature — cancelling a cancelled row changes nothing — but
+      // the NOTIFICATION is not: a person would be told twice that the
+      // pregnancy ended, which on `stillbirth` or `miscarriage` is a message
+      // nobody should receive a second time.
+      if (wasDuplicate) return;
 
       // Re-derive rather than assert the outcome: latest-by-occurredAt wins, so
       // a back-dated end cannot clobber a later pregnancy's status.
@@ -123,5 +153,5 @@ export async function recordPregnancyEndedWriter(
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "error desconocido" };
   }
-  return { ok: true, eventId, reminderCount: 0 };
+  return { ok: true, eventId, reminderCount: 0, wasDuplicate };
 }

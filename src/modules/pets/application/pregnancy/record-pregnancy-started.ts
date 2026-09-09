@@ -1,4 +1,5 @@
 import { db, notifications, petEvents, reminders } from "@/db";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import { rederivePregnancyStatus } from "./rederive-pregnancy-status";
@@ -42,16 +43,25 @@ export async function recordPregnancyStartedWriter(
   params: RecordPregnancyStartedParams,
 ): Promise<RecordPregnancyResult> {
   if (params.pet.sex !== "female") {
-    return { ok: false, error: "Solo se pueden registrar embarazos en hembras." };
+    return {
+      ok: false,
+      error: "Solo se pueden registrar embarazos en hembras.",
+      notAllowed: "not_applicable",
+    };
   }
   if (!Object.hasOwn(PREGNANCY_DURATION_DAYS, params.pet.species)) {
-    return { ok: false, error: "Especie no soportada para embarazos." };
+    return {
+      ok: false,
+      error: "Especie no soportada para embarazos.",
+      notAllowed: "not_applicable",
+    };
   }
   if (params.pet.pregnancyStatus === "in_progress") {
     return {
       ok: false,
       error:
         "Esta mascota ya tiene un embarazo en seguimiento. Cerralo primero antes de registrar uno nuevo.",
+      notAllowed: "already_open",
     };
   }
 
@@ -75,6 +85,7 @@ export async function recordPregnancyStartedWriter(
 
   let eventId = "";
   let reminderCount = 0;
+  let wasDuplicate = false;
   try {
     await db.transaction(async (tx) => {
       const payload = validateEventPayload("clinical_info_logged", {
@@ -86,20 +97,50 @@ export async function recordPregnancyStartedWriter(
         weeks_at_diagnosis: params.weeksAtDiagnosis,
         vet_consulted: params.vetConsulted,
       });
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
-          petId: params.pet.id,
-          eventType: "clinical_info_logged",
-          occurredAt: params.occurredAt,
-          recordedAt: now,
-          recordedByUserId: params.recordedByUserId,
-          ...params.eventAuthorship,
-          payload,
-          notes: params.notes,
-        })
-        .returning();
+      // IDEMPOTENT WHEN A KEY IS GIVEN, PLAIN WHEN NOT — added 2026-09-08 with
+      // the v1 endpoint, and the split is the same one the PPP attestation made
+      // three days earlier. The web's two forms carry no key (pregnancy.ts:45-48
+      // and :90-94 read no such field), so their path is unchanged;
+      // `POST /api/v1/pets/{token}/events` REQUIRES one and promises it is
+      // honoured, and this writer was excluded from that endpoint on exactly
+      // the grounds that it could not honour it. The endpoint's own header said
+      // so and called it "one file away". This is that file.
+      const values = {
+        petId: params.pet.id,
+        eventType: "clinical_info_logged" as const,
+        occurredAt: params.occurredAt,
+        recordedAt: now,
+        recordedByUserId: params.recordedByUserId,
+        ...params.eventAuthorship,
+        payload,
+        notes: params.notes,
+        ...(params.clientIdempotencyKey
+          ? { clientIdempotencyKey: params.clientIdempotencyKey }
+          : {}),
+      };
+
+      let event: { id: string };
+      if (params.clientIdempotencyKey) {
+        const inserted = await insertEventIdempotent(
+          values as Parameters<typeof insertEventIdempotent>[0],
+          tx as Parameters<typeof insertEventIdempotent>[1],
+        );
+        event = inserted.event;
+        wasDuplicate = inserted.wasNoop;
+      } else {
+        const [row] = await tx.insert(petEvents).values(values).returning();
+        event = row;
+      }
       eventId = event.id;
+
+      // EVERY SIDE EFFECT BELOW IS SKIPPED ON A REPLAY, and the two that matter
+      // are the reason this early return exists rather than a comment asking
+      // for care. A second run would insert the biweekly checkup reminders a
+      // SECOND time — the same schedule twice on one gestation — and tell the
+      // person again that their animal is pregnant. `rederivePregnancyStatus`
+      // would be harmless to repeat (it re-reads the spine), and it is skipped
+      // anyway: the first attempt already ran it against the same rows.
+      if (wasDuplicate) return;
 
       // Re-derive rather than assert "in_progress": a back-dated start recorded
       // after this pregnancy already ended must not overwrite the terminal
@@ -143,5 +184,7 @@ export async function recordPregnancyStartedWriter(
     return { ok: false, error: err instanceof Error ? err.message : "error desconocido" };
   }
 
-  return { ok: true, eventId, reminderCount };
+  // `reminderCount` is 0 on a replay and that is honest: this call scheduled
+  // nothing. The first attempt's reminders are already in the table.
+  return { ok: true, eventId, reminderCount, wasDuplicate };
 }

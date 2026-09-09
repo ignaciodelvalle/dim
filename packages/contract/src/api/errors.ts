@@ -375,6 +375,45 @@
  *                         wrong pet, or gone. 400. Deliberately not `not_found`,
  *                         which on this surface always means the PET — answering
  *                         404 here would tell a client its pet had vanished.
+ * THE THREE PREGNANCY CODES (E3). Both halves of a pregnancy refuse on facts
+ * about the ANIMAL, so `event_not_allowed` was the obvious home — and it is the
+ * wrong one, for a reason this file can state precisely. That code's own client
+ * copy reads "Esta mascota está registrada como fallecida…", because a deceased
+ * animal is the only thing it has ever meant. A male dog offered to it would be
+ * told his life record is closed.
+ *
+ * THE BAR IS THIS FILE'S OWN, the one `event_date_future` and
+ * `event_date_before_birth` are split by: a code earns its name when the NEXT
+ * MOVE is different. Here three are, and sex and species share one because they
+ * share the answer — none.
+ *
+ * - `pregnancy_not_applicable`
+ *                       — the animal is not female, or is a species with no
+ *                         known gestation window. 409. NO next move: this
+ *                         animal can never carry this event, and the honest
+ *                         client response is to not offer the form at all.
+ *                         The app resolves that from the pet detail it already
+ *                         reads; this code is what answers the request that
+ *                         arrives anyway — from a deep link, a stale menu, or a
+ *                         client that never read.
+ * - `pregnancy_already_open`
+ *                       — a pregnancy is already in follow-up. 409, and the
+ *                         next move is real and specific: CLOSE that one first.
+ *                         A single spine cannot hold two open gestations, and
+ *                         the writer re-derives the status from the log rather
+ *                         than trusting the cache column.
+ * - `pregnancy_none_open`
+ *                       — the CLOSE was asked for and there is nothing open to
+ *                         close. 409. The opposite next move — record the start
+ *                         first — which is exactly why it is not the same code
+ *                         as the one above.
+ *
+ * A BIRTH COUNT THAT CONTRADICTS ITS OUTCOME gets NO code here, and that is
+ * deliberate: `recordEventInputSchema` refuses the combination on the wire
+ * (`PREGNANCY_BIRTHS_REQUIRED`, `PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH`), so the
+ * writer's own guard for it is unreachable from this endpoint. A response code
+ * for a response that cannot happen is a name nobody can test.
+ *
  * - `event_failed`      — the append itself failed. Same contract as
  *                         `amend_failed`: a client may retry ONCE with the SAME
  *                         `Idempotency-Key`, and if the first attempt had in fact
@@ -978,6 +1017,9 @@ export const API_V1_ERROR_CODES = [
   "event_date_before_birth",
   "same_day_duplicate_suspected",
   "medication_source_invalid",
+  "pregnancy_not_applicable",
+  "pregnancy_already_open",
+  "pregnancy_none_open",
   "event_failed",
   "lost_already",
   "pet_not_lost",

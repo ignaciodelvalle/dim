@@ -243,6 +243,8 @@ import { resolveDeathReportable } from "@/src/modules/events/domain/death-rules"
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
+import { recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
+import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import type { EventRecordedV1 } from "@dim/contract/api";
 import type { RecordEventInput } from "@dim/contract/input";
 
@@ -324,6 +326,21 @@ const EVENT_TYPE_OF_KIND = {
   microchip_replace: "microchip_replaced",
   dangerous_breed_attestation: "dangerous_breed_attested",
   death: "death_recorded",
+  // BOTH HALVES OF A PREGNANCY ARE `clinical_info_logged`, which is not a
+  // shortcut: the spine has no `pregnancy_started` type. Both writers file a
+  // `clinical_info_logged` row carrying `sub_kind: "pregnancy"` and a
+  // `pregnancy_phase` of "started" or "ended", and `replayPetPregnancy` reads
+  // the phase — the event type alone was never what distinguished them.
+  //
+  // TWO KINDS SHARING ONE VALUE IS SAFE HERE ONLY BECAUSE OF WHO READS THIS MAP.
+  // Its one consumer is the same-day soft gate, which runs for `vaccination`
+  // and `deworming` and returns before touching anything else
+  // (`checkSameDayGate`, first line). Were that gate ever widened, these two
+  // would collide with each other AND with a plain `clinical_info` on the same
+  // day — a pregnancy start refused as a duplicate of an unrelated lab result.
+  // Widen it kind-by-kind, not by dropping the early return.
+  pregnancy_start: "clinical_info_logged",
+  pregnancy_end: "clinical_info_logged",
 } as const satisfies Record<RecordEventInput["kind"], string>;
 
 type WriteContext = {
@@ -449,7 +466,17 @@ async function checkWriteGuard(
   // committed arrives at an animal this gate refuses. That is a 409 answered to
   // the one caller the `Idempotency-Key` exists to protect, on the one write
   // nobody can repeat, and the app's 10s abort makes it reachable rather than
-  // theoretical. `appendDeath` therefore refuses a deceased animal ITSELF,
+  // theoretical.
+  //
+  // NO LONGER THE ONLY ONE, and the sentence above is kept rather than reworded
+  // because it records what was true when it was written. Both halves of a
+  // pregnancy joined this shape on 2026-09-09: each one's success moves
+  // `pregnancy_status` past its own precondition. They are not exempted HERE —
+  // this guard is about a deceased animal and a pregnancy on a corpse is
+  // correctly refused — they carry the same remedy inside `appendPregnancy`,
+  // which asks the ledger before it asks the animal.
+  //
+  // `appendDeath` therefore refuses a deceased animal ITSELF,
   // after asking the ledger whether this key already wrote — which is also
   // closer to the web, whose door is `requirePetAccess` plus its own refusal
   // line (actions.ts:1172) rather than an alive-gated guard.
@@ -574,6 +601,16 @@ async function append(
     return appendDeath(ctx, access, input, repo);
   }
 
+  // AND THE FIFTH AND SIXTH. Both pregnancy writers answer
+  // `RecordPregnancyResult` — their own shape — and both refuse on facts about
+  // THE ANIMAL that this request does not carry and must not: her sex, her
+  // species, and whether a pregnancy is already in follow-up. `common` has
+  // nowhere to put any of the three, and a client sending them would be a
+  // client asserting what the pet row already says.
+  if (input.kind === "pregnancy_start" || input.kind === "pregnancy_end") {
+    return appendPregnancy(ctx, access, input);
+  }
+
   // Every remaining kind states its day outright, and `writeEvent` refused the
   // request before reaching here if that day did not parse.
   if (!occurredAt) return apiV1Error("invalid_request", 400);
@@ -604,7 +641,15 @@ async function appendUniformKind(
   access: Exclude<PetHolderAccess, { kind: "none" }>,
   input: Exclude<
     RecordEventInput,
-    { kind: "symptom" | "microchip_replace" | "dangerous_breed_attestation" | "death" }
+    {
+      kind:
+        | "symptom"
+        | "microchip_replace"
+        | "dangerous_breed_attestation"
+        | "death"
+        | "pregnancy_start"
+        | "pregnancy_end";
+    }
   >,
   occurredAt: Date,
   repo: EventsRepository,
@@ -1187,6 +1232,152 @@ async function appendDeath(
  *      check, reused verbatim rather than re-implemented — a second copy is how
  *      the two surfaces would come to disagree about what a jurisdiction allows.
  */
+/**
+ * Embarazo — el inicio del seguimiento y su cierre, en una función.
+ *
+ * ONE FUNCTION FOR TWO KINDS, and the reason is that they are two halves of one
+ * rule rather than two features. Everything around the writer call is identical:
+ * the same day parse, the same pet row, the same authorship, the same
+ * `RecordPregnancyResult` to read, and — the part that matters — the same
+ * three-way answer to a refusal. Splitting them would duplicate that answer,
+ * and the answer is where the thinking is.
+ *
+ * THE THREE-WAY READ OF A FAILURE is what this function exists for.
+ * `RecordPregnancyResult`'s error arm carries an es-AR sentence written for a
+ * web form, and api-invariants.md §3 forbids putting one of those on a wire.
+ * Before `notAllowed` existed, every refusal here could only have become
+ * `event_failed` 500 — so "esta perra ya tiene un embarazo en seguimiento",
+ * which is a correct request about an animal in the wrong state, would have
+ * told the app its server broke. Now:
+ *
+ *   · `notAllowed` → `event_not_allowed` 409, the same status a second death
+ *     gets from `checkWriteGuard`, and for the same reason: the ANIMAL cannot
+ *     have this event.
+ *   · anything else → the transaction itself failed. Reported and 500, because
+ *     that IS a server fault.
+ *
+ * THE START'S THREE PRECONDITIONS ARE NOT CHECKED HERE and must not be. Female,
+ * a species with a known gestation, and no pregnancy already open are facts
+ * about the pet row, and `recordPregnancyStartedWriter` reads that row itself.
+ * Restating them at this layer would be a second definition of the rule, free
+ * to drift — and the endpoint would be asserting from `access.pet` what the
+ * writer re-reads anyway.
+ *
+ * `reminderCount` IS DELIBERATELY DROPPED. The writer answers how many biweekly
+ * checkups it scheduled; `EventRecordedV1` has no field for it and should not
+ * grow one for a single kind. The app reads the schedule back from the pet
+ * detail, where it is authoritative — and on a replay this number is 0, which
+ * is honest about the call and would be misread as "no reminders exist".
+ */
+async function appendPregnancy(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Extract<RecordEventInput, { kind: "pregnancy_start" | "pregnancy_end" }>,
+) {
+  const pet = access.pet;
+
+  const occurredAt = parseWireDay(input.occurredAt);
+  if (!occurredAt) return apiV1Error("invalid_request", 400);
+
+  // THE REPLAY CHECK, AND IT MUST PRECEDE THE WRITERS' OWN STATE GUARDS.
+  //
+  // BOTH HALVES OF A PREGNANCY INVALIDATE THEIR OWN PRECONDITION BY SUCCEEDING,
+  // which is the property `checkWriteGuard` used to attribute to fallecimiento
+  // alone — its comment said "the only kind", and this branch made that false
+  // for two more. A close that commits sets `pregnancy_status` to
+  // `completed_*`; the retry of that very request then meets
+  // `record-pregnancy-ended.ts`'s "no hay embarazo activo para cerrar" and is
+  // refused FOREVER, on a write that already happened. The start is the mirror:
+  // it succeeds, the status becomes `in_progress`, and its own retry is refused
+  // as `pregnancy_already_open`.
+  //
+  // AND THE REFUSAL IS WORSE THAN A WRONG STATUS. Both sentences name a
+  // corrective act — "cerralo primero", "registrá primero el inicio" — so a
+  // person following the copy appends a SPURIOUS event to a spine that cannot
+  // be edited. The endpoint would be instructing a permanent falsification of
+  // the record it exists to protect.
+  //
+  // The guards themselves stay where they are: they are the animal's rule and
+  // they are correct for a first attempt. What was missing is the question that
+  // has to be asked first — "did THIS key already write?" — exactly as
+  // `appendMicrochipReplace` and `appendDeath` ask it.
+  //
+  // ONE EVENT TYPE FOR BOTH PHASES, and the lookup does not try to tell them
+  // apart. The spine has no `pregnancy_started` type: both writers file
+  // `clinical_info_logged` carrying a `pregnancy_phase`. Distinguishing them
+  // here would be answering a question idempotency does not ask — a key means
+  // "this is the same request", so the event that key wrote IS the answer,
+  // whichever phase it was. It is the same contract `insertEventIdempotent`
+  // enforces one layer down, which keys on (pet, key) and not on the payload.
+  const replayed = await findExistingByKey(pet.id, "clinical_info_logged", ctx.idempotencyKey);
+  if (replayed) {
+    const replayPayload: EventRecordedV1 = { eventId: replayed.id, wasDuplicate: true };
+    return apiV1Json(replayPayload, { status: 201 });
+  }
+
+  const common = {
+    recordedByUserId: ctx.userId,
+    // The person path signs as the owner; the org path signs as its member's
+    // resolved authorship. Never re-derived here.
+    eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
+    occurredAt,
+    vetConsulted: input.vetConsulted,
+    notes: input.notes,
+    // THE FIELD THAT LETS THIS KIND EXIST ON THIS ENDPOINT AT ALL. Both writers
+    // were excluded from it until 2026-09-08 on the grounds that they could not
+    // honour an `Idempotency-Key`, which this endpoint requires and promises;
+    // they route through `insertEventIdempotent` when it is present and skip
+    // every side effect on a replay.
+    clientIdempotencyKey: ctx.idempotencyKey,
+  };
+
+  const result =
+    input.kind === "pregnancy_start"
+      ? await recordPregnancyStartedWriter({
+          ...common,
+          pet,
+          weeksAtDiagnosis: input.weeksAtDiagnosis,
+        })
+      : await recordPregnancyEndedWriter({
+          ...common,
+          pet,
+          outcome: input.outcome,
+          liveBirthsCount: input.liveBirthsCount,
+        });
+
+  if (!result.ok) {
+    // EACH REFUSAL ANSWERS THE CODE WHOSE COPY IS TRUE OF IT, which is the
+    // whole reason `notAllowed` is a discriminator. `event_not_allowed` was the
+    // obvious home for all three and is the wrong one: its client copy reads
+    // "Esta mascota está registrada como fallecida…", so a male dog offered to
+    // it would be told his life record is closed.
+    switch (result.notAllowed) {
+      case "not_applicable":
+        return apiV1Error("pregnancy_not_applicable", 409);
+      case "already_open":
+        return apiV1Error("pregnancy_already_open", 409);
+      case "none_open":
+        return apiV1Error("pregnancy_none_open", 409);
+      // UNREACHABLE FROM HERE, and left explicit rather than folded into the
+      // default: `recordEventInputSchema` refuses an outcome/count mismatch on
+      // the wire, so this arm can only fire if that schema stops doing so. 400
+      // rather than 409 — the request contradicts itself, the animal is fine.
+      case "births_mismatch":
+        return apiV1Error("invalid_request", 400);
+      default:
+        break;
+    }
+    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
+    return apiV1Error("event_failed", 500);
+  }
+
+  const payload: EventRecordedV1 = {
+    eventId: result.eventId,
+    wasDuplicate: result.wasDuplicate,
+  };
+  return apiV1Json(payload, { status: 201 });
+}
+
 async function appendDangerousBreedAttestation(
   ctx: WriteContext,
   access: Exclude<PetHolderAccess, { kind: "none" }>,

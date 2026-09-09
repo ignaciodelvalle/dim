@@ -243,6 +243,11 @@ export const RECORD_EVENT_INPUT_CODES = [
   "DEATH_VET_DECIDED_REQUIRES_NO_CONTACT",
   "DEATH_DISEASE_CODE_REQUIRED",
   "DEATH_DISEASE_CODE_UNKNOWN",
+  "PREGNANCY_WEEKS_INVALID",
+  "PREGNANCY_OUTCOME_INVALID",
+  "PREGNANCY_BIRTHS_INVALID",
+  "PREGNANCY_BIRTHS_REQUIRED",
+  "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
 
@@ -366,6 +371,48 @@ export type OwnerMicrochipReplaceReason = (typeof OWNER_MICROCHIP_REPLACE_REASON
  * the new code. Mirrors `REVOCATION_REASONS` in the same web action.
  */
 export const MICROCHIP_REVOCATION_REASONS = ["owner_request", "device_failure"] as const;
+
+/**
+ * How a tracked pregnancy ENDED.
+ *
+ * MOVED HERE FROM `src/modules/pets/application/pregnancy/types.ts`, which
+ * re-exports it so its existing importers — the two web forms, the writer and
+ * `replayPetPregnancy` — keep reading ONE array. Same move
+ * `STERILIZATION_PROCEDURES` and `DANGEROUS_BREED_REGISTRIES` got, and for the
+ * same reason: this list is not cosmetic. `rederivePregnancyStatus` maps each
+ * member to a `completed_${outcome}` status that the credential prints, so a
+ * copy of these five strings drifting from the server's would produce a status
+ * no surface can render.
+ *
+ * `unknown` IS A REAL ANSWER and not a missing one. A person who was not there
+ * when it happened — the common case for an animal that was in tránsito —
+ * still needs to close the pregnancy, and forcing a guess would put a
+ * fabricated outcome on an append-only spine.
+ */
+export const PREGNANCY_OUTCOMES = [
+  "live_birth",
+  "stillbirth",
+  "miscarriage",
+  "termination",
+  "unknown",
+] as const;
+export type PregnancyOutcome = (typeof PREGNANCY_OUTCOMES)[number];
+
+/**
+ * The bounds the web's two forms already enforce, named so the app can refuse
+ * the same answers BEFORE a round trip rather than after one.
+ *
+ * `MAX_WEEKS_AT_DIAGNOSIS` is 12 and is LONGER THAN SOME OF THE SPECIES THIS
+ * FIELD SERVES — a rabbit gestates about 32 days, so "10 semanas" is not a
+ * late diagnosis but an impossible one. The writer clamps rather than refuses
+ * (`Math.max(speciesDays - weeks * 7, 0)`), and its own comment says a
+ * species-aware bound "is the real fix and belongs with the form". This
+ * constant is the un-species-aware half of that fix: it is what the web
+ * enforces today, moved where both clients can read it, and it does not
+ * pretend to be the whole answer.
+ */
+export const MAX_WEEKS_AT_DIAGNOSIS = 12;
+export const MAX_LIVE_BIRTHS = 20;
 
 /** `"YYYY-MM-DD"` — what `<input type="date">` posts. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -782,6 +829,59 @@ const death = z.object({
 });
 
 /**
+ * A pregnancy entering follow-up.
+ *
+ * THE ANIMAL'S OWN THREE PRECONDITIONS ARE NOT HERE, and that is deliberate:
+ * female, a species with a known gestation, and no pregnancy already in
+ * progress. None of the three is in this request — they are facts about the
+ * pet, and `recordPregnancyStartedWriter` refuses on all three by reading it.
+ * A schema cannot check what the payload does not carry, and asking the client
+ * to SEND the animal's sex would be asking it to assert something the server
+ * already knows better. The app's job is to not OFFER this form when they
+ * fail; the server's job is to refuse anyway, and it does.
+ */
+const pregnancyStart = z.object({
+  kind: z.literal("pregnancy_start"),
+  occurredAt,
+  // Nullable because "no sé de cuántas semanas" is a real answer — the writer
+  // then dates the birth from the full species gestation, which is the honest
+  // estimate when the diagnosis week is unknown.
+  weeksAtDiagnosis: z
+    .number()
+    .int({ error: "PREGNANCY_WEEKS_INVALID" })
+    .min(0, { error: "PREGNANCY_WEEKS_INVALID" })
+    .max(MAX_WEEKS_AT_DIAGNOSIS, { error: "PREGNANCY_WEEKS_INVALID" })
+    .nullish()
+    .transform((v) => v ?? null),
+  vetConsulted: optionalText,
+  notes: optionalText,
+});
+
+/**
+ * The close of a tracked pregnancy.
+ *
+ * `liveBirthsCount` is bounded 1..20 by the SCHEMA and required-or-forbidden by
+ * the cross-field rule below, which is the split the web already makes: its
+ * action reads the field only under `live_birth` (pregnancy.ts:107-113), so a
+ * count sent with `miscarriage` is a combination the web cannot produce and
+ * this endpoint must not accept.
+ */
+const pregnancyEnd = z.object({
+  kind: z.literal("pregnancy_end"),
+  occurredAt,
+  outcome: z.enum(PREGNANCY_OUTCOMES, { error: "PREGNANCY_OUTCOME_INVALID" }),
+  liveBirthsCount: z
+    .number()
+    .int({ error: "PREGNANCY_BIRTHS_INVALID" })
+    .min(1, { error: "PREGNANCY_BIRTHS_INVALID" })
+    .max(MAX_LIVE_BIRTHS, { error: "PREGNANCY_BIRTHS_INVALID" })
+    .nullish()
+    .transform((v) => v ?? null),
+  vetConsulted: optionalText,
+  notes: optionalText,
+});
+
+/**
  * The four cross-field rules of a death record.
  *
  * ITS OWN FUNCTION FOR THE LINTER'S REASON, not an aesthetic one: adding this
@@ -872,6 +972,8 @@ export const recordEventInputSchema = z
     microchipReplace,
     dangerousBreedAttestation,
     death,
+    pregnancyStart,
+    pregnancyEnd,
   ])
   .superRefine((input, ctx) => {
     // THE ONE CROSS-FIELD RULE OF A REPLACEMENT: leaving the animal with no
@@ -895,6 +997,30 @@ export const recordEventInputSchema = z
 
     if (input.kind === "death") {
       refineDeath(input, ctx);
+      return;
+    }
+
+    // THE ONE CROSS-FIELD RULE OF A PREGNANCY CLOSE, and it runs in both
+    // directions because the writer's two guards do
+    // (record-pregnancy-ended.ts:26-33). A count under any other outcome is
+    // not extra information — "nacieron 3" alongside "aborto espontaneo" is a
+    // record that contradicts itself, on a spine that cannot be edited.
+    if (input.kind === "pregnancy_end") {
+      if (input.outcome === "live_birth") {
+        if (input.liveBirthsCount === null) {
+          ctx.addIssue({
+            code: "custom",
+            message: "PREGNANCY_BIRTHS_REQUIRED",
+            path: ["liveBirthsCount"],
+          });
+        }
+      } else if (input.liveBirthsCount !== null) {
+        ctx.addIssue({
+          code: "custom",
+          message: "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH",
+          path: ["liveBirthsCount"],
+        });
+      }
       return;
     }
 

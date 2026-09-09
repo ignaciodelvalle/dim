@@ -29,6 +29,8 @@ import {
   NOTE_CATEGORIES,
   type NoteCategory,
   type OwnerMicrochipReplaceReason,
+  PREGNANCY_OUTCOMES,
+  type PregnancyOutcome,
   type RecordEventInput,
   type RecordEventInputCode,
   STERILIZATION_PROCEDURES,
@@ -80,7 +82,8 @@ export type RecordKind = (typeof RECORD_KINDS)[number];
 
 /** Every kind this screen can write, including the one reached from an asiento. */
 /**
- * Every kind this screen can write, including the ones NOT in the picker.
+ * Every kind this screen can write, including the ones NOT in the picker's
+ * FIXED list.
  *
  * THREE ARE REACHED FROM SOMEWHERE ELSE, each for its own reason:
  *   · `medication_end` — from the `medication_started` asiento it closes.
@@ -96,7 +99,9 @@ export type WritableKind =
   | "medication_end"
   | "microchip_replace"
   | "dangerous_breed_attestation"
-  | "death";
+  | "death"
+  | "pregnancy_start"
+  | "pregnancy_end";
 
 /**
  * A yes/no answer, and `null` for one nobody gave yet.
@@ -127,7 +132,99 @@ export const WRITABLE_KINDS: ReadonlySet<WritableKind> = new Set<WritableKind>([
   "microchip_replace",
   "dangerous_breed_attestation",
   "death",
+  "pregnancy_start",
+  "pregnancy_end",
 ]);
+
+/**
+ * The kinds a picker offers only when THIS ANIMAL can carry them.
+ *
+ * A THIRD CATEGORY, and it is neither of the two above. `RECORD_KINDS` is
+ * unconditional — every animal can be weighed. The three reached from
+ * elsewhere are unconditional too; they just have a better door than a menu.
+ * These are different: the row itself is a claim about the animal, and showing
+ * it to a male dog would be offering a form whose only possible outcome is a
+ * refusal.
+ *
+ * `conditionalKinds` below is the one place that decides. It takes FACTS the
+ * pet detail already carries — no new endpoint — and it is a pure function, so
+ * the rule is testable without a screen.
+ */
+export const CONDITIONAL_KINDS = ["pregnancy_start", "pregnancy_end"] as const;
+
+/**
+ * What the animal's own facts say about the conditional rows.
+ *
+ * `null` FOR EVERY FIELD IS A REAL STATE and not a missing one: it is what a
+ * DEGRADED read leaves behind. `conditionalKinds` reads it as "I could not find
+ * out", which is deliberately NOT the same as "no" — see that function.
+ */
+export type PetFactsForMenu = {
+  sex: string | null;
+  species: string | null;
+  pregnancyStatus: string | null;
+};
+
+/**
+ * The species this build can date a gestation for.
+ *
+ * A COPY OF THE SERVER'S TABLE, and the only honest way to say why: the keys of
+ * `PREGNANCY_DURATION_DAYS` are not on any wire. The pet detail sends the
+ * animal's species, not whether a pregnancy could be dated for it, so a client
+ * that wants to decide BEFORE asking has to know the list. The drift this
+ * creates is real and bounded in one direction: a species added on the server
+ * and not here means a row that does not appear for an animal that could have
+ * had it — a missing affordance, never a form that gets refused. The reverse
+ * cannot happen silently, because the server refuses and the app now has a
+ * sentence for exactly that (`pregnancy_not_applicable`).
+ */
+const PREGNANCY_SPECIES: ReadonlySet<string> = new Set([
+  "dog",
+  "cat",
+  "rabbit",
+  "guinea_pig",
+  "ferret",
+  "other",
+]);
+
+/**
+ * Which conditional rows this animal earns.
+ *
+ * THE THREE-STATE READ IS THE WHOLE POINT, and it is why this returns an array
+ * rather than booleans:
+ *
+ *   · FACTS SAY YES → offer it.
+ *   · FACTS SAY NO → do not. The row is a claim about the animal.
+ *   · FACTS ARE UNKNOWN (a degraded read, `null`) → OFFER IT ANYWAY.
+ *
+ * That last one is the decision worth defending. Hiding a capability because a
+ * read failed is a dead end a person cannot get out of and cannot even see: the
+ * app would silently stop being able to record a pregnancy, and nothing on
+ * screen would say so. Offering it costs a round trip and a sentence that names
+ * the real reason — the server's own refusal, which is authoritative where this
+ * function is only a guess.
+ *
+ * NOT A MIRROR OF THE PPP AND DISEASE PICKERS, which narrow when their read
+ * lands. Those reconcile a CHOICE ALREADY MADE against a list that shrank, and
+ * clearing it is the honest repair. Here nothing has been chosen yet; the
+ * menu is additive, and a row that appears late is fine where a row that
+ * vanishes mid-scroll is not.
+ */
+export function conditionalKinds(facts: PetFactsForMenu): readonly WritableKind[] {
+  // A pregnancy needs a female of a species this build can date. `null` on
+  // either is the unknown case and passes — see the header.
+  const canCarry =
+    (facts.sex === null || facts.sex === "female") &&
+    (facts.species === null || PREGNANCY_SPECIES.has(facts.species));
+  if (!canCarry) return [];
+
+  // AND THEN THE TWO HALVES ARE MUTUALLY EXCLUSIVE, which is the same rule the
+  // two writers enforce from the spine. Offering both at once would put a
+  // "cerrar el embarazo" row in front of somebody whose animal has none.
+  if (facts.pregnancyStatus === "in_progress") return ["pregnancy_end"];
+  if (facts.pregnancyStatus === null) return ["pregnancy_start", "pregnancy_end"];
+  return ["pregnancy_start"];
+}
 
 /**
  * Is this string a kind THIS BUILD can write?
@@ -179,6 +276,12 @@ export function kindTitle(kind: WritableKind): string {
       return "Atestación de raza peligrosa";
     case "death":
       return "Fallecimiento";
+    // "Embarazo" and not "Gestación": the picker is read by the person who
+    // lives with the animal, not by the vet who confirmed it.
+    case "pregnancy_start":
+      return "Embarazo · inicio";
+    case "pregnancy_end":
+      return "Embarazo · fin";
   }
 }
 
@@ -223,6 +326,12 @@ export function kindSubtitle(kind: WritableKind): string {
       // describes. Este asiento termina el registro del animal: después sólo se
       // admiten notas. Una persona tiene derecho a saberlo antes, no después.
       return "Cierra el registro del animal. Se dan de baja los tránsitos abiertos y los casos en curso, y después sólo se pueden agregar notas.";
+    case "pregnancy_start":
+      return "El comienzo del seguimiento. Programa los controles quincenales hasta la fecha probable de parto.";
+    case "pregnancy_end":
+      // Says "cómo terminó" rather than "el parto", because four of the five
+      // outcomes are not a birth and one of them is "no lo sé".
+      return "Cómo terminó la gestación. Cierra el seguimiento y los controles que quedaban.";
   }
 }
 
@@ -286,6 +395,12 @@ export function recordEventCta(kind: WritableKind): { label: string; busyLabel: 
       // closes a life record: "asentar" is what a libreta does, and it does not
       // ask a grieving person to "registrar" their animal one last time.
       return { label: "Asentar el fallecimiento", busyLabel: "Asentando…" };
+    case "pregnancy_start":
+      return { label: "Registrar el embarazo", busyLabel: "Registrando…" };
+    case "pregnancy_end":
+      // "Cerrar" and not "Registrar el fin": the act is closing a follow-up
+      // that has been open for weeks, and one of the five outcomes is a loss.
+      return { label: "Cerrar el seguimiento", busyLabel: "Cerrando…" };
   }
 }
 
@@ -499,6 +614,12 @@ export type EventDraft = {
   dispositionMethod: DispositionMethod | null;
   facility: string;
   ownerToPrivateCrematorium: YesNo | null;
+  // embarazo — `vetName` NO está acá, igual que en fallecimiento: ya existe y
+  // significa lo mismo. `weeksAtDiagnosis` es texto porque el campo es texto;
+  // el contrato juzga el número.
+  weeksAtDiagnosis: string;
+  outcome: PregnancyOutcome | null;
+  liveBirthsCount: string;
   // esterilización
   procedure: SterilizationProcedure;
   // visita veterinaria
@@ -554,6 +675,12 @@ export function emptyDraft(now: Date = new Date()): EventDraft {
     kg: "",
     product: "",
     dewormingType: "internal",
+    weeksAtDiagnosis: "",
+    // NULL AND NOT A DEFAULT OUTCOME, the same reason `cause` is null on the
+    // death form: a pre-selected "parto exitoso" would let somebody close a
+    // gestation as a live birth without ever having been asked.
+    outcome: null,
+    liveBirthsCount: "",
     drugName: "",
     dose: "",
     prescribedBy: "",
@@ -758,6 +885,31 @@ function draftToWire(
         // "Accidente" must not ship the disease they abandoned.
         diseaseCode: draft.cause === "disease" ? orNull(draft.diseaseCode) : null,
         confirmedByLab: draft.confirmedByLab === "si",
+        notes: orNull(draft.notes),
+      };
+    case "pregnancy_start":
+      return {
+        kind,
+        occurredAt: dateInputToIso(draft.occurredAt),
+        weeksAtDiagnosis: numberOrNull(draft.weeksAtDiagnosis),
+        vetConsulted: orNull(draft.vetName),
+        notes: orNull(draft.notes),
+      };
+    case "pregnancy_end":
+      return {
+        kind,
+        occurredAt: dateInputToIso(draft.occurredAt),
+        // May be null here and the contract refuses it — the same shape as
+        // `cause` on the death form, for the same reason.
+        outcome: draft.outcome,
+        // ONLY UNDER "parto exitoso", exactly as the web action reads it
+        // (pregnancy.ts:106-113). Somebody who typed 4 crías and then changed
+        // the outcome to "pérdida" must not ship the number they abandoned —
+        // and the contract refuses that combination outright, so shipping it
+        // would turn a changed mind into a 400.
+        liveBirthsCount:
+          draft.outcome === "live_birth" ? numberOrNull(draft.liveBirthsCount) : null,
+        vetConsulted: orNull(draft.vetName),
         notes: orNull(draft.notes),
       };
     case "sterilization":
@@ -977,6 +1129,24 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "Elegí de qué enfermedad murió.";
     case "DEATH_DISEASE_CODE_UNKNOWN":
       return "No reconocemos esa enfermedad. Elegila de la lista.";
+    case "PREGNANCY_WEEKS_INVALID":
+      // NAMES THE CEILING, because the field cannot: a person who typed 14 has
+      // no way to guess that 12 is the limit or why. It is not species-aware
+      // and the sentence does not pretend it is — the server clamps, and the
+      // real fix is a bound this form does not have yet.
+      return "Las semanas al diagnóstico van de 0 a 12.";
+    case "PREGNANCY_OUTCOME_INVALID":
+      return "Elegí cómo terminó la gestación.";
+    case "PREGNANCY_BIRTHS_INVALID":
+      return "La cantidad de crías va de 1 a 20.";
+    case "PREGNANCY_BIRTHS_REQUIRED":
+      return "Indicá cuántas crías nacieron con vida.";
+    case "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH":
+      // UNREACHABLE FROM THIS FORM — `draftToWire` drops the count under any
+      // other outcome, precisely so a changed mind never becomes a 400. The
+      // sentence exists because the code does, and because the day that guard
+      // is edited away this is what the person would read.
+      return "La cantidad de crías solo va cuando nacieron con vida.";
   }
 }
 
@@ -1070,6 +1240,14 @@ export function invalidFields(code: RecordEventInputCode | null): ReadonlySet<ke
       case "DEATH_DISEASE_CODE_REQUIRED":
       case "DEATH_DISEASE_CODE_UNKNOWN":
         return ["diseaseCode"];
+      case "PREGNANCY_WEEKS_INVALID":
+        return ["weeksAtDiagnosis"];
+      case "PREGNANCY_OUTCOME_INVALID":
+        return ["outcome"];
+      case "PREGNANCY_BIRTHS_INVALID":
+      case "PREGNANCY_BIRTHS_REQUIRED":
+      case "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH":
+        return ["liveBirthsCount"];
     }
   })();
   return new Set(fields);
@@ -1208,6 +1386,36 @@ export function vetContactLabel(value: VetContactValue): string {
 }
 
 /** es-AR label for a yes/no answer. */
+/**
+ * How a pregnancy ended, in the words the person would use.
+ *
+ * NOT THE CLINICAL WORDS. The wire says `stillbirth` and `miscarriage`; a
+ * libreta read by somebody who lost a litter says "nacieron sin vida" and
+ * "se perdió el embarazo". "Interrupción" is the one that stays close to the
+ * clinical term, because a euphemism there would read as judgement.
+ *
+ * `unknown` IS LAST AND IS NOT "otro". A person who was not there — the common
+ * case for an animal that was in tránsito — still has to close the follow-up,
+ * and "no lo sé" is the answer that keeps them from inventing one.
+ */
+export function pregnancyOutcomeLabel(outcome: PregnancyOutcome): string {
+  switch (outcome) {
+    case "live_birth":
+      return "Nacieron con vida";
+    case "stillbirth":
+      return "Nacieron sin vida";
+    case "miscarriage":
+      return "Se perdió el embarazo";
+    case "termination":
+      return "Interrupción";
+    case "unknown":
+      return "No lo sé";
+  }
+}
+
+/** The five outcomes, as the chip row draws them. */
+export const PREGNANCY_OUTCOME_OPTIONS: readonly PregnancyOutcome[] = PREGNANCY_OUTCOMES;
+
 export function yesNoLabel(value: YesNo): string {
   return value === "si" ? "Sí" : "No";
 }

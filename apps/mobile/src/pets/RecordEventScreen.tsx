@@ -89,11 +89,12 @@ import {
   type EventDraft,
   FREQUENCY_OPTIONS,
   NOTE_CATEGORY_OPTIONS,
+  PREGNANCY_OUTCOME_OPTIONS,
+  type PetFactsForMenu,
   RECORD_DONE_LABEL,
   RECORD_DUPLICATE_LABEL,
   RECORD_IMMUTABILITY_NOTE,
   RECORD_KINDS,
-  type RecordKind,
   SAME_DAY_PROMPT_LABEL,
   STERILIZATION_PROCEDURE_OPTIONS,
   SYMPTOM_SEVERITY_OPTIONS,
@@ -101,6 +102,7 @@ import {
   YES_NO,
   attestationRegistryOptions,
   clinicalSubKindLabel,
+  conditionalKinds,
   deathCauseLabel,
   deathDiseaseOptions,
   dewormingTypeLabel,
@@ -113,6 +115,7 @@ import {
   kindTitle,
   microchipReplaceReasonLabel,
   noteCategoryLabel,
+  pregnancyOutcomeLabel,
   recordEventCta,
   sterilizationProcedureLabel,
   symptomSeverityLabel,
@@ -152,7 +155,7 @@ export function RecordEventScreen({
   const [kind, setKind] = useState<WritableKind | null>(initialKind);
 
   if (kind === null) {
-    return <KindPicker onPick={setKind} />;
+    return <KindPicker publicToken={publicToken} onPick={setKind} />;
   }
 
   return (
@@ -169,7 +172,69 @@ export function RecordEventScreen({
   );
 }
 
-function KindPicker({ onPick }: { onPick: (kind: RecordKind) => void }) {
+/**
+ * The animal's own facts, for the rows that are a claim about it.
+ *
+ * `null` UNTIL THE READ ANSWERS, and that fourth state is the reason this is
+ * not just `PetFactsForMenu`. `conditionalKinds` treats a null FIELD as "I
+ * could not find out" and offers the row anyway — the right call once a read
+ * has finished and come back degraded. Before it finishes, the same value would
+ * mean something else entirely, and the menu would draw two rows and then take
+ * one away while somebody is reaching for it. A row that appears late is fine;
+ * a row that vanishes under a thumb is not.
+ *
+ * ONE READ, THE SAME ONE the PPP and disease pickers make. It is not free, and
+ * it is paid once per visit to the picker rather than once per form.
+ */
+function useMenuFacts(publicToken: string): PetFactsForMenu | null {
+  const [facts, setFacts] = useState<PetFactsForMenu | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const result = await fetchOwnerPetDetail(sessionPort, publicToken);
+      if (!alive) return;
+      if (result.outcome !== "ok") {
+        // A FAILED READ STILL ANSWERS, with every fact unknown — which
+        // `conditionalKinds` reads as "offer them". Leaving this at `null`
+        // would hide the rows forever behind a network blip, and nothing on
+        // screen would say a capability had gone missing.
+        setFacts({ sex: null, species: null, pregnancyStatus: null });
+        return;
+      }
+      const identity = result.payload.identity;
+      const status = result.payload.status;
+      setFacts({
+        sex: identity.status === "ok" ? identity.data.sex : null,
+        species: identity.status === "ok" ? identity.data.species : null,
+        // A DEGRADED STATUS SECTION AND AN ANIMAL THAT WAS NEVER PREGNANT ARE
+        // BOTH `null` HERE, and they must not be: the first means "unknown", the
+        // second means "no follow-up open". They diverge in
+        // `conditionalKinds` — unknown offers both halves, no-follow-up offers
+        // only the start — so the section's own status is what separates them,
+        // never the field's emptiness.
+        pregnancyStatus: status.status === "ok" ? (status.data.pregnancyStatus ?? "none") : null,
+      });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [publicToken]);
+
+  return facts;
+}
+
+function KindPicker({
+  publicToken,
+  onPick,
+}: {
+  publicToken: string;
+  onPick: (kind: WritableKind) => void;
+}) {
+  const facts = useMenuFacts(publicToken);
+  // Empty until the read lands — see `useMenuFacts`. The ten fixed rows draw
+  // immediately either way; these are additive.
+  const conditional = facts === null ? [] : conditionalKinds(facts);
   return (
     <Screen>
       <View style={styles.header}>
@@ -178,6 +243,19 @@ function KindPicker({ onPick }: { onPick: (kind: RecordKind) => void }) {
         <Body>¿Qué querés registrar?</Body>
       </View>
       {RECORD_KINDS.map((kind) => (
+        <SecondaryButton
+          key={kind}
+          label={kindTitle(kind)}
+          accessibilityHint={kindSubtitle(kind)}
+          onPress={() => onPick(kind)}
+        />
+      ))}
+      {/* AFTER THE TEN AND NOT MIXED INTO THEM. The fixed list is ordered by
+          how often the act happens (see `RECORD_KINDS`), and a row that appears
+          a beat later must not push that order around under somebody's thumb.
+          Appending is the only insertion point where a late arrival moves
+          nothing that was already on screen. */}
+      {conditional.map((kind) => (
         <SecondaryButton
           key={kind}
           label={kindTitle(kind)}
@@ -530,6 +608,13 @@ function chainLength(kind: WritableKind, draft: EventDraft): number {
     // la cadena porque no se tipean.
     case "death":
       return 3 + (draft.deathAtClinic === "si" ? 1 : 0) + (draft.confirmedByVet === "si" ? 1 : 0);
+    // Semanas, fecha, veterinario. Tres campos tipeados.
+    case "pregnancy_start":
+      return 3;
+    // Fecha, veterinario, y las crías sólo cuando nacieron con vida. El
+    // desenlace es una fila de chips y no se tipea.
+    case "pregnancy_end":
+      return 2 + (draft.outcome === "live_birth" ? 1 : 0);
   }
 }
 
@@ -997,6 +1082,88 @@ function Fields({
             {...link()}
           />
           {dateField("Fecha de la atestación", "occurredAt", true)}
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+    }
+
+    case "pregnancy_start":
+      return (
+        <>
+          <TextField
+            label="Semanas al diagnóstico"
+            mono
+            value={draft.weeksAtDiagnosis}
+            invalid={invalid.has("weeksAtDiagnosis")}
+            onChangeText={(v) => set("weeksAtDiagnosis", v)}
+            placeholder="4"
+            inputMode="numeric"
+            {...link()}
+          />
+          {/* NOT REQUIRED, AND THE CAPTION SAYS WHY IT MAY BE LEFT BLANK.
+              Somebody whose vet said "está preñada" without a week is not
+              missing data — the server dates the birth from the full species
+              gestation, which is the honest estimate when the week is unknown.
+              A required field here would make them invent one, and the invented
+              number moves the probable birth date and every checkup with it. */}
+          <Body>
+            Si no las sabés, dejá el campo vacío: la fecha probable de parto se calcula con la
+            gestación completa de la especie.
+          </Body>
+          {dateField("Fecha del diagnóstico", "occurredAt", true)}
+          <TextField
+            label="Veterinario"
+            value={draft.vetName}
+            onChangeText={(v) => set("vetName", v)}
+            placeholder="Quién lo confirmó"
+            {...link()}
+          />
+          <NotesField draft={draft} set={set} />
+        </>
+      );
+
+    case "pregnancy_end": {
+      // THE COUNT IS GATED ON ONE OUTCOME AND CLEARED WITH IT, the same shape
+      // the death form uses for its clinic and its disease. Somebody who typed
+      // 4 crías and then changed the outcome to "se perdió el embarazo" must
+      // not be left holding a number that is no longer on screen: the contract
+      // refuses that combination outright, so keeping it would turn a changed
+      // mind into a 400 about a field they cannot see.
+      const liveBirth = draft.outcome === "live_birth";
+      return (
+        <>
+          <Choice
+            label="¿Cómo terminó?"
+            required
+            options={PREGNANCY_OUTCOME_OPTIONS}
+            selected={draft.outcome}
+            optionLabel={pregnancyOutcomeLabel}
+            onSelect={(value) => {
+              set("outcome", value);
+              if (value !== "live_birth") set("liveBirthsCount", "");
+            }}
+          />
+          {liveBirth ? (
+            <TextField
+              label="Crías nacidas con vida"
+              required
+              mono
+              value={draft.liveBirthsCount}
+              invalid={invalid.has("liveBirthsCount")}
+              onChangeText={(v) => set("liveBirthsCount", v)}
+              placeholder="4"
+              inputMode="numeric"
+              {...link()}
+            />
+          ) : null}
+          {dateField("Fecha", "occurredAt", true)}
+          <TextField
+            label="Veterinario"
+            value={draft.vetName}
+            onChangeText={(v) => set("vetName", v)}
+            placeholder="Quién atendió"
+            {...link()}
+          />
           <NotesField draft={draft} set={set} />
         </>
       );

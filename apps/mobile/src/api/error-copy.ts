@@ -193,6 +193,20 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       // accepted, because the endpoint accepts it and a bare refusal would hide
       // the one thing left to do.
       return "Esta mascota está registrada como fallecida y no acepta nuevos registros clínicos. Sí podés dejar una nota.";
+    // THE THREE PREGNANCY REFUSALS, and they are three sentences rather than
+    // one because each names a DIFFERENT next move — which is the same reason
+    // the contract gave them three codes instead of reusing
+    // `event_not_allowed`. That code's sentence above is about a deceased
+    // animal, and it is the sentence a male dog would have been shown.
+    case "pregnancy_not_applicable":
+      // No next move exists, so the sentence does not invent one. It says what
+      // is true and stops — a "probá con…" here would be a suggestion to do
+      // something impossible.
+      return "Esta mascota no puede tener un embarazo registrado: el seguimiento es solo para hembras de una especie con gestación conocida.";
+    case "pregnancy_already_open":
+      return "Esta mascota ya tiene un embarazo en seguimiento. Cerralo primero y después registrá el nuevo.";
+    case "pregnancy_none_open":
+      return "Esta mascota no tiene un embarazo en seguimiento para cerrar. Registrá primero el inicio.";
     case "event_date_future":
       return "La fecha no puede ser futura.";
     case "event_date_before_birth":

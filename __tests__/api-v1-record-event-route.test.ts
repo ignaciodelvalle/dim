@@ -41,6 +41,12 @@ const control = vi.hoisted(() => ({
   canonicalChip: null as string | null,
   /** Every use-case call. Empty means nothing was written. */
   writes: [] as Array<{ kind: string; input: Record<string, unknown> }>,
+  /**
+   * Both pregnancy writers answer `RecordPregnancyResult` — their own shape,
+   * with `notAllowed` as a DISCRIMINATOR rather than a flag. One override
+   * serves both halves: the endpoint reads the same three refusals from either.
+   */
+  pregnancyResult: null as null | (() => unknown),
   writeResult: null as null | (() => unknown),
   /**
    * Síntoma answers in its OWN shape — `{symptomEventId, signalEventIds}`, not
@@ -62,6 +68,8 @@ const control = vi.hoisted(() => ({
    * animal has no chip left and the naive answer is 409 forever.
    */
   replayEvent: null as null | { id: string },
+  /** A prior `clinical_info_logged` under this key — either pregnancy phase. */
+  replayedPregnancy: null as null | { id: string },
   /** The attestation writer's answer. */
   attestResult: null as null | (() => unknown),
   /** Non-null → the jurisdiction does not name that registry. */
@@ -202,8 +210,15 @@ vi.mock("@/lib/events/event-idempotency", async (importOriginal) => {
     ...actual,
     // Two kinds ask this question and they ask about different event types, so
     // the stub answers per type rather than with one value for both.
-    findExistingByKey: async (_petId: string, eventType: string) =>
-      eventType === "death_recorded" ? control.replayedDeath : control.replayEvent,
+    // THREE kinds ask this question now and they ask about different event
+    // types, so the stub answers per type rather than with one value for all.
+    // Both pregnancy phases share `clinical_info_logged` — the spine has no
+    // `pregnancy_started` type — so one control covers them.
+    findExistingByKey: async (_petId: string, eventType: string) => {
+      if (eventType === "death_recorded") return control.replayedDeath;
+      if (eventType === "clinical_info_logged") return control.replayedPregnancy;
+      return control.replayEvent;
+    },
   };
 });
 
@@ -241,6 +256,24 @@ vi.mock("@/src/modules/events/application/lifecycle/death-record-use-case", () =
           diseaseCode: null,
           authoritySignal: null,
         };
+  },
+}));
+
+vi.mock("@/src/modules/pets/application/pregnancy/record-pregnancy-started", () => ({
+  recordPregnancyStartedWriter: async (input: Record<string, unknown>) => {
+    control.writes.push({ kind: "pregnancy_start", input });
+    return control.pregnancyResult
+      ? control.pregnancyResult()
+      : { ok: true, eventId: EVENT_ID, reminderCount: 4, wasDuplicate: false };
+  },
+}));
+
+vi.mock("@/src/modules/pets/application/pregnancy/record-pregnancy-ended", () => ({
+  recordPregnancyEndedWriter: async (input: Record<string, unknown>) => {
+    control.writes.push({ kind: "pregnancy_end", input });
+    return control.pregnancyResult
+      ? control.pregnancyResult()
+      : { ok: true, eventId: EVENT_ID, reminderCount: 0, wasDuplicate: false };
   },
 }));
 
@@ -373,6 +406,8 @@ beforeEach(() => {
   control.custodyCase = null;
   control.replayedDeath = null;
   control.caretakerAlerts = [];
+  control.pregnancyResult = null;
+  control.replayedPregnancy = null;
 });
 
 describe("POST .../events — the guard is the web's, and it is not uniform", () => {
@@ -1368,5 +1403,188 @@ describe("POST .../events — fallecimiento, el asiento que cierra el registro",
     });
     expect(response.status).toBe(400);
     expect(control.writes).toEqual([]);
+  });
+});
+
+describe("POST .../events — embarazo, y las tres negativas que no son la misma", () => {
+  const A_START = { kind: "pregnancy_start", occurredAt: A_PAST_DAY, weeksAtDiagnosis: 4 };
+  const AN_END = { kind: "pregnancy_end", occurredAt: A_PAST_DAY, outcome: "unknown" };
+
+  it("appends the start and answers 201 with the event it wrote", async () => {
+    const res = await call(A_START);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      eventId: EVENT_ID,
+      wasDuplicate: false,
+    });
+    expect(control.writes).toHaveLength(1);
+    expect(control.writes[0].kind).toBe("pregnancy_start");
+  });
+
+  it("hands the writer the SAME Idempotency-Key the caller sent", async () => {
+    // THE FIELD THAT LETS THIS KIND EXIST ON THIS ENDPOINT AT ALL. Both writers
+    // were excluded from it on the grounds that they could not honour a key;
+    // dropping it here would silently restore that, and the endpoint would go
+    // on promising idempotency it no longer delivers.
+    await call(A_START);
+    expect(control.writes[0].input.clientIdempotencyKey).toBe(KEY);
+  });
+
+  it("reports a replay as a duplicate rather than as a second asiento", async () => {
+    control.pregnancyResult = () => ({
+      ok: true,
+      eventId: EVENT_ID,
+      // 0 ON A REPLAY AND THAT IS HONEST: this call scheduled nothing, the
+      // first one already did. The endpoint drops the number either way.
+      reminderCount: 0,
+      wasDuplicate: true,
+    });
+    const res = await call(A_START);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({ wasDuplicate: true });
+  });
+
+  it("answers pregnancy_not_applicable — NOT event_not_allowed — for an animal that cannot carry one", async () => {
+    // THE WHOLE REASON THESE THREE CODES EXIST. `event_not_allowed`'s client
+    // copy reads "Esta mascota está registrada como fallecida…", so a male dog
+    // routed to it would be told his life record is closed.
+    control.pregnancyResult = () => ({
+      ok: false,
+      error: "Solo se pueden registrar embarazos en hembras.",
+      notAllowed: "not_applicable",
+    });
+    const res = await call(A_START);
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({ error: "pregnancy_not_applicable" });
+  });
+
+  it("answers pregnancy_already_open when a follow-up is running", async () => {
+    control.pregnancyResult = () => ({
+      ok: false,
+      error: "Esta mascota ya tiene un embarazo en seguimiento.",
+      notAllowed: "already_open",
+    });
+    const res = await call(A_START);
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({ error: "pregnancy_already_open" });
+  });
+
+  it("answers pregnancy_none_open when the CLOSE has nothing to close", async () => {
+    // THE OPPOSITE NEXT MOVE from the one above — record the start first — which
+    // is exactly why it is not the same code.
+    control.pregnancyResult = () => ({
+      ok: false,
+      error: "Esta mascota no tiene un embarazo activo para cerrar.",
+      notAllowed: "none_open",
+    });
+    const res = await call(AN_END);
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({ error: "pregnancy_none_open" });
+  });
+
+  it("reports an unflagged failure as the server's own, not as the animal's", async () => {
+    // No `notAllowed` means the TRANSACTION failed. 500 and reported — telling a
+    // caller "your animal cannot do this" would send them to fix a pet that is
+    // fine.
+    control.pregnancyResult = () => ({ ok: false, error: "connection terminated" });
+    const res = await call(A_START);
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toMatchObject({ error: "event_failed" });
+    expect(control.reported).toHaveLength(1);
+  });
+
+  it("refuses a birth count under an outcome that is not a live birth, on the WIRE", async () => {
+    // The contract's cross-field rule, before any writer runs: "nacieron 3"
+    // alongside "se perdió el embarazo" is a record that contradicts itself, on
+    // a spine that cannot be edited.
+    const res = await call({ ...AN_END, outcome: "miscarriage", liveBirthsCount: 3 });
+    expect(res.status).toBe(400);
+    // NON-VACUITY: nothing reached a writer, so the refusal is the schema's.
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("refuses a live birth with NO count, in the other direction", async () => {
+    const res = await call({ ...AN_END, outcome: "live_birth" });
+    expect(res.status).toBe(400);
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("drops the count the client sent under a non-live outcome — it never reaches the writer", async () => {
+    // The happy path of the same rule: a valid close carries no count, and the
+    // writer is handed null rather than something it would have to re-judge.
+    await call(AN_END);
+    expect(control.writes[0].input.liveBirthsCount).toBeNull();
+  });
+
+  it("HONOURS THE KEY on a retry the animal's new state would otherwise refuse — the close", async () => {
+    // THE TEST THAT WAS MISSING, and its absence is why the defect shipped past
+    // a green gate. The other replay test injects `wasDuplicate: true` INTO the
+    // writer's answer, so it proves the endpoint forwards a flag and nothing
+    // about whether a replay can ever produce one.
+    //
+    // The scenario is the one the `Idempotency-Key` exists for. The close
+    // committed; `rederivePregnancyStatus` moved the animal to
+    // `completed_live_birth`; the phone never saw the 201 and re-sent the same
+    // body with the same key. The writer's own guard is now CORRECT to refuse —
+    // there is no open pregnancy — so the endpoint has to ask the ledger BEFORE
+    // it asks the animal.
+    control.replayedPregnancy = { id: "ev-original" };
+    // The writer is armed to refuse. If the pre-check regresses, this is the
+    // 409 the person gets, with copy telling them to append a spurious start.
+    control.pregnancyResult = () => ({
+      ok: false,
+      error: "Esta mascota no tiene un embarazo activo para cerrar.",
+      notAllowed: "none_open",
+    });
+
+    const res = await call(AN_END);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      eventId: "ev-original",
+      wasDuplicate: true,
+    });
+    // NON-VACUITY WITH TEETH: the writer was never reached, so the 201 is the
+    // ledger's answer and not a refusal that happened to look like success.
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("HONOURS THE KEY on the mirror case — the start, refused as already_open", async () => {
+    control.replayedPregnancy = { id: "ev-original" };
+    control.pregnancyResult = () => ({
+      ok: false,
+      error: "Esta mascota ya tiene un embarazo en seguimiento.",
+      notAllowed: "already_open",
+    });
+
+    const res = await call(A_START);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({ wasDuplicate: true });
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("reaches the writer when the key wrote nothing — so the check above is not a blanket 201", async () => {
+    control.replayedPregnancy = null;
+    const res = await call(A_START);
+    expect(res.status).toBe(201);
+    expect(control.writes).toHaveLength(1);
+    await expect(res.json()).resolves.toMatchObject({ wasDuplicate: false });
+  });
+
+  it("refuses BOTH halves on a deceased animal, from the shared guard", async () => {
+    // NOT exempt like nota, reemplazo and fallecimiento are: a closed life
+    // record does not accept a gestation, and `checkWriteGuard` says so before
+    // either writer is reached.
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow({ status: "deceased" }),
+      holderRole: "owner",
+    });
+    for (const body of [A_START, AN_END]) {
+      control.writes = [];
+      const res = await call(body);
+      expect(res.status).toBe(409);
+      await expect(res.json()).resolves.toMatchObject({ error: "event_not_allowed" });
+      expect(control.writes).toHaveLength(0);
+    }
   });
 });

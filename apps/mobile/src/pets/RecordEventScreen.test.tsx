@@ -108,6 +108,114 @@ beforeEach(() => {
   mockReplace.mockReset();
   mockRecordPetEvent.mockReset();
   mockRecordPetEvent.mockResolvedValue(recorded());
+  // THE PICKER READS THE PET NOW, so every test that renders it reaches this
+  // mock — not only the two forms that ask for registries or a species. Before
+  // this default the read resolved to `undefined` and the hook threw on
+  // `.outcome`, which surfaced as two unrelated tests failing on a screen that
+  // was fine.
+  //
+  // A PROMISE THAT NEVER LANDS, deliberately, and not a resolved failure. It
+  // holds `facts` at `null` — the fourth state — so the picker draws exactly
+  // the ten fixed rows and NOTHING updates state after the assertion. A
+  // resolved default would settle mid-test and make every picker test carry an
+  // `act` it has no reason to know about. The tests that are ABOUT the
+  // conditional rows set their own read.
+  mockFetchOwnerPetDetail.mockReset();
+  mockFetchOwnerPetDetail.mockReturnValue(new Promise(() => {}));
+});
+
+describe("RecordEventScreen — the picker's conditional rows", () => {
+  /**
+   * A COMPLETE pet-detail payload, and complete on purpose.
+   *
+   * The fixture further down deliberately carries only the two sections the
+   * FORMS read, and its own header explains why a partial one is a trap: a
+   * payload missing a section the contract guarantees does not test a degraded
+   * server, it tests a shape that cannot exist. The picker reads `identity` AND
+   * `status`, so this one carries both — and `status` is where the honest
+   * distinction lives between "no follow-up open" and "I could not find out".
+   */
+  function petDetail(o: {
+    sex?: string | null;
+    species?: string | null;
+    pregnancyStatus?: string | null;
+    statusDegraded?: boolean;
+  }) {
+    return {
+      outcome: "ok",
+      payload: {
+        identity: { status: "ok", data: { sex: o.sex ?? "female", species: o.species ?? "dog" } },
+        status: o.statusDegraded
+          ? { status: "unavailable" }
+          : { status: "ok", data: { pregnancyStatus: o.pregnancyStatus ?? null } },
+        pppRegistries: { status: "ok", data: null },
+      },
+    };
+  }
+
+  it("draws NO pregnancy row until the read lands", () => {
+    // The default mock never resolves. Ten fixed rows and nothing else — a row
+    // that appears late is fine, a row that vanishes under a thumb is not.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    expect(screen.queryByText(kindTitle("pregnancy_start"))).toBeNull();
+    expect(screen.queryByText(kindTitle("pregnancy_end"))).toBeNull();
+    // NON-VACUITY: the fixed rows ARE there, so the absence above is the
+    // condition and not a screen that failed to render.
+    expect(screen.getByText(kindTitle("weight"))).toBeOnTheScreen();
+  });
+
+  it("adds the START row for a female with no follow-up open", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ pregnancyStatus: null }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    expect(await screen.findByText(kindTitle("pregnancy_start"))).toBeOnTheScreen();
+    expect(screen.queryByText(kindTitle("pregnancy_end"))).toBeNull();
+  });
+
+  it("swaps to the END row while a pregnancy is in follow-up", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ pregnancyStatus: "in_progress" }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    expect(await screen.findByText(kindTitle("pregnancy_end"))).toBeOnTheScreen();
+    expect(screen.queryByText(kindTitle("pregnancy_start"))).toBeNull();
+  });
+
+  it("adds NEITHER row for a male", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ sex: "male" }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    // The read has to LAND before the absence means anything, and it has no
+    // visible effect here — so wait on the call rather than on a row.
+    await waitFor(() => expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(kindTitle("pregnancy_start"))).toBeNull();
+    expect(screen.queryByText(kindTitle("pregnancy_end"))).toBeNull();
+  });
+
+  it("offers BOTH rows when the read failed outright", async () => {
+    // Hiding a capability because a read failed is a dead end nobody can see.
+    mockFetchOwnerPetDetail.mockResolvedValue({ outcome: "unreachable" });
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    expect(await screen.findByText(kindTitle("pregnancy_start"))).toBeOnTheScreen();
+    expect(screen.getByText(kindTitle("pregnancy_end"))).toBeOnTheScreen();
+  });
+
+  it("offers BOTH rows when the read answered but the status section is degraded", async () => {
+    // THE CASE A `pregnancyStatus: null` FIELD ALONE CANNOT EXPRESS. A degraded
+    // section and an animal that was never pregnant would both read as null;
+    // only the section's own status separates them, and they must diverge —
+    // unknown offers both halves, never-pregnant offers only the start.
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ statusDegraded: true }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    expect(await screen.findByText(kindTitle("pregnancy_end"))).toBeOnTheScreen();
+    expect(screen.getByText(kindTitle("pregnancy_start"))).toBeOnTheScreen();
+  });
+
+  it("opens the pregnancy form when its row is tapped", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ pregnancyStatus: "in_progress" }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.press(await screen.findByText(kindTitle("pregnancy_end")));
+    // The outcome chips are the form's own first question — a row that opened
+    // the wrong form would show the picker's list again.
+    expect(screen.getByText("¿Cómo terminó?")).toBeOnTheScreen();
+    expect(screen.getByText("Nacieron con vida")).toBeOnTheScreen();
+  });
 });
 
 describe("RecordEventScreen — the picker", () => {
