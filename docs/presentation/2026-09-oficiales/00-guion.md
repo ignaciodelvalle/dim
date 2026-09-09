@@ -41,6 +41,14 @@ funciona si las dos láminas incómodas están donde se ven.
 
 - **El spec `05-modelo-datos.md` no entra en las quince láminas.** Es material de
   anexo técnico, para la pregunta de un informático en la sala, no para el flujo.
+- **Hay un capítulo agregado el 2026-09-09 que no corre la numeración de las quince
+  láminas fijas.** `13-vigilancia-zoonosis.md` documenta la vigilancia
+  epidemiológica y la zoonosis (ENO, bandeja de salida, observación antirrábica) y
+  se registra abajo como **Lámina 16**, al final de este archivo, para no
+  renumerar la regla de las láminas once y quince. En la reunión se muestra en vivo
+  **inmediatamente después de la Lámina 5** ("Qué ve el municipio: su territorio,
+  nada más"), antes de la Lámina 6. Quien arme el mazo respeta ese lugar aunque el
+  número diga 16.
 - **Estado del piloto Android — confirmado por el PO (2026-09-02).** Se dice así, con
   estas palabras: **aplicación Android en prueba interna con un grupo de testers.** Ni
   una cifra: no digas cuántos testers son, ni en la lámina ni de palabra. Un número
@@ -509,3 +517,43 @@ funciona si las dos láminas incómodas están donde se ven.
     adopción, que es justo lo que no es, y abre la repregunta que no se puede contestar
     desde el escenario. Tampoco se menciona número de compilación ni fecha de
     publicación en la tienda: ninguno de los dos se verifica desde el código.
+
+## Lámina 16 — Vigilancia epidemiológica y zoonosis
+
+> **Agregada el 2026-09-09.** No es una lámina de honestidad como la 11 y la 15, pero
+> se le aplica la misma regla: se muestra en el flujo principal, **inmediatamente
+> después de la Lámina 5**, no al final ni en un anexo. El número 16 es de archivo,
+> no de orden en la sala — ver la nota de alcance del preámbulo.
+
+- **Diagrama.** D13 — `13-vigilancia-zoonosis.md`, nivel técnico. No tiene todavía
+  reducción ejecutiva.
+- **Mensaje clave.** La señal a la autoridad existe, es honesta sobre lo que no hace,
+  y el ciclo legal —plazo por enfermedad, jurisdicción del hecho, ventana de
+  observación, quién la cierra— está en el código, no en un PDF.
+- **Hechos.** Ninguno con marcador `fact:`: la clave no existe todavía en
+  `docs/architecture/facts.json`. Los números de esta lámina (5 enfermedades en el
+  catálogo ENO, 10 días de default en la observación antirrábica) viajan con cita de
+  archivo y línea en el spec, no con marcador.
+- **Respaldo.**
+  - `src/modules/surveillance/domain/eno-catalog.ts` — las 5 enfermedades, su plazo
+    legal y si estigmatizan al titular.
+  - `db/schema.ts` — las dos tablas que no hay que confundir: `eno_processing_queue`
+    (fanout interno) y `event_notification_outbox` (plazo legal y SLA).
+  - `lib/infra/outbox-drainer.ts` — la entrega v1, que audita lo que se hubiera
+    enviado y no envía nada.
+  - `src/modules/surveillance/domain/rabies-observation.ts` — el ciclo de 10 días,
+    ajustable por jurisdicción, y quién puede cerrarlo.
+- **Lo que NO se dice en esta lámina.**
+  - **No se dice que la bandeja de salida notifique a SENASA o al SNVS.** Genera la
+    fila, calcula el plazo, la audita; no la envía. El propio producto ya lo declara
+    sin eufemismos en tres pantallas de vigilancia.
+  - **No se dice que un fallecimiento por enfermedad denunciable siempre avisa a la
+    autoridad.** Sin una observación antirrábica abierta en ese momento, lo único
+    que queda es un asiento de auditoría aparte, invisible en las dos pantallas de
+    gobierno de esta lámina.
+  - No se dice que el plazo legal de notificación ENO sea configurable por
+    jurisdicción: es un número fijo por enfermedad, a diferencia de la ventana de
+    observación antirrábica, que sí lo es.
+  - No se afirma la existencia de un preset "ENO" en la bandeja de salida ni de un
+    rol de autoridad nacional de solo lectura: están en curso el 2026-09-09 y no
+    están en este snapshot del código.
