@@ -13,7 +13,9 @@
 //      in the page's own words; and the replay check runs BEFORE the window
 //      guard, because the write's own success closes the window it needed.
 //   7. The adapter's half: an uploaded attachment is removed when the rule
-//      refuses, so a refusal leaves nothing behind in storage.
+//      refuses AND when the writer throws, so neither leaves anything behind
+//      in storage. The adapter now lives in src/modules/pets/actions.ts;
+//      app/actions/checkin.ts is the shim this file imports through.
 //
 // Mocking strategy follows __tests__/finder-in-possession-action.test.ts:
 //   - Mock @/db (db + table references) with a queryable fake. The TOP-LEVEL
@@ -693,6 +695,43 @@ describe("recordPostAdoptionCheckinAction", () => {
 
     expect(result.error).toMatch(/adoptante/i);
     expect(mockRemove).toHaveBeenCalledWith(["pets/orphan.jpg"]);
+    expect(mockInsertEventIdempotent).not.toHaveBeenCalled();
+  });
+
+  it("removes the uploaded attachment when the writer THROWS, so a crash leaves nothing in storage either", async () => {
+    // The refusal above is the writer answering "no"; this is the writer not
+    // answering at all. Both leave a file with no row, and the adapter's catch
+    // is the only place that knows the file exists. Pinned separately because a
+    // mutation that dropped ONLY the catch-path cleanup passed the whole suite
+    // (2026-09-09) — the refusal test cannot see this branch.
+    vi.resetModules();
+    const mockRemove = vi.fn(async () => ({ error: null }));
+    mockRequirePetAccess.mockResolvedValue({
+      ...makePetAccessSuccess(),
+      supabase: { storage: { from: vi.fn(() => ({ remove: mockRemove })) } },
+    });
+    setupMockDb();
+    // The adoption read — the first thing the writer asks the spine — blows up
+    // before any rule can answer.
+    mockDb.select = vi.fn(() => {
+      throw new Error("connection reset");
+    });
+    mockUpload.mockResolvedValue({
+      uploadedPath: "pets/orphan-on-throw.jpg",
+      mimeType: "image/jpeg",
+      size: 1234,
+      error: null,
+    });
+
+    const { recordPostAdoptionCheckinAction } = await import("@/app/actions/checkin");
+    const result = await recordPostAdoptionCheckinAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(BASE_FORM),
+    );
+
+    expect(result.error).toMatch(/No se pudo registrar el check-in/);
+    expect(mockRemove).toHaveBeenCalledWith(["pets/orphan-on-throw.jpg"]);
     expect(mockInsertEventIdempotent).not.toHaveBeenCalled();
   });
 });

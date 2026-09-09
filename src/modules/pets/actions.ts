@@ -26,6 +26,7 @@
 import { db, notifications } from "@/db";
 import { resolveBreedForWrite } from "@/lib/domain/breed-validation";
 import {
+  CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
@@ -35,7 +36,11 @@ import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { findSameOwnerDuplicatePet } from "@/lib/infra/owner-pet-dedupe";
-import { requireTitularAccess } from "@/lib/infra/pet-access";
+import {
+  type SupabaseServerClient,
+  requirePetAccess,
+  requireTitularAccess,
+} from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -52,6 +57,8 @@ function parseEstimatedWeightKg(raw: string | null): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+import { recordPostAdoptionCheckin } from "./application/checkin/record-post-adoption-checkin";
+import type { CheckinFormState } from "./application/checkin/types";
 import { recordChipDisputeAgainstActivePet } from "./application/chip-match/record-chip-dispute";
 import { recordMovementWriter } from "./application/movement/record-movement";
 import { registerPet } from "./application/register-pet";
@@ -722,4 +729,102 @@ export async function correctPetSpeciesAction(
 
   // N3: return the destination; the form navigates (useActionRedirect).
   return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
+}
+
+// ---------------------------------------------------------------------------
+// POST-ADOPTION CHECK-IN (strangler migration 33/61)
+// ---------------------------------------------------------------------------
+//
+// The web door of the check-in. Moved here from app/actions/checkin.ts on
+// 2026-09-09, the same day the use-case stopped taking the FormData: the rules
+// went to ./application/checkin/ but the adapter plumbing stayed inline in the
+// app/actions file and blew its line budget. What lives here is exactly what a
+// browser form needs and JSON does not — the access guard at the cookie door,
+// the field parsing, the location canonicalisation, the attachment upload and
+// its rollback — which is this file's stated job (header, steps 1-5). Every
+// RULE runs inside `recordPostAdoptionCheckin`, once, for this door and for
+// `POST /api/v1/pets/{token}/events` alike.
+
+async function removeEventAttachment(supabase: SupabaseServerClient, path: string | null) {
+  if (!path) return;
+  try {
+    await supabase.storage.from("event-attachments").remove([path]);
+  } catch {
+    // Swallow — orphaned file at worst.
+  }
+}
+
+export async function recordPostAdoptionCheckinAction(
+  publicToken: string,
+  _previous: CheckinFormState,
+  formData: FormData,
+): Promise<CheckinFormState> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+
+  // Check-in is owner-self only. Org-mediated access (refugios cohabiting
+  // post-adoption) can READ the resulting event but not WRITE it. The
+  // use-case refuses an org member anyway — an organization is never the
+  // adopter — but this door says so in its own sentence, before any upload.
+  if (access.accessPath !== "owner") {
+    return { error: "Solo el adoptante puede registrar un check-in." };
+  }
+  const { supabase, user, pet } = access;
+
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  // Per-event L1 (sprint 4 PR-034). Optional.
+  // Canonicalize the ISO provinceCode (e.g. "AR-C") to the display name ("CABA")
+  // that every other jurisdiction_province write stores. Without this, the raw
+  // ISO code landed in the JSONB payload and govt-dashboard aggregation that
+  // filters on display names silently missed check-in events.
+  // locality:"none" — canonicalize province only, no catalog lookup.
+  const loc = parseLocationFromFormData(formData);
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  try {
+    const result = await recordPostAdoptionCheckin({
+      pet: { id: pet.id, name: pet.name },
+      user: { id: user.id },
+      notes,
+      eventJurisdictionProvince: normalizedLoc.province,
+      eventJurisdictionLocality: normalizedLoc.locality,
+      clientIdempotencyKey,
+      uploadedPath: upload.uploadedPath,
+      uploadedMimeType: upload.mimeType,
+      uploadedSize: upload.size,
+    });
+    if (!result.ok) {
+      // A refused or failed write leaves no row for the file to hang off.
+      await removeEventAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+  } catch (err) {
+    await removeEventAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el check-in: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  // Nav contract N3: RETURN the destination; the form navigates (useActionRedirect).
+  // Land on the LIBRETA tab, not the credential face: the freshly created
+  // "Seguimiento post-adopción" asiento at the top — now rendering the
+  // adopter's own text — IS the confirmation. The bare profile redirect gave
+  // no visible sign anything happened (9-role external run, 2026-08-18).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}?tab=libreta` };
 }
