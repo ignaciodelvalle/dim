@@ -21,7 +21,9 @@ import { StorySection } from "@/components/landing/StorySection";
 import { resolveDemoPetToken } from "@/components/landing/demo-pet";
 import { GobStripe } from "@/components/layout/GobStripe";
 import { ScrollReset } from "@/components/layout/ScrollReset";
+import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import { db, organizationMemberships, pets } from "@/db";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import {
   isDeactivatedInstitutional,
@@ -131,6 +133,19 @@ export default async function Home() {
   return (
     <div className="lp flex min-h-screen flex-col" data-landing-root>
       <RevealManager />
+      {/* ABOVE THE NAV, and above everything else on this page.
+          `DemoModeBanner`'s header claims it is "mounted on EVERY shell —
+          public, citizen, and operator", and the landing is on no shell at all:
+          it lives at the app ROOT, outside `(public)`, so it never inherited
+          that group's `banner` slot. Verified on the live origin 2026-09-09 —
+          the credential page disclosed, this page did not, with demo mode on in
+          both.
+          NOT THE SAME THING as the two `datos ilustrativos · demo` captions
+          further down (`story-screens.tsx`). Those say a particular CHART is
+          made up; this says the SYSTEM is. A visitor who reads only the second
+          kind can reasonably conclude the rest is real, which on the surface a
+          funcionario enters through is the misreading that costs the most. */}
+      <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
       <LandingNav />
       <GobStripe height={6} />
       <main id="main-content" data-scroll-reset className="flex-1">
