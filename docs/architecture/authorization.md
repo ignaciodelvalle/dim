@@ -440,13 +440,20 @@ live in the lens.
 |---|---|---|---|
 | `A01-1` | HIGH | `lib/infra/live-user.ts:324` | A self-deactivated PERSONAL account is never locked out at any boundary |
 | `A02-1` | HIGH | `db/migrations/0190_titular_only_rls.sql` | `pet_events` PostgREST INSERT admits forged `author_role` / `author_verified` |
-| `A01-2` | MED | `lib/analytics/admin-metrics.ts` | `fetchQueueHealthScoped([])` returns national counts for a scopeless govt |
 | `A01-3` | MED | `scripts/check-authz-guards.ts:105` | The fence accepts a bare `auth.getUser()` as a guard |
 | `A01-4` | MED | `app/actions/localities.ts` | Test-only rate-limit resets are exported from `"use server"` modules |
 | `A10-2` | MED | `src/modules/organizations/application/admin-proposals/propose-vet-upgrade.ts` | A govt proposal writes a client-supplied jurisdiction with no assignment check |
 | `A01-5` | LOW | `lib/analytics/owner-dashboard.ts` | PII readers take a bare subject id; the caller is the only fence |
 | `A01-7` | LOW | `scripts/check-authz-guards.ts:974` | `lib/**` is outside the fence's action globs |
 | `A01-8` | LOW | `scripts/check-authz-scoping.ts` | A report-only ratchet with no burn-down owner |
+
+`A01-2` (MED, `fetchQueueHealthScoped([])` returning national approval-queue
+counts for a govt narrowed out of its mandate) left this table on 2026-09-09:
+the fetcher now takes the page's `ProjectionContext` and reads the scope off
+`ctx.scope.kind`, returning zero without a query when a govt's effective scope
+is empty — the same fail-closed contract `lib/metrics/scope.ts` compiles to
+`sql\`false\``. `__tests__/queue-health-scoped-fail-closed.test.ts` walks the
+real page path (resolver → narrowed set → fetcher) against the live database.
 
 Two limits on how to read that table. First, the audit ran fifteen of
 thirty-six planned lenses and executed nothing — no test run, no build, no

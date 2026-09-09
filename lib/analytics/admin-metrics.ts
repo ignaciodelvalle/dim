@@ -129,6 +129,14 @@ export async function fetchQueueHealth(): Promise<QueueHealth> {
   };
 }
 
+const ZERO_QUEUE_HEALTH: QueueHealth = {
+  pendingTotal: 0,
+  oldestPendingDaysAgo: null,
+  pending14dPlus: 0,
+  pending30dPlus: 0,
+  pending60dPlus: 0,
+};
+
 /**
  * Scoped variant of `fetchQueueHealth` for govt dashboards.
  *
@@ -137,47 +145,67 @@ export async function fetchQueueHealth(): Promise<QueueHealth> {
  * matching any of the caller's jurisdiction assignments via
  * `(jurisdictionProvince, jurisdictionLocality)` pairs.
  *
- * Empty `jurisdictions` (admin universal scope) → behaves identically to
- * `fetchQueueHealth()` with no jurisdiction filter, UNLESS `opts.adminProvince`
- * is set (Panorama-style admin drill-down — additive-only narrowing, mirrors
- * `petsScopeClause`/`fetchPerdidasMetrics`'s admin branch). Backward-compat:
- * a caller that omits `opts` (every existing caller before this change) sees
- * byte-identical behavior.
+ * Takes the page's `ProjectionContext` — the SAME scope object every other
+ * fetcher on the screen already receives — so the scope decision is read off
+ * `ctx.scope.kind` and never re-derived from the shape of a jurisdiction list:
+ *
+ *   - `scope.kind === "global"` (admin / national read scope) → no jurisdiction
+ *     clause, UNLESS `ctx.adminProvince` is set (Panorama-style drill-down —
+ *     additive-only narrowing, mirrors `petsScopeClause`'s admin branch).
+ *   - `scope.kind === "jurisdictions"` with assignments → OR of pairs.
+ *   - `scope.kind === "jurisdictions"` with ZERO assignments → zeroed result,
+ *     WITHOUT a query. Fail-closed, exactly like `petsScopeClause` compiling the
+ *     same case to `sql\`false\``.
+ *
+ * WHY THE CONTEXT AND NOT A BARE LIST (A01-2, closed 2026-09-09). This used to
+ * take `jurisdictions: DashboardJurisdiction[]` and treat `[]` as "admin,
+ * universal" — the ONE resolver on the /gob surface that read an empty list as
+ * scope-less instead of scope-empty. It was reachable: `resolveJurisdictionScope`
+ * narrows a govt's mandate through `narrowGovtScope`, which returns `[]` for a
+ * `?province=` outside the mandate, and the caller's `hasAccess` gate tested the
+ * MANDATE, not the narrowed set. One out-of-mandate URL param on an assigned govt
+ * yielded NATIONAL approval-queue counts. A list cannot say whether it is empty
+ * because nothing is in scope or because everything is; the context can.
  */
 export async function fetchQueueHealthScoped(
-  jurisdictions: import("@/lib/metrics").DashboardJurisdiction[],
-  opts?: { adminProvince?: string; adminLocality?: string },
+  ctx: import("@/lib/metrics").ProjectionContext,
 ): Promise<QueueHealth> {
   const now = Date.now();
 
-  // Build a jurisdiction WHERE clause when jurisdictions are provided.
-  // The approval_requests table has indexed columns jurisdictionProvince /
-  // jurisdictionLocality (see jurisIdx in schema.ts) so the OR fan-out is
-  // covered by the existing partial index on status='pending'.
-  //
-  // Subsumption-aware (2026-07-08): a whole-province assignment (whole-CABA /
-  // "Ciudad Autónoma de Buenos Aires") governs every barrio in it, so it must
-  // match a barrio-tagged (Palermo) request on PROVINCE alone. Reuses
-  // jurisdictionPairClause — the SAME predicate the /gob/cola queue
-  // (visibleRequestsClause) uses — so this aging COUNTER and that queue can
-  // never diverge (a whole-CABA operator's "cola pendiente" tile and their
-  // queue show the same population). Exact pairs are kept for barrio operators.
-  const jurisClause = jurisdictionPairClause(
-    jurisdictions,
-    sql`${approvalRequests.jurisdictionProvince}`,
-    sql`${approvalRequests.jurisdictionLocality}`,
-  );
-
   const conditions: SQL[] = [];
-  if (jurisClause) conditions.push(jurisClause);
-  // Admin province drill-down: jurisdictions is empty for admin (universal
-  // scope by contract), so jurisClause is null above and this is the only
-  // restriction an admin gets. Never set for govt callers.
-  if (opts?.adminProvince) {
-    conditions.push(sql`${approvalRequests.jurisdictionProvince} = ${opts.adminProvince}`);
-    if (opts.adminLocality) {
-      conditions.push(sql`${approvalRequests.jurisdictionLocality} = ${opts.adminLocality}`);
+  if (ctx.scope.kind === "global") {
+    // Admin / national province drill-down: universal scope by contract, so
+    // this is the only restriction the caller gets. Never set for govt callers
+    // (their scope.kind is "jurisdictions", so this branch is unreachable).
+    if (ctx.adminProvince) {
+      conditions.push(sql`${approvalRequests.jurisdictionProvince} = ${ctx.adminProvince}`);
+      if (ctx.adminLocality) {
+        conditions.push(sql`${approvalRequests.jurisdictionLocality} = ${ctx.adminLocality}`);
+      }
     }
+  } else {
+    // A govt whose effective scope is EMPTY sees zero rows — fail closed
+    // WITHOUT a query, the same short-circuit fetchCasesQueueAging and
+    // countCasesForGovt apply. Empty means universal only for the global kind.
+    if (ctx.scope.jurisdictions.length === 0) return ZERO_QUEUE_HEALTH;
+
+    // The approval_requests table has indexed columns jurisdictionProvince /
+    // jurisdictionLocality (see jurisIdx in schema.ts) so the OR fan-out is
+    // covered by the existing partial index on status='pending'.
+    //
+    // Subsumption-aware (2026-07-08): a whole-province assignment (whole-CABA /
+    // "Ciudad Autónoma de Buenos Aires") governs every barrio in it, so it must
+    // match a barrio-tagged (Palermo) request on PROVINCE alone. Reuses
+    // jurisdictionPairClause — the SAME predicate the /gob/cola queue
+    // (visibleRequestsClause) uses — so this aging COUNTER and that queue can
+    // never diverge (a whole-CABA operator's "cola pendiente" tile and their
+    // queue show the same population). Exact pairs are kept for barrio operators.
+    const jurisClause = jurisdictionPairClause(
+      ctx.scope.jurisdictions,
+      sql`${approvalRequests.jurisdictionProvince}`,
+      sql`${approvalRequests.jurisdictionLocality}`,
+    );
+    if (jurisClause) conditions.push(jurisClause);
   }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 

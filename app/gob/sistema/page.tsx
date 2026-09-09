@@ -137,12 +137,7 @@ export default async function GobSistemaPage({
 
   // BOUNDED (outage pass 2026-08-09). /admin/sistema was already in the
   // db-budget fence; its gob twin never was.
-  const load = await loadWithTimeout(
-    Promise.all([
-      fetchEnoSla(ctx),
-      fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
-    ]),
-  );
+  const load = await loadWithTimeout(Promise.all([fetchEnoSla(ctx), fetchQueueHealthScoped(ctx)]));
   if (!load.ok) {
     return (
       <div className="space-y-6">

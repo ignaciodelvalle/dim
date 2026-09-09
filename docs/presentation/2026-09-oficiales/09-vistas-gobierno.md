@@ -107,12 +107,16 @@ flowchart TD
   Excepción declarada: la administración de la plataforma tiene alcance
   universal por definición del rol. Fuente:
   `lib/domain/jurisdiction-canonical.ts` y `lib/infra/gov-scope.ts`.
-- **NO afirmar que ninguna pantalla puede devolver números nacionales a un
-  municipio.** En un resolvedor distinto del de `lib/metrics/scope.ts` —que sí
-  falla cerrado (`:109`)— hay un caso abierto en el que una lista de
-  jurisdicciones vacía se interpreta como alcance universal en vez de fallar
-  cerrada, y un parámetro de provincia fuera del mandato la produce. Hallazgo
-  A01-2 (MEDIO), fuente `docs/reviews/2026-09-fresh/lenses/A01.md`.
+- **Sí afirmar que una lista de jurisdicciones vacía falla cerrada en todas las
+  pantallas (cerrado el 2026-09-09).** El único resolvedor que interpretaba una
+  lista vacía como alcance universal —el contador de la cola de aprobaciones,
+  `fetchQueueHealthScoped`— ahora lee el alcance del mismo contexto que el resto
+  (`ctx.scope.kind`) y devuelve cero sin consultar cuando el mandato estrechado
+  queda vacío, igual que `lib/metrics/scope.ts`. Un parámetro de provincia fuera
+  del mandato ya no produce números nacionales; lo prueba
+  `__tests__/queue-health-scoped-fail-closed.test.ts` recorriendo el camino real
+  de la página. Hallazgo A01-2 (MEDIO), fuente
+  `docs/reviews/2026-09-fresh/lenses/A01.md`.
 - **NO afirmar que todas las salidas llevan umbral de anonimato.** Son cuatro
   carriles con posturas distintas: datos abiertos sí (con supresión
   complementaria y cruzada entre conjuntos), campañas a medias (el alcance

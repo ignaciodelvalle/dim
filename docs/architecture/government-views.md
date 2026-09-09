@@ -122,11 +122,17 @@ browser-level govt and org operator probes.
 
 | id | Sev | What |
 |---|---|---|
-| `A01-2` | MED | `fetchQueueHealthScoped` treats an empty list as universal, so a `?province=` outside a govt's mandate narrows to nothing and returns NATIONAL approval-queue counts |
 | `A10-1` | MED | The org tránsitos `historial` tab lists ended foster rows with no organization predicate |
 | `A10-2` | MED | A govt proposal writes a client-supplied jurisdiction with no assignment check, landing in another jurisdiction's queue |
 | `A10-3` | MED | Business-rule locality is trim-only, so a non-catalog spelling makes the rule inert while rendering as configured |
 | `A10-4` | MED | The locality-integrity sweep covers `govt_assignments` and never `pets` |
+
+`A01-2` (`fetchQueueHealthScoped` treating an empty list as universal, so a
+`?province=` outside a govt's mandate returned NATIONAL approval-queue counts)
+was closed on 2026-09-09: the fetcher now takes the page's `ProjectionContext`
+and fails closed on an empty govt scope without a query, the contract every
+other scope clause on this surface already had. Pinned by
+`__tests__/queue-health-scoped-fail-closed.test.ts` over the real page path.
 
 ## 3. The KPI contract
 

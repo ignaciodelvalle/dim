@@ -20,7 +20,8 @@
 //         fetchEnoSla, fetchDataQuality, fetchCrossJurisdictionOutliers (relabeled
 //         "Tus provincias" — returns only the govt's assigned provinces),
 //         fetchPiiOversight (scoped to govt actors in their jurisdiction).
-//   REPLACE: fetchQueueHealth() → fetchQueueHealthScoped(filteredJurisdictions)
+//   REPLACE: fetchQueueHealth() → fetchQueueHealthScoped(ctx) (scope read off
+//            ctx.scope.kind — fails closed on an empty govt scope, A01-2)
 //   DROP: fetchCronRuns() — platform infra, admin-meta, not gov data.
 //
 // MOVED (2026-07-21): the embedded "Alertas y suscripciones" panel
@@ -254,7 +255,7 @@ export async function ProgramaResumenScreen({
       fetchSterilizationCoverage(ctx),
       fetchMicrochipPenetration(ctx),
       fetchEnoSla(ctx),
-      fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
+      fetchQueueHealthScoped(ctx),
       fetchDataQuality(ctx),
       // The outliers table judges its three metrics against the SAME
       // jurisdiction-resolved targets the KPI tiles above render (ADR-8);
