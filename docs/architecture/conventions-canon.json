@@ -2764,7 +2764,7 @@
         "__tests__/rls/coverage.test.ts:1-20,226-317"
       ],
       "enforcer": [
-        "scripts/check-rls-coverage.ts:422",
+        "scripts/check-rls-coverage.ts:765",
         "package.json:36 lint:rls",
         "__tests__/rls/coverage.test.ts:226-317",
         "__tests__/check-rls-coverage.test.ts"
@@ -2774,7 +2774,7 @@
       "status": "PARTIAL",
       "partialShape": "subset",
       "clause": "R4",
-      "statusBasis": "scripts/check-rls-coverage.ts:419,473-477 fails any public table with relrowsecurity=false or zero policies unless keyed in DENY_ALL_ALLOWLIST (:75), reading pg_class/pg_policies live (:147-155); __tests__/rls/coverage.test.ts:227-260 fails an RLS_REQUIRED table without RLS and any public table classified in neither list. Uncovered clause: nothing fails when an owner-scoped table is missing from the cross-tenant e2e probes — no script or test reads e2e/cross-tenant-isolation.spec.ts's table coverage.",
+      "statusBasis": "scripts/check-rls-coverage.ts:765,775-785 fails any public table with relrowsecurity=false or zero policies unless keyed in DENY_ALL_ALLOWLIST (:78), reading pg_class/pg_policies live (:147-155); __tests__/rls/coverage.test.ts:227-260 fails an RLS_REQUIRED table without RLS and any public table classified in neither list. Uncovered clause: nothing fails when an owner-scoped table is missing from the cross-tenant e2e probes — no script or test reads e2e/cross-tenant-isolation.spec.ts's table coverage.",
       "notes": "Previous basis addressed only the classification half, which I agree is doubly enforced; the trailing e2e-probe clause of the rule text has no enforcer. Both live mechanisms skip loudly when DATABASE_URL is remote/unreachable (script :42-51), so the DB half is real only on the local verify run.",
       "confidence": 0.6,
       "verifiedAt": "d7dbf25f7"

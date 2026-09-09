@@ -56,6 +56,8 @@ begin
     return true;
   end if;
 
+  -- Govt: jurisdiction-scoped. An erased profile is not a govt operator
+  -- either — migration 0216.
   if exists (
     select 1
     from public.profiles p
@@ -63,6 +65,7 @@ begin
     where p.id = p_user_id
       and p.role = 'govt'
       and p.deactivated_at is null
+      and p.deleted_at is null
       and ga.revoked_at is null
       and ga.jurisdiction_province = c.jurisdiction_province
       and ga.jurisdiction_locality = c.jurisdiction_locality

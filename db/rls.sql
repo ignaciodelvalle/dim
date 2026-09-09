@@ -475,12 +475,24 @@ create policy "approval requests visible to applicant or authority"
         and p.deactivated_at is null
         and p.deleted_at is null
     )
-    or exists (
-      select 1 from public.govt_assignments g
-      where g.user_id = auth.uid()
-        and g.revoked_at is null
-        and g.jurisdiction_province = approval_requests.jurisdiction_province
-        and g.jurisdiction_locality = approval_requests.jurisdiction_locality
+    or (
+      -- The assignment alone is not an operator: the profile behind it must be
+      -- a live, non-erased govt (migration 0216 — erase_subject_data does not
+      -- revoke govt_assignments; deactivation does).
+      exists (
+        select 1 from public.profiles p
+        where p.id = auth.uid()
+          and p.role = 'govt'
+          and p.deactivated_at is null
+          and p.deleted_at is null
+      )
+      and exists (
+        select 1 from public.govt_assignments g
+        where g.user_id = auth.uid()
+          and g.revoked_at is null
+          and g.jurisdiction_province = approval_requests.jurisdiction_province
+          and g.jurisdiction_locality = approval_requests.jurisdiction_locality
+      )
     )
   );
 

@@ -354,14 +354,16 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
 
   // Migration 0215: an erased profile (deleted_at, Ley 25.326 art. 16) is not
   // a platform administrator. Seventeen live predicates said otherwise — every
-  // `role = 'admin'` test on profiles checked deactivated_at or nothing. This
-  // reads the SAME catalog text the fence reads (policies of public + storage,
-  // every repo-owned function body) through the SAME scanner, so a
-  // migration-only policy — the eleven that have no db/*.sql source — cannot
-  // reintroduce the hole without going red here. The static half over
-  // db/*.sql lives in __tests__/check-rls-coverage.test.ts; the behavioural
-  // proof in __tests__/rls/erased-admin-authority.test.ts.
-  it("every live platform-admin predicate excludes erased AND deactivated profiles (0215)", async () => {
+  // `role = 'admin'` test on profiles checked deactivated_at or nothing.
+  // Migration 0216: not a govt operator either — the five govt branches 0215
+  // copied verbatim, plus can_read_case's, had the same hole. This reads the
+  // SAME catalog text the fence reads (policies of public + storage, every
+  // repo-owned function body) through the SAME scanner, so a migration-only
+  // policy — the eleven admin ones and four of the five govt ones have no
+  // db/*.sql source — cannot reintroduce the hole without going red here. The
+  // static half over db/*.sql lives in __tests__/check-rls-coverage.test.ts;
+  // the behavioural proof in __tests__/rls/erased-admin-authority.test.ts.
+  it("every live platform-authority predicate (admin 0215, govt 0216) excludes erased AND deactivated profiles", async () => {
     const policies = (await db.execute(
       sql.raw(AUTHORITY_POLICY_TEXT_SQL),
     )) as unknown as AuthorityTextRow[];
@@ -370,11 +372,12 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
     )) as unknown as AuthorityTextRow[];
     const predicates = scanAuthorityTexts([...policies, ...functions]);
 
-    // Non-vacuity: 18 on 2026-09-09 (16 policies + can_read_case +
-    // pii.caller_is_admin). Zero is what a broken scanner looks like.
+    // Non-vacuity: 25 on 2026-09-09 (19 admin: 17 policies + can_read_case +
+    // pii.caller_is_admin; 6 govt: 5 policies + can_read_case). Zero is what a
+    // broken scanner looks like.
     expect(
       predicates.length,
-      `only ${predicates.length} platform-admin tests found in the live catalog — the scanner or the catalog query is broken, not the policies`,
+      `only ${predicates.length} platform-authority tests found in the live catalog — the scanner or the catalog query is broken, not the policies`,
     ).toBeGreaterThanOrEqual(MIN_ADMIN_PREDICATES_IN_CATALOG);
     expect(
       predicates.map((p) => p.source),
@@ -382,14 +385,30 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
     ).toEqual(
       expect.arrayContaining(["function public.can_read_case", "function pii.caller_is_admin"]),
     );
+    // The govt half must actually be in the inventory — the five 0216 policies
+    // and can_read_case's govt branch — or a regex that quietly stopped
+    // matching 'govt' would pass this test on the admin count alone.
+    expect(
+      predicates.filter((p) => p.role === "govt").map((p) => p.source),
+      "the govt predicates 0216 redefined must be in the inventory",
+    ).toEqual(
+      expect.arrayContaining([
+        'policy public.approval_requests "approval requests visible to applicant or authority"',
+        'policy public.custody_dispute_parties "custody_dispute_parties select by parties and authorities"',
+        'policy public.custody_disputes "custody_disputes select by parties and authorities"',
+        'policy public.pet_identifications "pet_identifications read by govt in jurisdiction"',
+        'policy public.pet_service_dog "service_dog select by owner or authority"',
+        "function public.can_read_case",
+      ]),
+    );
 
     const { violations } = evaluatePlatformAdminPredicates(predicates);
     expect(
       violations.map(
         (v) =>
-          `${v.source} (deleted_at: ${v.hasDeletedAt}, deactivated_at: ${v.hasDeactivatedAt}): ${v.conjunct.slice(0, 140)}`,
+          `${v.source} (${v.role}; deleted_at: ${v.hasDeletedAt}, deactivated_at: ${v.hasDeactivatedAt}): ${v.conjunct.slice(0, 140)}`,
       ),
-      "a live predicate grants platform admin to an erased or deactivated profile — redefine it in a forward-only migration (see 0215)",
+      "a live predicate grants platform authority to an erased or deactivated profile — redefine it in a forward-only migration (see 0215 / 0216)",
     ).toEqual([]);
   });
 });

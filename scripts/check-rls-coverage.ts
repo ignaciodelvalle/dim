@@ -363,13 +363,25 @@ export function evaluateStorageReadPolicies(rows: StoragePolicyRow[]): {
 // (`pii.caller_is_admin`, the guard those RPCs call). Migration 0215 closed all
 // seventeen. This check is what stops the eighteenth.
 //
-// THE RULE: wherever SQL tests `role = 'admin'` (or `role in ('admin', …)`,
-// or `role = any(array['admin', …])`) against a row of `profiles`, the AND-group
-// that test belongs to must also carry `deleted_at is null` AND
-// `deactivated_at is null` for the same row. It bans the SUBJECT — platform
-// authority read off an erased or deactivated profile — not a spelling, and not
-// a list of files: a new policy, a new function, a new bootstrap file all fall
-// under the same scan.
+// AND THE GOVT TWIN (migration 0216). 0215 left the `govt` branches alone on
+// purpose, and they had the same hole: five policies and can_read_case decided
+// "is this caller a govt operator in this jurisdiction" off `deactivated_at`
+// or nothing. Deactivation revokes an operator's govt_assignments; erasure
+// does not — so an erased govt kept reading every approval request in its
+// jurisdiction, and every case there through can_read_case, on a bearer token
+// already issued. The other four branches carried the same hole but were
+// already unreachable through PostgREST for unrelated reasons (pets has no
+// govt select policy; organization_memberships' peer policy recurses — see
+// __tests__/rls/erased-admin-authority.test.ts). Since 0216 the rule below
+// reads BOTH roles.
+//
+// THE RULE: wherever SQL tests `role = 'admin'` or `role = 'govt'` (or
+// `role in ('admin', …)`, or `role = any(array['govt', …])`) against a row of
+// `profiles`, the AND-group that test belongs to must also carry `deleted_at
+// is null` AND `deactivated_at is null` for the same row. It bans the SUBJECT
+// — platform authority read off an erased or deactivated profile — not a
+// spelling, and not a list of files: a new policy, a new function, a new
+// bootstrap file all fall under the same scan.
 //
 // WHAT IS NOT IN SUBJECT: `om.role = 'admin'` on organization_memberships is an
 // ORGANIZATION role, a different concept on a table with no erasure marker. The
@@ -380,8 +392,8 @@ export function evaluateStorageReadPolicies(rows: StoragePolicyRow[]): {
 // HOW THE AND-GROUP IS FOUND. From the `role` test, climb the enclosing
 // parentheses. At every level, keep the OR-alternative that contains the test
 // and drop the child group already climbed through (a sibling branch — the
-// `govt` alternative, typically — must not lend its own `deleted_at` to the
-// admin branch). Stop at the first level whose depth-0 text has a FROM; that
+// `admin` alternative next to a `govt` one, or vice versa — must not lend its
+// own `deleted_at` to the branch under test). Stop at the first level whose depth-0 text has a FROM; that
 // is the query, and it names the profiles alias. The union of what was kept at
 // each level is the text the two markers must appear in. Works on both forms
 // the repo produces: the source files (`p.role = 'admin'`) and the catalog's
@@ -400,19 +412,23 @@ export function evaluateStorageReadPolicies(rows: StoragePolicyRow[]): {
 export const ADMIN_PREDICATE_SQL_GLOB = "db/*.sql";
 
 /**
- * Non-vacuity floors. Measured 2026-09-09: 9 platform-admin tests across
- * db/*.sql (rls.sql ×3, foster_rls.sql ×2, welfare_rls.sql ×2, cases_rls.sql,
- * revocations_storage.sql) and 18 in the live catalog (16 policies + 2
- * functions). Set below the measurements so a predicate can be retired without
- * a false alarm, and far above zero because zero is what a broken regex looks
- * like — the whole check would then pass by finding nothing.
+ * Non-vacuity floors. Measured 2026-09-09 with both roles in the regex: 11
+ * tests across db/*.sql (9 admin — rls.sql ×3, foster_rls.sql ×2,
+ * welfare_rls.sql ×2, cases_rls.sql, revocations_storage.sql — plus the govt
+ * branches of cases_rls.sql and rls.sql's approval_requests) and 25 in the
+ * live catalog (19 admin + the govt branches of 5 policies and can_read_case).
+ * Set below the measurements so a predicate can be retired without a false
+ * alarm, and far above zero because zero is what a broken regex looks like —
+ * the whole check would then pass by finding nothing.
  */
-export const MIN_ADMIN_PREDICATES_IN_SOURCE = 6;
-export const MIN_ADMIN_PREDICATES_IN_CATALOG = 12;
+export const MIN_ADMIN_PREDICATES_IN_SOURCE = 8;
+export const MIN_ADMIN_PREDICATES_IN_CATALOG = 18;
 
 export type AdminPredicate = {
   /** A file path, or `policy <schema>.<table> "<name>"`, or `function <schema>.<name>`. */
   source: string;
+  /** The role literal the test names. A test naming both (`role in ('admin', 'govt')`) reports the first. */
+  role: "admin" | "govt";
   /** Alias the enclosing query reads profiles through; null when unaliased. */
   alias: string | null;
   /** The text the markers were looked for in — the effective AND-group, normalized. */
@@ -421,9 +437,14 @@ export type AdminPredicate = {
   hasDeactivatedAt: boolean;
 };
 
-/** `role = 'admin'`, `role in ('admin', …)`, `role = any(array['admin', …])` — with or without an alias. A fresh instance per scan: a shared global regex carries lastIndex between calls. */
+/**
+ * `role = 'admin'` / `'govt'`, `role in ('admin', …)`, `role = any(array['govt', …])` —
+ * with or without an alias. Groups 2–4 capture the role literal, one per form
+ * (lazy, so a list naming both reports the first). A fresh instance per scan:
+ * a shared global regex carries lastIndex between calls.
+ */
 function adminRoleTest(): RegExp {
-  return /(?:\b([a-z_][a-z0-9_]*)\.)?\brole\b\s*(?:=\s*'admin'|in\s*\([^)]*'admin'|=\s*any\s*\(\s*array\s*\[[^\]]*'admin')/g;
+  return /(?:\b([a-z_][a-z0-9_]*)\.)?\brole\b\s*(?:=\s*'(admin|govt)'|in\s*\([^)]*?'(admin|govt)'|=\s*any\s*\(\s*array\s*\[[^\]]*?'(admin|govt)')/g;
 }
 
 /** `from profiles`, `join public.profiles p`, `from profiles as p` — the alias if any. */
@@ -547,6 +568,7 @@ export function findPlatformAdminPredicates(text: string, source: string): Admin
   for (let m = re.exec(sql); m !== null; m = re.exec(sql)) {
     const pos = m.index;
     const roleAlias = m[1] ?? null;
+    const role = (m[2] ?? m[3] ?? m[4]) as "admin" | "govt";
 
     const kept: string[] = [];
     let child: [number, number] | null = null;
@@ -587,6 +609,7 @@ export function findPlatformAdminPredicates(text: string, source: string): Admin
       new RegExp(`${prefix}${column}\\s+is\\s+null`).test(conjunct);
     found.push({
       source,
+      role,
       alias: profilesAlias,
       conjunct,
       hasDeletedAt: marker("deleted_at"),
@@ -659,7 +682,7 @@ function describeAdminViolation(v: AdminPredicate): string {
   ]
     .filter((x): x is string => x !== null)
     .join(" and ");
-  return `✗ ${v.source} — tests role = 'admin' on profiles${v.alias ? ` (alias ${v.alias})` : ""} without ${missing} in the same AND-group. An erased (art. 16) or deactivated profile is not a platform administrator — add the marker(s) to that branch (see migration 0215). Group seen: ${v.conjunct.slice(0, 160)}…`;
+  return `✗ ${v.source} — tests role = '${v.role}' on profiles${v.alias ? ` (alias ${v.alias})` : ""} without ${missing} in the same AND-group. An erased (art. 16) or deactivated profile is neither a platform administrator nor a govt operator — add the marker(s) to that branch (see migrations 0215 and 0216). Group seen: ${v.conjunct.slice(0, 160)}…`;
 }
 
 type Violation = {
@@ -691,7 +714,7 @@ function runStaticAdminPredicateCheck(): boolean {
   }
   if (violations.length > 0) return false;
   console.log(
-    `✓ Platform-admin predicates (source) — ${predicates.length} role = 'admin' tests on profiles across ${ADMIN_PREDICATE_SQL_GLOB}, every one carries deleted_at + deactivated_at.`,
+    `✓ Platform-authority predicates (source) — ${predicates.length} role = 'admin' / 'govt' tests on profiles across ${ADMIN_PREDICATE_SQL_GLOB}, every one carries deleted_at + deactivated_at.`,
   );
   return true;
 }
@@ -878,7 +901,7 @@ export async function runCheck(argv: string[] = []): Promise<void> {
     `✓ Storage bucket reads scoped — ${fetched.storagePolicies.length} storage.objects policies checked, no caller-role READ grant without auth.uid()${storageAllowNote}.`,
   );
   console.log(
-    `✓ Platform-admin predicates (live) — ${livePredicates.length} role = 'admin' tests on profiles across ${fetched.authorityTexts.length} policy predicates + function bodies, every one carries deleted_at + deactivated_at.`,
+    `✓ Platform-authority predicates (live) — ${livePredicates.length} role = 'admin' / 'govt' tests on profiles across ${fetched.authorityTexts.length} policy predicates + function bodies, every one carries deleted_at + deactivated_at.`,
   );
   console.log(dbLine);
 }

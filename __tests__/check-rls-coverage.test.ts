@@ -103,11 +103,11 @@ describe("evaluateCoverage (unchanged contract — db:doctor shares it)", () => 
 });
 
 // ---------------------------------------------------------------------------
-// Check 5 — platform-admin predicates must exclude erased + deactivated
-// profiles (migration 0215). These fixtures are the permanent proof the scan
-// is not vacuous: each shape below was a real predicate in the repo on
-// 2026-09-09, and the negative ones are what the catalog looked like BEFORE
-// 0215.
+// Check 5 — platform-authority predicates (admin, migration 0215; govt,
+// migration 0216) must exclude erased + deactivated profiles. These fixtures
+// are the permanent proof the scan is not vacuous: each shape below was a real
+// predicate in the repo on 2026-09-09, and the negative ones are what the
+// catalog looked like BEFORE the fix for that role.
 // ---------------------------------------------------------------------------
 
 function violationsOf(sql: string, source = "fixture") {
@@ -192,11 +192,126 @@ describe("findPlatformAdminPredicates / evaluatePlatformAdminPredicates", () => 
     expect(violationsOf(sql)).toEqual([]);
   });
 
-  it("reads profiles through a JOIN (custody_dispute_parties / pet_service_dog shape)", () => {
+  it("reads profiles through a JOIN (custody_dispute_parties / pet_service_dog shape) — and sees BOTH pre-fix branches", () => {
+    // The catalog before 0215 AND 0216: the admin branch lacks deleted_at, the
+    // govt branch lacks both markers. Two holes, two violations, each named by
+    // its own role.
     const pre0215 = `(EXISTS ( SELECT 1
       FROM (custody_disputes cd JOIN profiles p ON ((p.id = ( SELECT auth.uid() AS uid))))
       WHERE ((cd.id = custody_dispute_parties.dispute_id) AND (((p.role = 'admin'::user_role) AND (p.account_type = 'institutional'::text) AND (p.deactivated_at IS NULL)) OR ((p.role = 'govt'::user_role) AND (EXISTS ( SELECT 1 FROM govt_assignments g WHERE (g.user_id = p.id))))))))`;
-    expect(violationsOf(pre0215)).toHaveLength(1);
+    const violations = violationsOf(pre0215);
+    expect(violations.map((v) => [v.role, v.hasDeletedAt, v.hasDeactivatedAt])).toEqual([
+      ["admin", false, true],
+      ["govt", false, false],
+    ]);
+  });
+
+  // -------------------------------------------------------------------------
+  // Govt (migration 0216). Same subject, second role: the govt branches 0215
+  // copied verbatim carried the same hole, and the scanner must read them the
+  // same way. Negative fixtures are the catalog BEFORE 0216.
+  // -------------------------------------------------------------------------
+
+  it("flags the pre-0216 pet_identifications govt policy — deactivated_at without deleted_at, aliased through a JOIN", () => {
+    const pre0216 = `(EXISTS ( SELECT 1
+      FROM (pets pt JOIN profiles p ON ((p.id = ( SELECT auth.uid() AS uid))))
+      WHERE ((pt.id = pet_identifications.pet_id) AND (p.role = 'govt'::user_role) AND (p.account_type = 'institutional'::text) AND (p.deactivated_at IS NULL) AND (EXISTS ( SELECT 1
+        FROM govt_assignments ga
+        WHERE ((ga.user_id = p.id) AND (ga.revoked_at IS NULL) AND (ga.jurisdiction_province = pt.jurisdiction_province) AND (ga.jurisdiction_locality = pt.jurisdiction_locality)))))))`;
+    const [v] = violationsOf(pre0216);
+    expect(v).toMatchObject({
+      role: "govt",
+      alias: "p",
+      hasDeletedAt: false,
+      hasDeactivatedAt: true,
+    });
+  });
+
+  it("flags the pre-0216 db/cases_rls.sql govt branch — the source form, aliased, INNER JOIN", () => {
+    const sql = `
+      if exists (
+        select 1
+        from public.profiles p
+        inner join public.govt_assignments ga on ga.user_id = p.id
+        where p.id = p_user_id
+          and p.role = 'govt'
+          and p.deactivated_at is null
+          and ga.revoked_at is null
+      ) then return true; end if;`;
+    const [v] = violationsOf(sql);
+    expect(v).toMatchObject({ role: "govt", alias: "p", hasDeletedAt: false });
+  });
+
+  it("does NOT let a sibling admin branch lend its deleted_at to the govt branch", () => {
+    // custody_disputes as 0215 left it: admin carries both markers, govt only
+    // deactivated_at. The mirror image of the sibling test above.
+    const sql = `(EXISTS ( SELECT 1
+      FROM profiles p
+      WHERE ((p.id = ( SELECT auth.uid() AS uid)) AND (((p.role = 'admin'::user_role) AND (p.account_type = 'institutional'::text) AND (p.deactivated_at IS NULL) AND (p.deleted_at IS NULL))
+        OR ((p.role = 'govt'::user_role) AND (p.account_type = 'institutional'::text) AND (p.deactivated_at IS NULL) AND (EXISTS ( SELECT 1 FROM govt_assignments g WHERE (g.user_id = p.id))))))))`;
+    const violations = violationsOf(sql);
+    expect(
+      violations,
+      "the admin branch's deleted_at was credited to the govt branch",
+    ).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      role: "govt",
+      hasDeletedAt: false,
+      hasDeactivatedAt: true,
+    });
+  });
+
+  it("accepts the 0216 shape — govt branch with both markers next to an admin branch with both", () => {
+    const sql = `(EXISTS ( SELECT 1
+      FROM profiles p
+      WHERE ((p.id = ( SELECT auth.uid() AS uid)) AND (((p.role = 'admin'::user_role) AND (p.account_type = 'institutional'::text) AND (p.deactivated_at IS NULL) AND (p.deleted_at IS NULL))
+        OR ((p.role = 'govt'::user_role) AND (p.account_type = 'institutional'::text) AND (p.deactivated_at IS NULL) AND (p.deleted_at IS NULL) AND (EXISTS ( SELECT 1 FROM govt_assignments g WHERE (g.user_id = p.id))))))))`;
+    const found = findPlatformAdminPredicates(sql, "x");
+    expect(found.map((p) => p.role)).toEqual(["admin", "govt"]);
+    expect(violationsOf(sql)).toEqual([]);
+  });
+
+  it("accepts the 0216 approval_requests shape — a profiles test ANDed with the assignment test", () => {
+    const sql = `using (
+      applicant_user_id = auth.uid()
+      or exists (
+        select 1 from public.profiles p
+        where p.id = auth.uid() and p.role = 'admin' and p.deactivated_at is null and p.deleted_at is null
+      )
+      or (
+        exists (
+          select 1 from public.profiles p
+          where p.id = auth.uid()
+            and p.role = 'govt'
+            and p.deactivated_at is null
+            and p.deleted_at is null
+        )
+        and exists (
+          select 1 from public.govt_assignments g
+          where g.user_id = auth.uid() and g.revoked_at is null
+        )
+      )
+    );`;
+    expect(findPlatformAdminPredicates(sql, "x").map((p) => p.role)).toEqual(["admin", "govt"]);
+    expect(violationsOf(sql)).toEqual([]);
+  });
+
+  it("is BLIND to an authority grant that never names a role — the pre-0216 approval_requests govt branch", () => {
+    // `exists (select 1 from govt_assignments g where g.user_id = auth.uid())`
+    // reads no profile and tests no role, so there is nothing here for a
+    // profile-marker scanner to find. That is a known limit, not a pass: 0216
+    // closed it by putting a profiles test in front of the assignment test
+    // (accepted above), and __tests__/rls/erased-admin-authority.test.ts
+    // proves the behaviour. This fixture pins the limit so nobody reads an
+    // empty result as coverage.
+    const sql = `using (
+      applicant_user_id = auth.uid()
+      or exists (
+        select 1 from public.govt_assignments g
+        where g.user_id = auth.uid() and g.revoked_at is null
+      )
+    );`;
+    expect(findPlatformAdminPredicates(sql, "x")).toEqual([]);
   });
 
   it("accepts role IN (...) and role = ANY(ARRAY[...]) (revocations bucket shapes)", () => {
@@ -262,21 +377,26 @@ describe("findPlatformAdminPredicates / evaluatePlatformAdminPredicates", () => 
   });
 });
 
-describe("db/*.sql — every platform-admin predicate excludes erased + deactivated profiles", () => {
+describe("db/*.sql — every platform-authority predicate excludes erased + deactivated profiles", () => {
   const predicates = scanSourceSqlForAdminPredicates();
 
-  it(`finds at least ${MIN_ADMIN_PREDICATES_IN_SOURCE} platform-admin tests (non-vacuity)`, () => {
+  it(`finds at least ${MIN_ADMIN_PREDICATES_IN_SOURCE} platform-authority tests (non-vacuity)`, () => {
     expect(
       predicates.length,
       `only ${predicates.length} found — the glob or the scanner is broken, not the SQL`,
     ).toBeGreaterThanOrEqual(MIN_ADMIN_PREDICATES_IN_SOURCE);
   });
 
+  it("finds govt tests too — cases_rls.sql's govt branch and rls.sql's approval_requests (0216)", () => {
+    const govt = predicates.filter((p) => p.role === "govt").map((p) => p.source);
+    expect(govt).toEqual(expect.arrayContaining(["db/cases_rls.sql", "db/rls.sql"]));
+  });
+
   it("has no predicate missing deleted_at or deactivated_at", () => {
     const { violations } = evaluatePlatformAdminPredicates(predicates);
     expect(
-      violations.map((v) => `${v.source}: ${v.conjunct.slice(0, 120)}`),
-      "a bootstrap file grants platform admin to an erased or deactivated profile — see migration 0215",
+      violations.map((v) => `${v.source} (${v.role}): ${v.conjunct.slice(0, 120)}`),
+      "a bootstrap file grants platform authority to an erased or deactivated profile — see migrations 0215 and 0216",
     ).toEqual([]);
   });
 });
