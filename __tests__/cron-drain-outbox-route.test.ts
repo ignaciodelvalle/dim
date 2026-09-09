@@ -53,8 +53,19 @@ describe("GET /api/cron/drain-outbox", () => {
     const txFromMock = vi.fn().mockReturnValue({ where: txWhereMock });
     const txSelectMock = vi.fn().mockReturnValue({ from: txFromMock });
 
+    // THE CLAIM, inside the same transaction as the select. The route pushes
+    // `next_retry_at` forward on the batch it just locked, which is what makes a
+    // leased row invisible to a concurrent run — `FOR UPDATE SKIP LOCKED` alone
+    // released at commit, before delivery, and let a second run re-deliver.
+    // Captured separately from the db-level update so a test can tell the claim
+    // apart from the per-row result write.
+    const txUpdateWhereMock = vi.fn().mockResolvedValue(undefined);
+    const txUpdateSetMock = vi.fn().mockReturnValue({ where: txUpdateWhereMock });
+    const txUpdateMock = vi.fn().mockReturnValue({ set: txUpdateSetMock });
+
     const txObj = {
       select: txSelectMock,
+      update: txUpdateMock,
     };
 
     const transactionMock = vi
@@ -69,7 +80,7 @@ describe("GET /api/cron/drain-outbox", () => {
       transaction: transactionMock,
     };
 
-    return { dbMock, updateMock };
+    return { dbMock, updateMock, txUpdateMock, txUpdateSetMock, transactionMock };
   }
 
   function mockDeps(
@@ -77,7 +88,8 @@ describe("GET /api/cron/drain-outbox", () => {
     deliverResults: Array<{ ok: boolean; error: string }>,
     maxAttempts = 5,
   ) {
-    const { dbMock } = buildDbMock(pendingRows);
+    const built = buildDbMock(pendingRows);
+    const { dbMock } = built;
 
     vi.doMock("@/db", () => ({
       db: dbMock,
@@ -100,7 +112,7 @@ describe("GET /api/cron/drain-outbox", () => {
       computeNextRetryAt: computeNextRetryAtMock,
     }));
 
-    return { deliverMock };
+    return { deliverMock, ...built };
   }
 
   async function callRoute(headers: Record<string, string>) {
@@ -183,5 +195,80 @@ describe("GET /api/cron/drain-outbox", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // The claim lease — the defect this route carried until 2026-09-09.
+  // -------------------------------------------------------------------------
+
+  describe("the claim lease — two overlapping runs must not deliver the same row twice", () => {
+    const row = () => ({
+      id: "outbox-1",
+      attempts: 0,
+      nextRetryAt: new Date(Date.now() - 60_000),
+      status: "pending",
+    });
+
+    it("pushes next_retry_at forward INSIDE the select transaction", async () => {
+      // THE WHOLE FIX IN ONE ASSERTION. `FOR UPDATE SKIP LOCKED` releases at
+      // commit, before delivery runs, leaving the rows `pending` and still due —
+      // a second run starting in that window selects and re-delivers them. The
+      // claim has to happen while the lock still holds, which means inside this
+      // transaction and not after it.
+      const { txUpdateMock, txUpdateSetMock } = mockDeps([row()], [{ ok: true, error: "" }]);
+      const before = Date.now();
+      await callRoute({ authorization: "Bearer test-secret" });
+
+      expect(txUpdateMock).toHaveBeenCalledTimes(1);
+      const claimed = txUpdateSetMock.mock.calls[0][0] as { nextRetryAt: Date };
+      expect(claimed.nextRetryAt.getTime()).toBeGreaterThan(before);
+    });
+
+    it("leases for LONGER than the run's own budget, so a live run never loses its rows", async () => {
+      // The reasoning behind the constant, asserted rather than left in a
+      // comment: a lease shorter than MAX_DURATION_MS (45s) would let a run
+      // still working have its own batch claimed by the next one — the exact
+      // double delivery the lease exists to stop, reintroduced by a number.
+      const { txUpdateSetMock } = mockDeps([row()], [{ ok: true, error: "" }]);
+      const before = Date.now();
+      await callRoute({ authorization: "Bearer test-secret" });
+
+      const claimed = txUpdateSetMock.mock.calls[0][0] as { nextRetryAt: Date };
+      expect(claimed.nextRetryAt.getTime() - before).toBeGreaterThan(45_000);
+    });
+
+    it("claims nothing when the batch is empty", async () => {
+      // NON-VACUITY for the two above: the claim is conditional on there being
+      // rows, so a passing assertion elsewhere is not just "update always runs".
+      const { txUpdateMock } = mockDeps([], []);
+      await callRoute({ authorization: "Bearer test-secret" });
+      expect(txUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("lets the failure backoff OVERWRITE the lease, so a retry is not delayed by it", async () => {
+      // The lease is a claim, not a schedule. A row whose delivery failed must
+      // come back on the backoff's terms (60s in this mock), not sit out the
+      // full five-minute lease — otherwise the cure slows every retry down.
+      const { updateMock } = mockDeps([row()], [{ ok: false, error: "boom" }]);
+      const before = Date.now();
+      await callRoute({ authorization: "Bearer test-secret" });
+
+      // The db-level updates are cronRuns start/finish plus this row's result;
+      // the row's is the one that carries `attempts`.
+      const rowWrite = updateMock.mock.results
+        .map((r) => r.value as { set: { mock: { calls: unknown[][] } } })
+        .flatMap((v) => v.set.mock.calls.map((c) => c[0] as Record<string, unknown>))
+        .find((arg) => typeof arg.attempts === "number");
+
+      expect(rowWrite).toBeDefined();
+      expect(rowWrite?.status).toBe("pending");
+      // Strictly INSIDE the five-minute lease: the backoff won, so the claim did
+      // not survive its own failure. The bound is the lease and not the run
+      // budget — the first draft of this assertion used 45s and failed against a
+      // 60s backoff that was behaving correctly.
+      const delay = (rowWrite?.nextRetryAt as Date).getTime() - before;
+      expect(delay).toBeLessThan(5 * 60_000);
+      expect(delay).toBeGreaterThan(0);
+    });
   });
 });
