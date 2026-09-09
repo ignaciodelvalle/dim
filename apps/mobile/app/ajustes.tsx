@@ -62,6 +62,7 @@ const ROLE_LABELS = {
   owner: "Titular",
   vet: "Veterinaria",
   govt: "Organismo público",
+  national: "Lectura nacional",
   admin: "Administración",
 } as const;
 
