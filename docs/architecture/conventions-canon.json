@@ -31,10 +31,10 @@
     ]
   },
   "stats": {
-    "rows": 516,
+    "rows": 517,
     "byStatus": {
       "UNENFORCED": 245,
-      "ENFORCED": 178,
+      "ENFORCED": 179,
       "PARTIAL": 93
     },
     "byScopeStatus": {
@@ -60,7 +60,7 @@
       },
       "mobile": {
         "UNENFORCED": 20,
-        "ENFORCED": 14,
+        "ENFORCED": 15,
         "PARTIAL": 4
       },
       "e2e": {
@@ -9382,6 +9382,32 @@
       "confidence": 0.85,
       "numberKey": "minimum allowlisted fields probed against the spine",
       "verifiedAt": "working-tree-2026-09-07"
+    },
+    {
+      "id": "CANON-530",
+      "rule": "The native app may not fall silently behind the owner's web: every owner-guarded server action must reach a use-case the v1 surface also reaches, every receipt fact the web shows must be obtainable from a v1 read, the three kind vocabularies (contract, phone, router) must agree, and every deliberate divergence must be declared with a reason and what would close it.",
+      "scope": "mobile",
+      "sources": [
+        "scripts/check-owner-surface-parity.ts:1",
+        "apps/mobile/src/pets/record-event-view-model.ts:143"
+      ],
+      "enforcer": [
+        "scripts/check-owner-surface-parity.ts:567-607",
+        "scripts/check-owner-surface-parity.ts:609-663",
+        "scripts/check-owner-surface-parity.ts:665-693",
+        "scripts/check-owner-surface-parity.ts:695-721",
+        "scripts/check-owner-surface-parity.ts:771",
+        "__tests__/check-owner-surface-parity.test.ts"
+      ],
+      "enforcementKind": "lint-script",
+      "wired": "verify",
+      "status": "ENFORCED",
+      "clause": "R1",
+      "statusBasis": "scripts/check-owner-surface-parity.ts derives both sides at run time and enumerates nothing: the owner guards come from the `require…PetAccess|PetByToken|TitularAccess` exports of lib/infra/pet-access.ts + lib/infra/pets.ts; the web set is every exported async function in a \"use server\" file under app/actions, app/(app)/mis-mascotas and src/modules whose body CALLS one of those guards; the app set is every src/modules/**/application/** use-case that a file under app/api/v1 imports and names, with relative (`./application/x`) and absolute (`@/src/modules/…`) specifiers resolved to one id. findDivergences (:609-663) fails an action whose called use-case no v1 route reaches (`write:`), an action with no use-case at all (`unjoined:`), and a result field the action reads that no v1 file reads and no packages/contract/src/api DTO declares (`read:`). vocabularyFailures (:665-693) parses `kind: z.literal` from record-event.ts, WRITABLE_KINDS (+RECORD_KINDS spread) from the phone's view-model and EVENT_TYPE_OF_KIND from writers.ts and fails any set difference, naming the kinds. declarationFailures (:695-721) fails an undeclared divergence, a declaration missing `reason` or `closes`, and a stale declaration. vacuityFailures (:567-607) fails when any scan is under its floor (guards 3, use-server files 40, owner actions 30, joined actions 15, v1 use-cases 20, kinds 12, DTO keys 200 — measured 4/82/44/34/95/18/359 on 2026-09-09) or a vocabulary source cannot be parsed. Exit 1 at :771. __tests__/check-owner-surface-parity.test.ts mutates the live inputs one thing at a time: dropping `bite` from the phone is named as `in contract only: bite`; renaming WRITABLE_KINDS fails the floor and reports no disagreement; a synthetic action with an unreached use-case, a synthetic receipt field, an emptied v1 set, an emptied guard set, a hollow declaration, a stale declaration and an undeclared finding are each named. package.json lint:owner-parity is in the verify chain and .github/workflows/ci.yml runs it in the `check` job (lint:ci-parity holds the pairing).",
+      "notes": "Written 2026-09-09, the day the app reached the eighteenth owner kind (post_adoption_checkin) and the PO asked for parity to be MEASURED before the next native build rather than believed from prose. The first run found 12 divergences, all declared in DECLARED_DIVERGENCES with reason + closure and reported to the PO: the mordedura case code no v1 read carries (the one gap the router's own header already named), the tattoo asiento the '18 of 18' never counted, species correction, the vaccine-reminder pair, the three rehome titular actions, the physical-tag interest toggle, the web-only 'primeros pasos' dismissal, and two that are parity in fact but not in the one-hop join (recordMoveAction reaches recordMovementWriter through recordJurisdictionMove; disclosureKeyRequiresTitular is a guard-chooser, not a door). Deliberately NOT decided here: the reverse direction (a v1 door the web lacks), the field-for-field shape of each kind's input (the contract's job), and whether a v1 route's guard is as wide as the web's (lint:authz). The join is one hop deep by design — a use-case reached through another use-case is declared, not inferred.",
+      "confidence": 0.9,
+      "numberKey": "non-vacuity floors per scan",
+      "verifiedAt": "working-tree-2026-09-09"
     }
   ],
   "recommendations": [
