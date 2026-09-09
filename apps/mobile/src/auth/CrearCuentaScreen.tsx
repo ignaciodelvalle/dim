@@ -207,13 +207,22 @@ export function CrearCuentaScreen({ onGoToSignIn }: { onGoToSignIn: () => void }
     return (
       <Screen edges={["top", "bottom"]} gap={SPACE.xl}>
         <View style={styles.heading}>
-          <Title>Ya podés ingresar</Title>
+          <Title>Tu cuenta está lista</Title>
         </View>
         <Card>
           {/* NEUTRAL, AND DELIBERATELY INCURIOUS. Two different situations
               produce this panel and the server keeps them indistinguishable on
-              purpose; a sentence that guessed at which one would undo that. */}
-          <Body>Continuá desde la pantalla de ingreso con ese correo y tu contraseña.</Body>
+              purpose; a sentence that guessed at which one would undo that.
+
+              AND STILL A SUCCESS, SAID AS ONE (2026-09-09). The panel used to
+              be headed "Ya podés ingresar" over "Continuá desde la pantalla de
+              ingreso…", and after tapping "Crear cuenta" that read as a
+              rejection, or as an errand somewhere else — the week a stale
+              bundle was sending testers to the browser to sign in again, and
+              the GoTrue log filled with invalid-credential attempts and
+              duplicate signups. Two facts, no cause: the account is ready, and
+              the next step is the sign-in screen IN THIS APP. */}
+          <Body>Ya podés ingresar desde esta misma app con ese correo y tu contraseña.</Body>
         </Card>
         <PrimaryButton label="Ir a iniciar sesión" onPress={onGoToSignIn} />
       </Screen>

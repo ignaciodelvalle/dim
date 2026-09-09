@@ -177,7 +177,7 @@ describe("sending", () => {
     expect(screen.getByText("Creando la cuenta…")).toBeTruthy();
     // NOT the no-session panel either: `signedIn: true` and `signedIn: false`
     // are different outcomes of the same 201 and must not collapse.
-    expect(screen.queryByText("Ya podés ingresar")).toBeNull();
+    expect(screen.queryByText("Tu cuenta está lista")).toBeNull();
     expect(onGoToSignIn).not.toHaveBeenCalled();
   });
 
@@ -200,8 +200,11 @@ describe("the 201 that carries no session", () => {
     fill();
     fireEvent.press(screen.getByText("Continuar"));
 
-    await waitFor(() => expect(screen.getByText("Ya podés ingresar")).toBeTruthy());
-    expect(screen.getByText(/Continuá desde la pantalla de ingreso/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Tu cuenta está lista")).toBeTruthy());
+    // Two facts and no cause: READY, and the door is IN THIS APP. A panel that
+    // only said "ya podés ingresar" read as a rejection after "Crear cuenta",
+    // and the week's stale bundle was already sending testers to a browser.
+    expect(screen.getByText(/Ya podés ingresar desde esta misma app/)).toBeTruthy();
 
     // THE ORACLE CHECK. `session: null` means "the email already has an
     // account" OR "a new one is waiting to be confirmed", and the server keeps
