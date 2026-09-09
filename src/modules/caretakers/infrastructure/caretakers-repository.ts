@@ -25,7 +25,7 @@
 // __tests__/check-titular-gate.test.ts pins it so a future rename cannot
 // silently re-open the blind spot.
 
-import { and, asc, desc, eq, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { attachments, db, ownerships, petCaretakerGrants, petEvents, pets, profiles } from "@/db";
@@ -359,7 +359,22 @@ export const CaretakersRepository = {
         and(
           eq(petCaretakerGrants.status, "accepted"),
           isNull(petCaretakerGrants.reminderSentAt),
-          sql`${petCaretakerGrants.endsAt} > ${now}`,
+          // `gt`, NOT a raw `sql` template with the Date interpolated.
+          //
+          // This line was `sql\`${petCaretakerGrants.endsAt} > ${now}\`` and it
+          // failed EVERY NIGHT from at least 2026-09-02 to 2026-09-09. A raw
+          // `sql` template binds an interpolated value as a plain parameter
+          // WITHOUT the column's type mapper, so the Date went to Postgres as
+          // `String(date)` — "Wed Sep 09 2026 04:28:53 GMT+0000 (Coordinated
+          // Universal Time)" — which is not valid `timestamptz` input. The
+          // sibling bound on the very next line used the typed operator and so
+          // sent a clean ISO string; the two spellings sat next to each other
+          // and only one of them worked.
+          //
+          // The unit suite could not see it: `expire-caretaker-grants.test.ts`
+          // drives a fake repository, so no test ever asked Postgres to parse
+          // these parameters. What caught it was the cron alert channel.
+          gt(petCaretakerGrants.endsAt, now),
           lte(petCaretakerGrants.endsAt, windowEnd),
         ),
       )

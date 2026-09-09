@@ -13,6 +13,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { EVENT_TYPES, db, ownerships, petCaretakerGrants, pets, profiles } from "@/db";
+import { CaretakersRepository } from "@/src/modules/caretakers/infrastructure/caretakers-repository";
 import { expectDbError } from "./_helpers/expect-db-error";
 
 const PET_TOKEN = "DIM-CGT-0001";
@@ -271,6 +272,80 @@ describe("ownerships — one active caretaker per pet", () => {
     await db.update(ownerships).set({ endedAt: new Date() }).where(eq(ownerships.id, first));
     const second = await openCaretakerOwnership(OTHER_ID);
     expect(second).toBeTruthy();
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+});
+
+// The reminder scan, run against REAL Postgres rather than a fake repository.
+//
+// WHY THIS BLOCK EXISTS. `findGrantsNeedingReminder` bounded its window with a
+// raw `sql` template on one side and the typed `lte` operator on the other. A
+// raw template binds an interpolated value WITHOUT the column's type mapper, so
+// the Date reached Postgres as `String(date)` — "Wed Sep 09 2026 04:28:53
+// GMT+0000 (Coordinated Universal Time)" — which is not valid `timestamptz`
+// input. `expire_caretaker_grants` therefore threw every night from at least
+// 2026-09-02 to 2026-09-09, and the ONLY thing that noticed was the cron alert
+// channel: the module's own suite drives a fake repository, so nothing ever
+// asked Postgres to parse those parameters.
+//
+// The assertion is deliberately about the CALL SUCCEEDING and returning the row
+// it should. A test that only counted rows through a fake would have gone on
+// passing through the entire outage.
+describe("pet_caretaker_grants — the reminder scan runs against Postgres", () => {
+  it("accepts real Date bounds and returns the grant inside the window", async () => {
+    await clearGrants();
+    // The window the daily job asks for: from now to three days out. The grant
+    // ends inside it, is `accepted`, and has never been reminded.
+    const now = new Date();
+    const endsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const ownershipId = await openCaretakerOwnership(CARETAKER_ID);
+    const [inserted] = await db
+      .insert(petCaretakerGrants)
+      .values(
+        grantValues({
+          status: "accepted",
+          caretakerUserId: CARETAKER_ID,
+          ownershipId,
+          respondedAt: now,
+          startsAt: new Date(now.getTime() - 60_000),
+          endsAt,
+        }),
+      )
+      .returning({ id: petCaretakerGrants.id });
+
+    const rows = await CaretakersRepository.findGrantsNeedingReminder(now, windowEnd);
+
+    expect(rows.map((r) => r.id)).toContain(inserted.id);
+    await clearGrants();
+    await db.delete(ownerships).where(eq(ownerships.petId, petId));
+  });
+
+  it("excludes a grant that ends BEFORE the lower bound", async () => {
+    await clearGrants();
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const ownershipId = await openCaretakerOwnership(CARETAKER_ID);
+    const [inserted] = await db
+      .insert(petCaretakerGrants)
+      .values(
+        grantValues({
+          status: "accepted",
+          caretakerUserId: CARETAKER_ID,
+          ownershipId,
+          respondedAt: now,
+          startsAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+          // Already over: the lower bound is what has to exclude it, and the
+          // lower bound is the side that used to be malformed.
+          endsAt: new Date(now.getTime() - 60 * 60 * 1000),
+        }),
+      )
+      .returning({ id: petCaretakerGrants.id });
+
+    const rows = await CaretakersRepository.findGrantsNeedingReminder(now, windowEnd);
+
+    expect(rows.map((r) => r.id)).not.toContain(inserted.id);
+    await clearGrants();
     await db.delete(ownerships).where(eq(ownerships.petId, petId));
   });
 });
