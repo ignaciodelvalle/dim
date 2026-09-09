@@ -55,6 +55,7 @@ import type { EventType } from "../db/schema";
 // db/index.ts load that the env bootstrap below must precede).
 import {
   dateInYear,
+  makeMulberry32,
   makeRegisteredByPicker,
   monthlyEventCount,
   pickDateInMonth,
@@ -371,18 +372,10 @@ function log(tag: LogTag, msg: string): void {
 
 const RNG_SEED = 0x4e415441; // "NATA" — fixed forever
 
-function makeMulberry32(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s += 0x6d2b79f5;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    t = (t ^ (t >>> 14)) >>> 0;
-    return t / 0x100000000;
-  };
-}
-
 // Single global RNG — all callers draw from this to keep the sequence stable.
+// The generator itself lives in seed-history-utils.ts (one definition): the
+// unit tests and this seed draw from the SAME algorithm, so they can never
+// disagree about a sequence.
 const rng = makeMulberry32(RNG_SEED);
 
 function randInt(min: number, max: number): number {

@@ -67,6 +67,7 @@ create policy "Platform admins read all volunteers"
         and p.role = 'admin'
         and p.account_type = 'institutional'
         and p.deactivated_at is null
+        and p.deleted_at is null
     )
   );
 
@@ -114,6 +115,7 @@ create policy "Platform admins read all proposals"
         and p.role = 'admin'
         and p.account_type = 'institutional'
         and p.deactivated_at is null
+        and p.deleted_at is null
     )
   );
 

@@ -23,7 +23,15 @@ import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { db } from "@/db";
-import { DENY_ALL_ALLOWLIST } from "../../scripts/check-rls-coverage";
+import {
+  AUTHORITY_FUNCTION_TEXT_SQL,
+  AUTHORITY_POLICY_TEXT_SQL,
+  type AuthorityTextRow,
+  DENY_ALL_ALLOWLIST,
+  MIN_ADMIN_PREDICATES_IN_CATALOG,
+  evaluatePlatformAdminPredicates,
+  scanAuthorityTexts,
+} from "../../scripts/check-rls-coverage";
 
 // ---------------------------------------------------------------------------
 // Designated PII / tenant-scoped tables — RLS MUST be enabled on each.
@@ -342,5 +350,46 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
       "govt branch must join govt_assignments (no join = any institutional govt reads assistance-dog status nationwide — R2)",
     ).toContain("govt_assignments");
     expect(predicate).toContain("jurisdiction_locality");
+  });
+
+  // Migration 0215: an erased profile (deleted_at, Ley 25.326 art. 16) is not
+  // a platform administrator. Seventeen live predicates said otherwise — every
+  // `role = 'admin'` test on profiles checked deactivated_at or nothing. This
+  // reads the SAME catalog text the fence reads (policies of public + storage,
+  // every repo-owned function body) through the SAME scanner, so a
+  // migration-only policy — the eleven that have no db/*.sql source — cannot
+  // reintroduce the hole without going red here. The static half over
+  // db/*.sql lives in __tests__/check-rls-coverage.test.ts; the behavioural
+  // proof in __tests__/rls/erased-admin-authority.test.ts.
+  it("every live platform-admin predicate excludes erased AND deactivated profiles (0215)", async () => {
+    const policies = (await db.execute(
+      sql.raw(AUTHORITY_POLICY_TEXT_SQL),
+    )) as unknown as AuthorityTextRow[];
+    const functions = (await db.execute(
+      sql.raw(AUTHORITY_FUNCTION_TEXT_SQL),
+    )) as unknown as AuthorityTextRow[];
+    const predicates = scanAuthorityTexts([...policies, ...functions]);
+
+    // Non-vacuity: 18 on 2026-09-09 (16 policies + can_read_case +
+    // pii.caller_is_admin). Zero is what a broken scanner looks like.
+    expect(
+      predicates.length,
+      `only ${predicates.length} platform-admin tests found in the live catalog — the scanner or the catalog query is broken, not the policies`,
+    ).toBeGreaterThanOrEqual(MIN_ADMIN_PREDICATES_IN_CATALOG);
+    expect(
+      predicates.map((p) => p.source),
+      "the two functions the erasure RPCs and the cases policies rely on must be in the inventory",
+    ).toEqual(
+      expect.arrayContaining(["function public.can_read_case", "function pii.caller_is_admin"]),
+    );
+
+    const { violations } = evaluatePlatformAdminPredicates(predicates);
+    expect(
+      violations.map(
+        (v) =>
+          `${v.source} (deleted_at: ${v.hasDeletedAt}, deactivated_at: ${v.hasDeactivatedAt}): ${v.conjunct.slice(0, 140)}`,
+      ),
+      "a live predicate grants platform admin to an erased or deactivated profile — redefine it in a forward-only migration (see 0215)",
+    ).toEqual([]);
   });
 });

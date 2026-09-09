@@ -442,7 +442,10 @@ create policy "govt sees own assignments"
     user_id = auth.uid()
     or exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'admin'
+      where p.id = auth.uid()
+        and p.role = 'admin'
+        and p.deactivated_at is null
+        and p.deleted_at is null
     )
   );
 
@@ -467,7 +470,10 @@ create policy "approval requests visible to applicant or authority"
     applicant_user_id = auth.uid()
     or exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'admin'
+      where p.id = auth.uid()
+        and p.role = 'admin'
+        and p.deactivated_at is null
+        and p.deleted_at is null
     )
     or exists (
       select 1 from public.govt_assignments g
@@ -495,7 +501,10 @@ create policy "audit log visible to actor or admin"
     actor_user_id = auth.uid()
     or exists (
       select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'admin'
+      where p.id = auth.uid()
+        and p.role = 'admin'
+        and p.deactivated_at is null
+        and p.deleted_at is null
     )
   );
 

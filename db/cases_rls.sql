@@ -44,9 +44,14 @@ begin
     return false;
   end if;
 
+  -- Admin: universal scope. An erased profile (deleted_at, art. 16) is not an
+  -- admin, and neither is a deactivated one — migration 0215.
   if exists (
     select 1 from public.profiles
-    where id = p_user_id and role = 'admin' and deactivated_at is null
+    where id = p_user_id
+      and role = 'admin'
+      and deactivated_at is null
+      and deleted_at is null
   ) then
     return true;
   end if;

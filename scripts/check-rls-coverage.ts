@@ -56,6 +56,8 @@
 //   a failure).
 // Exits 1 listing each violation.
 
+import { globSync, readFileSync } from "node:fs";
+
 import postgres from "postgres";
 
 import {
@@ -67,6 +69,7 @@ import {
   remoteSkipReason,
   reportSkip as reportDbSkip,
 } from "./_db-target";
+import { normalize, stripSqlComments } from "./check-storage-write-policies";
 
 // ---------------------------------------------------------------------------
 // Allowlist — tables with RLS ENABLED and zero policies (intentional deny-all)
@@ -346,6 +349,319 @@ export function evaluateStorageReadPolicies(rows: StoragePolicyRow[]): {
   return { violations, allowlisted };
 }
 
+// ---------------------------------------------------------------------------
+// Platform-admin predicates — check 5
+// ---------------------------------------------------------------------------
+//
+// WHY 5 EXISTS (2026-09-09). `profiles` carries two lifecycle markers that mean
+// different things: a deactivation sets `deactivated_at`; a Ley 25.326 art. 16
+// erasure (`erase_subject_data`) sets `deleted_at`. Seventeen predicates in
+// the live catalog decided "is this caller a platform admin" by testing
+// `deactivated_at` — or nothing — and NEVER `deleted_at`, so an administrator
+// who erased their own account kept administrative authority at the RLS
+// layer, including over the access and erasure RPCs of every other person
+// (`pii.caller_is_admin`, the guard those RPCs call). Migration 0215 closed all
+// seventeen. This check is what stops the eighteenth.
+//
+// THE RULE: wherever SQL tests `role = 'admin'` (or `role in ('admin', …)`,
+// or `role = any(array['admin', …])`) against a row of `profiles`, the AND-group
+// that test belongs to must also carry `deleted_at is null` AND
+// `deactivated_at is null` for the same row. It bans the SUBJECT — platform
+// authority read off an erased or deactivated profile — not a spelling, and not
+// a list of files: a new policy, a new function, a new bootstrap file all fall
+// under the same scan.
+//
+// WHAT IS NOT IN SUBJECT: `om.role = 'admin'` on organization_memberships is an
+// ORGANIZATION role, a different concept on a table with no erasure marker. The
+// scan decides by the FROM clause of the query the test sits in — a `role`
+// test whose enclosing query does not read `profiles` (or reads it under a
+// different alias than the one the test uses) is not a platform-admin test.
+//
+// HOW THE AND-GROUP IS FOUND. From the `role` test, climb the enclosing
+// parentheses. At every level, keep the OR-alternative that contains the test
+// and drop the child group already climbed through (a sibling branch — the
+// `govt` alternative, typically — must not lend its own `deleted_at` to the
+// admin branch). Stop at the first level whose depth-0 text has a FROM; that
+// is the query, and it names the profiles alias. The union of what was kept at
+// each level is the text the two markers must appear in. Works on both forms
+// the repo produces: the source files (`p.role = 'admin'`) and the catalog's
+// deparsed rendering (`(p.role = 'admin'::user_role)`, every comparison in its
+// own parentheses, `FROM (a JOIN profiles p ON …)`).
+//
+// TWO INPUTS, ONE RULE: the STATIC scan reads `db/*.sql` (the bootstrap files a
+// pull request edits — caught before any environment has the policy; migrations
+// are immutable history and legitimately contain the pre-0215 predicates, so
+// they are not read) and the LIVE scan reads pg_policies + every repo-owned
+// function body (what a database actually HAS, which is where a migration-only
+// policy lives). __tests__/check-rls-coverage.test.ts runs the static half with
+// no database; __tests__/rls/coverage.test.ts runs the live half.
+
+/** The bootstrap sources the static scan reads. Not migrations — see above. */
+export const ADMIN_PREDICATE_SQL_GLOB = "db/*.sql";
+
+/**
+ * Non-vacuity floors. Measured 2026-09-09: 9 platform-admin tests across
+ * db/*.sql (rls.sql ×3, foster_rls.sql ×2, welfare_rls.sql ×2, cases_rls.sql,
+ * revocations_storage.sql) and 18 in the live catalog (16 policies + 2
+ * functions). Set below the measurements so a predicate can be retired without
+ * a false alarm, and far above zero because zero is what a broken regex looks
+ * like — the whole check would then pass by finding nothing.
+ */
+export const MIN_ADMIN_PREDICATES_IN_SOURCE = 6;
+export const MIN_ADMIN_PREDICATES_IN_CATALOG = 12;
+
+export type AdminPredicate = {
+  /** A file path, or `policy <schema>.<table> "<name>"`, or `function <schema>.<name>`. */
+  source: string;
+  /** Alias the enclosing query reads profiles through; null when unaliased. */
+  alias: string | null;
+  /** The text the markers were looked for in — the effective AND-group, normalized. */
+  conjunct: string;
+  hasDeletedAt: boolean;
+  hasDeactivatedAt: boolean;
+};
+
+/** `role = 'admin'`, `role in ('admin', …)`, `role = any(array['admin', …])` — with or without an alias. A fresh instance per scan: a shared global regex carries lastIndex between calls. */
+function adminRoleTest(): RegExp {
+  return /(?:\b([a-z_][a-z0-9_]*)\.)?\brole\b\s*(?:=\s*'admin'|in\s*\([^)]*'admin'|=\s*any\s*\(\s*array\s*\[[^\]]*'admin')/g;
+}
+
+/** `from profiles`, `join public.profiles p`, `from profiles as p` — the alias if any. */
+const PROFILES_IN_FROM =
+  /\b(?:from|join)\s+(?:public\.)?profiles\b(?:\s+(?:as\s+)?(?!(?:where|on|join|inner|left|right|full|cross|natural|using|group|order|limit|and|or|for)\b)([a-z_][a-z0-9_]*))?/;
+
+type ParenIndex = {
+  /** open index → close index. */
+  matchOf: Map<number, number>;
+  /** Paren depth before each character (string literals excluded). */
+  depth: Int32Array;
+  /** Whether each character sits inside a string literal. */
+  inString: Uint8Array;
+};
+
+function indexParens(text: string): ParenIndex {
+  const matchOf = new Map<number, number>();
+  const depth = new Int32Array(text.length);
+  const inString = new Uint8Array(text.length);
+  const stack: number[] = [];
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    depth[i] = stack.length;
+    if (ch === "'") {
+      quoted = !quoted;
+      inString[i] = 1;
+      continue;
+    }
+    inString[i] = quoted ? 1 : 0;
+    if (quoted) continue;
+    if (ch === "(") stack.push(i);
+    else if (ch === ")") {
+      const open = stack.pop();
+      if (open !== undefined) matchOf.set(open, i);
+    }
+  }
+  return { matchOf, depth, inString };
+}
+
+/** The innermost `(` before `pos` whose `)` is after `pos`, or -1. */
+function enclosingOpen(index: ParenIndex, pos: number): number {
+  let best = -1;
+  for (const [open, close] of index.matchOf) {
+    if (open < pos && close > pos && open > best) best = open;
+  }
+  return best;
+}
+
+/** [start, end) of the statement containing `pos` — between depth-0 semicolons. */
+function statementBounds(text: string, index: ParenIndex, pos: number): [number, number] {
+  let start = 0;
+  for (let i = pos; i >= 0; i--) {
+    if (text[i] === ";" && index.depth[i] === 0 && index.inString[i] === 0) {
+      start = i + 1;
+      break;
+    }
+  }
+  let end = text.length;
+  for (let i = pos; i < text.length; i++) {
+    if (text[i] === ";" && index.depth[i] === 0 && index.inString[i] === 0) {
+      end = i;
+      break;
+    }
+  }
+  return [start, end];
+}
+
+function isWordChar(ch: string | undefined): boolean {
+  return ch !== undefined && /[a-z0-9_]/.test(ch);
+}
+
+/** Depth-0 (relative to the scope) `or` token positions, and whether a depth-0 FROM exists. */
+function scopeShape(
+  text: string,
+  index: ParenIndex,
+  start: number,
+  end: number,
+): { orAt: number[]; hasFrom: boolean } {
+  const base = index.depth[start] ?? 0;
+  const orAt: number[] = [];
+  let hasFrom = false;
+  for (let i = start; i < end; i++) {
+    if (index.depth[i] !== base || index.inString[i] === 1) continue;
+    if (isWordChar(text[i - 1])) continue;
+    if (text.startsWith("or", i) && !isWordChar(text[i + 2])) orAt.push(i);
+    else if (text.startsWith("from", i) && !isWordChar(text[i + 4])) hasFrom = true;
+  }
+  return { orAt, hasFrom };
+}
+
+/** The OR-alternative of [start, end) that contains `pos`. */
+function alternativeContaining(
+  orAt: number[],
+  start: number,
+  end: number,
+  pos: number,
+): [number, number] {
+  let s = start;
+  let e = end;
+  for (const at of orAt) {
+    if (at < pos) s = at + 2;
+    else {
+      e = at;
+      break;
+    }
+  }
+  return [s, e];
+}
+
+/**
+ * Every platform-admin test in `text`, with the AND-group it must satisfy.
+ * `text` is raw SQL — source or catalog rendering — comments included.
+ */
+export function findPlatformAdminPredicates(text: string, source: string): AdminPredicate[] {
+  const sql = normalize(stripSqlComments(text));
+  const index = indexParens(sql);
+  const found: AdminPredicate[] = [];
+  const re = adminRoleTest();
+
+  for (let m = re.exec(sql); m !== null; m = re.exec(sql)) {
+    const pos = m.index;
+    const roleAlias = m[1] ?? null;
+
+    const kept: string[] = [];
+    let child: [number, number] | null = null;
+    let open = enclosingOpen(index, pos);
+    let query: [number, number] | null = null;
+    // Climb until the query that owns the test (depth-0 FROM) or the statement.
+    for (;;) {
+      const atStatement = open === -1;
+      const [s, e] = atStatement
+        ? statementBounds(sql, index, pos)
+        : [open + 1, index.matchOf.get(open) as number];
+      const shape = scopeShape(sql, index, s, e);
+      const [as, ae] = alternativeContaining(shape.orAt, s, e, pos);
+      kept.push(
+        child === null
+          ? sql.slice(as, ae)
+          : `${sql.slice(as, Math.max(as, child[0]))} ${sql.slice(Math.min(ae, child[1]), ae)}`,
+      );
+      if (shape.hasFrom || atStatement) {
+        query = [s, e];
+        break;
+      }
+      child = [open, (index.matchOf.get(open) as number) + 1];
+      open = enclosingOpen(index, open);
+    }
+
+    const profiles = PROFILES_IN_FROM.exec(sql.slice(query[0], query[1]));
+    if (profiles === null) continue; // the query does not read profiles — an org role, or unrelated
+    const profilesAlias = profiles[1] ?? null;
+    if (roleAlias !== null && roleAlias !== (profilesAlias ?? "profiles")) continue; // another table's role
+
+    const conjunct = kept.join(" ");
+    const prefix =
+      profilesAlias === null
+        ? "(?:\\bprofiles\\.|(?<![a-z0-9_.]))"
+        : `(?:\\b(?:${profilesAlias}|profiles)\\.|(?<![a-z0-9_.]))`;
+    const marker = (column: string) =>
+      new RegExp(`${prefix}${column}\\s+is\\s+null`).test(conjunct);
+    found.push({
+      source,
+      alias: profilesAlias,
+      conjunct,
+      hasDeletedAt: marker("deleted_at"),
+      hasDeactivatedAt: marker("deactivated_at"),
+    });
+  }
+  return found;
+}
+
+export function evaluatePlatformAdminPredicates(predicates: AdminPredicate[]): {
+  violations: AdminPredicate[];
+} {
+  return {
+    violations: predicates.filter((p) => !p.hasDeletedAt || !p.hasDeactivatedAt),
+  };
+}
+
+/** The static half: every platform-admin test declared in db/*.sql. */
+export function scanSourceSqlForAdminPredicates(cwd = process.cwd()): AdminPredicate[] {
+  const files = globSync(ADMIN_PREDICATE_SQL_GLOB, { cwd }).sort();
+  return files.flatMap((file) =>
+    findPlatformAdminPredicates(readFileSync(`${cwd}/${file}`, "utf8"), file.replaceAll("\\", "/")),
+  );
+}
+
+export type AuthorityTextRow = { source: string; text: string };
+
+/** Every policy predicate PostgREST can reach, labelled. */
+export const AUTHORITY_POLICY_TEXT_SQL = `
+  SELECT format('policy %s.%s "%s"', schemaname, tablename, policyname) AS source,
+         coalesce(qual, '') || ' ' || coalesce(with_check, '') AS text
+  FROM pg_policies
+  WHERE schemaname IN ('public', 'storage')
+  ORDER BY schemaname, tablename, policyname
+`;
+
+/** Every repo-owned SQL/plpgsql function body — the schemas migrations write to. */
+export const AUTHORITY_FUNCTION_TEXT_SQL = `
+  SELECT format('function %s.%s', n.nspname, p.proname) AS source,
+         pg_get_functiondef(p.oid) AS text
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  JOIN pg_language l ON l.oid = p.prolang
+  WHERE p.prokind = 'f'
+    AND l.lanname IN ('sql', 'plpgsql')
+    AND n.nspname NOT LIKE 'pg\\_%'
+    AND n.nspname NOT IN (
+      'information_schema', 'auth', 'storage', 'extensions', 'graphql', 'graphql_public',
+      'realtime', 'supabase_functions', 'supabase_migrations', 'vault', 'net', 'pgsodium',
+      'pgsodium_masks', 'pgbouncer', 'cron'
+    )
+  ORDER BY n.nspname, p.proname
+`;
+
+/** The live half: policy predicates + function bodies, ready for the scanner. */
+export async function fetchAuthorityTexts(client: postgres.Sql): Promise<AuthorityTextRow[]> {
+  const policies = await client.unsafe<AuthorityTextRow[]>(AUTHORITY_POLICY_TEXT_SQL);
+  const functions = await client.unsafe<AuthorityTextRow[]>(AUTHORITY_FUNCTION_TEXT_SQL);
+  return [...policies, ...functions];
+}
+
+export function scanAuthorityTexts(rows: AuthorityTextRow[]): AdminPredicate[] {
+  return rows.flatMap((row) => findPlatformAdminPredicates(row.text, row.source));
+}
+
+function describeAdminViolation(v: AdminPredicate): string {
+  const missing = [
+    v.hasDeletedAt ? null : "deleted_at is null",
+    v.hasDeactivatedAt ? null : "deactivated_at is null",
+  ]
+    .filter((x): x is string => x !== null)
+    .join(" and ");
+  return `✗ ${v.source} — tests role = 'admin' on profiles${v.alias ? ` (alias ${v.alias})` : ""} without ${missing} in the same AND-group. An erased (art. 16) or deactivated profile is not a platform administrator — add the marker(s) to that branch (see migration 0215). Group seen: ${v.conjunct.slice(0, 160)}…`;
+}
+
 type Violation = {
   table_name: string;
   kind: "rls_disabled" | "no_policies";
@@ -356,7 +672,29 @@ type Violation = {
 // ---------------------------------------------------------------------------
 
 const SKIPPED_CHECKS =
-  "  NOT run: RLS-enabled, policy-count and policy-roles coverage over every public table, plus storage.objects bucket-read scoping (the whole fence).";
+  "  NOT run: RLS-enabled, policy-count and policy-roles coverage over every public table, storage.objects bucket-read scoping, and the LIVE half of the platform-admin predicate check (the static half over db/*.sql still ran).";
+
+/**
+ * The static half of check 5 runs BEFORE the database is consulted and fails
+ * on its own: it reads db/*.sql, so a DB-less box still judges the source.
+ * Returns true when clean.
+ */
+function runStaticAdminPredicateCheck(): boolean {
+  const predicates = scanSourceSqlForAdminPredicates();
+  const { violations } = evaluatePlatformAdminPredicates(predicates);
+  for (const v of violations) console.error(describeAdminViolation(v));
+  if (predicates.length < MIN_ADMIN_PREDICATES_IN_SOURCE) {
+    console.error(
+      `✗ platform-admin predicate scan found only ${predicates.length} test(s) across ${ADMIN_PREDICATE_SQL_GLOB} (floor ${MIN_ADMIN_PREDICATES_IN_SOURCE}). An empty inventory reads exactly like a clean one — the scanner or the glob is broken, not the SQL.`,
+    );
+    return false;
+  }
+  if (violations.length > 0) return false;
+  console.log(
+    `✓ Platform-admin predicates (source) — ${predicates.length} role = 'admin' tests on profiles across ${ADMIN_PREDICATE_SQL_GLOB}, every one carries deleted_at + deactivated_at.`,
+  );
+  return true;
+}
 
 /**
  * Read RLS state and policy roles for every public table, or return null when
@@ -370,6 +708,7 @@ async function fetchCoverage(
   tables: TableRlsRow[];
   policies: PolicyRoleRow[];
   storagePolicies: StoragePolicyRow[];
+  authorityTexts: AuthorityTextRow[];
 } | null> {
   const sql = postgres(rawUrl, { max: 1, connect_timeout: 5 });
   try {
@@ -377,6 +716,7 @@ async function fetchCoverage(
       tables: await fetchRlsCoverage(sql),
       policies: await fetchPolicyRoles(sql),
       storagePolicies: await fetchStoragePolicies(sql),
+      authorityTexts: await fetchAuthorityTexts(sql),
     };
   } catch (err) {
     // A DB-less box is not a failure — but it is not a pass either, and it has
@@ -433,6 +773,8 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   const usingDefault = process.env.DATABASE_URL === undefined;
   const target = describeTarget(rawUrl);
 
+  const staticAdminClean = runStaticAdminPredicateCheck();
+
   // A staging pooler in DATABASE_URL is the readiness doc's §B4 trap. This
   // fence used to walk straight into it and print a wall of violations about a
   // database nobody meant to audit.
@@ -445,11 +787,15 @@ export async function runCheck(argv: string[] = []): Promise<void> {
       skipped: SKIPPED_CHECKS,
       remedy: remoteRemedy("SELECTs pg_class / pg_policies"),
     });
+    if (!staticAdminClean) process.exit(1);
     return;
   }
 
   const fetched = await fetchCoverage(rawUrl, target);
-  if (fetched === null) return;
+  if (fetched === null) {
+    if (!staticAdminClean) process.exit(1);
+    return;
+  }
   const rows = fetched.tables;
 
   // The database being judged is named on EVERY exit path, pass or fail.
@@ -461,11 +807,17 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   const { violations, allowlisted } = evaluateCoverage(rows);
   const roleCheck = evaluatePolicyRoles(fetched.policies);
   const storageCheck = evaluateStorageReadPolicies(fetched.storagePolicies);
+  const livePredicates = scanAuthorityTexts(fetched.authorityTexts);
+  const adminCheck = evaluatePlatformAdminPredicates(livePredicates);
+  const adminScanVacuous = livePredicates.length < MIN_ADMIN_PREDICATES_IN_CATALOG;
 
   if (
+    !staticAdminClean ||
     violations.length > 0 ||
     roleCheck.violations.length > 0 ||
-    storageCheck.violations.length > 0
+    storageCheck.violations.length > 0 ||
+    adminCheck.violations.length > 0 ||
+    adminScanVacuous
   ) {
     for (const v of violations) {
       if (v.kind === "rls_disabled") {
@@ -488,12 +840,19 @@ export async function runCheck(argv: string[] = []): Promise<void> {
         `✗ storage.objects — policy "${v.policy_name}" (${v.cmd}, TO ${v.roles}) grants READ with a predicate that never names the caller: ${v.qual}. That is TRUE for every object in the bucket, and POST /storage/v1/object/list/{bucket} is filtered by this policy — so any account with that role can ENUMERATE and download the whole bucket. "Discovery is gated by the SSR layer" is not true of the Storage REST API. Fix: drop the policy in a forward-only migration and sign reads as service role behind a caller that has already authorized (see lib/infra/storage.ts, migrations 0164 and 0172) — or, with a reviewed reason, add "${v.policy_name}" to STORAGE_READ_POLICY_ALLOWLIST in scripts/check-rls-coverage.ts.`,
       );
     }
+    for (const v of adminCheck.violations) console.error(describeAdminViolation(v));
+    if (adminScanVacuous) {
+      console.error(
+        `✗ platform-admin predicate scan found only ${livePredicates.length} test(s) in the live catalog (floor ${MIN_ADMIN_PREDICATES_IN_CATALOG}). An empty inventory reads exactly like a clean one — the scanner or the catalog query is broken.`,
+      );
+    }
     console.error(
       lines(
         "",
         `✗ RLS coverage check FAILED — ${violations.length} table violation(s), ` +
-          `${roleCheck.violations.length} PUBLIC-role policy violation(s) and ` +
-          `${storageCheck.violations.length} storage-bucket read violation(s) across ${totalTables} tables, ` +
+          `${roleCheck.violations.length} PUBLIC-role policy violation(s), ` +
+          `${storageCheck.violations.length} storage-bucket read violation(s) and ` +
+          `${adminCheck.violations.length} platform-admin predicate violation(s) (live${staticAdminClean ? "" : "; the static db/*.sql scan failed too, see above"}) across ${totalTables} tables, ` +
           `${fetched.policies.length} public policies and ${fetched.storagePolicies.length} storage.objects policies. ` +
           `Allowlisted deny-all tables (excluded): ${allowlisted.length}.`,
         dbLine,
@@ -517,6 +876,9 @@ export async function runCheck(argv: string[] = []): Promise<void> {
       : "";
   console.log(
     `✓ Storage bucket reads scoped — ${fetched.storagePolicies.length} storage.objects policies checked, no caller-role READ grant without auth.uid()${storageAllowNote}.`,
+  );
+  console.log(
+    `✓ Platform-admin predicates (live) — ${livePredicates.length} role = 'admin' tests on profiles across ${fetched.authorityTexts.length} policy predicates + function bodies, every one carries deleted_at + deactivated_at.`,
   );
   console.log(dbLine);
 }

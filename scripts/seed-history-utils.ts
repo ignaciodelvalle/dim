@@ -10,9 +10,10 @@
  */
 
 /**
- * mulberry32 PRNG factory — re-exported here so the unit test can construct an
- * isolated, seeded stream without importing the seed script. This is the SAME
- * algorithm seed-panorama.ts uses for its global `rng`.
+ * mulberry32 PRNG factory — THE definition. seed-panorama.ts imports it for its
+ * global `rng` and the unit test constructs isolated seeded streams from it;
+ * there used to be a byte-identical private copy in the seed, which is one
+ * edit away from two generators that disagree.
  */
 export function makeMulberry32(seed: number): () => number {
   let s = seed >>> 0;

@@ -68,6 +68,8 @@ create policy "Admin can insert welfare attachments"
       from public.profiles p
       where p.id = auth.uid()
         and p.role = 'admin'
+        and p.deactivated_at is null
+        and p.deleted_at is null
     )
   );
 
@@ -98,5 +100,7 @@ create policy "Admin can read any welfare attachments"
       from public.profiles p
       where p.id = auth.uid()
         and p.role = 'admin'
+        and p.deactivated_at is null
+        and p.deleted_at is null
     )
   );
