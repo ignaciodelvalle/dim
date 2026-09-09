@@ -60,6 +60,7 @@ import {
   pickDateInMonth,
   pickRegisteredYear,
   provinceProfile,
+  resolveHistoryLossOutcomes,
 } from "./seed-history-utils";
 
 // PANO_PROVINCE_BOOST parser — pure and db-free, same static-import rationale
@@ -304,6 +305,11 @@ const DANGEROUS_BREED_FLAG_RATE = Number(process.env.PANO_DANGEROUS_BREED_RATE ?
 const PPP_ATTEST_RATE = Number(process.env.PANO_PPP_ATTEST_RATE ?? "0.45"); // of flagged pets
 const ADOPTION_ACQUISITION_RATE = Number(process.env.PANO_ADOPTION_RATE ?? "0.12");
 const REUNIFICATION_RATE = Number(process.env.PANO_REUNIFICATION_RATE ?? "0.45"); // of lost pets
+// The per-province block dates its losses inside this trailing window and
+// applies REUNIFICATION_RATE to them. The history block reuses BOTH numbers:
+// an episode inside the window is "recent" and reunified at that rate; anything
+// older is closed by construction (see resolveHistoryLossOutcomes).
+const RECENT_LOSS_WINDOW_DAYS = 30;
 
 // ─── Health campaign rates (env-tunable) — feeds /gob/campanas ──────────────
 // A health campaign is a service_offering (vacunación / desparasitación /
@@ -1864,7 +1870,7 @@ async function seedPets(
         // the still-lost ones need the cache column moved off registerPet's
         // default "active".
         if (!meta.reunified) lostPetIds.push(petId);
-        const lostAt = randomWindowDate(30); // recent
+        const lostAt = randomWindowDate(RECENT_LOSS_WINDOW_DAYS); // recent
         evts.push({
           petId,
           eventType: "status_changed" satisfies EventType,
@@ -3528,6 +3534,9 @@ async function seedModelProvinceHistory(
     //    history pet is indistinguishable from a real registration except for
     //    its seed_tag and PANO-HIST- token.
     const eventRows: Array<Record<string, unknown>> = [];
+    // Pets whose latest lost episode stays open (step 7b) — the only ones whose
+    // status cache moves to 'lost' after the events are inserted.
+    const historyStillLostPetIds: string[] = [];
     // token → pet id, populated as each pet clears the real intake circuit.
     // Downstream steps (zoonosis attachment, per-locality event spraying) key
     // off this instead of a post-insert SELECT.
@@ -3774,6 +3783,9 @@ async function seedModelProvinceHistory(
         lat: number;
         lng: number;
       }> = [];
+      // Pets that die in this block. death_recorded is terminal in the
+      // projection, so these must never be cached as 'lost' (step 7b).
+      const historyDeceasedPetIds = new Set<string>();
 
       for (const year of HISTORY_YEARS) {
         for (let month = 0; month < 12; month++) {
@@ -3788,6 +3800,7 @@ async function seedModelProvinceHistory(
             const occurredAt = pickDateInMonth(year, month, rng, ANCHOR);
             const petId = pickProvincePet(occurredAt, petDraw);
             if (!petId) continue;
+            historyDeceasedPetIds.add(petId);
             eventRows.push({
               petId,
               eventType: "death_recorded" satisfies EventType,
@@ -4013,6 +4026,53 @@ async function seedModelProvinceHistory(
           bump("note_added");
         }
       }
+
+      // 7b. Close the lost episodes so the spine and the cache agree BY
+      //     CONSTRUCTION — the same shape the per-province block uses (its
+      //     paired lost→active status_changed + `lostPetIds` cache write).
+      //     Before this, every history loss stayed open in the spine and the
+      //     cache never moved: 5741 lost events, zero reunions, 2705 pets
+      //     whose latest status_changed said 'lost' over status='active'
+      //     (staging, 2026-09). The nightly reconcile cron flagged it every
+      //     night and /perdidas — which filters on the cache — showed ~70
+      //     lost pets to officials while the spine said 2775.
+      //     The decision is per PET (one pet can be lost several times) and
+      //     lives in seed-history-utils.ts so it is unit-tested against the
+      //     real projection instead of only observable by re-seeding.
+      const lossOutcome = resolveHistoryLossOutcomes(lostEvents, {
+        anchor: ANCHOR,
+        deceasedPetIds: historyDeceasedPetIds,
+        reunificationRate: REUNIFICATION_RATE,
+        recentWindowDays: RECENT_LOSS_WINDOW_DAYS,
+        rng,
+      });
+      for (const { episode, reunifiedAt } of lossOutcome.reunifications) {
+        const { lat, lng } = jitteredCoord(episode.lat, episode.lng, 0.02);
+        eventRows.push({
+          petId: episode.petId,
+          eventType: "status_changed" satisfies EventType,
+          occurredAt: reunifiedAt,
+          recordedByUserId: ownerUserId,
+          authorRole: "owner",
+          authorVerified: false,
+          payload: {
+            source: "seed-panorama-history",
+            from_status: "lost",
+            to_status: "active",
+            location_description: "Reencuentro con la familia",
+            reunified: true,
+          },
+          ...writePoint({ lat, lng }),
+        });
+        bump("status_changed");
+      }
+      historyStillLostPetIds.push(...lossOutcome.stillLostPetIds);
+      log(
+        "INFO",
+        `  ${provinceName} lost episodes: ${lostEvents.length} → ` +
+          `${lossOutcome.reunifications.length} reunified, ` +
+          `${lossOutcome.stillLostPetIds.length} pet(s) still lost`,
+      );
     }
 
     // 8. Stamp seed provenance, then batch insert the post-registration events.
@@ -4035,6 +4095,14 @@ async function seedModelProvinceHistory(
           ? V
           : never,
       );
+    }
+
+    // status='lost' — backed by the still-open status_changed(active→lost)
+    // above (step 7b). Same cache write as the per-province block's lostPetIds
+    // loop; pets with a death_recorded were excluded by construction.
+    for (let b = 0; b < historyStillLostPetIds.length; b += BATCH_SIZE) {
+      const batch = historyStillLostPetIds.slice(b, b + BATCH_SIZE);
+      await db.update(pets).set({ status: "lost" }).where(inArray(pets.id, batch));
     }
 
     const provincePets = perPetMeta.length;

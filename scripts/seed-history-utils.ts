@@ -277,3 +277,159 @@ export function provinceProfile(provinceName: string): ProvinceProfile {
     zoonosisByYear: UNIFORM_ZOONOSIS,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Lost-episode outcomes — the spine and the status cache agree by construction
+// ---------------------------------------------------------------------------
+
+/** One status_changed(active→lost) the history seed emitted. */
+export type HistoryLossEpisode = {
+  petId: string;
+  lostAt: Date;
+};
+
+/** A status_changed(lost→active) the caller must emit to close an episode. */
+export type HistoryReunification<E extends HistoryLossEpisode = HistoryLossEpisode> = {
+  /** The episode being closed — the caller's own object, so it keeps its extras. */
+  episode: E;
+  reunifiedAt: Date;
+};
+
+export type HistoryLossResolution<E extends HistoryLossEpisode = HistoryLossEpisode> = {
+  /** Reunifications to emit, in a stable, deterministic order. */
+  reunifications: HistoryReunification<E>[];
+  /**
+   * Pets whose LATEST episode stays open — the only pets the caller may write
+   * `pets.status = 'lost'` for. Never contains a pet from `deceasedPetIds`.
+   */
+  stillLostPetIds: string[];
+};
+
+export type ResolveHistoryLossOptions = {
+  /** "Now" for the seed: no reunification lands after this instant. */
+  anchor: Date;
+  /**
+   * Pets that also receive a death_recorded in this seed. death_recorded is
+   * terminal in lib/projections/pet-status.ts, so writing 'lost' into their
+   * cache would be drift in the other direction — they are never marked lost.
+   */
+  deceasedPetIds: ReadonlySet<string>;
+  /** Share of RECENT open episodes that get reunified — the seed's own rate. */
+  reunificationRate: number;
+  /** How far back from `anchor` an episode still counts as "recent" (days). */
+  recentWindowDays: number;
+  rng: () => number;
+};
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Decide, per PET, which history lost-episodes get a reunification and which
+ * pets are genuinely still lost at the anchor — so that replaying the emitted
+ * status_changed events yields exactly the status the caller writes into
+ * `pets.status`.
+ *
+ * WHY THIS EXISTS. The history seed emitted status_changed(to_status='lost')
+ * for thousands of episodes across 2024–2026 and never closed one of them, nor
+ * touched the cache. Measured on staging: 5741 lost events, zero reunions, and
+ * 2705 PANO-HIST pets whose latest status_changed said 'lost' while
+ * pets.status said 'active'. The nightly reconcile cron reported the drift
+ * every night, and /perdidas (which filters on the cache) showed ~70 lost pets
+ * while the spine said 2775 — on a panel shown to government officials.
+ *
+ * The decision is per pet, not per episode, because the pooled picker draws
+ * randomly and one pet can be lost several times across the years while the
+ * projection only looks at the LATEST status_changed:
+ *
+ *   - Every non-latest episode of a pet is closed with a reunification placed
+ *     strictly between its loss and the pet's NEXT loss (never after it, or
+ *     the later loss would be shadowed). Two losses at the same instant leave
+ *     no room; the earlier one is simply superseded and gets no reunion.
+ *   - The latest episode is closed unconditionally when it is older than the
+ *     recent window: a 2024 loss that leaves the animal missing today is not
+ *     realistic at this volume, and the trend charts only need the loss to
+ *     have happened.
+ *   - A latest episode INSIDE the recent window is reunified with
+ *     `reunificationRate` — the same knob the per-province block applies to
+ *     its own recent (30-day) losses (REUNIFICATION_RATE, default 0.45) — and
+ *     otherwise stays open: that pet goes into `stillLostPetIds`, unless it
+ *     also dies in this seed.
+ *   - A loss AT the anchor has no room for a reunion before "now" and stays
+ *     open by construction.
+ *
+ * The reunion interval mirrors the per-province block (1–9 days after the
+ * loss), clamped to stay strictly before the next loss / the anchor. Uses the
+ * injected rng only; the order of draws is stable (pets in first-appearance
+ * order, episodes by lostAt) so the seed stays deterministic.
+ */
+export function resolveHistoryLossOutcomes<E extends HistoryLossEpisode>(
+  episodes: readonly E[],
+  opts: ResolveHistoryLossOptions,
+): HistoryLossResolution<E> {
+  const { anchor, deceasedPetIds, reunificationRate, recentWindowDays, rng } = opts;
+  const anchorMs = anchor.getTime();
+  const recentSinceMs = anchorMs - recentWindowDays * DAY_MS;
+
+  const reunifications: HistoryReunification<E>[] = [];
+  const stillLostPetIds: string[] = [];
+
+  for (const [petId, sorted] of groupEpisodesByPet(episodes)) {
+    for (let i = 0; i < sorted.length; i++) {
+      const ep = sorted[i];
+      const lostMs = ep.lostAt.getTime();
+      const isLatest = i === sorted.length - 1;
+      // A reunion must land strictly before this bound: the next loss for an
+      // earlier episode, "now" for the latest one.
+      const boundMs = isLatest ? anchorMs : sorted[i + 1].lostAt.getTime();
+      // No room before the bound: a loss AT the anchor stays open by
+      // construction; two same-instant losses leave the earlier one superseded
+      // by the later one in the projection, so it needs no reunion.
+      const hasRoom = boundMs - lostMs >= 2;
+      // An earlier episode always closes. The latest one closes unconditionally
+      // when older than the recent window, and at the seed's own reunification
+      // rate inside it (one rng draw, only when the draw can matter).
+      const closes = hasRoom && (!isLatest || lostMs < recentSinceMs || rng() < reunificationRate);
+
+      if (closes) {
+        reunifications.push({ episode: ep, reunifiedAt: placeReunion(lostMs, boundMs, rng) });
+      } else if (isLatest && !deceasedPetIds.has(petId)) {
+        stillLostPetIds.push(petId);
+      }
+    }
+  }
+
+  return { reunifications, stillLostPetIds };
+}
+
+/**
+ * Group episodes by pet — pets in first-appearance order, episodes by lostAt —
+ * so the rng draws in resolveHistoryLossOutcomes happen in a stable order.
+ */
+function groupEpisodesByPet<E extends HistoryLossEpisode>(
+  episodes: readonly E[],
+): Map<string, E[]> {
+  const byPet = new Map<string, E[]>();
+  for (const ep of episodes) {
+    const list = byPet.get(ep.petId);
+    if (list) list.push(ep);
+    else byPet.set(ep.petId, [ep]);
+  }
+  for (const list of byPet.values()) {
+    list.sort((a, b) => a.lostAt.getTime() - b.lostAt.getTime());
+  }
+  return byPet;
+}
+
+/**
+ * The reunion instant for a closed episode: 1–9 days after the loss (the
+ * per-province block's own interval), or halfway to `boundMs` when that
+ * interval would reach it. Always strictly inside (lostMs, boundMs); the caller
+ * guarantees `boundMs - lostMs >= 2`. Uses one rng draw.
+ */
+function placeReunion(lostMs: number, boundMs: number, rng: () => number): Date {
+  const intervalDays = 1 + Math.floor(rng() * 9); // mirrors randInt(1, 9)
+  const candidateMs = lostMs + intervalDays * DAY_MS;
+  return new Date(
+    candidateMs < boundMs ? candidateMs : lostMs + Math.floor((boundMs - lostMs) / 2),
+  );
+}
