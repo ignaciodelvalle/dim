@@ -1,3 +1,17 @@
+// EL ROUTER de `POST /api/v1/pets/{publicToken}/events`.
+//
+// LOS SEIS KINDS QUE NO ENTRAN EN EL SWITCH SE MUDARON a
+// `append-special-kinds.ts` el 2026-09-09, cuando el kind de mordedura llevo
+// este archivo a 1608 lineas y la fence de tamano lo refuto. El corte NO se
+// eligio por el numero: los comentarios de `append` mas abajo ya nombraban a
+// esas seis como una categoria, una por una, y lo que las une es preciso —
+// ninguna contesta en `UseCaseResult<RecordedEvent>`. Lo que quedo aca es lo que
+// el nombre promete: el guard, el gate del mismo dia, siete despachos tempranos
+// y el switch.
+//
+// El encabezado historico sigue abajo porque nada de lo que dice dejo de ser
+// cierto; solo dejo de estar todo en un archivo.
+//
 // The thirteen owner writers, behind `POST /api/v1/pets/{publicToken}/events`.
 //
 // Split out of `route.ts` for the reason the amend endpoint split its own
@@ -199,11 +213,8 @@
 // exception that does not pay it: its web form takes no file either, so the
 // native one loses nothing.
 
-import { findExistingByKey } from "@/lib/events/event-idempotency";
 import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
-import { notifyTitularOfCaretakerDeath } from "@/lib/infra/caretaker-activity-alert";
-import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import {
   OWNER_AUTHORSHIP,
@@ -212,6 +223,7 @@ import {
 } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { reportError } from "@/lib/infra/report-error";
+
 import { findDrugByLabel } from "@/lib/reference/drugs";
 import {
   FREQUENCY_LABELS,
@@ -219,34 +231,36 @@ import {
   intervalHoursForFrequency,
   parseFrequencyFields,
 } from "@/lib/reference/medication-schedule";
-import { parseDateInput } from "@/lib/utils/format";
 import { createClinicalInfo } from "@/src/modules/events/application/clinical/clinical-info-use-case";
 import { createVetVisit } from "@/src/modules/events/application/clinical/vet-visit-use-case";
-import { createDangerousBreedAttestation } from "@/src/modules/events/application/identity/dangerous-breed-attestation-use-case";
 import { createMicrochip } from "@/src/modules/events/application/identity/microchip-use-case";
 import { createNote } from "@/src/modules/events/application/identity/note-use-case";
-import { validateAttestationRegistry } from "@/src/modules/events/application/identity/validate-attestation-registry";
-import { createDeathRecord } from "@/src/modules/events/application/lifecycle/death-record-use-case";
 import { createDeworming } from "@/src/modules/events/application/medical/deworming-use-case";
 import { createMedicationEnd } from "@/src/modules/events/application/medical/medication-end-use-case";
 import { createMedicationStart } from "@/src/modules/events/application/medical/medication-start-use-case";
 import { createSterilization } from "@/src/modules/events/application/medical/sterilization-use-case";
 import { createVaccination } from "@/src/modules/events/application/medical/vaccination-use-case";
 import { createWeight } from "@/src/modules/events/application/medical/weight-use-case";
-import { createSymptomObservedWriter } from "@/src/modules/events/application/surveillance/symptom-observed-use-case";
 import type { RecordedEvent, UseCaseResult } from "@/src/modules/events/application/types";
 // NOT a copy of the flush, and the export's own docblock says why moving it
 // into a shared module is refused by two fences. Imported from the module that
 // is already allowed to hold that insert.
-import { flushNotifications } from "@/src/modules/events/application/writers";
-import { resolveDeathReportable } from "@/src/modules/events/domain/death-rules";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
-import { recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
-import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import type { EventRecordedV1 } from "@dim/contract/api";
 import type { RecordEventInput } from "@dim/contract/input";
+// LOS SEIS QUE NO ENTRAN EN EL SWITCH viven en su propio modulo desde que la
+// fence de tamano refuto este archivo con 1608 lineas. El corte esta explicado
+// en `write-context.ts`; lo que queda aca es el router.
+import {
+  appendBite,
+  appendDangerousBreedAttestation,
+  appendDeath,
+  appendMicrochipReplace,
+  appendPregnancy,
+  appendSymptom,
+} from "./append-special-kinds";
+import { type WriteContext, parseWireDay } from "./write-context";
 
 import { db } from "@/db";
 
@@ -271,27 +285,6 @@ export function unavailable() {
   return apiV1Error("temporarily_unavailable", 503, {
     "retry-after": String(UNAVAILABLE_RETRY_AFTER_SECONDS),
   });
-}
-
-/**
- * `"YYYY-MM-DD"` → the instant the web anchors it at, or `null` if that string
- * does not name a real day.
- *
- * `parseDateInput` ALONE IS NOT THAT CHECK, and this is the one place on this
- * surface where the difference writes a wrong fact into an append-only ledger.
- * `new Date("2026-02-31T12:00:00Z")` neither throws nor is `NaN` — JavaScript
- * rolls it over to 3 March — so `parseDateInput` returns a perfectly good Date
- * for a day that never existed, and the vaccination lands three days late with
- * nothing reporting a substitution.
- *
- * The contract's schema refuses it first, so this is a backstop. It exists
- * anyway because a schema and a writer agreeing today is not a reason for the
- * writer to have no opinion about a date it is about to make permanent.
- */
-function parseWireDay(value: string): Date | null {
-  const parsed = parseDateInput(value);
-  if (!parsed) return null;
-  return parsed.toISOString().slice(0, 10) === value ? parsed : null;
 }
 
 /**
@@ -341,14 +334,8 @@ const EVENT_TYPE_OF_KIND = {
   // Widen it kind-by-kind, not by dropping the early return.
   pregnancy_start: "clinical_info_logged",
   pregnancy_end: "clinical_info_logged",
+  bite: "incident_reported",
 } as const satisfies Record<RecordEventInput["kind"], string>;
-
-type WriteContext = {
-  publicToken: string;
-  userId: string;
-  idempotencyKey: string;
-  input: RecordEventInput;
-};
 
 /** Everything from the access guard to the append. */
 export async function writeEvent(ctx: WriteContext) {
@@ -611,6 +598,17 @@ async function append(
     return appendPregnancy(ctx, access, input);
   }
 
+  // AND THE SEVENTH, which needs more from its surroundings than any of the
+  // others. `reportBite` answers its own shape, opens a CASE, starts a rabies
+  // observation whose window is resolved per jurisdiction from the rules table,
+  // and hands back notifications for an authority fan-out that runs AFTER the
+  // transaction. None of that fits `common`, and the fan-out is the part an
+  // endpoint would silently drop: every signal still written, every row still on
+  // the spine, and no jurisdiction told.
+  if (input.kind === "bite") {
+    return appendBite(ctx, access, input);
+  }
+
   // Every remaining kind states its day outright, and `writeEvent` refused the
   // request before reaching here if that day did not parse.
   if (!occurredAt) return apiV1Error("invalid_request", 400);
@@ -648,7 +646,8 @@ async function appendUniformKind(
         | "dangerous_breed_attestation"
         | "death"
         | "pregnancy_start"
-        | "pregnancy_end";
+        | "pregnancy_end"
+        | "bite";
     }
   >,
   occurredAt: Date,
@@ -895,535 +894,6 @@ async function appendUniformKind(
   // 201 on both paths. A replay answers with the FIRST attempt's event and
   // `wasDuplicate: true`: the caller asked for an asiento to exist and one
   // exists, which is a success and not a conflict.
-  const payload: EventRecordedV1 = {
-    eventId: result.value.eventId,
-    wasDuplicate: result.value.wasDuplicate,
-  };
-  return apiV1Json(payload, { status: 201 });
-}
-
-/**
- * SÍNTOMA — the one write on this endpoint that reaches past the animal.
- *
- * WHAT THE PHONE SENDS IS THREE FIELDS AND NOTHING ELSE: the free text, an
- * optional self-assessed severity, an optional onset. Everything the write
- * FANS OUT to — which reportable diseases the text matched, the
- * system-authored `outbreak_signal` rows, the ENO outbox entry, the
- * jurisdiction's recipients, the antirrabic escalation — is decided inside the
- * writer, off the pet's own record. A wire that carried a disease code would be
- * a client filing a claim; a wire that carried a recipient would be a client
- * choosing who gets woken up.
- *
- * THE ANIMAL'S SURVEILLANCE CONTEXT IS READ HERE, from the access query's own
- * pet row rather than re-fetched: species and jurisdiction decide which
- * authorities a signal reaches, and `rabiesObservationStatus` decides whether
- * this is an ordinary report or an escalation inside an open observation. Every
- * one of them already came back with the guard.
- */
-async function appendSymptom(
-  ctx: WriteContext,
-  access: Exclude<PetHolderAccess, { kind: "none" }>,
-  input: Extract<RecordEventInput, { kind: "symptom" }>,
-  repo: EventsRepository,
-) {
-  const pet = access.pet;
-
-  const result = await createSymptomObservedWriter(
-    {
-      petId: pet.id,
-      petPublicToken: pet.publicToken,
-      petSpecies: pet.species,
-      petJurisdictionCountry: pet.jurisdictionCountry,
-      petJurisdictionProvince: pet.jurisdictionProvince ?? null,
-      petJurisdictionLocality: pet.jurisdictionLocality ?? null,
-      rabiesObservationStatus: pet.rabiesObservationStatus ?? null,
-      recordedByUserId: ctx.userId,
-      // Same rule as every other kind: the person path signs as the owner, the
-      // org path as its member's resolved authorship. Never re-derived here.
-      eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
-      freeText: input.freeText,
-      severity: input.severity ?? null,
-      onsetAt: input.onsetAt,
-      clientIdempotencyKey: ctx.idempotencyKey,
-    },
-    {
-      repo,
-      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
-        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
-      // THE FAN-OUT'S LAST LEG, and an endpoint that dropped it would be the
-      // quietest possible regression: every signal still written, every row
-      // still on the spine, and nobody told. The web's action passes the same
-      // function; this is not the endpoint's own notion of who to notify.
-      flushNotifications,
-    },
-  );
-
-  if (!result.ok) {
-    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
-    return apiV1Error("event_failed", 500);
-  }
-
-  // THE SYMPTOM'S OWN EVENT ID, never a signal's. `signalEventIds` are
-  // system-authored rows about a DISEASE in a jurisdiction; the asiento the
-  // owner wrote is the one they can open, correct and see in the libreta.
-  const payload: EventRecordedV1 = {
-    eventId: result.symptomEventId,
-    wasDuplicate: result.wasDuplicate,
-  };
-  return apiV1Json(payload, { status: 201 });
-}
-
-/**
- * Reemplazo o revocación de microchip.
- *
- * THE OLD CHIP IS READ HERE, NOT SENT. `replaceMicrochipForUser` needs
- * `previousChipNumber`, and the web's action gets it the same way: from the
- * animal's CANONICAL identifications, server-side. A wire field would be the
- * client asserting a fact the server already holds, and a disagreement between
- * the two would have to be adjudicated by somebody. There is nothing to
- * adjudicate — the canonical row is the answer.
- *
- * `actorContext` IS DERIVED FROM THE RESOLVED ACCESS AND NEVER FROM THE BODY.
- * The use-case re-verifies it (an org actor must hold the pet through that
- * organization; an admin must actually carry the role), so a caller who lied
- * would be refused there too — but the lie must not be expressible in the first
- * place, and on this endpoint it is not: `access` came from the bearer token.
- *
- * The owner subset of reasons is enforced twice over: the contract's enum only
- * admits five, and the use-case checks them again against the actor kind.
- */
-async function appendMicrochipReplace(
-  ctx: WriteContext,
-  access: Exclude<PetHolderAccess, { kind: "none" }>,
-  input: Extract<RecordEventInput, { kind: "microchip_replace" }>,
-) {
-  const pet = access.pet;
-
-  const canonical = await fetchActiveIdentifications(pet.id);
-  if (!canonical.microchip) {
-    // THE REPLAY CHECK RUNS BEFORE THE REFUSAL, and the order is the whole
-    // point. A PURE REVOCATION (`newChipNumber: null`) leaves the animal with
-    // no active chip, so the retry of the request that just SUCCEEDED arrives
-    // at a pet whose canonical row is empty — and a bare 409 here would refuse
-    // the one caller the `Idempotency-Key` exists to protect, forever, on a
-    // write that already happened. Ask the ledger whether this key wrote before
-    // concluding there is nothing to replace.
-    const replayed = await findExistingByKey(pet.id, "microchip_replaced", ctx.idempotencyKey);
-    if (replayed) {
-      const replayPayload: EventRecordedV1 = { eventId: replayed.id, wasDuplicate: true };
-      return apiV1Json(replayPayload, { status: 201 });
-    }
-
-    // NOT `invalid_request`: the body is well-formed and the caller could not
-    // have known. This is a fact about the ANIMAL — it has no chip to replace.
-    return apiV1Error("event_not_allowed", 409);
-  }
-
-  const result = await replaceMicrochipForUser(ctx.userId, {
-    petId: pet.id,
-    previousChipNumber: canonical.microchip.code,
-    newChipNumber: input.newChipNumber,
-    reason: input.reason,
-    replacedBy: input.replacedBy,
-    replacedAt: parseWireDay(input.occurredAt)?.toISOString() ?? input.occurredAt,
-    notes: input.notes,
-    clientIdempotencyKey: ctx.idempotencyKey,
-    actorContext:
-      access.kind === "org"
-        ? { kind: "vet_in_org", organizationId: access.membership.organizationId }
-        : { kind: "owner" },
-  });
-
-  if ("error" in result) {
-    // A GATE REFUSAL IS NOT A FAULT. The writer's actor-pet gate rejects a
-    // caller who holds the pet in a role this act does not allow — an
-    // organization that OWNS the animal outright resolves to `vet_in_org`,
-    // whose gate demands `shelter_custody` or `foster` — and that is a 403 the
-    // client can read, not a 500 that also pages an engineer at 3am about a
-    // request the system handled exactly as designed.
-    if (result.denied) return apiV1Error("event_forbidden", 403);
-    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
-    return apiV1Error("event_failed", 500);
-  }
-
-  // `wasDuplicate` now TRAVELS from the writer rather than being guessed here.
-  // It resolves a replay by returning the original event id; until 2026-09-08
-  // it did so silently and this line answered a flat `false`, which told a
-  // client to draw "asiento creado" over a write that had not happened.
-  const payload: EventRecordedV1 = {
-    eventId: result.eventId,
-    wasDuplicate: result.wasDuplicate,
-  };
-  return apiV1Json(payload, { status: 201 });
-}
-
-/**
- * Fallecimiento — el asiento terminal.
- *
- * THE ONLY KIND ON THIS ENDPOINT WHOSE WRITE CLOSES THINGS RATHER THAN ADDING
- * ONE. In one transaction it marks the animal deceased, ends every active
- * foster, closes up to three cases, undoes a re-homing sponsorship while
- * telling the applicants, and — when the animal was under an antirrabic
- * observation — closes it with an URGENT notice to the health authority. All of
- * that already exists and is tested; this function's whole job is to hand it
- * the two facts the request does not carry and to answer in the endpoint's
- * vocabulary.
- *
- * THE DECEASED GATE IS NOT EXEMPTED, and that IS the parity. Unlike nota and
- * reemplazo de microchip, the web's own door refuses here too — with its own
- * line rather than with a guard: `createDeathRecordAction` reads
- * `requirePetAccess` (accepting a non-alive pet) and then refuses at
- * actions.ts:1172 with "Esta mascota ya está registrada como fallecida." So a
- * second death on one animal answers 409 from `checkWriteGuard`, which is the
- * same refusal in a different sentence.
- *
- * TWO FACTS THE SERVER SUPPLIES, and neither may come off the wire:
- *
- *   · THE OPEN CUSTODY CASE. `findOpenCaseForPetAndKind(pet.id,
- *     "custody_episode")` — a client naming a case id would be a client
- *     choosing which episode a death closes.
- *   · WHETHER THE DEATH IS REPORTABLE. `resolveDeathReportable` reads the
- *     disease catalog; a client asserting `isReportable` would be a client
- *     deciding whether a health authority hears about a zoonosis.
- */
-async function appendDeath(
-  ctx: WriteContext,
-  access: Exclude<PetHolderAccess, { kind: "none" }>,
-  input: Extract<RecordEventInput, { kind: "death" }>,
-  repo: EventsRepository,
-) {
-  const pet = access.pet;
-
-  const occurredAt = parseWireDay(input.occurredAt);
-  if (!occurredAt) return apiV1Error("invalid_request", 400);
-
-  // THE ANIMAL-SIDE REFUSAL, AND THE REPLAY CHECK THAT MUST PRECEDE IT.
-  // `checkWriteGuard` exempts this kind precisely so these two can be ordered.
-  // A death that succeeded left the animal deceased, so the retry of that very
-  // request would meet the refusal below — forever, on a write that already
-  // happened. Same remedy as the pure microchip revocation above; same reason.
-  if (pet.status === "deceased") {
-    const replayed = await findExistingByKey(pet.id, "death_recorded", ctx.idempotencyKey);
-    if (replayed) {
-      const replayPayload: EventRecordedV1 = { eventId: replayed.id, wasDuplicate: true };
-      return apiV1Json(replayPayload, { status: 201 });
-    }
-    // A SECOND death under a NEW key. The web refuses this with its own
-    // sentence ("Esta mascota ya está registrada como fallecida."); here it is
-    // the same refusal in the endpoint's vocabulary.
-    return apiV1Error("event_not_allowed", 409);
-  }
-
-  const custodyCase = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
-
-  const result = await createDeathRecord(
-    {
-      pet: {
-        id: pet.id,
-        name: pet.name,
-        status: pet.status,
-        rabiesObservationStatus: pet.rabiesObservationStatus ?? null,
-        jurisdictionProvince: pet.jurisdictionProvince ?? null,
-        jurisdictionLocality: pet.jurisdictionLocality ?? null,
-      },
-      recordedByUserId: ctx.userId,
-      eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
-      cause: input.cause,
-      causeDetail: input.causeDetail,
-      confirmedByVet: input.confirmedByVet,
-      vetName: input.vetName,
-      dispositionMethod: input.dispositionMethod,
-      facility: input.facility,
-      occurredAt,
-      notes: input.notes,
-      deathAtClinic: input.deathAtClinic,
-      clinicName: input.clinicName,
-      vetContactedOwner: input.vetContactedOwner,
-      vetDecidedAlone: input.vetDecidedAlone,
-      ownerToPrivateCrematorium: input.ownerToPrivateCrematorium,
-      // NULLED WHEN THE CAUSE IS NOT A DISEASE, exactly as the web action decides
-      // it (`cause === "disease" && diseaseCodeRaw ? diseaseCodeRaw : null`).
-      // The native form already clears it, but the FORM is not the authority:
-      // any other client written to this contract could otherwise store
-      // `cause: "accident", disease_code: "rabies_confirmed", is_reportable:
-      // false` — a permanent assertion of a confirmed rabies death that raised
-      // no authority signal, in a row that is append-only and that
-      // `AMENDABLE_EVENT_TYPES` does not admit. Nobody could ever correct it.
-      diseaseCode: input.cause === "disease" ? input.diseaseCode : null,
-      confirmedByLab: input.confirmedByLab,
-      // DERIVED HERE, never taken off the wire — see the header.
-      isReportable: resolveDeathReportable(input.cause, input.diseaseCode),
-      // No native upload path exists yet — see the file header.
-      uploadedPath: null,
-      uploadedMimeType: null,
-      uploadedSize: null,
-      clientIdempotencyKey: ctx.idempotencyKey,
-      custodyEpisodeCaseId: custodyCase?.id ?? null,
-    },
-    {
-      repo,
-      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
-        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
-      flushNotifications,
-    },
-  );
-
-  if (!result.ok) {
-    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
-    return apiV1Error("event_failed", 500);
-  }
-
-  // THE TITULAR HEARS ABOUT IT WHEN SOMEBODY ELSE FILED IT.
-  //
-  // A caretaker holds the animal; the titular owns it. The web treats a
-  // caretaker-filed death as urgent news for the titular
-  // (`announceCaretakerDeathRecord`, caretaker-activity-alert.ts:133) and this
-  // door shipped without it — so the one act a titular cannot undo, filed by
-  // somebody who is not them, would have reached them through no channel at
-  // all. `death_recorded` is not in `AMENDABLE_EVENT_TYPES`: there is no
-  // correction path to discover it late.
-  //
-  // GUARDED ON `insertedEventId` AND NOT `eventId`, which is exactly the
-  // distinction those two fields exist for: on a replay nothing was inserted
-  // and no cascade ran, so re-notifying would tell a titular twice that their
-  // animal died. Same guard the web applies (caretaker-activity-alert.ts:137).
-  if (access.kind === "owner" && access.holderRole === "caretaker" && result.insertedEventId) {
-    try {
-      await notifyTitularOfCaretakerDeath({
-        petId: pet.id,
-        petName: pet.name,
-        petPublicToken: pet.publicToken,
-        caretakerUserId: ctx.userId,
-        eventId: result.insertedEventId,
-      });
-    } catch (err) {
-      // The record DID land. A failed notification must not turn a committed
-      // death into a client-visible failure the person would retry.
-      reportError("api-v1-event-caretaker-death", err, { userId: ctx.userId });
-    }
-  }
-
-  // `eventId` AND NOT `insertedEventId`, and the difference is the whole reason
-  // that field was added on 2026-09-08. `insertedEventId` is null on a replay —
-  // correctly, because nothing was inserted and no cascade ran — and answering
-  // a client with a null id would break the endpoint's own contract on exactly
-  // the retry the `Idempotency-Key` exists to serve.
-  const payload: EventRecordedV1 = {
-    eventId: result.eventId,
-    wasDuplicate: result.wasDuplicate,
-  };
-  return apiV1Json(payload, { status: 201 });
-}
-
-/**
- * Atestación de raza potencialmente peligrosa.
- *
- * TWO PRECONDITIONS THE SWITCH COULD NOT CARRY, both of them the web page's own:
- *
- *   1. THE REGIME HAS TO APPLY. `atestar-raza-peligrosa/page.tsx` redirects away
- *      unless `pet.potentiallyDangerousBreed` is set. An endpoint that appended
- *      the attestation anyway would let an animal nobody classified as PPP carry
- *      a legal declaration about a regime it is not under.
- *
- *   2. THE REGISTRY HAS TO BE ONE THIS JURISDICTION NAMES. The options come from
- *      the `ppp_attestation_required_registries` rule resolved for the pet's own
- *      province and locality, so they are ADMIN-EDITABLE and cannot be an enum
- *      in the contract. `validateAttestationRegistry` is the web action's own
- *      check, reused verbatim rather than re-implemented — a second copy is how
- *      the two surfaces would come to disagree about what a jurisdiction allows.
- */
-/**
- * Embarazo — el inicio del seguimiento y su cierre, en una función.
- *
- * ONE FUNCTION FOR TWO KINDS, and the reason is that they are two halves of one
- * rule rather than two features. Everything around the writer call is identical:
- * the same day parse, the same pet row, the same authorship, the same
- * `RecordPregnancyResult` to read, and — the part that matters — the same
- * three-way answer to a refusal. Splitting them would duplicate that answer,
- * and the answer is where the thinking is.
- *
- * THE THREE-WAY READ OF A FAILURE is what this function exists for.
- * `RecordPregnancyResult`'s error arm carries an es-AR sentence written for a
- * web form, and api-invariants.md §3 forbids putting one of those on a wire.
- * Before `notAllowed` existed, every refusal here could only have become
- * `event_failed` 500 — so "esta perra ya tiene un embarazo en seguimiento",
- * which is a correct request about an animal in the wrong state, would have
- * told the app its server broke. Now:
- *
- *   · `notAllowed` → `event_not_allowed` 409, the same status a second death
- *     gets from `checkWriteGuard`, and for the same reason: the ANIMAL cannot
- *     have this event.
- *   · anything else → the transaction itself failed. Reported and 500, because
- *     that IS a server fault.
- *
- * THE START'S THREE PRECONDITIONS ARE NOT CHECKED HERE and must not be. Female,
- * a species with a known gestation, and no pregnancy already open are facts
- * about the pet row, and `recordPregnancyStartedWriter` reads that row itself.
- * Restating them at this layer would be a second definition of the rule, free
- * to drift — and the endpoint would be asserting from `access.pet` what the
- * writer re-reads anyway.
- *
- * `reminderCount` IS DELIBERATELY DROPPED. The writer answers how many biweekly
- * checkups it scheduled; `EventRecordedV1` has no field for it and should not
- * grow one for a single kind. The app reads the schedule back from the pet
- * detail, where it is authoritative — and on a replay this number is 0, which
- * is honest about the call and would be misread as "no reminders exist".
- */
-async function appendPregnancy(
-  ctx: WriteContext,
-  access: Exclude<PetHolderAccess, { kind: "none" }>,
-  input: Extract<RecordEventInput, { kind: "pregnancy_start" | "pregnancy_end" }>,
-) {
-  const pet = access.pet;
-
-  const occurredAt = parseWireDay(input.occurredAt);
-  if (!occurredAt) return apiV1Error("invalid_request", 400);
-
-  // THE REPLAY CHECK, AND IT MUST PRECEDE THE WRITERS' OWN STATE GUARDS.
-  //
-  // BOTH HALVES OF A PREGNANCY INVALIDATE THEIR OWN PRECONDITION BY SUCCEEDING,
-  // which is the property `checkWriteGuard` used to attribute to fallecimiento
-  // alone — its comment said "the only kind", and this branch made that false
-  // for two more. A close that commits sets `pregnancy_status` to
-  // `completed_*`; the retry of that very request then meets
-  // `record-pregnancy-ended.ts`'s "no hay embarazo activo para cerrar" and is
-  // refused FOREVER, on a write that already happened. The start is the mirror:
-  // it succeeds, the status becomes `in_progress`, and its own retry is refused
-  // as `pregnancy_already_open`.
-  //
-  // AND THE REFUSAL IS WORSE THAN A WRONG STATUS. Both sentences name a
-  // corrective act — "cerralo primero", "registrá primero el inicio" — so a
-  // person following the copy appends a SPURIOUS event to a spine that cannot
-  // be edited. The endpoint would be instructing a permanent falsification of
-  // the record it exists to protect.
-  //
-  // The guards themselves stay where they are: they are the animal's rule and
-  // they are correct for a first attempt. What was missing is the question that
-  // has to be asked first — "did THIS key already write?" — exactly as
-  // `appendMicrochipReplace` and `appendDeath` ask it.
-  //
-  // ONE EVENT TYPE FOR BOTH PHASES, and the lookup does not try to tell them
-  // apart. The spine has no `pregnancy_started` type: both writers file
-  // `clinical_info_logged` carrying a `pregnancy_phase`. Distinguishing them
-  // here would be answering a question idempotency does not ask — a key means
-  // "this is the same request", so the event that key wrote IS the answer,
-  // whichever phase it was. It is the same contract `insertEventIdempotent`
-  // enforces one layer down, which keys on (pet, key) and not on the payload.
-  const replayed = await findExistingByKey(pet.id, "clinical_info_logged", ctx.idempotencyKey);
-  if (replayed) {
-    const replayPayload: EventRecordedV1 = { eventId: replayed.id, wasDuplicate: true };
-    return apiV1Json(replayPayload, { status: 201 });
-  }
-
-  const common = {
-    recordedByUserId: ctx.userId,
-    // The person path signs as the owner; the org path signs as its member's
-    // resolved authorship. Never re-derived here.
-    eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
-    occurredAt,
-    vetConsulted: input.vetConsulted,
-    notes: input.notes,
-    // THE FIELD THAT LETS THIS KIND EXIST ON THIS ENDPOINT AT ALL. Both writers
-    // were excluded from it until 2026-09-08 on the grounds that they could not
-    // honour an `Idempotency-Key`, which this endpoint requires and promises;
-    // they route through `insertEventIdempotent` when it is present and skip
-    // every side effect on a replay.
-    clientIdempotencyKey: ctx.idempotencyKey,
-  };
-
-  const result =
-    input.kind === "pregnancy_start"
-      ? await recordPregnancyStartedWriter({
-          ...common,
-          pet,
-          weeksAtDiagnosis: input.weeksAtDiagnosis,
-        })
-      : await recordPregnancyEndedWriter({
-          ...common,
-          pet,
-          outcome: input.outcome,
-          liveBirthsCount: input.liveBirthsCount,
-        });
-
-  if (!result.ok) {
-    // EACH REFUSAL ANSWERS THE CODE WHOSE COPY IS TRUE OF IT, which is the
-    // whole reason `notAllowed` is a discriminator. `event_not_allowed` was the
-    // obvious home for all three and is the wrong one: its client copy reads
-    // "Esta mascota está registrada como fallecida…", so a male dog offered to
-    // it would be told his life record is closed.
-    switch (result.notAllowed) {
-      case "not_applicable":
-        return apiV1Error("pregnancy_not_applicable", 409);
-      case "already_open":
-        return apiV1Error("pregnancy_already_open", 409);
-      case "none_open":
-        return apiV1Error("pregnancy_none_open", 409);
-      // UNREACHABLE FROM HERE, and left explicit rather than folded into the
-      // default: `recordEventInputSchema` refuses an outcome/count mismatch on
-      // the wire, so this arm can only fire if that schema stops doing so. 400
-      // rather than 409 — the request contradicts itself, the animal is fine.
-      case "births_mismatch":
-        return apiV1Error("invalid_request", 400);
-      default:
-        break;
-    }
-    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
-    return apiV1Error("event_failed", 500);
-  }
-
-  const payload: EventRecordedV1 = {
-    eventId: result.eventId,
-    wasDuplicate: result.wasDuplicate,
-  };
-  return apiV1Json(payload, { status: 201 });
-}
-
-async function appendDangerousBreedAttestation(
-  ctx: WriteContext,
-  access: Exclude<PetHolderAccess, { kind: "none" }>,
-  input: Extract<RecordEventInput, { kind: "dangerous_breed_attestation" }>,
-  repo: EventsRepository,
-) {
-  const pet = access.pet;
-
-  if (!pet.potentiallyDangerousBreed) return apiV1Error("event_not_allowed", 409);
-
-  const registryError = await validateAttestationRegistry(input.registry, {
-    province: pet.jurisdictionProvince,
-    locality: pet.jurisdictionLocality,
-  });
-  if (registryError) return apiV1Error("invalid_request", 400);
-
-  const attestedAt = parseWireDay(input.occurredAt);
-  if (!attestedAt) return apiV1Error("invalid_request", 400);
-
-  const result = await createDangerousBreedAttestation(
-    {
-      pet: { id: pet.id },
-      user: { id: ctx.userId },
-      eventAuthorship: access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
-      registry: input.registry,
-      registryId: input.registryId,
-      attestedAt,
-      notes: input.notes,
-      // No native upload path exists yet — see the file header.
-      uploadedPath: null,
-      uploadedMimeType: null,
-      uploadedSize: null,
-      clientIdempotencyKey: ctx.idempotencyKey,
-    },
-    {
-      repo,
-      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
-        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
-    },
-  );
-
-  if (!result.ok) {
-    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
-    return apiV1Error("event_failed", 500);
-  }
-
   const payload: EventRecordedV1 = {
     eventId: result.value.eventId,
     wasDuplicate: result.value.wasDuplicate,

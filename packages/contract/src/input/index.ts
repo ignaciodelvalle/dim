@@ -130,6 +130,8 @@ export {
   shareCommandInputSchema,
 } from "./share.ts";
 export {
+  BITE_SEVERITIES,
+  BITE_VICTIM_KINDS,
   CLINICAL_SUB_KINDS,
   DANGEROUS_BREED_REGISTRIES,
   DEATH_CAUSES,
@@ -151,6 +153,8 @@ export {
   STERILIZATION_PROCEDURES,
   SYMPTOM_SEVERITIES,
   VET_CONTACT_VALUES,
+  type BiteSeverity,
+  type BiteVictimKind,
   type ClinicalSubKind,
   type DangerousBreedRegistry,
   type DeathCause,

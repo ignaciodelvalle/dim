@@ -248,6 +248,9 @@ export const RECORD_EVENT_INPUT_CODES = [
   "PREGNANCY_BIRTHS_INVALID",
   "PREGNANCY_BIRTHS_REQUIRED",
   "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH",
+  "BITE_VICTIM_KIND_INVALID",
+  "BITE_SEVERITY_INVALID",
+  "BITE_JURISDICTION_INCOMPLETE",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
 
@@ -413,6 +416,28 @@ export type PregnancyOutcome = (typeof PREGNANCY_OUTCOMES)[number];
  */
 export const MAX_WEEKS_AT_DIAGNOSIS = 12;
 export const MAX_LIVE_BIRTHS = 20;
+
+/**
+ * Who the bite was inflicted on, and how badly.
+ *
+ * BOTH LISTS EXISTED THREE TIMES AS INLINE LITERALS before this: the web action
+ * validates against `["human", "animal", "unknown"]` and
+ * `["minor", "moderate", "severe"]` (`surveillance/actions.ts`), the spine's
+ * `incident_reported` payload schema repeats them (`lib/events/event-schemas.ts`),
+ * and `ReportBiteInput` states them a third time as a TS union. Naming them once
+ * is the same move `STERILIZATION_PROCEDURES` and `PREGNANCY_OUTCOMES` got, and
+ * the drift these two would produce is not cosmetic — `severity` travels into
+ * the case's `openedReason` and into the alert a sanitary authority receives.
+ *
+ * `unknown` IS A REAL VICTIM KIND. The person reporting may have arrived after
+ * it happened; forcing a choice between "human" and "animal" would put a guess
+ * on the record that a jurisdiction then acts on.
+ */
+export const BITE_VICTIM_KINDS = ["human", "animal", "unknown"] as const;
+export type BiteVictimKind = (typeof BITE_VICTIM_KINDS)[number];
+
+export const BITE_SEVERITIES = ["minor", "moderate", "severe"] as const;
+export type BiteSeverity = (typeof BITE_SEVERITIES)[number];
 
 /** `"YYYY-MM-DD"` — what `<input type="date">` posts. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -882,6 +907,88 @@ const pregnancyEnd = z.object({
 });
 
 /**
+ * Una mordedura — el asiento que abre un caso y puede llegar a una autoridad.
+ *
+ * THE JURISDICTION IS THE INCIDENT'S, NOT THE ANIMAL'S, and that is a PO
+ * decision rather than a detail: a mordedura in Cordoba by a pet registered in
+ * CABA is Cordoba's sanitary authority's problem. The writer already routes on
+ * `eventJurisdictionProvince/Locality` and falls back to the pet's home only
+ * when they are absent — which is exactly what the web does when the reporter
+ * dropped no map pin.
+ *
+ * SO THE THREE LOCATION FIELDS ARE OPTIONAL AND TRAVEL TOGETHER. Optional,
+ * because "no sé exactamente dónde" is a real answer and the fallback is a
+ * defined behaviour rather than a hole. Together, because a province WITHOUT a
+ * locality would take the new province and keep the ANIMAL's locality — a pair
+ * that names no real place, on the record a jurisdiction acts on. The rule is
+ * in `refineBite`.
+ *
+ * NO COORDINATES, deliberately. The web captures them from a map pin; this app
+ * has no map and asking for GPS would be asking for a permission to write a
+ * libreta entry. The writer takes null coords and the bite then counts into the
+ * "sin ubicacion exacta" residual — never a faked centroid dot.
+ *
+ * THE APP SENDS A PROVINCE CODE AND AN INDEC ID, not display names, and that is
+ * STRICTER than the web's own path. The web reverse-geocodes a pin into free
+ * text (`locality: "none"`, no catalog lookup); the app picks from the catalog,
+ * so the endpoint can canonicalise in `strict` mode and refuse a locality that
+ * does not exist. A client naming a display name would be a client asserting
+ * what the catalogue already decides.
+ */
+const bite = z.object({
+  kind: z.literal("bite"),
+  occurredAt,
+  victimKind: z.enum(BITE_VICTIM_KINDS, { error: "BITE_VICTIM_KIND_INVALID" }),
+  severity: z.enum(BITE_SEVERITIES, { error: "BITE_SEVERITY_INVALID" }),
+  locationDescription: optionalText,
+  context: optionalText,
+  victimContactName: optionalText,
+  victimContactPhone: optionalText,
+  victimAgeEstimate: optionalText,
+  /** ISO 3166-2 (`"AR-B"`). The server canonicalises to the stored display name. */
+  provinceCode: optionalText,
+  localityName: optionalText,
+  /** Disambiguates the 68 (province, name) collisions the INDEC catalogue ships. */
+  localityIndecId: optionalText,
+  notes: optionalText,
+});
+
+/**
+ * THE THREE LOCATION FIELDS OF A BITE TRAVEL TOGETHER OR NOT AT ALL.
+ *
+ * Any proper subset produces a place that does not exist. The writer falls back
+ * to the ANIMAL's home jurisdiction FIELD BY FIELD, so a province without a
+ * locality routes the case to (new province, pet's locality) — a pair naming
+ * nowhere, on the record a sanitary authority acts on, and nothing downstream
+ * would notice.
+ *
+ * ITS OWN FUNCTION FOR THE LINTER'S REASON, exactly as `refineDeath` below:
+ * adding this branch took `superRefine` to a cognitive complexity of 27 against
+ * a ceiling of 25. The alternative was adding this file to the override list,
+ * which raises the ceiling for the WHOLE contract — a general loosening bought
+ * to settle one block. Same trade, same answer, third time.
+ */
+function refineBite(
+  input: {
+    provinceCode: string | null;
+    localityName: string | null;
+    localityIndecId: string | null;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const given = [input.provinceCode, input.localityName, input.localityIndecId].filter(
+    (v) => v !== null,
+  ).length;
+  if (given !== 0 && given !== 3) {
+    ctx.addIssue({
+      code: "custom",
+      message: "BITE_JURISDICTION_INCOMPLETE",
+      path: ["localityName"],
+    });
+  }
+}
+
+/**
  * The four cross-field rules of a death record.
  *
  * ITS OWN FUNCTION FOR THE LINTER'S REASON, not an aesthetic one: adding this
@@ -974,6 +1081,7 @@ export const recordEventInputSchema = z
     death,
     pregnancyStart,
     pregnancyEnd,
+    bite,
   ])
   .superRefine((input, ctx) => {
     // THE ONE CROSS-FIELD RULE OF A REPLACEMENT: leaving the animal with no
@@ -1005,6 +1113,11 @@ export const recordEventInputSchema = z
     // (record-pregnancy-ended.ts:26-33). A count under any other outcome is
     // not extra information — "nacieron 3" alongside "aborto espontaneo" is a
     // record that contradicts itself, on a spine that cannot be edited.
+    if (input.kind === "bite") {
+      refineBite(input, ctx);
+      return;
+    }
+
     if (input.kind === "pregnancy_end") {
       if (input.outcome === "live_birth") {
         if (input.liveBirthsCount === null) {

@@ -56,6 +56,8 @@ const control = vi.hoisted(() => ({
   symptomResult: null as null | (() => unknown),
   /** Every dep object the symptom writer was handed. Proves the flush is wired. */
   symptomDeps: [] as Array<Record<string, unknown>>,
+  /** Cada objeto de dependencias que recibio el escritor de mordedura. */
+  biteDeps: [] as Array<Record<string, unknown>>,
   /**
    * `replaceMicrochipForUser`'s answer. It lives OUTSIDE the events module and
    * answers in its own shape — `{ok, eventId, caseId, wasDuplicate}` or
@@ -70,6 +72,16 @@ const control = vi.hoisted(() => ({
   replayEvent: null as null | { id: string },
   /** A prior `clinical_info_logged` under this key — either pregnancy phase. */
   replayedPregnancy: null as null | { id: string },
+  biteResult: null as null | (() => unknown),
+  /** Every notification list handed to the post-tx flush. */
+  flushed: [] as unknown[],
+  /** Cada llamada al canonicalizador, con las OPCIONES — el modo es la afirmacion. */
+  normalizeCalls: [] as Array<{ loc: unknown; opts: unknown }>,
+  /** `null` makes the strict canonicalisation THROW, as an unknown pair does. */
+  normalized: { province: "Cordoba", locality: "Villa Carlos Paz" } as null | {
+    province: string;
+    locality: string;
+  },
   /** The attestation writer's answer. */
   attestResult: null as null | (() => unknown),
   /** Non-null → the jurisdiction does not name that registry. */
@@ -279,6 +291,56 @@ vi.mock("@/src/modules/pets/application/pregnancy/record-pregnancy-ended", () =>
 
 vi.mock("@/lib/infra/case-helpers", () => ({
   findOpenCaseForPetAndKind: async () => control.custodyCase,
+  // Una mordedura ABRE un caso, y el codigo publico que devuelve es lo que la
+  // web pone en el recibo. El endpoint lo descarta a proposito — ver el
+  // encabezado de `appendBite` — asi que este stub existe para que el escritor
+  // corra, no para que el test lea el codigo.
+  openCase: async () => ({ id: "case-1", publicCode: "CAS-TEST-0001" }),
+}));
+
+vi.mock("@/src/modules/surveillance/application/report-bite", () => ({
+  reportBite: async (input: Record<string, unknown>, deps: Record<string, unknown>) => {
+    control.writes.push({ kind: "bite", input });
+    control.biteDeps.push(deps);
+    return control.biteResult
+      ? control.biteResult()
+      : {
+          ok: true,
+          value: {
+            petToken: TOKEN,
+            casePublicCode: "CAS-TEST-0001",
+            eventId: EVENT_ID,
+            wasDuplicate: false,
+          },
+          // VACIO A PROPOSITO: `@/db` no esta mockeado en este archivo, asi que
+          // una lista con filas haria que el flush post-transaccion escriba de
+          // verdad. El cableado del fan-out se verifica por las dependencias.
+          notifications: [],
+        };
+  },
+}));
+
+vi.mock("@/src/modules/surveillance/infrastructure/surveillance-repository", () => ({
+  SurveillanceRepository: class {},
+}));
+
+vi.mock("@/lib/infra/approval-routing", () => ({
+  findAuthoritiesForJurisdiction: async () => [],
+}));
+
+vi.mock("@/lib/infra/business-rules-resolver", () => ({
+  resolveBusinessRule: async () => ({ payload: { days: 10 } }),
+}));
+
+vi.mock("@/lib/domain/location-normalize", () => ({
+  normalizeLocationForWrite: async (loc: unknown, opts: unknown) => {
+    control.normalizeCalls.push({ loc, opts });
+    // `strict` LEVANTA sobre un par que el catalogo INDEC no tiene. Ese es el
+    // caso que este stub reproduce con `normalized: null`.
+    if (control.normalized === null) throw new Error("locality not in catalog");
+    return control.normalized;
+  },
+  CoordError: class extends Error {},
 }));
 
 vi.mock("@/lib/infra/report-error", () => ({
@@ -397,6 +459,7 @@ beforeEach(() => {
   control.writeResult = null;
   control.symptomResult = null;
   control.symptomDeps = [];
+  control.biteDeps = [];
   control.replaceResult = null;
   control.replayEvent = null;
   control.attestResult = null;
@@ -408,6 +471,10 @@ beforeEach(() => {
   control.caretakerAlerts = [];
   control.pregnancyResult = null;
   control.replayedPregnancy = null;
+  control.biteResult = null;
+  control.flushed = [];
+  control.normalized = { province: "Cordoba", locality: "Villa Carlos Paz" };
+  control.normalizeCalls = [];
 });
 
 describe("POST .../events — the guard is the web's, and it is not uniform", () => {
@@ -1586,5 +1653,147 @@ describe("POST .../events — embarazo, y las tres negativas que no son la misma
       await expect(res.json()).resolves.toMatchObject({ error: "event_not_allowed" });
       expect(control.writes).toHaveLength(0);
     }
+  });
+});
+
+describe("POST .../events — mordedura, y la jurisdiccion es la del hecho", () => {
+  const A_BITE = {
+    kind: "bite",
+    occurredAt: A_PAST_DAY,
+    victimKind: "human",
+    severity: "moderate",
+  };
+  const WITH_PLACE = {
+    ...A_BITE,
+    provinceCode: "AR-X",
+    localityName: "Villa Carlos Paz",
+    localityIndecId: "14014010",
+  };
+
+  it("appends the bite and answers 201 with the asiento it wrote", async () => {
+    const res = await call(A_BITE);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      eventId: EVENT_ID,
+      wasDuplicate: false,
+    });
+    expect(control.writes).toHaveLength(1);
+    expect(control.writes[0].kind).toBe("bite");
+  });
+
+  it("hands the writer the SAME Idempotency-Key the caller sent", async () => {
+    await call(A_BITE);
+    expect(control.writes[0].input.clientIdempotencyKey).toBe(KEY);
+  });
+
+  it("routes the case to the INCIDENT jurisdiction when one is given", async () => {
+    // La decision de producto: una mordedura en Cordoba de una mascota de CABA
+    // es problema de la autoridad de Cordoba. El endpoint canonicaliza y pasa el
+    // par ya resuelto; el escritor nunca ve el codigo ISO.
+    await call(WITH_PLACE);
+    expect(control.writes[0].input.eventJurisdictionProvince).toBe("Cordoba");
+    expect(control.writes[0].input.eventJurisdictionLocality).toBe("Villa Carlos Paz");
+    // Y EN MODO ESTRICTO, que es la afirmacion entera: la web canonicaliza con
+    // `locality: "none"` porque geocodifica texto libre, y esta app elige del
+    // catalogo, asi que el par se puede verificar. Sin esta linea el test
+    // probaba que el endpoint llama al canonicalizador y nada sobre como.
+    expect(control.normalizeCalls).toHaveLength(1);
+    expect(control.normalizeCalls[0].opts).toMatchObject({ locality: "strict" });
+    expect(control.normalizeCalls[0].loc).toMatchObject({
+      provinceCode: "AR-X",
+      localityIndecId: "14014010",
+      // El codigo ISO es lo que un cliente puede afirmar; el nombre para mostrar
+      // lo decide el catalogo.
+      province: null,
+    });
+  });
+
+  it("passes NULLS when no place was given, so the writer falls back to the animal's", async () => {
+    // NO ES UN AGUJERO: "no se exactamente donde" es una respuesta real y el
+    // respaldo del escritor es una conducta definida — la misma que toma la web
+    // cuando el reportante no soltó un pin.
+    await call(A_BITE);
+    expect(control.writes[0].input.eventJurisdictionProvince).toBeNull();
+    expect(control.writes[0].input.eventJurisdictionLocality).toBeNull();
+  });
+
+  it("refuses a locality the catalogue does not hold, WITHOUT writing", async () => {
+    // El modo `strict` es mas firme que el camino de la web, que geocodifica
+    // texto libre. 400 y no un 409: el problema es la peticion, no el animal.
+    control.normalized = null;
+    const res = await call(WITH_PLACE);
+    expect(res.status).toBe(400);
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("refuses a HALF jurisdiction on the wire, before any writer runs", async () => {
+    // Una provincia sin localidad rutearia el caso a (provincia nueva, localidad
+    // de la mascota) — un par que no nombra ningun lugar, adentro de la alerta
+    // que recibe una autoridad.
+    const res = await call({ ...A_BITE, provinceCode: "AR-X" });
+    expect(res.status).toBe(400);
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("NEVER sends coordinates, so a bite with no pin lands in the residual", async () => {
+    // La app no tiene mapa y pedir GPS para escribir una libreta es pedir un
+    // permiso que este formulario no necesita. Null es el valor honesto y el
+    // cargador de puntos ya sabe que hacer con el.
+    await call(WITH_PLACE);
+    expect(control.writes[0].input.locationLat).toBeNull();
+    expect(control.writes[0].input.locationLng).toBeNull();
+    expect(control.writes[0].input.locationSource).toBeNull();
+  });
+
+  it("wires the authority fan-out and the per-jurisdiction observation window", async () => {
+    // CABLEADO, NO EJECUCION, y el nombre lo dice: `@/db` no esta mockeado aca,
+    // asi que un flush con filas escribiria de verdad. Lo que se puede afirmar
+    // sin ensuciar la base es que las dos dependencias que la web le pasa a este
+    // escritor tambien llegan por este camino — dejarlas afuera seria la
+    // regresion mas silenciosa posible: todo escrito y nadie avisado.
+    await call(A_BITE);
+    expect(control.biteDeps).toHaveLength(1);
+    expect(typeof control.biteDeps[0]?.findAuthoritiesForJurisdiction).toBe("function");
+    expect(typeof control.biteDeps[0]?.resolveObservationWindow).toBe("function");
+  });
+
+  it("reports a replay as a duplicate rather than as a second incident", async () => {
+    control.biteResult = () => ({
+      ok: true,
+      value: {
+        petToken: TOKEN,
+        casePublicCode: "CAS-TEST-0001",
+        eventId: EVENT_ID,
+        wasDuplicate: true,
+      },
+      notifications: [],
+    });
+    const res = await call(A_BITE);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({ wasDuplicate: true });
+  });
+
+  it("refuses a victim kind and a severity the contract does not name", async () => {
+    for (const body of [
+      { ...A_BITE, victimKind: "alien" },
+      { ...A_BITE, severity: "mild" },
+    ]) {
+      control.writes = [];
+      const res = await call(body);
+      expect(res.status).toBe(400);
+      expect(control.writes).toHaveLength(0);
+    }
+  });
+
+  it("refuses on a deceased animal, from the shared guard", async () => {
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow({ status: "deceased" }),
+      holderRole: "owner",
+    });
+    const res = await call(A_BITE);
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({ error: "event_not_allowed" });
+    expect(control.writes).toHaveLength(0);
   });
 });

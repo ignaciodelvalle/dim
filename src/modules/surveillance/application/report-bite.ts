@@ -100,7 +100,33 @@ type Deps = {
   }) => Promise<{ days: number }>;
 };
 
-export type ReportBiteResult = UseCaseResult<{ petToken: string; casePublicCode: string }>;
+/**
+ * `eventId` and `wasDuplicate` were ADDED, not swapped in for what was here.
+ *
+ * `petToken` and `casePublicCode` are what the WEB reads — its action builds a
+ * success URL out of both (`surveillance/actions.ts`), and the case code on that
+ * receipt is the thing a reporter quotes later. Replacing either would have
+ * broken a surface that is working.
+ *
+ * The two new ones exist because `POST /api/v1/pets/{token}/events` answers
+ * `EventRecordedV1` for every kind, and it can only do that if the writer says
+ * which asiento it wrote and whether this call is the one that wrote it. Both
+ * are captured INSIDE the transaction, before the `biteNoop` early return —
+ * that return is what skips the observation and the fan-out on a replay, and a
+ * capture after it would answer `""` on exactly the call the key exists for.
+ *
+ * THE CASE CODE DOES NOT REACH THE APP, and that is a parity gap rather than an
+ * oversight: `EventRecordedV1` has no field for it, `OwnerPetCasesSection`
+ * carries only a COUNT, and no v1 read returns case codes at all. A receipt code
+ * that lives only in one HTTP response is a code the person loses the moment
+ * they navigate away — so it belongs in a READ, and that is its own work.
+ */
+export type ReportBiteResult = UseCaseResult<{
+  petToken: string;
+  casePublicCode: string;
+  eventId: string;
+  wasDuplicate: boolean;
+}>;
 
 // ---------------------------------------------------------------------------
 // Use-case
@@ -142,6 +168,10 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   // runs POST-tx, where `caseRow` is out of scope) could only key on the pet —
   // and two distinct bites on the same animal would collapse into one alert.
   let caseId = "";
+  // Captured inside the transaction and before the noop return — see the result
+  // type's header for why the order matters.
+  let biteEventId = "";
+  let biteWasDuplicate = false;
 
   try {
     await transaction(async (tx) => {
@@ -203,6 +233,9 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         } as Parameters<typeof repo.insertIncidentEventIdempotent>[0],
         tx as Parameters<typeof repo.insertIncidentEventIdempotent>[1],
       );
+
+      biteEventId = biteEvent.id;
+      biteWasDuplicate = biteNoop;
 
       // 4. Idempotency noop — exit early, no observation, no notifications.
       if (biteNoop) return;
@@ -315,7 +348,12 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
 
   return {
     ok: true,
-    value: { petToken: pet.publicToken, casePublicCode },
+    value: {
+      petToken: pet.publicToken,
+      casePublicCode,
+      eventId: biteEventId,
+      wasDuplicate: biteWasDuplicate,
+    },
     notifications: pendingNotifications,
   };
 }

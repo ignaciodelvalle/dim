@@ -14,6 +14,10 @@
 // owns its copy, the same division `intake.ts` states.
 
 import {
+  BITE_SEVERITIES,
+  BITE_VICTIM_KINDS,
+  type BiteSeverity,
+  type BiteVictimKind,
   CLINICAL_SUB_KINDS,
   type ClinicalSubKind,
   DANGEROUS_BREED_REGISTRIES,
@@ -71,6 +75,12 @@ export const RECORD_KINDS = [
   "weight",
   "deworming",
   "symptom",
+  // JUSTO DESPUES DE SINTOMA, y por la misma razon que sintoma esta donde esta:
+  // ahi es donde la historia gira. Una mordedura no es un acto de rutina, pero
+  // tampoco es de los de "una vez en la vida" que cierran la lista — es el
+  // momento en que algo salio mal y hay que registrarlo rapido. Al final de
+  // todo quedaria enterrada abajo de microchip y nota.
+  "bite",
   "medication_start",
   "vet_visit",
   "clinical_info",
@@ -278,6 +288,8 @@ export function kindTitle(kind: WritableKind): string {
       return "Fallecimiento";
     // "Embarazo" and not "Gestación": the picker is read by the person who
     // lives with the animal, not by the vet who confirmed it.
+    case "bite":
+      return "Mordedura";
     case "pregnancy_start":
       return "Embarazo · inicio";
     case "pregnancy_end":
@@ -326,6 +338,12 @@ export function kindSubtitle(kind: WritableKind): string {
       // describes. Este asiento termina el registro del animal: después sólo se
       // admiten notas. Una persona tiene derecho a saberlo antes, no después.
       return "Cierra el registro del animal. Se dan de baja los tránsitos abiertos y los casos en curso, y después sólo se pueden agregar notas.";
+    case "bite":
+      // DICE LO QUE SE ABRE, como fallecimiento dice lo que se cierra. Este
+      // asiento no es solo una entrada en la libreta: abre un caso, arranca el
+      // periodo de observacion antirrabica y puede llegar a la autoridad
+      // sanitaria. Una persona tiene derecho a saberlo antes de completarlo.
+      return "Abre un caso y el período de observación antirrábica. Según la jurisdicción, se avisa a la autoridad sanitaria.";
     case "pregnancy_start":
       return "El comienzo del seguimiento. Programa los controles quincenales hasta la fecha probable de parto.";
     case "pregnancy_end":
@@ -395,6 +413,8 @@ export function recordEventCta(kind: WritableKind): { label: string; busyLabel: 
       // closes a life record: "asentar" is what a libreta does, and it does not
       // ask a grieving person to "registrar" their animal one last time.
       return { label: "Asentar el fallecimiento", busyLabel: "Asentando…" };
+    case "bite":
+      return { label: "Registrar la mordedura", busyLabel: "Registrando…" };
     case "pregnancy_start":
       return { label: "Registrar el embarazo", busyLabel: "Registrando…" };
     case "pregnancy_end":
@@ -614,6 +634,31 @@ export type EventDraft = {
   dispositionMethod: DispositionMethod | null;
   facility: string;
   ownerToPrivateCrematorium: YesNo | null;
+  // mordedura — el unico asiento que pregunta por la jurisdiccion DEL HECHO y no
+  // por la del animal. `biteContext` no es `context` a secas para que no se
+  // confunda con nada mas, y `locationDescription` es texto libre en palabras de
+  // la persona: la esquina, la plaza, el pasillo.
+  victimKind: BiteVictimKind | null;
+  /**
+   * `biteSeverity` Y NO `severity`, aunque el campo del sintoma se llame asi.
+   *
+   * Son enums DISTINTOS — el sintoma va `mild|moderate|severe`, la mordedura
+   * `minor|moderate|severe` — y comparten dos de los tres valores, que es la
+   * peor de las coincidencias: un `severity` compartido compilaria para dos de
+   * cada tres respuestas y mandaria "mild" adentro de la alerta que recibe una
+   * autoridad sanitaria. La misma regla por la que `newChipNumber` no es
+   * `chipNumber`: un formulario no puede poder mandar el campo del otro.
+   */
+  biteSeverity: BiteSeverity | null;
+  locationDescription: string;
+  biteContext: string;
+  victimContactName: string;
+  victimContactPhone: string;
+  victimAgeEstimate: string;
+  /** La trinidad del selector de localidad: viajan juntas o no viajan. */
+  biteProvinceCode: string;
+  biteLocalityName: string;
+  biteLocalityIndecId: string;
   // embarazo — `vetName` NO está acá, igual que en fallecimiento: ya existe y
   // significa lo mismo. `weeksAtDiagnosis` es texto porque el campo es texto;
   // el contrato juzga el número.
@@ -675,6 +720,19 @@ export function emptyDraft(now: Date = new Date()): EventDraft {
     kg: "",
     product: "",
     dewormingType: "internal",
+    // NULL Y NO UN DEFAULT, la misma regla que `cause` y `outcome`: "leve" no
+    // puede ser la respuesta de alguien a quien nadie le pregunto, porque la
+    // gravedad viaja al caso y a la alerta que recibe una autoridad.
+    victimKind: null,
+    biteSeverity: null,
+    locationDescription: "",
+    biteContext: "",
+    victimContactName: "",
+    victimContactPhone: "",
+    victimAgeEstimate: "",
+    biteProvinceCode: "",
+    biteLocalityName: "",
+    biteLocalityIndecId: "",
     weeksAtDiagnosis: "",
     // NULL AND NOT A DEFAULT OUTCOME, the same reason `cause` is null on the
     // death form: a pre-selected "parto exitoso" would let somebody close a
@@ -885,6 +943,29 @@ function draftToWire(
         // "Accidente" must not ship the disease they abandoned.
         diseaseCode: draft.cause === "disease" ? orNull(draft.diseaseCode) : null,
         confirmedByLab: draft.confirmedByLab === "si",
+        notes: orNull(draft.notes),
+      };
+    case "bite":
+      return {
+        kind,
+        occurredAt: dateInputToIso(draft.occurredAt),
+        // Pueden ser null y el contrato los rechaza — igual que `cause` en
+        // fallecimiento. Un default aca pondria una gravedad que nadie eligio
+        // adentro de la alerta que recibe una jurisdiccion.
+        victimKind: draft.victimKind,
+        severity: draft.biteSeverity,
+        locationDescription: orNull(draft.locationDescription),
+        context: orNull(draft.biteContext),
+        victimContactName: orNull(draft.victimContactName),
+        victimContactPhone: orNull(draft.victimContactPhone),
+        victimAgeEstimate: orNull(draft.victimAgeEstimate),
+        // LAS TRES O NINGUNA, y el contrato refuta cualquier subconjunto: el
+        // escritor cae a la jurisdiccion del ANIMAL campo por campo, asi que una
+        // provincia sin localidad rutearia el caso a (provincia nueva, localidad
+        // de la mascota) — un par que no nombra ningun lugar real.
+        provinceCode: orNull(draft.biteProvinceCode),
+        localityName: orNull(draft.biteLocalityName),
+        localityIndecId: orNull(draft.biteLocalityIndecId),
         notes: orNull(draft.notes),
       };
     case "pregnancy_start":
@@ -1141,6 +1222,16 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "La cantidad de crías va de 1 a 20.";
     case "PREGNANCY_BIRTHS_REQUIRED":
       return "Indicá cuántas crías nacieron con vida.";
+    case "BITE_VICTIM_KIND_INVALID":
+      return "Elegí a quién mordió.";
+    case "BITE_SEVERITY_INVALID":
+      return "Elegí qué tan grave fue.";
+    case "BITE_JURISDICTION_INCOMPLETE":
+      // NOMBRA EL ARREGLO Y NO EL ERROR. La persona no eligio mandar media
+      // ubicacion — el selector devuelve las tres juntas — asi que este codigo
+      // solo puede llegar por un borrador a medio armar. La salida es volver a
+      // elegir la localidad, o borrarla y dejar que cuente donde vive el animal.
+      return "Elegí la localidad de nuevo, o dejala vacía para que cuente donde vive tu mascota.";
     case "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH":
       // UNREACHABLE FROM THIS FORM — `draftToWire` drops the count under any
       // other outcome, precisely so a changed mind never becomes a 400. The
@@ -1248,6 +1339,12 @@ export function invalidFields(code: RecordEventInputCode | null): ReadonlySet<ke
       case "PREGNANCY_BIRTHS_REQUIRED":
       case "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH":
         return ["liveBirthsCount"];
+      case "BITE_VICTIM_KIND_INVALID":
+        return ["victimKind"];
+      case "BITE_SEVERITY_INVALID":
+        return ["biteSeverity"];
+      case "BITE_JURISDICTION_INCOMPLETE":
+        return ["biteLocalityName"];
     }
   })();
   return new Set(fields);
@@ -1415,6 +1512,47 @@ export function pregnancyOutcomeLabel(outcome: PregnancyOutcome): string {
 
 /** The five outcomes, as the chip row draws them. */
 export const PREGNANCY_OUTCOME_OPTIONS: readonly PregnancyOutcome[] = PREGNANCY_OUTCOMES;
+
+/**
+ * A quien mordio, en las palabras de quien reporta.
+ *
+ * "No lo sé" no es un relleno: quien llega despues del hecho no puede elegir
+ * entre persona y animal, y forzarlo pondria una suposicion adentro de lo que
+ * una jurisdiccion despues actua.
+ */
+export function biteVictimKindLabel(kind: BiteVictimKind): string {
+  switch (kind) {
+    case "human":
+      return "Una persona";
+    case "animal":
+      return "Otro animal";
+    case "unknown":
+      return "No lo sé";
+  }
+}
+
+/**
+ * Cuan grave.
+ *
+ * DESCRIBE LA LESION Y NO LA CULPA. "Leve / moderada / grave" a secas invita a
+ * minimizar; nombrar lo que se ve —si hubo que coser, si hubo que ir a una
+ * guardia— le da a la persona una vara que no depende de como se sienta con su
+ * propio animal. La gravedad viaja al caso y a la alerta.
+ */
+export function biteSeverityLabel(severity: BiteSeverity): string {
+  switch (severity) {
+    case "minor":
+      return "Leve · no necesitó atención";
+    case "moderate":
+      return "Moderada · la vio un profesional";
+    case "severe":
+      return "Grave · guardia o internación";
+  }
+}
+
+/** Los tres valores de cada fila de chips, como el formulario los dibuja. */
+export const BITE_VICTIM_KIND_OPTIONS: readonly BiteVictimKind[] = BITE_VICTIM_KINDS;
+export const BITE_SEVERITY_OPTIONS: readonly BiteSeverity[] = BITE_SEVERITIES;
 
 export function yesNoLabel(value: YesNo): string {
   return value === "si" ? "Sí" : "No";

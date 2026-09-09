@@ -81,9 +81,12 @@ import { useIsDirty } from "../ui/use-draft-dirty";
 import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useReturnKeyChain } from "../ui/use-return-key-chain";
 import { useScrollToError } from "../ui/use-scroll-to-error";
+import { LocalityPicker } from "./LocalityPicker";
 
 import { createAttemptSession } from "./idempotency";
 import {
+  BITE_SEVERITY_OPTIONS,
+  BITE_VICTIM_KIND_OPTIONS,
   CLINICAL_SUB_KIND_OPTIONS,
   DEWORMING_TYPE_OPTIONS,
   type EventDraft,
@@ -101,6 +104,8 @@ import {
   type WritableKind,
   YES_NO,
   attestationRegistryOptions,
+  biteSeverityLabel,
+  biteVictimKindLabel,
   clinicalSubKindLabel,
   conditionalKinds,
   deathCauseLabel,
@@ -608,6 +613,11 @@ function chainLength(kind: WritableKind, draft: EventDraft): number {
     // la cadena porque no se tipean.
     case "death":
       return 3 + (draft.deathAtClinic === "si" ? 1 : 0) + (draft.confirmedByVet === "si" ? 1 : 0);
+    // Donde, contexto, fecha, y los tres de la victima. El selector de localidad
+    // tiene su propio buscador y no entra en la cadena; las dos filas de chips
+    // tampoco se tipean.
+    case "bite":
+      return 6;
     // Semanas, fecha, veterinario. Tres campos tipeados.
     case "pregnancy_start":
       return 3;
@@ -1086,6 +1096,86 @@ function Fields({
         </>
       );
     }
+
+    case "bite":
+      return (
+        <>
+          <Choice
+            label="¿A quién mordió?"
+            required
+            options={BITE_VICTIM_KIND_OPTIONS}
+            selected={draft.victimKind}
+            optionLabel={biteVictimKindLabel}
+            onSelect={(value) => set("victimKind", value)}
+          />
+          <Choice
+            label="¿Qué tan grave fue?"
+            required
+            options={BITE_SEVERITY_OPTIONS}
+            selected={draft.biteSeverity}
+            optionLabel={biteSeverityLabel}
+            onSelect={(value) => set("biteSeverity", value)}
+          />
+          {dateField("Fecha de la mordedura", "occurredAt", true)}
+          <TextField
+            label="Dónde pasó"
+            value={draft.locationDescription}
+            onChangeText={(v) => set("locationDescription", v)}
+            placeholder="La esquina, la plaza, el pasillo…"
+            {...link()}
+          />
+          <TextField
+            label="Qué estaba pasando"
+            value={draft.biteContext}
+            onChangeText={(v) => set("biteContext", v)}
+            placeholder="En tus palabras"
+            {...link()}
+          />
+          {/* LA JURISDICCIÓN DEL HECHO, NO LA DEL ANIMAL — decisión de producto,
+              y la razón por la que este formulario tiene un selector que ningún
+              otro tiene. Una mordedura en Córdoba de una mascota registrada en
+              CABA es problema de la autoridad de Córdoba.
+              OPCIONAL, y el pie dice qué pasa si se deja vacío, porque "no sé
+              exactamente dónde" es una respuesta real y el respaldo es una
+              conducta definida, no un agujero. */}
+          <LocalityPicker
+            provinceCode={draft.biteProvinceCode}
+            localityName={draft.biteLocalityName}
+            onSelect={(selection) => {
+              set("biteProvinceCode", selection.provinceCode);
+              set("biteLocalityName", selection.localityName);
+              // Cuál de los 68 homónimos. Sin esto el servidor resuelve por
+              // nombre y cae en el departamento alfabéticamente primero, así que
+              // el caso se rutea a una autoridad que nadie eligió.
+              set("biteLocalityIndecId", selection.localityIndecId);
+            }}
+          />
+          <Body>Si la dejás vacía, la mordedura cuenta donde vive tu mascota.</Body>
+          <TextField
+            label="Nombre de quien fue mordido"
+            value={draft.victimContactName}
+            onChangeText={(v) => set("victimContactName", v)}
+            placeholder="Opcional"
+            {...link()}
+          />
+          <TextField
+            label="Teléfono de contacto"
+            value={draft.victimContactPhone}
+            onChangeText={(v) => set("victimContactPhone", v)}
+            placeholder="Opcional"
+            inputMode="tel"
+            {...link()}
+          />
+          <TextField
+            label="Edad aproximada"
+            value={draft.victimAgeEstimate}
+            onChangeText={(v) => set("victimAgeEstimate", v)}
+            placeholder="Opcional"
+            {...link()}
+          />
+          <NotesField draft={draft} set={set} />
+        </>
+      );
 
     case "pregnancy_start":
       return (
