@@ -42,13 +42,30 @@ jobs:
     # webServer block; serial workers; x-real-ip rate-limit workaround baked
     # into the config).
     #
-    # Secrets to configure (Settings → Secrets and variables → Actions):
+    # Secrets (Settings → Secrets and variables → Actions):
     #   STAGING_SUPABASE_URL       — staging project URL (https://<ref>.supabase.co).
     #   STAGING_SUPABASE_ANON_KEY  — staging anon (publishable) key.
-    # Both feed cross-tenant-isolation.spec.ts, which talks to GoTrue directly;
-    # when unset, its API-level checks run against the localhost defaults and
-    # fail — configure them or expect that spec to be red. Everything else in
-    # the suite only needs the public STAGING_URL below (no secret).
+    # Both feed cross-tenant-isolation.spec.ts, which talks to GoTrue directly.
+    # BOTH ARE SET — verified 2026-09-09 — and that spec passes. This block used
+    # to say "configure them or expect that spec to be red", which was true when
+    # it was written and became a stale diagnosis that outlived its own fact: it
+    # was read as the explanation for the red streak below, and it is not.
+    #
+    # WHY THIS JOB IS ACTUALLY RED, and it has been for every run: three specs
+    # need the seeded refugio (DIM-UATE-YXZK) to hold at least one pet under a
+    # LIVE shelter custody, and it holds none. Measured against the staging DB
+    # on 2026-09-09: twelve shelter custodies over that org's whole life, every
+    # one of them with `ended_at` set. The suite CONSUMES the fixture — crisis-
+    # seams (d) adopts a pet out, which ends the custody — and nothing reopens
+    # one. Two rounds of seeding (2026-07-07, 2026-08-23) were both eaten.
+    #
+    # RE-SEEDING FROM THIS JOB IS NOT THE FIX. `seed-test-users.ts` is
+    # re-runnable but NOT idempotent, and its shelter-pets step now guards on the
+    # microchip codes it writes (the constraint it actually hits — see
+    # scripts/seed-shelter-pets-guard.ts). So a seed step here would correctly
+    # SKIP and restore nothing. The fix is for the specs to provision their own
+    # custody; one of them already does — an `E2EPet-…` row on 2026-09-08 opened
+    # and closed a custody four seconds apart.
     env:
       STAGING_URL: https://dim-staging.vercel.app
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
