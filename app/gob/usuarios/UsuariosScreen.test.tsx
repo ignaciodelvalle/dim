@@ -96,4 +96,21 @@ describe("UsuariosScreen — render smoke test", () => {
     expect(html).toContain("Buscar");
     expect(html).toContain("marcado");
   });
+
+  // The Rol dropdown offers EVERY role the enum has.
+  //
+  // Asserting the presence of the word "Rol" is what let a real gap through a
+  // green gate: migration 0214 added `national`, the label map grew because the
+  // compiler demanded it, and the option array — a literal cast to the union —
+  // silently did not. The roster could name the role and not offer it.
+  //
+  // The oracle is the LABEL of the role added last, not a count: a count would
+  // pass again the next time somebody adds a role and forgets the option.
+  it("offers every role of the enum in the Rol filter, national included", async () => {
+    const node = await UsuariosScreen({ searchParams: {} });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("Lectura nacional");
+    expect(html).toContain("Veterinario/a");
+    expect(html).toContain("Administrador/a");
+  });
 });

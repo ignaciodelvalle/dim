@@ -70,6 +70,21 @@ const ROLE_FILTER_LABELS: Record<UserRoleFilter, string> = {
   admin: "Administrador/a",
 };
 
+// The options the Rol dropdown offers, DERIVED from the label map above.
+//
+// This was a hand-written `["owner", "vet", "govt", "admin"] as UserRoleFilter[]`
+// and the cast is what made it dangerous: an incomplete array widened to the
+// union compiles happily, so when migration 0214 added `national` the label map
+// grew (the compiler insisted) and the dropdown did not. The roster could name
+// the new role and not offer it — half a fix, in the same file as the fix.
+//
+// A cast defeats the compiler exactly like a hand-written union does. Reading
+// the keys off the record keeps the control and the labels in step by
+// construction, with no list to forget.
+const ROLE_FILTER_OPTIONS = (Object.keys(ROLE_FILTER_LABELS) as UserRoleFilter[]).filter(
+  (role): role is Exclude<UserRoleFilter, "all"> => role !== "all",
+);
+
 function parseRoleFilter(raw: string | undefined): UserRoleFilter {
   // Read off the label map rather than a second list of literals — the two
   // drifted apart once already, and the map is the one the compiler checks.
@@ -182,7 +197,7 @@ export async function UsuariosScreen({ searchParams: sp, underHub = false }: Usu
               id: "role",
               label: "Rol",
               paramKey: "role",
-              options: (["owner", "vet", "govt", "admin"] as UserRoleFilter[]).map((r) => ({
+              options: ROLE_FILTER_OPTIONS.map((r) => ({
                 value: r,
                 label: ROLE_FILTER_LABELS[r],
               })),
