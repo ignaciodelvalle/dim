@@ -197,12 +197,11 @@ flowchart TD
   hecho y cae a la del animal solo cuando no se la dan
   (`report-bite.ts:152-153`). Una mordedura en Córdoba de una mascota registrada en
   CABA es de la autoridad de Córdoba.
-- **NO afirmar que existe un preset "ENO" en la bandeja de salida ni un rol de
-  autoridad nacional de solo lectura.** Un escritor hermano está trabajando en
-  ambos el 2026-09-09; no aparecen en este snapshot del código
-  (`app/gob/outbox`, `lib/infra/outbox-query.ts`, `db/schema.ts` — sin resultados al
-  buscar "NATIONAL" ni un preset ENO). Si el mazo se presenta antes de que se
-  confirme el envío, decir "en curso" y nada más.
+- **NO afirmar que el aviso a la autoridad se envía.** El preset "ENO" de la
+  bandeja de salida y el rol nacional de solo lectura ya existen, pero lo que
+  muestran es la COLA, no una entrega: `deliverOutboxRow`
+  sigue siendo un no-op que solo escribe auditoría. Mostrar la cola es honesto;
+  decir "se notificó a la autoridad" no lo es.
 - **NO poner "DIM" en ninguna etiqueta.** La marca en pantalla es miMAR.
 
 ## Confianza
@@ -256,10 +255,14 @@ cita de archivo y línea en vez de un marcador con control automático.
   contra la base para producirlo. No hay hoy ningún diagnóstico veterinario
   verificado en el entorno vivo — el mazo no puede simular que existe uno de
   demostración.
-- **El preset "ENO" en `/gob/outbox` y un rol de autoridad nacional de solo
-  lectura.** Reportados como trabajo en curso el 2026-09-09 por un escritor hermano;
-  no están en este snapshot del código. No confirmable desde el repositorio a esta
-  fecha.
+- **El preset "ENO" en `/gob/outbox` y el rol nacional de solo lectura.**
+  Al escribirse esta lámina no existían y quedaron declarados como "en curso".
+  **Ambos entraron el 2026-09-09** — preset y orden por vencimiento en
+  `lib/infra/outbox-query.ts` (`ENO_PRESET_TARGET_KINDS`, `outboxOrderBy`), rol
+  `national` en `db/migrations/0214_user_role_national.sql` con alcance de lectura
+  país entero vía `hasNationalReadScope` — con la cadena de verificación en verde
+  (`reported 1510 file(s); 1510 discovered; 0 failing test(s); 0 broken file(s)`).
+  Verificado a mano contra el árbol, no por marcador `fact:`.
 - **Que la cadena de verificación (`pnpm verify` / `pnpm test:verified`) cubre este
   módulo.** No corrí ningún comando: esta lámina es investigación de código, no
   ejecución. Los tests existentes que sí vi de pasada

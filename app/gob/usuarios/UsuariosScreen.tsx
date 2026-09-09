@@ -28,6 +28,7 @@ import {
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { fetchChipReplacementSignal } from "@/lib/analytics/compliance-metrics";
+import { roleLabel } from "@/lib/domain/role-labels";
 import type { UserRoleFilter } from "@/lib/infra/admin-search";
 import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -43,18 +44,19 @@ import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-
 import { ProposeUserActions } from "./ProposeUserActions";
 import { RevokeUserActions } from "./RevokeUserActions";
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: "Dueño/a",
-  vet: "Veterinario/a",
-  govt: "Gobierno",
-  admin: "Administrador/a",
-};
-
+// The role label is NOT a local map any more. This screen kept its own copy of
+// the four labels, `Record<string, …>` rather than keyed on the role union, and
+// when migration 0214 added `national` the copy silently rendered the raw enum
+// value "national" in the roster pill. `roleLabel` is the one place that owns
+// this wording; a second copy is a second thing to forget.
 type RoleTone = "neutral" | "ok" | "triaged" | "open";
-const ROLE_TONES: Record<string, RoleTone> = {
+// KEYED ON THE ROLE UNION so the next role added to the enum fails the build
+// here instead of falling through to "neutral".
+const ROLE_TONES: Record<Exclude<UserRoleFilter, "all">, RoleTone> = {
   owner: "neutral",
   vet: "ok",
   govt: "triaged",
+  national: "triaged",
   admin: "open",
 };
 
@@ -64,11 +66,16 @@ const ROLE_FILTER_LABELS: Record<UserRoleFilter, string> = {
   owner: "Dueño/a",
   vet: "Veterinario/a",
   govt: "Gobierno",
+  national: "Lectura nacional",
   admin: "Administrador/a",
 };
 
 function parseRoleFilter(raw: string | undefined): UserRoleFilter {
-  return raw === "owner" || raw === "vet" || raw === "govt" || raw === "admin" ? raw : "all";
+  // Read off the label map rather than a second list of literals — the two
+  // drifted apart once already, and the map is the one the compiler checks.
+  return raw !== undefined && raw !== "all" && raw in ROLE_FILTER_LABELS
+    ? (raw as UserRoleFilter)
+    : "all";
 }
 
 export type UsuariosScreenProps = {
@@ -221,7 +228,7 @@ export async function UsuariosScreen({ searchParams: sp, underHub = false }: Usu
       <BulkRevokeList
         items={results.map((u) => ({
           id: u.id,
-          label: `${u.displayName} (${ROLE_LABELS[u.role] ?? u.role})`,
+          label: `${u.displayName} (${roleLabel(u.role)})`,
           revocable: u.role === "vet",
           content: (
             <OpCard>
@@ -235,9 +242,7 @@ export async function UsuariosScreen({ searchParams: sp, underHub = false }: Usu
                       <p className="text-xs text-ln-op-mute">{emailMap.get(u.id) || "Sin email"}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <OpPill tone={ROLE_TONES[u.role] ?? "neutral"}>
-                        {ROLE_LABELS[u.role] ?? u.role}
-                      </OpPill>
+                      <OpPill tone={ROLE_TONES[u.role] ?? "neutral"}>{roleLabel(u.role)}</OpPill>
                       {u.deactivatedAt && <OpPill tone="neutral">Desactivada</OpPill>}
                     </div>
                   </div>

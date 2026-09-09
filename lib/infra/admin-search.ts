@@ -19,7 +19,7 @@
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db, organizations, ownerships, petServiceDog, pets, profiles } from "@/db";
-import type { ServiceDogType, orgTypeEnum } from "@/db";
+import type { ServiceDogType, UserRole, orgTypeEnum } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { hashDni } from "@/lib/utils/dni-hash";
@@ -52,7 +52,14 @@ export type UserSearchScope =
 
 // Canonical roles come straight from userRoleEnum (db/schema.ts) — "all" is the
 // UI-only "no filter" sentinel, never pushed into the WHERE clause.
-export type UserRoleFilter = "owner" | "vet" | "govt" | "admin" | "all";
+//
+// DERIVED FROM `UserRole`, NOT RETYPED. It was a hand-written literal union,
+// and on 2026-09-09 migration 0214 added `national` to the enum without this
+// line changing — so the Directorio roster could not filter for the new role
+// and every `Record<UserRoleFilter, …>` in the UI still compiled with a case
+// missing. A union that restates an enum is a copy that goes stale in silence;
+// derived, the compiler names every map that has to grow with it.
+export type UserRoleFilter = UserRole | "all";
 
 export type OrgSearchResult = {
   id: string;
