@@ -29,7 +29,11 @@ vi.mock("@/db", async (importOriginal) => {
   return { ...actual, db: h.builder };
 });
 
-import { isPetAdoptedByUser } from "../adoption-checkin";
+import {
+  findLatestAdoption,
+  findOpenPostAdoptionCheckinReminder,
+  isPetAdoptedByUser,
+} from "../adoption-checkin";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -55,5 +59,41 @@ describe("isPetAdoptedByUser", () => {
   it("returns false when the adoption payload carries no adopter_user_id", async () => {
     h.dbState.queue = [[{ payload: {} }]];
     expect(await isPetAdoptedByUser("pet-1", "user-1")).toBe(false);
+  });
+});
+
+describe("findLatestAdoption — the one lookup the predicate, the writer and the endpoint share", () => {
+  it("hands back BOTH halves of the adoption: who adopted, and from whom", async () => {
+    // The check-in writer needs the organization as well as the adopter — the
+    // refugio the check-in is addressed to — which is why this is a function
+    // of its own and not folded into the boolean above.
+    h.dbState.queue = [
+      [{ payload: { adopter_user_id: "user-1", previous_owner_organization_id: "org-9" } }],
+    ];
+    expect(await findLatestAdoption("pet-1")).toEqual({
+      adopterUserId: "user-1",
+      organizationId: "org-9",
+    });
+  });
+
+  it("answers null for an animal never adopted through the platform", async () => {
+    h.dbState.queue = [[]];
+    expect(await findLatestAdoption("pet-1")).toBeNull();
+  });
+});
+
+describe("findOpenPostAdoptionCheckinReminder — the window the page, the writer and the endpoint agree on", () => {
+  it("returns the soonest open window", async () => {
+    const dueAt = new Date("2026-10-01T12:00:00Z");
+    h.dbState.queue = [[{ id: "rem-1", dueAt }]];
+    expect(await findOpenPostAdoptionCheckinReminder("pet-1", "user-1")).toEqual({
+      id: "rem-1",
+      dueAt,
+    });
+  });
+
+  it("returns null when nothing is pending — a fact, not an empty list", async () => {
+    h.dbState.queue = [[]];
+    expect(await findOpenPostAdoptionCheckinReminder("pet-1", "user-1")).toBeNull();
   });
 });

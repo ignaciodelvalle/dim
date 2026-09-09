@@ -1,4 +1,5 @@
-// Unit tests for recordPostAdoptionCheckinAction.
+// Unit tests for recordPostAdoptionCheckinAction — the web door — and, through
+// it, for the rules of `recordPostAdoptionCheckin`, which both doors share.
 //
 // Covers:
 //   1. Non-owner access gate → error returned.
@@ -8,12 +9,20 @@
 //   4. Idempotency: clientIdempotencyKey + wasNoop=true → no double insert, no noop
 //      notification.
 //   5. Province canonicalization: raw ISO code "AR-C" → stored as "CABA".
+//   6. THE RULES (2026-09-09): never adopted → refused; no open window → refused
+//      in the page's own words; and the replay check runs BEFORE the window
+//      guard, because the write's own success closes the window it needed.
+//   7. The adapter's half: an uploaded attachment is removed when the rule
+//      refuses, so a refusal leaves nothing behind in storage.
 //
 // Mocking strategy follows __tests__/finder-in-possession-action.test.ts:
-//   - Mock @/db (db + table references) with a queryable fake.
+//   - Mock @/db (db + table references) with a queryable fake. The TOP-LEVEL
+//     select answers by call order — adoption first, open window second —
+//     because the use-case asks those two questions in that order.
 //   - Mock @/lib/pet-access (requirePetAccess) so we control who's accessing.
 //   - Mock @/lib/uploads (uploadAttachmentIfPresent) to avoid storage calls.
-//   - Mock @/lib/event-idempotency (insertEventIdempotent) to control wasNoop.
+//   - Mock @/lib/event-idempotency (insertEventIdempotent, findExistingByKey) to
+//     control wasNoop and the replay answer.
 //   - Mock @/lib/event-schemas (validateEventPayload) to pass through input.
 //   - Mock next/navigation so redirect() doesn't throw in tests.
 //   - Mock next/cache so revalidatePath is a no-op.
@@ -77,8 +86,12 @@ vi.mock("@/lib/infra/uploads", () => ({
 // ---------------------------------------------------------------------------
 
 const mockInsertEventIdempotent = vi.fn();
+/** What the ledger answers when asked whether THIS key already wrote. */
+const mockFindExistingByKey = vi.fn();
 vi.mock("@/lib/events/event-idempotency", () => ({
   insertEventIdempotent: (values: unknown, tx: unknown) => mockInsertEventIdempotent(values, tx),
+  findExistingByKey: (petId: string, eventType: string, key: string) =>
+    mockFindExistingByKey(petId, eventType, key),
 }));
 
 // ---------------------------------------------------------------------------
@@ -198,11 +211,14 @@ function buildTxChain(reminderExists = true, adminCount = 1): Record<string, unk
   };
 }
 
-// Top-level db used for the pre-transaction adoption lookup.
-let adoptionPayload: Record<string, unknown> = {
+// Top-level db used for the two pre-transaction reads, IN THIS ORDER:
+//   1 — the latest adoption_finalized event (null → never adopted)
+//   2 — the soonest open post_adoption_checkin reminder (the window guard)
+let adoptionPayload: Record<string, unknown> | null = {
   adopter_user_id: OWNER_USER_ID,
   previous_owner_organization_id: ORG_ID,
 };
+let topSelectCallCount = 0;
 
 const mockDb: Record<string, unknown> = {
   select: vi.fn(),
@@ -210,14 +226,22 @@ const mockDb: Record<string, unknown> = {
   transaction: vi.fn(),
 };
 
-function setupMockDb(txOptions?: { reminderExists?: boolean; adminCount?: number }) {
+function setupMockDb(txOptions?: {
+  reminderExists?: boolean;
+  adminCount?: number;
+  /** Whether a follow-up window is open BEFORE the write. Default: yes. */
+  openWindow?: boolean;
+}) {
+  const openWindow = txOptions?.openWindow ?? true;
+  topSelectCallCount = 0;
   const selectChain = {
     from: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     orderBy: vi.fn(() => selectChain),
     limit: vi.fn(async () => {
-      // adoption_finalized lookup (pre-tx)
-      return [{ payload: adoptionPayload }];
+      topSelectCallCount++;
+      if (topSelectCallCount === 1) return adoptionPayload ? [{ payload: adoptionPayload }] : [];
+      return openWindow ? [{ id: REMINDER_ID, dueAt: new Date("2026-10-01T12:00:00Z") }] : [];
     }),
   };
 
@@ -298,6 +322,8 @@ describe("recordPostAdoptionCheckinAction", () => {
     };
     mockUpload.mockClear();
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+    mockFindExistingByKey.mockReset();
+    mockFindExistingByKey.mockResolvedValue(null);
     // IMPORTANT: clear call history so mock.calls[0] always refers to the
     // current test's call, not a prior test's accumulated call.
     mockInsertEventIdempotent.mockClear();
@@ -546,5 +572,127 @@ describe("recordPostAdoptionCheckinAction", () => {
     const [insertValues] = mockInsertEventIdempotent.mock.calls[0] as [Record<string, unknown>];
     const payload = insertValues.payload as Record<string, unknown>;
     expect(payload.jurisdiction_province).toBe("Buenos Aires");
+  });
+
+  // ── The rules both doors share ─────────────────────────────────────────────
+
+  it("refuses an animal that was never adopted through the platform, before any write", async () => {
+    vi.resetModules();
+    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    adoptionPayload = null;
+    setupMockDb();
+
+    const { recordPostAdoptionCheckinAction } = await import("@/app/actions/checkin");
+    const result = await recordPostAdoptionCheckinAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(BASE_FORM),
+    );
+
+    expect(result.error).toMatch(/adopción registrada/i);
+    expect(mockInsertEventIdempotent).not.toHaveBeenCalled();
+  });
+
+  it("refuses a check-in nobody asked for — no open window — in the page's own words", async () => {
+    // The check-in is the ANSWER to a window the refugio opened. One with no
+    // window would notify every admin about nothing; the page has always kept
+    // that out, and the rule now lives where both doors reach it.
+    vi.resetModules();
+    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    setupMockDb({ openWindow: false });
+
+    const { recordPostAdoptionCheckinAction } = await import("@/app/actions/checkin");
+    const result = await recordPostAdoptionCheckinAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(BASE_FORM),
+    );
+
+    expect(result.error).toMatch(/pendiente/i);
+    expect(mockInsertEventIdempotent).not.toHaveBeenCalled();
+    // NON-VACUITY: with no key there is nothing to ask the ledger about.
+    expect(mockFindExistingByKey).not.toHaveBeenCalled();
+  });
+
+  it("HONOURS THE KEY when the retried write itself closed the last window", async () => {
+    // THE ORDER THIS REPO HAS BEEN BITTEN BY THREE TIMES. The first attempt
+    // committed and closed the last open window; the response was lost; the
+    // same body arrives with the same key. The window guard is now CORRECT to
+    // say "nothing pending" — so it must not be asked first. The ledger is.
+    vi.resetModules();
+    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    setupMockDb({ openWindow: false });
+    mockFindExistingByKey.mockResolvedValue({ id: INSERTED_EVENT_ID });
+
+    const { recordPostAdoptionCheckinAction } = await import("@/app/actions/checkin");
+    const result = await recordPostAdoptionCheckinAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_FORM, clientIdempotencyKey: "key-retry-001" }),
+    );
+
+    // A success, and the same destination the first attempt was promised.
+    expect(result.error).toBeNull();
+    expect(result.redirectTo).toBe(`/mis-mascotas/${PUBLIC_TOKEN}?tab=libreta`);
+    expect(mockFindExistingByKey).toHaveBeenCalledWith(
+      PET_ID,
+      "post_adoption_checkin",
+      "key-retry-001",
+    );
+    // NON-VACUITY WITH TEETH: nothing was written and nothing was closed — the
+    // answer came from the ledger, not from a second check-in.
+    expect(mockInsertEventIdempotent).not.toHaveBeenCalled();
+    expect(capturedReminderUpdate).toBeNull();
+    expect(capturedNotificationInsert).toBeNull();
+  });
+
+  it("still refuses a NEW key with no window open — the ledger check is not a blanket pass", async () => {
+    vi.resetModules();
+    mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
+    setupMockDb({ openWindow: false });
+    mockFindExistingByKey.mockResolvedValue(null);
+
+    const { recordPostAdoptionCheckinAction } = await import("@/app/actions/checkin");
+    const result = await recordPostAdoptionCheckinAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_FORM, clientIdempotencyKey: "key-fresh-002" }),
+    );
+
+    expect(result.error).toMatch(/pendiente/i);
+    expect(mockFindExistingByKey).toHaveBeenCalledOnce();
+    expect(mockInsertEventIdempotent).not.toHaveBeenCalled();
+  });
+
+  // ── The adapter's half ─────────────────────────────────────────────────────
+
+  it("removes the uploaded attachment when the rule refuses, so a refusal leaves nothing in storage", async () => {
+    // The web uploads BEFORE the writer runs, as every other owner form does.
+    // A refusal after that has a file and no row to hang it off; the adapter
+    // is the layer that knows about storage, so the adapter cleans it up.
+    vi.resetModules();
+    const mockRemove = vi.fn(async () => ({ error: null }));
+    mockRequirePetAccess.mockResolvedValue({
+      ...makePetAccessSuccess({ userId: OTHER_USER_ID }),
+      supabase: { storage: { from: vi.fn(() => ({ remove: mockRemove })) } },
+    });
+    setupMockDb();
+    mockUpload.mockResolvedValue({
+      uploadedPath: "pets/orphan.jpg",
+      mimeType: "image/jpeg",
+      size: 1234,
+      error: null,
+    });
+
+    const { recordPostAdoptionCheckinAction } = await import("@/app/actions/checkin");
+    const result = await recordPostAdoptionCheckinAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(BASE_FORM),
+    );
+
+    expect(result.error).toMatch(/adoptante/i);
+    expect(mockRemove).toHaveBeenCalledWith(["pets/orphan.jpg"]);
+    expect(mockInsertEventIdempotent).not.toHaveBeenCalled();
   });
 });

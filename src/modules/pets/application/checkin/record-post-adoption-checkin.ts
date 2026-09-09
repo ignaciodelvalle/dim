@@ -5,9 +5,33 @@
 // post_adoption_checkin reminder for this pet+user, and fans out a
 // notification to the originating refugio's admins.
 //
-// Owner-path access is enforced by the thin shim (app/actions/checkin.ts);
-// this use-case receives the authenticated access context and runs the rest
-// verbatim.
+// TWO DOORS SINCE 2026-09-09. The web action (app/actions/checkin.ts) parses
+// its form, uploads the attachment and canonicalises the location, then calls
+// this with facts; `POST /api/v1/pets/{token}/events` builds the same input
+// from JSON with no attachment and no location. Neither door holds a rule:
+// who may write a check-in, what one requires, what it appends and what it
+// closes are decided HERE and nowhere else.
+//
+// THE RULES, IN THE ORDER THEY RUN, AND WHY THAT ORDER:
+//
+//   1. The animal was adopted through the platform (`not_adopted`).
+//   2. The latest adoption names THIS user as the adopter (`not_adopter`).
+//      Latest-event-wins: a re-adoption revokes the previous adopter.
+//   3. A follow-up window is open (`no_open_window`). The check-in is the
+//      ANSWER to a window the refugio asked for; one nobody asked for would
+//      notify every refugio admin about nothing, which is the spam the web page
+//      has always refused to let through (eventos/nuevo/checkin/page.tsx).
+//
+// RULE 3 IS THE ONE THIS WRITE'S OWN SUCCESS INVALIDATES, and that is why the
+// ledger is asked BEFORE it is enforced. A check-in that commits closes the
+// soonest window; when that was the last one, the retry of that very request —
+// the phone never saw the 201, and re-sends with the same key — arrives at an
+// animal with no window open and would be refused FOREVER on a write that
+// already happened. Worse, the refusal's copy tells the person to wait for a
+// window that will never come. Same trap as the pregnancy close, same remedy:
+// "did THIS key already write?" is asked first, and only then "may a new one
+// be written?". Rules 1 and 2 are not invalidated by success and do not need
+// it.
 
 import {
   attachments,
@@ -15,105 +39,78 @@ import {
   notifications,
   organizationMemberships,
   organizations,
-  petEvents,
   reminders,
 } from "@/db";
-import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
-import { parseLocationFromFormData } from "@/lib/domain/location-value";
-import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { findExistingByKey, insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import {
+  findLatestAdoption,
+  findOpenPostAdoptionCheckinReminder,
+} from "@/lib/infra/adoption-checkin";
+import { and, eq, isNull } from "drizzle-orm";
 
-import type { CheckinFormState } from "./types";
-
-async function cleanupOrphan(
-  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>,
-  path: string | null,
-): Promise<void> {
-  if (!path) return;
-  try {
-    await supabase.storage.from("event-attachments").remove([path]);
-  } catch {
-    // Swallow — the row was never inserted, the file is orphaned at worst.
-  }
-}
+import type { RecordPostAdoptionCheckinInput, RecordPostAdoptionCheckinResult } from "./types";
 
 export async function recordPostAdoptionCheckin(
-  publicToken: string,
-  access: {
-    supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>;
-    user: { id: string };
-    pet: { id: string; name: string };
-  },
-  formData: FormData,
-): Promise<CheckinFormState> {
-  const { supabase, user, pet } = access;
+  input: RecordPostAdoptionCheckinInput,
+): Promise<RecordPostAdoptionCheckinResult> {
+  const { pet, user, notes, clientIdempotencyKey } = input;
 
-  const notesRaw = String(formData.get("notes") ?? "").trim();
-  const notes = notesRaw || null;
-  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  // Per-event L1 (sprint 4 PR-034). Optional.
-  // Canonicalize the ISO provinceCode (e.g. "AR-C") to the display name ("CABA")
-  // that every other jurisdiction_province write stores. Without this, the raw
-  // ISO code landed in the JSONB payload and govt-dashboard aggregation that
-  // filters on display names silently missed check-in events.
-  const loc = parseLocationFromFormData(formData);
-  // locality:"none" — canonicalize province only, no catalog lookup (checkin behavior unchanged).
-  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
-  try {
-    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
-  } catch (err) {
-    if (err instanceof CoordError) {
-      return { error: err.message };
-    }
-    throw err;
-  }
-  const eventJurisdictionProvince = normalizedLoc.province;
-  const eventJurisdictionLocality = normalizedLoc.locality;
-
-  // Look up the most recent adoption_finalized event for this pet. The
-  // related organization is denormalized from that payload so the check-in
-  // event can stand on its own without re-joining ownerships history.
-  const [adoption] = await db
-    .select({ payload: petEvents.payload })
-    .from(petEvents)
-    .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "adoption_finalized")))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(1);
-
+  // Rules 1 and 2. The related organization is denormalized from the adoption
+  // payload so the check-in event can stand on its own without re-joining
+  // ownerships history.
+  const adoption = await findLatestAdoption(pet.id);
   if (!adoption) {
-    return { error: "No se encontró adopción registrada para esta mascota." };
+    return {
+      ok: false,
+      error: "No se encontró adopción registrada para esta mascota.",
+      notAllowed: "not_adopted",
+    };
   }
-
-  const adoptionPayload = adoption.payload as {
-    adopter_user_id?: string;
-    previous_owner_organization_id?: string;
-  };
-
-  if (adoptionPayload.adopter_user_id !== user.id) {
-    return { error: "No sos el adoptante registrado para esta mascota." };
+  if (adoption.adopterUserId !== user.id) {
+    return {
+      ok: false,
+      error: "No sos el adoptante registrado para esta mascota.",
+      notAllowed: "not_adopter",
+    };
   }
-
-  const orgId = adoptionPayload.previous_owner_organization_id;
+  const orgId = adoption.organizationId;
   if (!orgId) {
-    return { error: "Adopción sin organización asociada." };
+    // NO `notAllowed`: this is a malformed spine row, not a fact about the
+    // animal or the caller. The endpoint reports it as its own failure.
+    return { ok: false, error: "Adopción sin organización asociada." };
   }
 
-  const attachmentFile = formData.get("attachment") as File | null;
-  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
-  if (upload.error) return { error: upload.error };
+  // Rule 3, with the replay check in front of it — see the header.
+  const openWindow = await findOpenPostAdoptionCheckinReminder(pet.id, user.id);
+  if (!openWindow) {
+    if (clientIdempotencyKey) {
+      const replayed = await findExistingByKey(
+        pet.id,
+        "post_adoption_checkin",
+        clientIdempotencyKey,
+      );
+      if (replayed) return { ok: true, eventId: replayed.id, wasDuplicate: true };
+    }
+    return {
+      ok: false,
+      error: `${pet.name} no tiene un check-in post-adopción pendiente en este momento. Si el refugio te pide otro seguimiento más adelante, te vamos a avisar.`,
+      notAllowed: "no_open_window",
+    };
+  }
 
+  let eventId = "";
+  let wasDuplicate = false;
   try {
     await db.transaction(async (tx) => {
       const payload = validateEventPayload("post_adoption_checkin", {
         related_organization_id: orgId,
         photo_attachment_ids: [],
         notes,
-        jurisdiction_province: eventJurisdictionProvince,
-        jurisdiction_locality: eventJurisdictionLocality,
+        jurisdiction_province: input.eventJurisdictionProvince,
+        jurisdiction_locality: input.eventJurisdictionLocality,
       });
-      const now = new Date();
+      const now = input.now ?? new Date();
       const { event, wasNoop: checkinNoop } = await insertEventIdempotent(
         {
           petId: pet.id,
@@ -121,6 +118,9 @@ export async function recordPostAdoptionCheckin(
           occurredAt: now,
           recordedAt: now,
           recordedByUserId: user.id,
+          // ALWAYS THE OWNER. Rule 2 already established that the caller is
+          // the adopter — a person, never an organization — so there is no
+          // authorship to resolve.
           authorRole: "owner",
           payload,
           // The answer lives in the payload for the typed schema, AND in the
@@ -132,36 +132,30 @@ export async function recordPostAdoptionCheckin(
         },
         tx as Parameters<typeof insertEventIdempotent>[1],
       );
+      eventId = event.id;
+      wasDuplicate = checkinNoop;
       if (checkinNoop) return;
 
-      if (upload.uploadedPath) {
+      if (input.uploadedPath) {
         await tx.insert(attachments).values({
           petId: pet.id,
           eventId: event.id,
           uploadedByUserId: user.id,
-          storagePath: upload.uploadedPath,
-          mimeType: upload.mimeType ?? "image/jpeg",
-          fileSize: upload.size ?? 0,
+          storagePath: input.uploadedPath,
+          mimeType: input.uploadedMimeType ?? "image/jpeg",
+          fileSize: input.uploadedSize ?? 0,
         });
       }
 
       // Close the soonest open post_adoption_checkin reminder for this
-      // pet+user. Later windows stay open — the adopter self-reports
-      // again at each milestone.
-      const [next] = await tx
-        .select({ id: reminders.id })
-        .from(reminders)
-        .where(
-          and(
-            eq(reminders.petId, pet.id),
-            eq(reminders.userId, user.id),
-            eq(reminders.reminderType, "post_adoption_checkin"),
-            isNull(reminders.completedAt),
-          ),
-        )
-        .orderBy(asc(reminders.dueAt))
-        .limit(1);
-
+      // pet+user — RE-READ INSIDE THE TRANSACTION, so the row closed is the
+      // row that exists now and not the one the guard saw a moment ago. Later
+      // windows stay open — the adopter self-reports again at each milestone.
+      const next = await findOpenPostAdoptionCheckinReminder(
+        pet.id,
+        user.id,
+        tx as Parameters<typeof findOpenPostAdoptionCheckinReminder>[2],
+      );
       if (next) {
         await tx.update(reminders).set({ completedAt: now }).where(eq(reminders.id, next.id));
       }
@@ -203,18 +197,13 @@ export async function recordPostAdoptionCheckin(
       }
     });
   } catch (err) {
-    await cleanupOrphan(supabase, upload.uploadedPath);
     return {
+      ok: false,
       error: `No se pudo registrar el check-in: ${
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
   }
 
-  // Nav contract N3: RETURN the destination; the form navigates (useActionRedirect).
-  // Land on the LIBRETA tab, not the credential face: the freshly created
-  // "Seguimiento post-adopción" asiento at the top — now rendering the
-  // adopter's own text — IS the confirmation. The bare profile redirect gave
-  // no visible sign anything happened (9-role external run, 2026-08-18).
-  return { error: null, redirectTo: `/mis-mascotas/${publicToken}?tab=libreta` };
+  return { ok: true, eventId, wasDuplicate };
 }

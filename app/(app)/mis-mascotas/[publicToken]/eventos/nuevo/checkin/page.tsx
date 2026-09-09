@@ -1,9 +1,10 @@
 import { recordPostAdoptionCheckinAction } from "@/app/actions/checkin";
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { db, reminders } from "@/db";
-import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
+import {
+  findOpenPostAdoptionCheckinReminder,
+  isPetAdoptedByUser,
+} from "@/lib/infra/adoption-checkin";
 import { requirePetAccess } from "@/lib/infra/pet-access";
-import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CheckinForm } from "./CheckinForm";
@@ -41,19 +42,11 @@ export default async function PostAdoptionCheckinPage({
   // also gates this page — defense in depth for hand-typed URLs.
   if (!(await isPetAdoptedByUser(pet.id, user.id))) notFound();
 
-  const [openReminder] = await db
-    .select({ id: reminders.id, dueAt: reminders.dueAt })
-    .from(reminders)
-    .where(
-      and(
-        eq(reminders.petId, pet.id),
-        eq(reminders.userId, user.id),
-        eq(reminders.reminderType, "post_adoption_checkin"),
-        isNull(reminders.completedAt),
-      ),
-    )
-    .orderBy(reminders.dueAt)
-    .limit(1);
+  // THE SAME READ THE USE-CASE REFUSES ON. This page used to run its own copy
+  // of the query; the writer now enforces "a window is open" as a rule for both
+  // doors, so the page asks the one helper rather than keeping a second
+  // definition of which row counts.
+  const openReminder = await findOpenPostAdoptionCheckinReminder(pet.id, user.id);
 
   if (!openReminder) {
     return (
