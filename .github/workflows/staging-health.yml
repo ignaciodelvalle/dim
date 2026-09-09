@@ -117,7 +117,7 @@ jobs:
 
       - name: Checkout
         if: steps.guard.outputs.run == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # The branch staging is deployed from — NOT the default branch this
           # schedule fires on. See the header. Kept in sync by
