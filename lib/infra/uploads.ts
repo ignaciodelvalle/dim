@@ -113,6 +113,29 @@ export async function uploadAttachmentIfPresent(
     }
   }
 
+  // THE SIZE CHECK ABOVE BOUNDS THE INPUT; THE BUCKET BOUNDS WHAT WE UPLOAD, and
+  // for a re-encoded body those are not the same number. `reencodeRaster` is
+  // `sharp(buffer).rotate().toBuffer()` — no resize, no quality floor — so an
+  // input UNDER `MAX_BYTES` can produce an output over it. A 5.1 MB indexed-
+  // palette PNG is the concrete case: sharp re-encodes it non-palettised and
+  // the result is larger than what came in.
+  //
+  // Until migration 0213 the bucket had no `file_size_limit` and the oversized
+  // object simply landed. Now the Storage API refuses it, and the refusal
+  // arrives as a raw provider message pasted into es-AR copy below — a sentence
+  // about "no se pudo subir" for a photo the person was told was fine. The
+  // failure is the migration's to own, so the guard is here rather than in a
+  // release note.
+  const uploadedBytes = Buffer.isBuffer(uploadBody) ? uploadBody.byteLength : uploadBody.size;
+  if (uploadedBytes > MAX_BYTES) {
+    return {
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error: "La imagen es muy pesada después de procesarla. Probá con una foto más chica.",
+    };
+  }
+
   const { error: uploadError } = await supabase.storage
     .from(bucket)
     .upload(filename, uploadBody, { contentType: detectedMime });

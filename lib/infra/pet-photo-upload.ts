@@ -388,6 +388,32 @@ export async function confirmPetPhoto(params: {
   // `image/jpeg` row, because that is what is true.
   const finalPath = `${petId}/${randomUUID()}.${rasterExtension(detected)}`;
 
+  // THE STAGED BYTES WERE BOUNDED; THE NORMALISED ONES ARE A DIFFERENT NUMBER.
+  // The check at the top of this file bounds what ARRIVED. `reencodeRaster` has
+  // no resize and no quality floor, so an input under `MAX_IMAGE_BYTES` can
+  // normalise to something over it — an indexed-palette PNG re-encoded
+  // non-palettised is the concrete case.
+  //
+  // It mattered nowhere until migration 0213 gave `pet-photos` a
+  // `file_size_limit`; now the Storage API refuses, this lands in the branch
+  // below, and `discardStaged()` throws away the staged object — so the retry
+  // the person is invited to make has nothing left to retry from. Refusing here
+  // keeps the staged bytes and answers with a code the caller already handles.
+  if (normalised.byteLength > MAX_IMAGE_BYTES) {
+    console.warn("[pet-photo] normalised body exceeds the bucket limit", {
+      petId,
+      bytes: normalised.byteLength,
+    });
+    // THE SAME CODE THE INPUT-SIZE CHECK USES (line ~328), and reused rather
+    // than widened for that reason: this file already answers an oversized
+    // photo with `photo_not_an_image`. The name is imprecise for both — the
+    // file IS an image — and the alternative is worse. `photo_failed` promises
+    // in its own contract that "RETRYING IS SAFE HERE", and retrying the same
+    // photo re-encodes to the same oversized bytes forever. A code that invites
+    // a retry which cannot succeed is a worse lie than a name that is off.
+    return { ok: false, code: "photo_not_an_image" };
+  }
+
   const { error: uploadError } = await admin.storage
     .from(PET_PHOTO_BUCKET)
     .upload(finalPath, normalised, { contentType: detected });

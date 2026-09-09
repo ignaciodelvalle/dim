@@ -10,9 +10,35 @@
 -- uploader.
 
 -- Create the bucket if it doesn't already exist.
-insert into storage.buckets (id, name, public)
-values ('pet-photos', 'pet-photos', true)
-on conflict (id) do nothing;
+-- THE BOUNDS ARE DECLARED AT CREATION, and `do update` rather than
+-- `do nothing`, because THIS FILE is what owns bucket creation on a fresh tree
+-- and it runs AFTER the migrations. Migration 0213 hardens an environment that
+-- already has these rows; on a virgin project `storage.buckets` is still empty
+-- when it replays, so it matches nothing, the ledger marks it applied, and —
+-- migrations being forward-only — it can never come back. Every fresh
+-- environment and every CI bootstrap would carry unbounded buckets while the
+-- ledger said otherwise. That is "aplicada no es cerrada" arriving from the
+-- other direction, and this line is the half that stops it.
+--
+-- `do update` and not `do nothing` for the same reason the `drop policy if
+-- exists` below gives: this file is replayed on every bootstrap and is supposed
+-- to CONVERGE, so an existing bucket gets tightened rather than skipped. Only
+-- the two bound columns are set — `public` is left alone so a deliberate
+-- change is never clobbered by a replay.
+--
+-- The numbers are `MAX_IMAGE_BYTES` and `RASTER_IMAGE_TYPES` from
+-- lib/media/validate.ts. And the type list rejects a DECLARED type, not the
+-- bytes: an SVG declared as image/jpeg still gets in, and on THESE buckets —
+-- unlike uploads-staging — there is no confirm-time byte check on the direct
+-- path. See 0213 for the full statement of what this does and does not close.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'pet-photos', 'pet-photos', true,
+  5242880, array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- NO public SELECT policy on pet-photos (deploy-readiness residual, 2026-07-04;
 -- tracked in migration 0123). Because the bucket is public, GET of a known
@@ -68,9 +94,15 @@ create policy "pet_photos_uploader_delete"
 -- the URLs) and the URLs themselves are short-lived signed URLs generated
 -- server-side. Tier-3 data per AGENTS.md — owner only.
 
-insert into storage.buckets (id, name, public)
-values ('event-attachments', 'event-attachments', false)
-on conflict (id) do nothing;
+-- Same bounds and the same reasoning as pet-photos above.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'event-attachments', 'event-attachments', false,
+  5242880, array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- NO SELECT POLICY — AND NONE MAY BE ADDED (migration 0172).
 -- This bucket used to carry `event_attachments_authenticated_read`:
