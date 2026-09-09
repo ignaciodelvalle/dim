@@ -299,6 +299,27 @@ reemplaza por gris, y **ninguna se ablanda con un "en desarrollo" simpático**.
 | `docs/reviews/2026-09-fresh/BACKLOG.md` | Hallazgos abiertos | **Nunca "backlog"**: es una lámina en castellano | acuñada |
 | canon de convenciones | Regla del canon | <!-- fact:canon_enforced -->178<!-- /fact --> de <!-- fact:canon_rows -->516<!-- /fact --> reglas tienen quién las haga cumplir. El resto no está roto: nadie se daría cuenta | acuñada |
 
+## M. Vigilancia epidemiológica y zoonosis
+
+Agregada el 2026-09-09 junto con la lámina 16 (`13-vigilancia-zoonosis.md`). "Tarea
+programada" y "Portal de la autoridad local" ya existen en las secciones K y B: esta
+sección solo agrega el dominio, como permite la regla de composición del preámbulo
+("Tarea programada: cola ENO", "Portal de la autoridad local · panel de
+vigilancia"). "Observación antirrábica" ya está en la sección F y no se repite acá.
+
+| Identificador (código) | Etiqueta en la lámina | Nota | Origen |
+|---|---|---|---|
+| `ENO_DISEASES_AR` | ENO | Enfermedad de notificación obligatoria. Catálogo cerrado de 5 enfermedades zoonóticas (decisión ENO-D1, 2026-05-21). La propia aplicación ya usa el término, con su definición a un hover de distancia (`components/ui/GlossaryTerm.tsx`, `app/gob/vigilancia/page.tsx:637`) | UI |
+| — | SNVS | Sistema Nacional de Vigilancia de la Salud. Aparece literal en la pantalla de investigaciones: "la notificación obligatoria a SNVS/SENASA/zoonosis... no está integrada en esta versión" (`app/gob/vigilancia/investigaciones/page.tsx:103`) | UI |
+| `eno-catalog.ts` | Catálogo ENO | Rabia, leptospirosis, hidatidosis, brucelosis canina y leishmaniasis, cada una con su plazo legal y si estigmatiza al titular (`src/modules/surveillance/domain/eno-catalog.ts:33`) | acuñada |
+| `eno_processing_queue` | Cola de procesamiento ENO | El fanout interno: aviso en la aplicación a la autoridad y, salvo enfermedad estigmatizante, al titular. Se drena cada hora (`db/schema.ts:4043`) | acuñada |
+| `event_notification_outbox` | Bandeja de salida | La cola con el reloj legal: cada fila lleva su plazo (`slaDueAt`) según el catálogo ENO. La pantalla ya la nombra así ("Ver bandeja de salida", `app/gob/vigilancia/page.tsx:645`) | UI |
+| enqueue en la tx del diagnóstico | Transacción del diagnóstico | Las dos colas se encolan adentro de la misma transacción que el asiento clínico: si algo falla, no queda ninguna a medias (`record-disease-diagnosis-use-case.ts:150-178`) | acuñada |
+| destino final de la bandeja de salida | Autoridad sanitaria (SNVS / SENASA) | Hoy no recibe nada: sistema externo sin receptor implementado | acuñada |
+| cierre por rol profesional | Cierre profesional | Única forma de asentar un resultado clínico sobre una observación antirrábica. Ni el sistema ni el titular pueden cerrarla desde el 2026-08-17 (`rabies-observation.ts:87-95`) | acuñada |
+| `death_recorded` | Fallecimiento | El evento que registra la muerte del animal. No está en el catálogo de eventos con salida a la bandeja de salida (`lib/events/event-outbox-rules.ts:111-114`) | acuñada |
+| aviso urgente por muerte en observación | Aviso urgente directo a la autoridad | El único camino donde un fallecimiento notifica a la autoridad en la aplicación, y no pasa por ninguna de las dos colas de arriba (`death-record-use-case.ts:495-534`) | acuñada |
+
 ---
 
 ## Cómo se verificó la columna Origen

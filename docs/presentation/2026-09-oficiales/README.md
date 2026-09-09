@@ -67,14 +67,23 @@ En este orden, sin saltear:
    etiqueta que escribas sale de acá.**
 3. `docs/presentation/2026-09-oficiales/limites-honestos.md` — lo que el sistema
    NO hace. Se lee antes de dibujar, no después.
-4. Los doce specs, en orden: `01-contexto-sistema.md`, `02-topologia-portales.md`,
-   `03-ciclo-credencial.md`, `04-espina-eventos-y-caches.md`, `05-modelo-datos.md`,
-   `06-autorizacion.md`, `07-privacidad.md`, `08-crisis-perdida-y-denuncias.md`,
-   `09-vistas-gobierno.md`, `10-contrato-movil-web.md`, `11-despliegue-runtime.md`,
-   `12-calidad-y-auditoria.md`, todos bajo
+4. Los doce specs originales, en orden: `01-contexto-sistema.md`,
+   `02-topologia-portales.md`, `03-ciclo-credencial.md`,
+   `04-espina-eventos-y-caches.md`, `05-modelo-datos.md`, `06-autorizacion.md`,
+   `07-privacidad.md`, `08-crisis-perdida-y-denuncias.md`, `09-vistas-gobierno.md`,
+   `10-contrato-movil-web.md`, `11-despliegue-runtime.md`,
+   `12-calidad-y-auditoria.md`, más el agregado del 2026-09-09,
+   `13-vigilancia-zoonosis.md` (vigilancia epidemiológica y zoonosis — se muestra en
+   la sala después de la Lámina 5, ver `00-guion.md`), todos bajo
    `docs/presentation/2026-09-oficiales`.
 5. Solo si necesitás profundidad sobre un mecanismo: `docs/architecture` — la
    referencia de ingeniería, en inglés, enlazada al código.
+
+**Trece specs, no doce, desde el 2026-09-09.** Las secciones 3 a 6 de abajo —conteo
+de diagramas, plantillas, reducciones ejecutivas, afiche— se escribieron para los
+doce originales y no se actualizaron para `13-vigilancia-zoonosis.md`. Si este
+bloque se vuelve a pegar en Cowork, sumar el D13 a las instrucciones de dibujo antes
+de pegarlo: no viene incluido en el "doce" de las secciones siguientes.
 
 **Dos advertencias sobre el resto del repo.** `AGENTS.md` es contexto, no fuente de
 afirmaciones: sus números envejecen y ya lo hicieron (decía cuarenta y ocho tipos de
