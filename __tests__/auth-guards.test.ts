@@ -64,6 +64,7 @@ import {
   requireAdminOrGovtOrRedirect,
   requireAdminOrRedirect,
   requireDecomisoPrincipal,
+  requireGobReadAccessOrRedirect,
   requireOrgAccessByToken,
   requireUserOrRedirect,
 } from "@/lib/infra/auth-guards";
@@ -233,6 +234,95 @@ describe("requireUserOrRedirect", () => {
 // ---------------------------------------------------------------------------
 // requireAdminOrGovtOrRedirect
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// national — the read-only institutional role (migration 0214)
+//
+// ONE read gate admits it (requireGobReadAccessOrRedirect, the /gob layout and
+// read pages); EVERY write-authority gate refuses it. The refusal at
+// requireAdminOrGovtOrRedirect is what keeps the eleven app/actions writers and
+// the src/modules action files closed to it without touching any of them.
+// ---------------------------------------------------------------------------
+
+function nationalProfile(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "user-national",
+    role: "national",
+    displayName: "Lectura nacional",
+    accountType: "institutional",
+    deactivatedAt: null,
+    deletedAt: null,
+    ...overrides,
+  };
+}
+
+describe("national role — read gate admits, write gates refuse", () => {
+  it("requireGobReadAccessOrRedirect admits an active institutional national with EMPTY jurisdictions and no assignment fetch", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-national"));
+    mockGetProfileCached.mockResolvedValue(nationalProfile());
+    const result = await requireGobReadAccessOrRedirect();
+    expect(result.profile.role).toBe("national");
+    expect(result.jurisdictions).toEqual([]);
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("requireGobReadAccessOrRedirect still admits admin and govt (govt with its tuples)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-govt"));
+    mockGetProfileCached.mockResolvedValue(nationalProfile({ id: "user-govt", role: "govt" }));
+    mockGetJurisdictionsCached.mockResolvedValue([{ province: "CABA", locality: "Palermo" }]);
+    const result = await requireGobReadAccessOrRedirect();
+    expect(result.profile.role).toBe("govt");
+    expect(result.jurisdictions).toEqual([{ province: "CABA", locality: "Palermo" }]);
+  });
+
+  it("requireGobReadAccessOrRedirect bounces a personal role to the explained access-denied screen", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-owner"));
+    mockGetProfileCached.mockResolvedValue(
+      nationalProfile({ id: "user-owner", role: "owner", accountType: "personal" }),
+    );
+    await expect(requireGobReadAccessOrRedirect()).rejects.toThrow(
+      "NEXT_REDIRECT:/acceso-denegado?portal=gob",
+    );
+  });
+
+  it("requireGobReadAccessOrRedirect bounces a DEACTIVATED national to /", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-national"));
+    mockGetProfileCached.mockResolvedValue(nationalProfile({ deactivatedAt: new Date() }));
+    await expect(requireGobReadAccessOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+  });
+
+  it("requireGobReadAccessOrRedirect bounces a national on a PERSONAL account type to /", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-national"));
+    mockGetProfileCached.mockResolvedValue(nationalProfile({ accountType: "personal" }));
+    await expect(requireGobReadAccessOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+  });
+
+  it("requireAdminOrGovtOrRedirect (the write-authority gate) REFUSES national", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-national"));
+    mockGetProfileCached.mockResolvedValue(nationalProfile());
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow(
+      "NEXT_REDIRECT:/acceso-denegado?portal=gob",
+    );
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
+  });
+
+  it("requireDecomisoPrincipal REFUSES national (a decomiso is an act of the State)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-national"));
+    mockGetProfileCached.mockResolvedValue(nationalProfile());
+    await expect(requireDecomisoPrincipal()).rejects.toThrow(
+      "NEXT_REDIRECT:/acceso-denegado?portal=gob",
+    );
+  });
+
+  it("requireAdminOrRedirect (/admin) REFUSES national and bounces it to /", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-national"));
+    mockGetProfileCached.mockResolvedValue(nationalProfile());
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(mockRedirect).toHaveBeenCalledWith("/");
+  });
+});
 
 describe("requireAdminOrGovtOrRedirect", () => {
   it("redirects to /iniciar-sesion when no session", async () => {

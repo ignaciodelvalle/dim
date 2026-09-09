@@ -41,7 +41,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import type { Organization, OrganizationMembership } from "@/db";
+import type { Organization, OrganizationMembership, UserRole } from "@/db";
 import { type OrgQueueKey, fetchOrgQueueCounts } from "@/lib/analytics/org-dashboard";
 import {
   excludeResolvedLostEpisodeSql,
@@ -54,7 +54,7 @@ import {
 
 export type CachedProfile = {
   id: string;
-  role: "owner" | "vet" | "govt" | "admin";
+  role: UserRole;
   displayName: string;
   accountType: "personal" | "institutional";
   deactivatedAt: Date | null;

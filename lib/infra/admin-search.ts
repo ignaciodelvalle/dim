@@ -35,7 +35,7 @@ function looksLikeDni(trimmed: string): boolean {
 export type UserSearchResult = {
   id: string;
   displayName: string;
-  role: "owner" | "vet" | "govt" | "admin";
+  role: "owner" | "vet" | "govt" | "admin" | "national";
   // Jurisdiction that issued the vet's professional license. Used by
   // RevokeUserActions (Fase 4+) for client-side canRevoke scope check.
   // Null for non-vet users.

@@ -16,7 +16,7 @@
 // for Métrica/Estado, driven by the same underlying data + actions.
 //
 // Scope — UNCHANGED from the embedded panel (presentation-only move):
-//   READ (evaluateAlertSubscriptions) — reachable behind requireAdminOrGovtOrRedirect,
+//   READ (evaluateAlertSubscriptions) — reachable behind requireGobReadAccessOrRedirect,
 //     same "admin universal / govt needs an active jurisdiction assignment"
 //     access gate /gob/programa used for its whole exec summary. Subscriptions
 //     are NOT jurisdiction-scoped by the PAGE — each row carries its OWN
@@ -41,7 +41,8 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpFilterBar } from "@/components/ui/dashboard";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { type ALERT_DIRECTIONS, ALERT_METRIC_KEYS } from "@/db/schema";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { evaluateAlertSubscriptions } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { createClient } from "@/lib/supabase/server";
@@ -87,12 +88,12 @@ export default async function SuscripcionesPage({
 }: {
   searchParams: Promise<{ metricKey?: string; state?: string }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
 
   // Same reachability gate the exec summary used for its whole page — an
   // unassigned govt account still can't reach this surface. Preserved as-is.
   const hasAccess =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAccess) {
     return (

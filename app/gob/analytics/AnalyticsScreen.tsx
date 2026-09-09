@@ -42,7 +42,8 @@ import {
   fetchOutbreakHistory,
 } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
@@ -101,13 +102,13 @@ export async function AnalyticsScreen({
   searchParams: sp,
   underHub = false,
 }: AnalyticsScreenProps) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role };
 
   // Capability guard: analytics.read = admin OR (govt AND has assignments).
   // v1 derives capability from role + jurisdictions; no dedicated capability column.
   const hasAnalyticsRead =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAnalyticsRead) {
     return (
@@ -175,7 +176,7 @@ export async function AnalyticsScreen({
       subtitle={
         <>
           {/* The universal claim yields to the narrowed-view caption (never both). */}
-          {profile.role === "admin" ? (
+          {hasNationalReadScope(profile.role) ? (
             narrowedView ? null : (
               <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )

@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
+  requireGobReadAccessOrRedirect: vi.fn(async () => ({
     user: { id: "govt-1", email: "govt@dim.test" },
     profile: { id: "govt-1", role: "govt" },
     jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
@@ -238,7 +238,7 @@ vi.mock("@/lib/metrics", async () => {
 });
 
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, countCasesForGovt } from "@/lib/infra/case-queries";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { CASE_KINDS_ROUTED_ELSEWHERE } from "@/src/modules/cases/domain/case-kinds";
@@ -662,11 +662,11 @@ describe("/gob (home) — the Casos tile counts through the queue's own function
 describe("/gob (home) — the admin Casos count follows the province drill", () => {
   async function renderAsAdmin(searchParams: Record<string, string>): Promise<void> {
     vi.clearAllMocks();
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValueOnce({
       user: { id: "admin-1", email: "admin@dim.test" },
       profile: { id: "admin-1", role: "admin" },
       jurisdictions: [],
-    } as unknown as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>);
+    } as unknown as Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>>);
     vi.mocked(resolveJurisdictionScope).mockResolvedValueOnce({
       filteredJurisdictions: [],
       localities: [],

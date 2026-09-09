@@ -12,6 +12,7 @@ import { notFound, redirect } from "next/navigation";
 
 import type { Organization, OrganizationMembership } from "@/db";
 import type { ActorProfile } from "@/lib/domain/institutional-scope";
+import type { GobReadRole } from "@/lib/domain/jurisdiction-canonical";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import {
   getJurisdictionsCached,
@@ -176,10 +177,10 @@ async function currentReturnTo(): Promise<string | undefined> {
 
 async function loadActiveInstitutionalProfile(
   userId: string,
-  opts: { allow: ReadonlyArray<"admin" | "govt">; roleRejectRedirect: string },
+  opts: { allow: ReadonlyArray<GobReadRole>; roleRejectRedirect: string },
 ): Promise<NonNullable<Awaited<ReturnType<typeof getProfileCached>>>> {
   const profile = await getProfileCached(userId);
-  if (!profile || !opts.allow.includes(profile.role as "admin" | "govt")) {
+  if (!profile || !opts.allow.includes(profile.role as GobReadRole)) {
     redirect(opts.roleRejectRedirect);
   }
   if (profile.accountType !== "institutional") redirect("/");
@@ -187,6 +188,14 @@ async function loadActiveInstitutionalProfile(
   return profile;
 }
 
+// THE WRITE-AUTHORITY GATE for /gob. Admits admin | govt ONLY. Every mutating
+// server action and route handler on the government slice gates on this guard
+// (or on a guard that delegates to it — requireDecomisoPrincipal,
+// requireDenunciaModerationPrincipal), which is exactly why the read-only
+// `national` role is NOT admitted here: refusing it at this one function is
+// what keeps every writer closed to it without touching the writers.
+//
+// Read pages under app/gob use requireGobReadAccessOrRedirect below instead.
 export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession> {
   const session = await requireUserOrRedirect(await currentReturnTo());
   const profile = await loadActiveInstitutionalProfile(session.user.id, {
@@ -202,6 +211,57 @@ export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession
   return {
     ...session,
     profile: { id: profile.id, role: profile.role as "admin" | "govt" },
+    jurisdictions,
+  };
+}
+
+// ============================================================================
+// /gob READ gate — admin | govt | national (national role, migration 0214)
+// ============================================================================
+//
+// The same three invariants as requireAdminOrGovtOrRedirect (role ∈ allow,
+// institutional account type, not deactivated — all centralized in
+// loadActiveInstitutionalProfile), with ONE more role admitted: `national`, the
+// read-only institutional role with country-wide READ scope. It holds no
+// govt_assignments (jurisdictions is [] — universal, exactly like admin; the
+// scope helpers decide universality through hasNationalReadScope(role), never
+// through the emptiness of this list).
+//
+// WHY A SIBLING AND NOT A WIDER requireAdminOrGovtOrRedirect. The strict guard
+// fronts eleven app/actions files and several src/modules action files — the
+// government slice's WRITERS. Widening it would have admitted a national to
+// every one of them; converting each writer to a new strict guard would have
+// meant that ONE missed writer is a privilege escalation. A sibling inverts the
+// failure mode: a read page that was not converted BOUNCES a national (an
+// annoyance, visible, fixable), it never lets one write. And this guard is
+// deliberately absent from scripts/check-authz-guards.ts's AUTH_GUARDS, so a
+// "use server" export that ever switched to it would be flagged as unguarded —
+// the fence enforces that writers cannot adopt the read gate.
+//
+// Same rejects, same destinations as the strict guard: unauthenticated → /login
+// (returnTo preserved); wrong role → /acceso-denegado?portal=gob; personal or
+// deactivated institutional → /.
+
+export type GobReadSession = AuthenticatedSession & {
+  profile: { id: string; role: GobReadRole };
+  // Empty for admin AND national (universal read scope). Populated for govt
+  // with every active (non-revoked) govt_assignments tuple.
+  jurisdictions: AdminOrGovtJurisdiction[];
+};
+
+export async function requireGobReadAccessOrRedirect(): Promise<GobReadSession> {
+  const session = await requireUserOrRedirect(await currentReturnTo());
+  const profile = await loadActiveInstitutionalProfile(session.user.id, {
+    allow: ["admin", "govt", "national"],
+    roleRejectRedirect: "/acceso-denegado?portal=gob",
+  });
+
+  const jurisdictions: AdminOrGovtJurisdiction[] =
+    profile.role === "govt" ? await getJurisdictionsCached(profile.id) : [];
+
+  return {
+    ...session,
+    profile: { id: profile.id, role: profile.role as GobReadRole },
     jurisdictions,
   };
 }

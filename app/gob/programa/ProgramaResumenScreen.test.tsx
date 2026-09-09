@@ -68,7 +68,7 @@ const mocks = vi.hoisted(() => {
     role: { value: "admin" as "admin" | "govt" },
     jurisdictions: { value: [] as { province: string; locality: string }[] },
     adminProvince: { value: "Tierra del Fuego" as string | null },
-    requireAdminOrGovtOrRedirect: vi.fn(),
+    requireGobReadAccessOrRedirect: vi.fn(),
     resolveJurisdictionScope: vi.fn(),
     registryCounts: vi.fn(),
     getCensusPopulationsCached: vi.fn(),
@@ -82,7 +82,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-mocks.requireAdminOrGovtOrRedirect.mockImplementation(async () => ({
+mocks.requireGobReadAccessOrRedirect.mockImplementation(async () => ({
   profile: { id: "u-1", role: mocks.role.value },
   jurisdictions: mocks.jurisdictions.value,
 }));
@@ -133,7 +133,7 @@ mocks.fetchPiiOversight.mockImplementation(async () => []);
 
 vi.mock("@/lib/infra/auth-guards", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/infra/auth-guards")>()),
-  requireAdminOrGovtOrRedirect: mocks.requireAdminOrGovtOrRedirect,
+  requireGobReadAccessOrRedirect: mocks.requireGobReadAccessOrRedirect,
 }));
 vi.mock("@/lib/analytics/jurisdiction-scope", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/analytics/jurisdiction-scope")>()),

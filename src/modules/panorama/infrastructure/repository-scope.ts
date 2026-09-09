@@ -9,6 +9,7 @@
 import { type SQL, and, sql } from "drizzle-orm";
 
 import { cases, petEvents } from "@/db";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -144,7 +145,7 @@ export function jurisdictionColumnsScope(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") {
+  if (hasNationalReadScope(actor.role)) {
     if (!adminProvince) return null;
     if (adminLocality) {
       return and(

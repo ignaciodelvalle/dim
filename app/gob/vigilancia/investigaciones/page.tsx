@@ -14,7 +14,8 @@ import {
 import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard/CaseStatusBadge";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/infra/case-queries";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateTime } from "@/lib/utils/format";
@@ -39,8 +40,10 @@ export default async function GobInvestigacionesPage({
 }: {
   searchParams: Promise<{ province?: string; locality?: string }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const isAdmin = profile.role === "admin";
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
+  // Universal READ scope (admin | national) — the flag the list loader takes
+  // to skip the jurisdiction predicate.
+  const isAdmin = hasNationalReadScope(profile.role);
   const sp = await searchParams;
 
   // Same pattern as /gob/vigilancia and /gob/vigilancia/brotes: resolve the

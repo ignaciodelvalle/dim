@@ -17,6 +17,7 @@
 
 import type { SeededLayer } from "@/components/panorama/panorama-console-helpers";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { type GobReadRole, hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { withDbBudget } from "@/lib/infra/db-budget";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { panoramaScopeLabel } from "@/lib/panorama/scope-label";
@@ -97,7 +98,7 @@ export type PanoramaBoardProps = {
  *   - `routeLabel`: budget/KPI log labels ("admin/panorama" | "gob/panorama").
  */
 export async function buildPanoramaBoard(args: {
-  role: "admin" | "govt";
+  role: GobReadRole;
   jurisdictions: DashboardJurisdiction[];
   sp: PanoramaBoardSearchParams;
   scope: PanoramaRequestScope;
@@ -113,7 +114,7 @@ export async function buildPanoramaBoard(args: {
   // admin/universal (even when drilled into a province) returns to "Vista
   // nacional". A govt operator reaching the admin route counts as bounded too
   // (requireAdminOrGovtOrRedirect admits both roles on both routes).
-  const boundedJurisdiction = role !== "admin" && jurisdictions.length > 0;
+  const boundedJurisdiction = !hasNationalReadScope(role) && jurisdictions.length > 0;
 
   const scopeLabel = panoramaScopeLabel(role, jurisdictions);
 
@@ -141,12 +142,13 @@ export async function buildPanoramaBoard(args: {
   // (`narrowGovtScope` → a single SPECIFIC pair) has the SAME LENGTH as the
   // mandate at a strictly finer grain; a descriptor that stored a count, or only
   // `effective`, would serialize two genuinely different views identically.
+  const universal = hasNationalReadScope(role);
   const scopeAuthority: ViewScopeAuthority = {
-    role: role === "admin" ? "admin" : "govt",
-    // Admin holds no assignments — its universal standing is carried by `role`,
-    // and its narrowing is a DRILL, never a mandate list.
-    mandate: role === "admin" ? [] : jurisdictions,
-    effective: role === "admin" ? [] : scoped,
+    role,
+    // Admin / national hold no assignments — their universal standing is
+    // carried by `role`, and their narrowing is a DRILL, never a mandate list.
+    mandate: universal ? [] : jurisdictions,
+    effective: universal ? [] : scoped,
     adminDrill: adminProvince ? { province: adminProvince, locality: adminLocality ?? null } : null,
   };
 

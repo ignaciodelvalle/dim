@@ -33,7 +33,7 @@
 // its audit row on ZONE EXPANSION ONLY, carrying the zone — aggregates are
 // not row-level PII, so there is nothing to audit until a zone is opened.
 //
-// Capability gate: requireAdminOrGovtOrRedirect (same as all /gob pages).
+// Capability gate: requireGobReadAccessOrRedirect (same as all /gob pages).
 // Export: /gob/outreach/export?pipeline=<id>&... for CSV download (zone-scoped
 // for overdue_rabies when accessed from inside an expanded zone).
 
@@ -47,7 +47,8 @@ import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFa
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   type OverdueRabiesPet,
   type OverdueRabiesResult,
@@ -372,11 +373,11 @@ function ZoneAggregates({
 }
 
 export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceScreenProps = {}) {
-  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { user, profile, jurisdictions } = await requireGobReadAccessOrRedirect();
 
   // Capability gate: same pattern as analytics/campañas.
   const hasOutreachAccess =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasOutreachAccess) {
     return (

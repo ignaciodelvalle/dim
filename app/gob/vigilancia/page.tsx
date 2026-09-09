@@ -36,7 +36,8 @@ import {
 import { fetchBiteEscalationGap } from "@/lib/analytics/govt-home-kpis";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchSurveillanceCompliance } from "@/lib/analytics/surveillance-metrics";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   buildProjectionContext,
   enoSlaHeadline,
@@ -81,7 +82,7 @@ export default async function GobVigilanciaPage({
     dir?: string;
   }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role };
 
   const sp = await searchParams;
@@ -144,7 +145,7 @@ export default async function GobVigilanciaPage({
       subtitle={
         <>
           {/* The universal claim yields to the narrowed-view caption (never both). */}
-          {profile.role === "admin" ? (
+          {hasNationalReadScope(profile.role) ? (
             narrowedView ? null : (
               <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )

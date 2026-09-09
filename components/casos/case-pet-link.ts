@@ -8,7 +8,7 @@
 // role-free, and shows exactly what any verifier sees. Only the OWNER keeps the
 // /mis-mascotas deep link (it IS their pet).
 
-export type CasePetLinkRole = "owner" | "vet" | "govt" | "admin";
+export type CasePetLinkRole = "owner" | "vet" | "govt" | "admin" | "national";
 
 /**
  * The pet-credential link for an authed case-detail viewer, by role. Null when

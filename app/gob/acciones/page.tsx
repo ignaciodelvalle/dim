@@ -24,7 +24,8 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpFilterBar, ViewScopeCaption } from "@/components/ui/dashboard";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 
 import { WorklistSection } from "./_components/WorklistSection";
@@ -37,7 +38,7 @@ export default async function GobAccionesPage({
 }: {
   searchParams: Promise<{ province?: string; locality?: string }>;
 }) {
-  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { user, profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const sp = await searchParams;
 
   // THE FENCE — govt narrowing only ever intersects DOWN against the
@@ -54,10 +55,11 @@ export default async function GobAccionesPage({
     params: { province: sp.province, locality: sp.locality },
   });
 
-  const scope: WorklistScope =
-    profile.role === "admin"
-      ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
-      : { role: "govt", jurisdictions: filteredJurisdictions };
+  // WorklistScope's `role` is a scope KIND (universal + drill vs mandate list);
+  // the read-only national role reads with the universal kind.
+  const scope: WorklistScope = hasNationalReadScope(profile.role)
+    ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
+    : { role: "govt", jurisdictions: filteredJurisdictions };
 
   // C3 disclosure — caption when the URL filter narrows below the mandate.
   const narrowedView = describeNarrowedView({

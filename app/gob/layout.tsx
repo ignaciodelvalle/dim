@@ -13,7 +13,8 @@ import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { isPlatformInMaintenance } from "@/lib/infra/live-user";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { BRANDING } from "@/lib/ui/branding";
@@ -22,10 +23,12 @@ import type { ShellSession } from "@/lib/ui/shell-nav";
 import { roleLabel } from "@/lib/utils/format";
 import type { Metadata } from "next";
 
-// Gate the /gob/* segment. Both admin and govt can access this surface.
-// Admin has universal scope; govt is scoped to their assigned localities.
-// requireAdminOrGovtOrRedirect rejects deactivated accounts (deactivated_at IS
-// NOT NULL) by redirecting to /, so a deactivated govt/admin cannot reach any
+// Gate the /gob/* segment. admin, govt and national can access this surface.
+// Admin and national have universal READ scope; govt is scoped to their
+// assigned localities; national additionally writes nothing (every mutating
+// action gates on requireAdminOrGovtOrRedirect, which refuses it).
+// requireGobReadAccessOrRedirect rejects deactivated accounts (deactivated_at IS
+// NOT NULL) by redirecting to /, so a deactivated operator cannot reach any
 // /gob surface or invoke its server actions.
 
 // A funcionario works with three portals open at once, and all four of them
@@ -51,7 +54,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
     return <OpMaintenanceScreen />;
   }
 
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
 
   // C3 (ONE VIEWSCOPE, plan-maestro-integridad §C3): this layout is SHARED
   // across every /gob/* page and renders once per navigation — it has no
@@ -62,7 +65,9 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   // the verified S3 symptom (a shared badge claiming a raw enumerable count as
   // if it were the current, possibly-filtered view). A page whose OWN filter
   // narrows below this mandate discloses that separately (ViewScopeCaption).
-  const scopeCode = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
+  const scopeCode = hasNationalReadScope(profile.role)
+    ? "Nacional"
+    : describeMandate(jurisdictions);
 
   // The gob portal shows the GOB rail — to everyone who is in it, admins
   // included.
@@ -173,11 +178,17 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
                 not just the count. Admin (universal) and single-locality govt
                 already read their full scope in the label (>=md; <md the chip
                 collapses to its portal code — see OpScopeChip). */}
-            {profile.role !== "admin" && jurisdictions.length > 1 ? (
+            {!hasNationalReadScope(profile.role) && jurisdictions.length > 1 ? (
               <GovtJurisdictionsChip label={scopeCode} jurisdictions={jurisdictions} />
             ) : (
               <OpScopeChip
-                code={profile.role === "admin" ? "SUPERADMIN" : "GOB"}
+                code={
+                  profile.role === "admin"
+                    ? "SUPERADMIN"
+                    : profile.role === "national"
+                      ? "NACIONAL"
+                      : "GOB"
+                }
                 label={scopeCode}
                 variant={profile.role === "admin" ? "superadmin" : "default"}
               />
@@ -186,8 +197,13 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
           {/* Global search omnibox (Item 10) — operator jump-to-record + PII log.
               An admin visiting /gob searches universally; a govt is scoped to its
               jurisdictions (Cowork B3). <md it rests as an icon trigger that
-              expands to a full-width row over the topbar (see OpOmnibox). */}
-          <OpOmnibox universalScope={profile.role === "admin"} />
+              expands to a full-width row over the topbar (see OpOmnibox).
+              NOT rendered for the read-only national role: the omnibox is a
+              PII person/pet lookup backed by a server action that gates on the
+              write-authority guard (admin | govt), so for a national it could
+              only ever answer with a bounce. The aggregate dashboards are the
+              national surface; record-level PII search is not. */}
+          {profile.role !== "national" && <OpOmnibox universalScope={profile.role === "admin"} />}
           {/* Right: switcher + logout */}
           <div className="flex flex-shrink-0 items-center gap-2">{topbarActions}</div>
         </header>

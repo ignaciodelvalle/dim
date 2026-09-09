@@ -36,7 +36,8 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard
 import { db, welfareReports } from "@/db";
 import { buildModerationQueueConditions } from "@/lib/analytics/govt-dashboards";
 import { fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, countCasesForGovt } from "@/lib/infra/case-queries";
 import { buildProjectionContext, windows } from "@/lib/metrics";
 import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
@@ -75,7 +76,7 @@ export default async function GobDenunciasPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role } as const;
   const sp = await searchParams;
   const etapa = parseEtapa(sp.etapa);
@@ -95,7 +96,7 @@ export default async function GobDenunciasPage({
     // Matches the stage screen's role-derived semantics (prepush-review-3
     // fix): admin's badge counts the escalation inbox too — the badge must
     // never disagree with what the tab shows.
-    includeEscalated: profile.role === "admin",
+    includeEscalated: hasNationalReadScope(profile.role),
   });
 
   // BOUNDED. This Promise.all used to be awaited bare, and it is the fan-out
@@ -123,7 +124,7 @@ export default async function GobDenunciasPage({
       //
       // Both query helpers already accept `kind` (ListCasesFor{Govt,Admin}Filters)
       // — nothing here needed building, only passing.
-      profile.role === "admin"
+      hasNationalReadScope(profile.role)
         ? countCasesForAdmin({ status: "open", kind: ESCALATED_DENUNCIA_KIND })
         : countCasesForGovt(jurisdictions, { status: "open", kind: ESCALATED_DENUNCIA_KIND }),
     ]),

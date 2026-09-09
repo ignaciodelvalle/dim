@@ -35,7 +35,11 @@ import {
 } from "@/db";
 import { type TimelineEvent, fetchWelfareTimeline } from "@/lib/analytics/govt-dashboards";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
-import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import {
+  type GobReadRole,
+  hasNationalReadScope,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
@@ -192,7 +196,7 @@ export type WelfareInspectorResult = { ok: true; detail: WelfareInspectorDetail 
 // requireAdminOrGovtOrRedirect() result and the API guard's resolved actor
 // (profile.id === auth user id, verified in request-cache getProfileCached).
 export type WelfareInspectorSession = {
-  profile: { id: string; role: "admin" | "govt" };
+  profile: { id: string; role: GobReadRole };
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>;
   user: { id: string };
 };
@@ -228,7 +232,7 @@ export async function loadWelfareInspectorDetail(
   // Govt scope guard — out of scope is INDISTINGUISHABLE from "does not exist"
   // (404, never a permission error). Same subsumption-aware predicate as the
   // triage queue list and the full page (jurisdictionScopeContains).
-  if (profile.role === "govt") {
+  if (!hasNationalReadScope(profile.role)) {
     const inScope = jurisdictionScopeContains(
       jurisdictions,
       report.jurisdictionProvince,

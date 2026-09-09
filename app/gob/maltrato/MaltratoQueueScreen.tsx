@@ -37,7 +37,8 @@ import {
   fetchWelfareMetrics,
 } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import type { KpiId } from "@/lib/metrics/kpi-catalog";
 import { isKpiPeriodInvariant } from "@/lib/metrics/kpi-period-invariance";
@@ -397,7 +398,7 @@ export async function MaltratoQueueScreen({
   searchParams: sp,
   underHub = false,
 }: MaltratoQueueScreenProps) {
-  const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions, user } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role };
 
   const activeQueue = parseQueue(sp.queue);
@@ -496,7 +497,7 @@ export async function MaltratoQueueScreen({
             <p className="text-md text-ln-op-mute">
               Cola de triage bajo Ley Nacional 14.346.{" "}
               {/* The universal claim yields to the narrowed-view caption (never both). */}
-              {profile.role === "admin"
+              {hasNationalReadScope(profile.role)
                 ? narrowedView
                   ? null
                   : "Vista universal — todas las jurisdicciones."

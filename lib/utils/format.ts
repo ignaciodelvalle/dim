@@ -485,6 +485,9 @@ export function roleLabel(role: string): string {
       return "Gobierno";
     case "admin":
       return "Administrador/a";
+    case "national":
+      // Read-only institutional role with country-wide read scope (0214).
+      return "Lectura nacional";
     default:
       return role;
   }

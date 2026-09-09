@@ -7,7 +7,11 @@ import { proposeVetUpgradeAction } from "@/app/actions/admin-proposals";
 import { OpButton, OpInput, OpTextarea } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
 
-type Target = { id: string; displayName: string; role: "owner" | "vet" | "govt" | "admin" };
+type Target = {
+  id: string;
+  displayName: string;
+  role: "owner" | "vet" | "govt" | "admin" | "national";
+};
 
 type Mode = "idle" | "vet";
 

@@ -63,8 +63,9 @@ import {
   resolveJurisdictionTargetsForScope,
 } from "@/lib/analytics/jurisdiction-targets";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { govtProvinceHref } from "@/lib/infra/admin-province-link";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   NO_CENSUS_NOTE,
   type OutlierMetric,
@@ -139,12 +140,12 @@ export async function ProgramaResumenScreen({
   searchParams: sp,
   underHub = false,
 }: ProgramaResumenScreenProps) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role } as const;
 
   // Capability guard: exec summary requires admin OR (govt AND has assignments).
   const hasAccess =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAccess) {
     return (
@@ -199,7 +200,7 @@ export async function ProgramaResumenScreen({
   // hang). Admin national/cross-province views stay flat by policy;
   // every adjusted tile discloses the swap (JURISDICTION_ADJUSTED_TARGET_NOTE).
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
-    profile.role === "admin"
+    hasNationalReadScope(profile.role)
       ? adminProvince
         ? [{ province: adminProvince, locality: adminLocality ?? "" }]
         : []
@@ -216,7 +217,7 @@ export async function ProgramaResumenScreen({
       subtitle={
         <>
           {/* The universal claim yields to the narrowed-view caption (never both). */}
-          {profile.role === "admin" ? (
+          {hasNationalReadScope(profile.role) ? (
             narrowedView ? null : (
               <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )

@@ -10,12 +10,19 @@
 
 import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
+  type GobReadRole,
+  hasNationalReadScope,
   isWholeProvinceAssignment,
   isWholeProvinceLocality,
 } from "@/lib/domain/jurisdiction-canonical";
 
-/** Who is asking: admin (universal scope) or govt (jurisdiction-scoped). */
-export type DashboardActor = { role: "admin" | "govt" };
+/**
+ * Who is asking: admin or national (universal read scope) or govt
+ * (jurisdiction-scoped). Universality is decided by `hasNationalReadScope`
+ * (lib/domain/jurisdiction-canonical.ts) — never by comparing `role` against
+ * `"admin"` at a call site.
+ */
+export type DashboardActor = { role: GobReadRole };
 
 /** A single jurisdiction pair as stored in govt_assignments. */
 export type DashboardJurisdiction = { province: string; locality: string };
@@ -80,7 +87,9 @@ export function buildProjectionScope(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
 ): ProjectionScope {
-  return actor.role === "admin" ? { kind: "global" } : { kind: "jurisdictions", jurisdictions };
+  return hasNationalReadScope(actor.role)
+    ? { kind: "global" }
+    : { kind: "jurisdictions", jurisdictions };
 }
 
 /** The minimum a caller must hand the D.10 disclosure rule. Any full

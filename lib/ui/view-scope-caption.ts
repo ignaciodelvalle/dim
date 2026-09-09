@@ -10,7 +10,11 @@
 // — this does not re-derive scope, it only compares the mandate against the
 // effective view the ctx already carries.
 
-import { isWholeProvinceAssignment } from "@/lib/domain/jurisdiction-canonical";
+import {
+  type GobReadRole,
+  hasNationalReadScope,
+  isWholeProvinceAssignment,
+} from "@/lib/domain/jurisdiction-canonical";
 import { pluralizeEs } from "@/lib/utils/format";
 
 export type ViewScopeJurisdiction = { province: string; locality: string };
@@ -42,7 +46,7 @@ export function jurisdictionsEqual(
 }
 
 export type DescribeNarrowedViewParams = {
-  role: "admin" | "govt";
+  role: GobReadRole;
   /** The operator's full MANDATE — raw session assignments (govt only). */
   mandateJurisdictions: readonly ViewScopeJurisdiction[];
   /**
@@ -74,7 +78,7 @@ export function describeNarrowedView(params: DescribeNarrowedViewParams): string
     adminLocality,
   } = params;
 
-  if (role === "admin") {
+  if (hasNationalReadScope(role)) {
     if (!adminProvince) return null; // national — nothing narrower to disclose.
     return adminLocality ? `${adminLocality}, ${adminProvince}` : adminProvince;
   }
@@ -103,7 +107,7 @@ export function describeNarrowedView(params: DescribeNarrowedViewParams): string
 }
 
 export type OperativeJurisdictionScopeParams = {
-  role: "admin" | "govt";
+  role: GobReadRole;
   /**
    * The EFFECTIVE (already-filtered) jurisdictions in view — e.g.
    * `filteredJurisdictions` from `resolveJurisdictionScope`. Ignored for
@@ -131,7 +135,7 @@ export type OperativeJurisdictionScopeParams = {
 export function isNarrowedToOperativeJurisdiction(
   params: OperativeJurisdictionScopeParams,
 ): boolean {
-  if (params.role === "admin") return params.adminProvince != null;
+  if (hasNationalReadScope(params.role)) return params.adminProvince != null;
   if (params.effectiveJurisdictions.length === 0) return false;
   const provinces = new Set(params.effectiveJurisdictions.map((j) => j.province));
   return provinces.size === 1;

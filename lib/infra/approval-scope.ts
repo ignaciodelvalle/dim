@@ -15,6 +15,7 @@ import {
   isWholeProvinceLocality,
   jurisdictionScopeContains,
 } from "@/lib/domain/jurisdiction-canonical";
+import { type GobReadRole, hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 
@@ -38,6 +39,11 @@ export function canDecideRequest(
   jurisdictions: readonly AdminOrGovtJurisdiction[],
 ): boolean {
   if (profile.role === "admin") return true;
+  // Deciding is a WRITE. Only a govt reaches the jurisdiction test below — the
+  // read-only national role (or any future role) is refused by ROLE here, not
+  // by happening to hold an empty assignment list. Pinned by
+  // __tests__/national-role-read-only.test.ts.
+  if (profile.role !== "govt") return false;
   if (ADMIN_ONLY_TYPES.includes(request.type)) return false;
   // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
   // every barrio in it; barrio assignments stay exact (never widens security).
@@ -65,13 +71,15 @@ export function canDecideRequest(
 // - govt: govt-decidable types whose (province, locality) matches one of
 //   their active assignments (whole-province subsumption applies).
 export function visibleRequestsClause(
-  profile: { id: string; role: "admin" | "govt" },
+  profile: { id: string; role: GobReadRole },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
 ) {
   // Admin is universal: no scope predicate. `sql`true`` composes cleanly inside
   // the `and(status='pending', scopeClause)` the callers build, so the queue
   // and the global counter share ONE population.
-  if (profile.role === "admin") return sql`true`;
+  // admin | national: universal READ of the queue (deciding is a separate,
+  // write-side question — canDecideRequest keeps admitting admin | govt only).
+  if (hasNationalReadScope(profile.role)) return sql`true`;
 
   // govt: empty jurisdictions → see nothing.
   if (jurisdictions.length === 0) return sql`false`;
@@ -107,7 +115,7 @@ export function visibleRequestsClause(
 // Fetch limit+1 to detect hasMore; the page renders limit rows and uses row N+1
 // solely to decide whether to show the "older" link.
 export async function fetchVisiblePendingRequests(
-  profile: { id: string; role: "admin" | "govt" },
+  profile: { id: string; role: GobReadRole },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
   typeFilter?: ApprovalRequestType,
   opts?: { limit?: number; cursor?: KeysetCursor },
@@ -141,7 +149,7 @@ export async function fetchVisiblePendingRequests(
 // total regardless of queue size. Shares `visibleRequestsClause` so the count and
 // the list can never scope differently.
 export async function countVisiblePendingRequests(
-  profile: { id: string; role: "admin" | "govt" },
+  profile: { id: string; role: GobReadRole },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
 ): Promise<number> {
   const scopeClause = visibleRequestsClause(profile, jurisdictions);
@@ -159,7 +167,7 @@ export async function countVisiblePendingRequests(
 // lumped total or the queue list over what's "visible" — same scope
 // predicate, just an extra type filter pushed into the same COUNT query.
 export async function countVisiblePendingRequestsByType(
-  profile: { id: string; role: "admin" | "govt" },
+  profile: { id: string; role: GobReadRole },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
   type: ApprovalRequestType,
 ): Promise<number> {

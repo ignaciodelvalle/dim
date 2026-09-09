@@ -29,6 +29,7 @@ import { and, eq, inArray, isNull, lt, not, or, sql } from "drizzle-orm";
 import { WELFARE_SLA_DAYS } from "@/app/gob/maltrato/_lib/welfare-sla";
 import { cases, analyticsDb as db, welfareReports } from "@/db";
 import { buildMaltratoListConditions } from "@/lib/analytics/dashboards/welfare";
+import { type GobReadRole, hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { type QueueAging, ageInDays } from "@/lib/domain/queue-aging";
 import { buildAdminCaseFilterClauses, buildGovtCaseWhereClause } from "@/lib/infra/case-queries";
 import type { DashboardJurisdiction } from "@/lib/metrics";
@@ -90,7 +91,7 @@ function toAging(row: AgingRow | undefined, now: Date): QueueAging {
 }
 
 /** Actor shape the welfare condition builder needs — mirrors the page's. */
-export type GovtQueueActor = { role: "admin" | "govt" };
+export type GovtQueueActor = { role: GobReadRole };
 
 /**
  * Aging of the OPEN welfare (maltrato) queue in the caller's scope.
@@ -110,12 +111,13 @@ export async function fetchWelfareQueueAging(
 ): Promise<QueueAging> {
   // The SAME condition builder the maltrato queue uses, with queue "all" (no
   // workflow lens) — identical to how worklist-io.ts calls it.
+  const universal = hasNationalReadScope(actor.role);
   const scope = buildMaltratoListConditions({
     actor: { role: actor.role },
-    filteredJurisdictions: actor.role === "govt" ? [...filteredJurisdictions] : [],
+    filteredJurisdictions: universal ? [] : [...filteredJurisdictions],
     queue: "all",
-    selectedProvince: actor.role === "admin" ? (opts.selectedProvince ?? null) : null,
-    selectedLocality: actor.role === "admin" ? (opts.selectedLocality ?? null) : null,
+    selectedProvince: universal ? (opts.selectedProvince ?? null) : null,
+    selectedLocality: universal ? (opts.selectedLocality ?? null) : null,
     currentUserId,
   });
 

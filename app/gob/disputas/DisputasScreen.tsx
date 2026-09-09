@@ -18,7 +18,8 @@ import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueu
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { custodyDisputes, db, pets } from "@/db";
 import { custodyDisputesScopeClause } from "@/lib/analytics/govt-dashboards";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { type SQL, and, desc, eq, ne } from "drizzle-orm";
 
@@ -38,7 +39,7 @@ export type DisputasScreenProps = {
 };
 
 export async function DisputasScreen({ searchParams: sp, underHub = false }: DisputasScreenProps) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const activeStatus = parseStatus(sp.status);
 
   // Fetch dispute rows filtered by active status (open vs. closed/resolved).
@@ -96,7 +97,7 @@ export async function DisputasScreen({ searchParams: sp, underHub = false }: Dis
         title={KPI_CATALOG.custody_disputes_open.label}
         subtitle={
           <p className="text-md text-ln-op-mute">
-            {profile.role === "admin"
+            {hasNationalReadScope(profile.role)
               ? "Todas las disputas en el sistema."
               : "Disputas en tu cobertura."}
           </p>

@@ -50,6 +50,7 @@ import {
   type ModerationQueueStatus,
   buildModerationQueueConditions,
 } from "@/lib/analytics/govt-dashboards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { requireDenunciaModerationPrincipal } from "@/lib/infra/auth-guards";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
 import { formatDate, formatDateTime, todayIsoInAr } from "@/lib/utils/format";
@@ -111,7 +112,7 @@ export type ModeracionQueueScreenProps = {
  * complexity budget.
  */
 function moderationScopePhrase(role: string): string {
-  return role === "admin" ? "de todo el país" : "de tus localidades";
+  return hasNationalReadScope(role) ? "de todo el país" : "de tus localidades";
 }
 
 /**
@@ -206,7 +207,7 @@ export async function ModeracionQueueScreen({
     // EVERYONE: govt correctly excludes them, and the admin inbox was gone.
     // Admin viewing this screen keeps the escalation-inbox semantics; govt
     // keeps the pre-escalation view.
-    includeEscalated: profile.role === "admin",
+    includeEscalated: hasNationalReadScope(profile.role),
   });
 
   // Keyset (seek) pagination — same contract as /admin/moderacion:

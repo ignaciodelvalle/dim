@@ -128,7 +128,7 @@ export function toMeV1User(input: {
   email: string | null | undefined;
   profile: {
     displayName: string;
-    role: "owner" | "vet" | "govt" | "admin";
+    role: "owner" | "vet" | "govt" | "admin" | "national";
     accountType: "personal" | "institutional";
   } | null;
 }): MeV1User {

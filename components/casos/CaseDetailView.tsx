@@ -75,7 +75,7 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
     data: { user },
   } = await supabase.auth.getUser();
 
-  let viewerRole: "owner" | "vet" | "govt" | "admin" | null = null;
+  let viewerRole: "owner" | "vet" | "govt" | "admin" | "national" | null = null;
   let viewerUserId: string | null = null;
   let jurisdictions: Array<{ province: string; locality: string }> = [];
 

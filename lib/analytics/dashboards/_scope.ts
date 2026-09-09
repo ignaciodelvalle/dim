@@ -11,6 +11,7 @@
 import { type SQL, and, eq, sql } from "drizzle-orm";
 
 import { cases, custodyDisputes, organizations, pets, welfareReports } from "@/db";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -36,7 +37,7 @@ export function petsCurrentJurisdictionClause(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") {
+  if (hasNationalReadScope(actor.role)) {
     // Admin province drill-down (Panorama-style) — narrows the CURRENT-jurisdiction
     // guard the same way petsScopeClause does. Backward-compat: no adminProvince →
     // null, exactly as before.
@@ -72,7 +73,7 @@ export function casesScopeClause(
   adminProvince?: string,
   adminLocality?: string,
 ) {
-  if (actor.role === "admin") {
+  if (hasNationalReadScope(actor.role)) {
     // Backward-compat: no adminProvince → unrestricted, exactly as before.
     if (!adminProvince) return null;
     if (adminLocality) {
@@ -109,7 +110,7 @@ export function custodyDisputesScopeClause(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") {
+  if (hasNationalReadScope(actor.role)) {
     // Backward-compat: no adminProvince → unrestricted, exactly as before.
     if (!adminProvince) return null;
     if (adminLocality) {
@@ -146,7 +147,7 @@ export function welfareReportsScopeClause(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") {
+  if (hasNationalReadScope(actor.role)) {
     if (!adminProvince) return null;
     if (adminLocality) {
       return and(
@@ -175,7 +176,7 @@ export function organizationsScopeClause(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") {
+  if (hasNationalReadScope(actor.role)) {
     if (!adminProvince) return null;
     if (adminLocality) {
       return and(

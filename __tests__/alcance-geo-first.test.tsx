@@ -17,7 +17,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(),
+  requireGobReadAccessOrRedirect: vi.fn(),
 }));
 
 // OutreachRabiesReminderList (rendered inside an expanded zone) imports the
@@ -53,7 +53,7 @@ vi.mock("@/components/ui/dashboard/DashboardFreshnessFooter", () => ({
 
 import { AlcanceScreen } from "@/app/gob/outreach/AlcanceScreen";
 import { auditLog, db, pets, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 
 const TEST_PROVINCE = "Buenos Aires";
@@ -142,7 +142,7 @@ afterAll(async () => {
 
 describe("AlcanceScreen — geo-first aggregates by default (PO decision 3)", () => {
   it("opens with locality aggregates, not named pets — no PII visible", async () => {
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValue(
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValue(
       govtSession([
         { province: TEST_PROVINCE, locality: LOCALITY_A },
         { province: TEST_PROVINCE, locality: LOCALITY_B },
@@ -165,7 +165,7 @@ describe("AlcanceScreen — geo-first aggregates by default (PO decision 3)", ()
   });
 
   it("does NOT write a pii_queried audit row for the overdue_rabies pipeline on the aggregates render", async () => {
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValue(
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValue(
       govtSession([
         { province: TEST_PROVINCE, locality: LOCALITY_A },
         { province: TEST_PROVINCE, locality: LOCALITY_B },
@@ -188,7 +188,7 @@ describe("AlcanceScreen — geo-first aggregates by default (PO decision 3)", ()
 
 describe("AlcanceScreen — zone expansion reveals named pets + fires the audit row (PO decision 3)", () => {
   it("?zona=/?provincia= for LOCALITY_A shows ONLY that zone's named pets", async () => {
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValue(
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValue(
       govtSession([
         { province: TEST_PROVINCE, locality: LOCALITY_A },
         { province: TEST_PROVINCE, locality: LOCALITY_B },
@@ -208,7 +208,7 @@ describe("AlcanceScreen — zone expansion reveals named pets + fires the audit 
   });
 
   it("writes a pii_queried audit row carrying the expanded zone + its pet count", async () => {
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValue(
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValue(
       govtSession([
         { province: TEST_PROVINCE, locality: LOCALITY_A },
         { province: TEST_PROVINCE, locality: LOCALITY_B },

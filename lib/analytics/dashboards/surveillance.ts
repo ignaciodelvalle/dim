@@ -11,6 +11,7 @@
 import { type SQL, and, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { suppressSmallCells } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -559,7 +560,7 @@ export async function fetchCasesPerSubregion(
   // also produces a non-null scope, and admin's jurisdictions is always []
   // by contract, so a `scope !== null && jurisdictions.length === 0` check
   // would have wrongly zeroed the admin drill-down result.
-  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+  if (!hasNationalReadScope(actor.role) && jurisdictions.length === 0) return [];
 
   // Cases store the canonical province display name (migration 0055's
   // 24-enum check constraint); CABA is stored literally as "CABA" (not
@@ -894,7 +895,8 @@ export async function fetchOutbreakHistory(
   jurisdictions: DashboardJurisdiction[],
   opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<OutbreakHistoryResult> {
-  if (actor.role === "govt" && jurisdictions.length === 0) return { rows: [], suppressedCount: 0 };
+  if (!hasNationalReadScope(actor.role) && jurisdictions.length === 0)
+    return { rows: [], suppressedCount: 0 };
 
   // Build the jurisdiction scope clause once; reused in both CTEs. The pets
   // guard (EXISTS on the pet's CURRENT jurisdiction) closes the payload-drift

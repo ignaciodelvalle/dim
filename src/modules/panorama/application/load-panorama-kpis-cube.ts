@@ -27,6 +27,7 @@
 //     the daily refresh cadence and the 26h ceiling; a sub-daily cadence with
 //     a tighter ceiling is Vercel Pro — fase 3).
 
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
 import { readKpiCubeMeta, readKpiCubeRows } from "@/src/modules/panorama/infrastructure/repository";
@@ -84,7 +85,7 @@ export async function loadPanoramaKpisFromCube(
 ): Promise<CubeKpisResult | null> {
   // --- eligibility (cheap checks first, no DB) ---
   if (!cubeReadsEnabled()) return null;
-  if (params.actor.role !== "admin") return null;
+  if (!hasNationalReadScope(params.actor.role)) return null;
   if (params.adminProvince || params.adminLocality) return null;
   if (params.asOf) return null;
   // Admin national is the empty jurisdiction set; anything else is not stored.

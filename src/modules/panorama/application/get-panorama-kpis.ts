@@ -27,6 +27,7 @@
 //   (lib/govt-home-kpis, lib/govt-dashboards) so the console and the dashboards
 //   stay single-sourced, then surface it here without a forked query.
 
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   type AnalyticsPeriod,
   type DashboardActor,
@@ -1068,7 +1069,7 @@ export async function getPanoramaKpis(
   // measured zero (looks like "this province has no coverage"). Blank the values
   // to "—" so the strip matches the map + dock ("sin datos en tu alcance"); the
   // recalc caption already says so. Admin universal ([] = national) is exempt.
-  const noScopeData = actor.role !== "admin" && jurisdictions.length === 0;
+  const noScopeData = !hasNationalReadScope(actor.role) && jurisdictions.length === 0;
   const displayKpis = noScopeData
     ? degradedKpis.map((k) => ({
         ...k,
@@ -1113,7 +1114,7 @@ function describeRecalc(
   adminProvince?: string,
   adminLocality?: string,
 ): string {
-  if (actor.role === "admin") {
+  if (hasNationalReadScope(actor.role)) {
     if (adminLocality) {
       return `Recalculado para ${adminLocality}, ${adminProvince} y el período seleccionado.`;
     }

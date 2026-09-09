@@ -56,8 +56,14 @@ const CANONICAL_PROVINCE_SQL_LIST = sql`(
 // `owner` is the default for self-serve signup. `vet` and `govt` are
 // granted via the admin-page approval flow (Fase 0 spec). `admin` is the
 // universal-scope DIM staff role; bootstrap is a manual SQL seed of the
-// founder, subsequent admins are approved by another admin.
-export const userRoleEnum = pgEnum("user_role", ["owner", "vet", "govt", "admin"]);
+// founder, subsequent admins are approved by another admin. `national`
+// (migration 0214) is the READ-ONLY institutional role with country-wide read
+// scope on /gob — no govt_assignments, refused by every mutating action, never
+// admitted to /admin (lib/infra/auth-guards.ts, requireGobReadAccessOrRedirect).
+export const userRoleEnum = pgEnum("user_role", ["owner", "vet", "govt", "admin", "national"]);
+
+/** The `profiles.role` value set — derived from the enum so a new role is a one-line change here. */
+export type UserRole = (typeof userRoleEnum.enumValues)[number];
 
 export const petSexEnum = pgEnum("pet_sex", ["male", "female", "unknown"]);
 

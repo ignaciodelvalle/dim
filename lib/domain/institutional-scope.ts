@@ -12,7 +12,9 @@
 
 export type ActorProfile = {
   id: string;
-  role: "owner" | "vet" | "govt" | "admin";
+  // Mirrors `profiles.role` (db/schema.ts userRoleEnum). Spelled out rather
+  // than imported so this domain module stays free of the Drizzle schema.
+  role: "owner" | "vet" | "govt" | "admin" | "national";
   accountType: "personal" | "institutional";
   deactivatedAt: Date | null;
 };

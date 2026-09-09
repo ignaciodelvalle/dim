@@ -6,7 +6,7 @@ import { BulkApprovalQueueList } from "@/components/BulkApprovalQueueList";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { APPROVAL_REQUEST_TYPES, type ApprovalRequestType, db, profiles } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
 import { pluralizeEs } from "@/lib/utils/format";
 
@@ -31,7 +31,7 @@ export default async function ColaPage({
 }: {
   searchParams: Promise<{ type?: string; cursor?: string }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const base = await portalBase();
 
   const { type: rawType, cursor: rawCursor } = await searchParams;

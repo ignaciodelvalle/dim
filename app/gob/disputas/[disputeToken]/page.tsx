@@ -13,7 +13,7 @@ import {
 } from "@/db";
 import type { EventType } from "@/db/schema";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { eventTypeLabel, formatDateShort, speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
@@ -47,7 +47,7 @@ export default async function DisputeDetailPage({
   params: Promise<{ disputeToken: string }>;
 }) {
   const { disputeToken } = await params;
-  const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions, user } = await requireGobReadAccessOrRedirect();
 
   const [row] = await db
     .select({ dispute: custodyDisputes, pet: pets })
@@ -110,7 +110,10 @@ export default async function DisputeDetailPage({
     .orderBy(desc(petEvents.occurredAt))
     .limit(25);
 
-  const canResolve = dispute.status === "open";
+  // The read-only national role reads the file and gets NO resolve/withdraw
+  // form: the actions behind them gate on the write-authority guard, so
+  // rendering the forms could only end in a bounce.
+  const canResolve = dispute.status === "open" && profile.role !== "national";
   const canWithdraw =
     dispute.status === "open" && (profile.role === "admin" || dispute.raisedByUserId === user.id);
 

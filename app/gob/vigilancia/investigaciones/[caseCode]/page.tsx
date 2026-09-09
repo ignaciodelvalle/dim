@@ -5,7 +5,8 @@ import { Icon } from "@/components/Icon";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard/CaseStatusBadge";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { getOutbreakInvestigationDetail } from "@/lib/infra/case-queries";
 import { formatDateTime } from "@/lib/utils/format";
 import {
@@ -70,7 +71,7 @@ export default async function InvestigacionDetailPage({
   params: Promise<{ caseCode: string }>;
 }) {
   const { caseCode } = await params;
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
 
   // Scope is enforced INSIDE the query (review 24 HIGH #1/#2): a govt reader
   // only resolves a case whose (province, locality) matches one of their
@@ -80,7 +81,7 @@ export default async function InvestigacionDetailPage({
   const detail = await getOutbreakInvestigationDetail(
     caseCode,
     jurisdictions,
-    profile.role === "admin",
+    hasNationalReadScope(profile.role),
   );
   if (!detail) notFound();
 

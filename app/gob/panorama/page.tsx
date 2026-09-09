@@ -11,12 +11,13 @@ import { PanoramaBoardSkeleton } from "@/components/panorama/PanoramaBoardSkelet
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { resolveSeedLevel } from "@/components/panorama/situational-map-utils";
 import { GOB_ALL_PROVINCES } from "@/lib/analytics/govt-dashboards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   listLocalitiesByProvince,
   listLocalityCentroids,
   localityByName,
 } from "@/lib/infra/ar-localidades";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 import {
   type PanoramaBoardSearchParams,
@@ -79,7 +80,7 @@ async function GobPanoramaBoard({
 }: {
   searchParams: PanoramaSearchParams;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const sp = await searchParams;
 
   // Effective scope via the SHARED resolver (same block as /admin/panorama and
@@ -104,10 +105,9 @@ async function GobPanoramaBoard({
   // seeds the client `initialDivision*` props, NEVER a server redirect to
   // ?province/?locality (that would re-enter narrowGovtScope and could loop with
   // the client mount-seed). The DATA scope stays enforced by the scoped loaders.
-  const widest =
-    profile.role !== "admin"
-      ? deriveWidestJurisdiction(jurisdictions)
-      : { provinceCode: null as string | null, localityName: null as string | null };
+  const widest = !hasNationalReadScope(profile.role)
+    ? deriveWidestJurisdiction(jurisdictions)
+    : { provinceCode: null as string | null, localityName: null as string | null };
 
   // G1 (govt/public honesty): a GOVT operator who requests a ?province OUTSIDE
   // their jurisdiction must NOT be shown a hollow foreign-province shell (map +
@@ -121,7 +121,7 @@ async function GobPanoramaBoard({
   // bounces to the bare panorama (implicit scope, no ?province) — which likewise
   // never re-triggers the guard. It is a presentation redirect, never a narrowing
   // loop with narrowGovtScope.
-  if (profile.role !== "admin" && provinceObj) {
+  if (!hasNationalReadScope(profile.role) && provinceObj) {
     if (!isProvinceInGovtScope(jurisdictions, provinceObj.code)) {
       const params = new URLSearchParams();
       if (widest.provinceCode) params.set("province", widest.provinceCode);
@@ -168,12 +168,11 @@ async function GobPanoramaBoard({
   // alias-fragile PROVINCE_ISO_MAP, which lacked the CABA long-form key and could
   // empty the set — dropping a single-province operator to national). The display
   // name stays the operator's stored name for switcher continuity.
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: provinceByName(name)?.code ?? "", name }))
-          .filter((p) => p.code !== "");
+  const allowedProvinces = hasNationalReadScope(profile.role)
+    ? GOB_ALL_PROVINCES
+    : Array.from(new Set(jurisdictions.map((j) => j.province)))
+        .map((name) => ({ code: provinceByName(name)?.code ?? "", name }))
+        .filter((p) => p.code !== "");
 
   // Single-province govt scope: the operator's assignments all fall within ONE
   // province. Their scope is IMPLICIT (inherited from the session — they never
@@ -220,8 +219,9 @@ async function GobPanoramaBoard({
   // contract (applied only on a bare first visit; never overrides an explicit
   // board). The server-seeded default LAYER (perdidas) is unchanged; this only
   // steers the client's first-visit preset auto-activation.
-  const defaultPresetId: PresetId =
-    profile.role === "admin" ? DEFAULT_PANORAMA_PRESET_ID : "sintomas";
+  const defaultPresetId: PresetId = hasNationalReadScope(profile.role)
+    ? DEFAULT_PANORAMA_PRESET_ID
+    : "sintomas";
 
   // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
   // Cheap static lookup, needed by both the first-visit and normal paths.

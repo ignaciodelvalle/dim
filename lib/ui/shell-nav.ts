@@ -26,7 +26,7 @@ import { ADMIN_NAV, GOB_NAV, OWNER_NAV, PUBLIC_NAV } from "@/components/layout/n
 export type ShellVariant = "citizen" | "operator" | "landing";
 
 /** A role recognised by the shell. Mirrors `profiles.role`. */
-export type ShellRole = "owner" | "vet" | "govt" | "admin";
+export type ShellRole = "owner" | "vet" | "govt" | "admin" | "national";
 
 /**
  * Minimal session shape the resolver needs. The caller (a server layout) is
@@ -114,6 +114,7 @@ function roleHome(role: ShellRole): string {
     case "vet":
       return "/inicio";
     case "govt":
+    case "national":
       return "/gob";
     case "admin":
       return "/admin";

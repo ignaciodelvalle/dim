@@ -41,7 +41,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
+  requireGobReadAccessOrRedirect: vi.fn(async () => ({
     supabase: {},
     user: { id: "user-1", email: "govt@dim.test" },
     profile: { id: "user-1", role: "govt" },
@@ -123,14 +123,14 @@ describe("CasosScreen — render smoke test", () => {
   });
 
   it("renders the admin-universal branch (role=admin viewing /gob/casos) without throwing", async () => {
-    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
-    const adminSession: Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>> = {
-      supabase: {} as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>["supabase"],
+    const { requireGobReadAccessOrRedirect } = await import("@/lib/infra/auth-guards");
+    const adminSession: Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>> = {
+      supabase: {} as Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>>["supabase"],
       user: { id: "admin-1", email: "admin@dim.test" },
       profile: { id: "admin-1", role: "admin" },
       jurisdictions: [],
     };
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce(adminSession);
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValueOnce(adminSession);
     const node = await CasosScreen({ searchParams: {} });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Vista universal admin.");
@@ -184,15 +184,15 @@ describe("CasosScreen — jurisdiction narrowing goes through the canonical reso
   });
 
   it("pushes the admin drill into SQL as province + locality names", async () => {
-    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
+    const { requireGobReadAccessOrRedirect } = await import("@/lib/infra/auth-guards");
     const previous = {
       province: scopeFixture.adminSelectedProvince,
       locality: scopeFixture.adminSelectedLocality,
     };
     scopeFixture.adminSelectedProvince = "CABA";
     scopeFixture.adminSelectedLocality = "Palermo";
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
-      supabase: {} as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>["supabase"],
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValueOnce({
+      supabase: {} as Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>>["supabase"],
       user: { id: "admin-1", email: "admin@dim.test" },
       profile: { id: "admin-1", role: "admin" },
       jurisdictions: [],

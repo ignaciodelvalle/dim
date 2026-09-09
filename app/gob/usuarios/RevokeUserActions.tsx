@@ -30,7 +30,7 @@ type Target = {
   id: string;
   displayName: string;
   matriculaJurisdiccion: string | null;
-  role: "owner" | "vet" | "govt" | "admin";
+  role: "owner" | "vet" | "govt" | "admin" | "national";
 };
 
 type UploadedFile = { name: string; attachmentId: string };

@@ -159,7 +159,7 @@ export async function completeIdentityForUser(
   let updated:
     | {
         displayName: string;
-        role: "owner" | "vet" | "govt" | "admin";
+        role: "owner" | "vet" | "govt" | "admin" | "national";
         accountType: "personal" | "institutional";
       }
     | undefined;

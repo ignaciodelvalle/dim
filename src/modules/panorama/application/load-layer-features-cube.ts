@@ -48,6 +48,7 @@
 // subset of a province's departments) could differ, so govt stays live in v1.
 
 import type { PanoramaCubeRow } from "@/db/schema";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
 import { readCubeMeta, readCubeRows } from "@/src/modules/panorama/infrastructure/repository";
@@ -155,7 +156,7 @@ export async function resolveCubeFreshness(
 ): Promise<Date | null> {
   // --- eligibility (cheap checks first, no DB) ---
   if (!cubeReadsEnabled()) return null;
-  if (actor.role !== "admin") return null;
+  if (!hasNationalReadScope(actor.role)) return null;
   if (adminLocality) return null; // locality drill → live (see header)
   if (verifiedOnly) return null;
   // National + department IS cube-eligible (superset over the truncated live view);

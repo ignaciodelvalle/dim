@@ -10,7 +10,10 @@
 import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 import { analyticsDb as db, petEvents, pets, welfareReports } from "@/db";
-import { isWholeProvinceAssignment } from "@/lib/domain/jurisdiction-canonical";
+import {
+  hasNationalReadScope,
+  isWholeProvinceAssignment,
+} from "@/lib/domain/jurisdiction-canonical";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
@@ -109,7 +112,7 @@ export function scopeResolvesToSingleUnit(params: {
     isWholeProvinceAssignment(j) ? `${j.province}|` : `${j.province}|${j.locality}`;
 
   if (adminProvince) {
-    if (actor.role === "admin") return true;
+    if (hasNationalReadScope(actor.role)) return true;
     // A govt drilled to a province: the scope is that province INTERSECTED with
     // its assignments, so it is one unit only when the assignments inside that
     // province collapse to one.
@@ -117,9 +120,9 @@ export function scopeResolvesToSingleUnit(params: {
     return new Set(inside.map(unitKey)).size === 1;
   }
 
-  // Admin with no drill is national — many units, and the total is genuinely
-  // coarser than any of them.
-  if (actor.role === "admin") return false;
+  // Admin / national with no drill is national — many units, and the total is
+  // genuinely coarser than any of them.
+  if (hasNationalReadScope(actor.role)) return false;
 
   // A govt with no assignments matches nothing; that is not "one unit".
   return new Set(jurisdictions.map(unitKey)).size === 1;

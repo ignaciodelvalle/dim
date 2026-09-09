@@ -113,6 +113,12 @@ export const AUTH_GUARDS = [
 export const INSTITUTIONAL_GUARDS = [
   "requireAdminOrRedirect",
   "requireAdminOrGovtOrRedirect",
+  // The /gob READ gate (admin | govt | national — the read-only national role,
+  // migration 0214). Institutional authority for a PAGE, and DELIBERATELY NOT
+  // in AUTH_GUARDS above: a "use server" export or a route handler that
+  // adopted it would be flagged as unguarded by rule 1.2 / D4, which is the
+  // fence that keeps the government slice's writers closed to `national`.
+  "requireGobReadAccessOrRedirect",
   "requireDecomisoPrincipal",
   // The route-handler equivalents (added 2026-08-21 with the app/api widening).
   // They are not redirect-shaped because a handler answers with a status, not a
@@ -506,6 +512,7 @@ export const GUARD_HOMES: Readonly<Record<string, readonly string[]>> = {
   requireOrgAccessByToken: ["lib/infra/auth-guards.ts"],
   requireAdminOrRedirect: ["lib/infra/auth-guards.ts"],
   requireAdminOrGovtOrRedirect: ["lib/infra/auth-guards.ts"],
+  requireGobReadAccessOrRedirect: ["lib/infra/auth-guards.ts"],
   requireDecomisoPrincipal: ["lib/infra/auth-guards.ts"],
   requireDenunciaModerationPrincipal: ["lib/infra/auth-guards.ts"],
   requirePetAccess: ["lib/infra/pet-access.ts"],

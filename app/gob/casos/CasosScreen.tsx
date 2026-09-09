@@ -64,7 +64,8 @@ import {
 } from "@/components/ui/dashboard/case-queue-csv";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   countCasesForAdmin,
   countCasesForGovt,
@@ -346,7 +347,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
 }
 
 export async function CasosScreen({ searchParams: sp, underHub = false }: CasosScreenProps) {
-  const session = await requireAdminOrGovtOrRedirect();
+  const session = await requireGobReadAccessOrRedirect();
 
   // THE CANONICAL JURISDICTION CONTRACT (demo review 2026-08-01). This screen
   // used to parse `?province=<canonical name>` itself, against a hand-built
@@ -370,10 +371,12 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
     params: { province: sp.province, locality: sp.locality },
   });
 
-  const scope: ViewerScope =
-    session.profile.role === "admin"
-      ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
-      : { role: "govt", jurisdictions: filteredJurisdictions };
+  // ViewerScope's `role` is a scope KIND ("admin" = universal + explicit drill,
+  // "govt" = mandate list), not the profile role: the read-only national role
+  // reads with the universal kind (hasNationalReadScope).
+  const scope: ViewerScope = hasNationalReadScope(session.profile.role)
+    ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
+    : { role: "govt", jurisdictions: filteredJurisdictions };
 
   // C3. The moment this screen started resolving scope through the canonical
   // fence (demo review 2026-08-01 — it was the only /gob surface still parsing

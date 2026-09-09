@@ -40,7 +40,8 @@ import {
   JURISDICTION_ADJUSTED_TARGET_NOTE,
   resolveJurisdictionTargetsForScope,
 } from "@/lib/analytics/jurisdiction-targets";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,
   TARGETS,
@@ -85,11 +86,11 @@ export type CensoScreenProps = {
 };
 
 export async function CensoScreen({ searchParams: sp, underHub = false }: CensoScreenProps) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role } as const;
 
   const hasAnalyticsRead =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAnalyticsRead) {
     return (
@@ -156,7 +157,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
   // national/cross-province views stay flat (JT5); an adjusted meta is
   // disclosed in the funnel footnote (JT4).
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
-    profile.role === "admin"
+    hasNationalReadScope(profile.role)
       ? adminProvince
         ? [{ province: adminProvince, locality: adminLocality ?? "" }]
         : []
@@ -175,7 +176,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
       subtitle={
         <>
           {/* The universal claim yields to the narrowed-view caption (never both). */}
-          {profile.role === "admin" ? (
+          {hasNationalReadScope(profile.role) ? (
             narrowedView ? null : (
               <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )

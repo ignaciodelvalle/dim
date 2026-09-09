@@ -52,7 +52,7 @@ import { fetchWelfareTimeline } from "@/lib/analytics/govt-dashboards";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import {
   isResolvableWelfareReportParam,
@@ -125,7 +125,7 @@ export default async function GobMaltratoDetailPage({
   const { id } = await params;
   // Neither shape → 404, not a uuid-cast throw behind a 200 error boundary.
   if (!isResolvableWelfareReportParam(id)) notFound();
-  const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions, user } = await requireGobReadAccessOrRedirect();
 
   const [report] = await db
     .select(GOB_WELFARE_DETAIL_SELECT)

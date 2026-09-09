@@ -10,7 +10,11 @@
 import { and, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { arLocalities, db } from "@/db";
-import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
+import {
+  type GobReadRole,
+  hasNationalReadScope,
+  narrowGovtScope,
+} from "@/lib/domain/jurisdiction-canonical";
 import { provinceByName } from "@/lib/reference/ar-provincias";
 
 import type { DashboardJurisdiction } from "@/lib/metrics";
@@ -64,13 +68,16 @@ export type { DashboardJurisdiction } from "@/lib/metrics";
  */
 export function resolveScopedJurisdictions(args: {
   jurisdictions: DashboardJurisdiction[];
-  role: "admin" | "govt";
+  role: GobReadRole;
   selectedProvinceName?: string | null;
   selectedLocalityName?: string | null;
 }): DashboardJurisdiction[] {
   const { jurisdictions, role, selectedProvinceName, selectedLocalityName } = args;
 
-  if (role === "admin") return jurisdictions;
+  // admin | national: universal read scope — the list comes back unchanged
+  // (empty = universal). Their URL selection is a DRILL applied as an explicit
+  // predicate elsewhere, never a narrowing of this list.
+  if (hasNationalReadScope(role)) return jurisdictions;
 
   return narrowGovtScope(jurisdictions, selectedProvinceName, selectedLocalityName);
 }

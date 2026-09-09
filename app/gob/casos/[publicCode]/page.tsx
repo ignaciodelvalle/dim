@@ -4,14 +4,14 @@
 // and topbar instead of being dropped into the citizen chrome (PO QA §3/§9).
 //
 // Access is NOT widened by this route: the /gob layout already gates the
-// segment to admin/govt (requireAdminOrGovtOrRedirect), and CaseDetailView
+// segment to admin/govt (requireGobReadAccessOrRedirect), and CaseDetailView
 // re-runs canReadCase, which still enforces the govt reader's (province,
 // locality) scope. Out-of-scope cases → notFound (no existence leak). The
 // explicit guard below mirrors the sibling /gob/decomisos/[publicCode] route
 // so the URL is never reachable unauthenticated.
 
 import { CaseDetailView } from "@/components/casos/CaseDetailView";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 
 // Reads auth cookies (viewer-dependent PII gating) — never statically cache.
 export const dynamic = "force-dynamic";
@@ -22,6 +22,6 @@ interface PageProps {
 
 export default async function GobCaseDetailPage({ params }: PageProps) {
   const { publicCode } = await params;
-  await requireAdminOrGovtOrRedirect();
+  await requireGobReadAccessOrRedirect();
   return <CaseDetailView publicCode={publicCode} casosHref="/gob/casos" />;
 }

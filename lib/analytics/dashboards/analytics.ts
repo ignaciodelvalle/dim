@@ -5,6 +5,7 @@
 import { and, count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
 
 import { custodyDisputes, analyticsDb as db, petEvents, pets } from "@/db";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { DAY_MS, custodyDisputesScopeClause, petsScopeClause } from "./_scope";
@@ -125,7 +126,7 @@ export async function fetchAnalyticsMetrics(
   } = {},
 ): Promise<AnalyticsMetrics> {
   // Early-return for govt with no assignments.
-  if (actor.role === "govt" && jurisdictions.length === 0) {
+  if (!hasNationalReadScope(actor.role) && jurisdictions.length === 0) {
     return {
       totalPets: 0,
       adoptionRate: 0,
@@ -221,7 +222,7 @@ export async function fetchAnalyticsMetrics(
 
   // Whether petEvents sub-queries need an innerJoin to pets for province scoping.
   // Govt always joins (to apply jurisdiction pairs). Admin+province also joins.
-  const needsJoin = actor.role === "govt" || (actor.role === "admin" && !!adminProvince);
+  const needsJoin = !hasNationalReadScope(actor.role) || !!adminProvince;
 
   const [totalRows, acquisitionRows, adoptedRows, rabiesRows, disputeRows] = await Promise.all([
     db
@@ -349,7 +350,7 @@ export async function fetchAcquisitionTrend(
   jurisdictions: DashboardJurisdiction[],
   opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
 ): Promise<AcquisitionTrendPoint[]> {
-  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+  if (!hasNationalReadScope(actor.role) && jurisdictions.length === 0) return [];
 
   const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
@@ -369,7 +370,7 @@ export async function fetchAcquisitionTrend(
 
   // Whether the petEvents query needs an innerJoin to pets for province scoping.
   // Govt always joins (jurisdiction pairs); admin+adminProvince also joins.
-  const needsJoin = actor.role === "govt" || (actor.role === "admin" && !!opts.adminProvince);
+  const needsJoin = !hasNationalReadScope(actor.role) || !!opts.adminProvince;
 
   const baseQuery = needsJoin
     ? db
@@ -481,7 +482,7 @@ export async function fetchDeathCauses(
   jurisdictions: DashboardJurisdiction[],
   opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
 ): Promise<DeathCauseRow[]> {
-  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+  if (!hasNationalReadScope(actor.role) && jurisdictions.length === 0) return [];
 
   const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
@@ -496,7 +497,7 @@ export async function fetchDeathCauses(
   if (petsScope) conditions.push(sql`(${petsScope})`);
 
   // Govt always joins (jurisdiction pairs); admin+adminProvince also joins.
-  const needsJoin = actor.role === "govt" || (actor.role === "admin" && !!opts.adminProvince);
+  const needsJoin = !hasNationalReadScope(actor.role) || !!opts.adminProvince;
 
   const rows = await (needsJoin
     ? db

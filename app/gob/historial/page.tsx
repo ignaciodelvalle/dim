@@ -54,12 +54,13 @@ import {
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   type AuditHistoryScope,
   buildAuditHistoryWhere,
   resolveAuditHistoryActorOptions,
 } from "@/lib/infra/audit-history-query";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchJurisdictionActorIds } from "@/lib/infra/govt-audit-scope";
 import { windows } from "@/lib/metrics";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/metrics/period-presets";
@@ -87,8 +88,12 @@ export default async function GobHistorialPage({
     cursor?: string;
   }>;
 }) {
-  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const isAdmin = profile.role === "admin";
+  const { user, profile, jurisdictions } = await requireGobReadAccessOrRedirect();
+  // Universal READ scope (admin | national): the audit history's "admin" scope
+  // kind means "every operator's actions", the "govt" kind means "the actors of
+  // my mandate" — a scope question, so the read-only national role takes the
+  // universal branch.
+  const isAdmin = hasNationalReadScope(profile.role);
 
   const sp = await searchParams;
   // A single dropdown selection may carry more than one code when it lands on

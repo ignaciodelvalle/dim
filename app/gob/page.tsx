@@ -32,7 +32,7 @@
 // Preserved from the pre-C6b /gob/page.tsx:
 //   - fetchVisiblePendingRequests → cola count
 //   - auditLog query → the collapsed "Actividad reciente" list
-//   - requireAdminOrGovtOrRedirect → capability guard
+//   - requireGobReadAccessOrRedirect → capability guard
 //   - ViewScopeCaption / mandate chrome (C3) — untouched
 
 import { and, desc, eq, gte } from "drizzle-orm";
@@ -79,12 +79,13 @@ import {
 } from "@/lib/analytics/jurisdiction-targets";
 import { fetchMortalityHeadline } from "@/lib/analytics/mortality-metrics";
 import { fetchRabiesObservationCompliance } from "@/lib/analytics/surveillance-metrics";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { queueAgingNote } from "@/lib/domain/queue-aging";
 import {
   countVisiblePendingRequests,
   countVisiblePendingRequestsByType,
 } from "@/lib/infra/approval-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, countCasesForGovt } from "@/lib/infra/case-queries";
 import {
   TARGETS,
@@ -144,7 +145,7 @@ export default async function GobiernoDashboardPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { user, profile, jurisdictions } = await requireGobReadAccessOrRedirect();
 
   const sp = await searchParams;
 
@@ -177,7 +178,12 @@ export default async function GobiernoDashboardPage({
 
   // es-AR label for the operator's role — the raw enum ("govt"/"admin") must
   // never render in the header chrome.
-  const roleLabel = profile.role === "admin" ? "Administrador/a" : "Gobierno";
+  const roleLabel =
+    profile.role === "admin"
+      ? "Administrador/a"
+      : profile.role === "national"
+        ? "Lectura nacional"
+        : "Gobierno";
 
   // C3 (ONE VIEWSCOPE): this header describes the operator's MANDATE (raw
   // session assignments), matching the shared /gob layout badge — never the
@@ -186,7 +192,9 @@ export default async function GobiernoDashboardPage({
   // below) discloses the actual scope in view, fed from the SAME resolved
   // values (filteredJurisdictions/adminProvince/adminLocality) the KPI ctx
   // below already computed — never re-derived.
-  const scopeLabel = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
+  const scopeLabel = hasNationalReadScope(profile.role)
+    ? "Nacional"
+    : describeMandate(jurisdictions);
 
   // Scope-resolved legal citations (red-team CRITICAL): a province's law is
   // only cited to an operator whose MANDATE (raw assignments, not the page's
@@ -209,12 +217,11 @@ export default async function GobiernoDashboardPage({
   // in metric-legal-basis.ts), so the entry is gone and the tile's `sub`
   // simply carries no citation clause. Do not reintroduce a call here — there
   // is no Argentine norm to resolve to.
-  const legalBasisProvinces =
-    profile.role === "admin"
-      ? adminProvince
-        ? [adminProvince]
-        : ("all" as const)
-      : [...new Set(jurisdictions.map((j) => j.province))];
+  const legalBasisProvinces = hasNationalReadScope(profile.role)
+    ? adminProvince
+      ? [adminProvince]
+      : ("all" as const)
+    : [...new Set(jurisdictions.map((j) => j.province))];
   const pppLegalBasis = formatMetricLegalBasis("ppp_registry_compliance", legalBasisProvinces);
   const narrowedView = describeNarrowedView({
     role: profile.role,
@@ -256,7 +263,7 @@ export default async function GobiernoDashboardPage({
   // DISCLOSES
   // the adjustment (JURISDICTION_ADJUSTED_TARGET_NOTE) — no silent number swap.
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
-    profile.role === "admin"
+    hasNationalReadScope(profile.role)
       ? adminProvince
         ? [{ province: adminProvince, locality: adminLocality ?? "" }]
         : []
@@ -375,7 +382,7 @@ export default async function GobiernoDashboardPage({
       // the two numbers the same number, not two opinions that happen to
       // agree today. It also drops a query: the 5-row preview was never
       // rendered.
-      profile.role === "admin"
+      hasNationalReadScope(profile.role)
         ? countCasesForAdmin({
             ...CASOS_QUEUE_FILTERS,
             province: adminProvince ?? null,
@@ -416,7 +423,7 @@ export default async function GobiernoDashboardPage({
         selectedProvince: adminProvince,
         selectedLocality: adminLocality,
       }),
-      profile.role === "admin"
+      hasNationalReadScope(profile.role)
         ? fetchCasesQueueAging(
             { role: "admin", province: adminProvince ?? null, locality: adminLocality ?? null },
             CASOS_QUEUE_FILTERS,

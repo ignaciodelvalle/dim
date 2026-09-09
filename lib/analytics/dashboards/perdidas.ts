@@ -4,6 +4,7 @@
 import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { analyticsDb as db, ownerships, petEvents, pets, profiles } from "@/db";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { likeContains } from "@/lib/utils/like-helpers";
 import { DAY_MS, petsScopeClause } from "./_scope";
@@ -97,7 +98,7 @@ export async function fetchLostPets(
   // but visible to admin. Admin has no assignments to narrow, so its URL
   // province/locality selection becomes the drill predicate instead — BOTH
   // resolved by the ONE shared helper (C3, ONE VIEWSCOPE).
-  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+  if (!hasNationalReadScope(actor.role) && jurisdictions.length === 0) return [];
   const petsScope = petsScopeClause(
     actor,
     jurisdictions,
@@ -416,7 +417,7 @@ export async function fetchPerdidasMetrics(
   ];
   // Apply scope by joining to pets — the SAME petsScope predicate the active
   // count uses. The pets join is added below (needsRecoveredJoin).
-  if (actor.role === "govt" && jurisdictions.length === 0) {
+  if (!hasNationalReadScope(actor.role) && jurisdictions.length === 0) {
     // No assignments — return zeros immediately.
     return { activeCount: 0, recoveredMonth: 0, avgDaysActive: 0 };
   }
@@ -441,7 +442,7 @@ export async function fetchPerdidasMetrics(
   // Whether to join the pets table for the recovered-count query.
   // Govt always joins (to apply jurisdiction pairs on pets columns).
   // Admin+province also needs the join to apply the province predicate.
-  const needsRecoveredJoin = actor.role === "govt" || (actor.role === "admin" && !!adminProvince);
+  const needsRecoveredJoin = !hasNationalReadScope(actor.role) || !!adminProvince;
 
   const [activeRows, recoveredRows, lostPetsRaw] = await Promise.all([
     db
@@ -465,7 +466,7 @@ export async function fetchPerdidasMetrics(
   // provenance this function cannot verify. Idempotent for the internally
   // fetched rows above — those are already drilled in SQL.
   const lostPets =
-    actor.role === "admin" && adminProvince
+    hasNationalReadScope(actor.role) && adminProvince
       ? lostPetsRaw.filter(
           (p) => p.province === adminProvince && (!adminLocality || p.locality === adminLocality),
         )

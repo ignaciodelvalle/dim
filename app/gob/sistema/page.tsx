@@ -24,7 +24,8 @@ import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, enoSlaTone } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
@@ -46,7 +47,7 @@ export default async function GobSistemaPage({
     locality?: string;
   }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const sp = await searchParams;
 
   // Govt: this page is folded into /gob/programa — redirect, carrying the
@@ -62,7 +63,7 @@ export default async function GobSistemaPage({
     redirect(query ? `/gob/programa?${query}` : "/gob/programa");
   }
 
-  // Admin only past this point (requireAdminOrGovtOrRedirect allows only
+  // Admin only past this point (requireGobReadAccessOrRedirect allows only
   // 'admin' | 'govt', and 'govt' redirected above) — unchanged full view.
   const actor = { role: profile.role } as const;
 
@@ -115,7 +116,7 @@ export default async function GobSistemaPage({
           Salud operativa — tu jurisdicción
         </h1>
         {/* The universal claim yields to the narrowed-view caption (never both). */}
-        {profile.role === "admin" ? (
+        {hasNationalReadScope(profile.role) ? (
           narrowedView ? null : (
             <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
           )

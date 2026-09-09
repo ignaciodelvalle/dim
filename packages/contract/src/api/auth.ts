@@ -242,7 +242,7 @@ export type MeV1User =
       profilePending: false;
       id: string;
       displayName: string;
-      role: "owner" | "vet" | "govt" | "admin";
+      role: "owner" | "vet" | "govt" | "admin" | "national";
       accountType: "personal" | "institutional";
     };
 

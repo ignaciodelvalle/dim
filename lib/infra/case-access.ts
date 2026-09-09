@@ -18,13 +18,16 @@
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { custodyDisputeParties, db, organizationMemberships, ownerships } from "@/db";
-import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import {
+  hasNationalReadScope,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 import type { CaseDetail } from "@/lib/infra/case-queries";
 import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 export interface CaseViewer {
   userId: string;
-  role: "owner" | "vet" | "govt" | "admin";
+  role: "owner" | "vet" | "govt" | "admin" | "national";
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>;
 }
 
@@ -99,8 +102,9 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
     return isPubliclyVisibleKind(detail.caseKind);
   }
 
-  // Admin: universal scope.
-  if (viewer.role === "admin") return true;
+  // Admin / national: universal READ scope (case detail is a read; every
+  // mutation on a case gates separately on the write-authority guard).
+  if (hasNationalReadScope(viewer.role)) return true;
 
   // Govt: scope-bound to jurisdiction. Subsumption-aware — a whole-province
   // assignment (e.g. whole-CABA) governs every barrio in it, so a case tagged

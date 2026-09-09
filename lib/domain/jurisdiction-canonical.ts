@@ -201,6 +201,52 @@ export function jurisdictionScopeContains(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Read scope by role — THE ONE place "does this role read the whole country?"
+// is decided (national role, 2026-09-09).
+// ---------------------------------------------------------------------------
+
+/**
+ * The roles admitted to the /gob READ surface. `admin` and `national` read the
+ * whole country; `govt` reads its `govt_assignments` mandate.
+ */
+export type GobReadRole = "admin" | "govt" | "national";
+
+const GOB_READ_ROLES: ReadonlySet<string> = new Set(["admin", "govt", "national"]);
+
+/** Is `role` admitted to the /gob READ surface (pages + read-only API routes)? */
+export function isGobReadRole(role: string): role is GobReadRole {
+  return GOB_READ_ROLES.has(role);
+}
+
+/**
+ * Roles whose READ scope is the whole country: no jurisdiction predicate, an
+ * empty jurisdiction list means "universal", and the province/locality URL
+ * params act as an explicit DRILL (additive narrowing) instead of a mandate
+ * intersection.
+ *
+ * `admin` (universal governance role) and `national` (read-only national
+ * analyst — migration 0214). Adding a role here is the whole change for the
+ * READ side; the WRITE side never consults this list (mutations gate on
+ * `requireAdminOrGovtOrRedirect` and friends, which admit admin | govt only).
+ */
+export const NATIONAL_READ_SCOPE_ROLES: ReadonlySet<string> = new Set(["admin", "national"]);
+
+/**
+ * Does `role` read with country-wide scope?
+ *
+ * Replaces every `role === "admin"` SCOPE check on the read path (ProjectionScope
+ * construction, the dashboards' scope clauses, the panorama request-scope
+ * resolver, the jurisdiction filter resolver, the layout chrome). It is NOT a
+ * capability check: a `national` reads what an `admin` reads and writes nothing,
+ * so a `role === "admin"` that guards a mutation, an admin-only link, or the
+ * /admin portal must stay a literal comparison. Takes `string` so it accepts
+ * `profiles.role` as stored without a cast.
+ */
+export function hasNationalReadScope(role: string): boolean {
+  return NATIONAL_READ_SCOPE_ROLES.has(role);
+}
+
 /**
  * Narrow a govt actor's assigned jurisdictions by an optional (province, locality)
  * UI filter, WITH whole-province subsumption. The result is the effective scope

@@ -128,7 +128,7 @@ export type LoginValue = {
    * deactivation check above, so carrying it costs no extra round-trip.
    */
   profile: {
-    role: "owner" | "vet" | "govt" | "admin";
+    role: "owner" | "vet" | "govt" | "admin" | "national";
     accountType: "personal" | "institutional";
     displayName: string;
   } | null;
@@ -260,7 +260,9 @@ export async function login(input: LoginInput, deps: LoginDeps): Promise<LoginRe
     : null;
   const session = toAuthSessionV1(signInData.session);
 
-  if (returnTo && role !== "admin" && role !== "govt") {
+  // Institutional roles ignore returnTo here: their portal guard restores the
+  // attempted deep link itself (x-full-path, lib/infra/auth-guards.ts).
+  if (returnTo && role !== "admin" && role !== "govt" && role !== "national") {
     return {
       ok: true,
       value: {

@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
+  requireGobReadAccessOrRedirect: vi.fn(async () => ({
     user: { id: "govt-1", email: "govt@dim.test" },
     profile: { id: "govt-1", role: "govt" },
     jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
@@ -115,12 +115,12 @@ describe("/gob/suscripciones — render smoke test", () => {
   it("gives an admin ALL of them", async () => {
     // The control group. Without this, deleting the canManage branch entirely
     // and rendering read-only for everyone would still pass the test above.
-    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
+    const { requireGobReadAccessOrRedirect } = await import("@/lib/infra/auth-guards");
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValueOnce({
       user: { id: "admin-1", email: "admin@dim.test" },
       profile: { id: "admin-1", role: "admin" },
       jurisdictions: [{ province: "Buenos Aires" }],
-    } as unknown as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>);
+    } as unknown as Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>>);
     const node = await SuscripcionesPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Pausar"); // sub-1 (active) toggle
@@ -173,12 +173,12 @@ describe("/gob/suscripciones — render smoke test", () => {
 
 describe("/gob/suscripciones — access gate", () => {
   it("shows Sin acceso for a govt operator with no jurisdiction assignments", async () => {
-    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
+    const { requireGobReadAccessOrRedirect } = await import("@/lib/infra/auth-guards");
+    vi.mocked(requireGobReadAccessOrRedirect).mockResolvedValueOnce({
       user: { id: "govt-2", email: "govt2@dim.test" },
       profile: { id: "govt-2", role: "govt" },
       jurisdictions: [],
-    } as unknown as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>);
+    } as unknown as Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>>);
     const node = await SuscripcionesPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Sin acceso");

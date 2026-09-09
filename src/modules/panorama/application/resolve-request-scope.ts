@@ -19,7 +19,11 @@
 //     Only set for the admin role — govt actors must NOT receive these; their
 //     scope is enforced by `scoped`.
 
-import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
+import {
+  type GobReadRole,
+  hasNationalReadScope,
+  narrowGovtScope,
+} from "@/lib/domain/jurisdiction-canonical";
 import { type Locality, localityByName } from "@/lib/infra/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { type Province, type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
@@ -44,7 +48,7 @@ export type PanoramaRequestScope = {
  * locality lookup at most, no other I/O.
  */
 export async function resolvePanoramaRequestScope(args: {
-  role: "admin" | "govt";
+  role: GobReadRole;
   jurisdictions: DashboardJurisdiction[];
   /** Raw ?province param (ISO 3166-2:AR code), if any. */
   province: string | null | undefined;
@@ -52,6 +56,9 @@ export async function resolvePanoramaRequestScope(args: {
   locality: string | null | undefined;
 }): Promise<PanoramaRequestScope> {
   const { role, jurisdictions } = args;
+  // admin | national read the whole country: their URL selection is a DRILL
+  // (explicit predicate), never a mandate intersection.
+  const universal = hasNationalReadScope(role);
 
   // Resolve the selected province/locality once — shared by govt
   // scope-narrowing and admin drill-down below.
@@ -63,12 +70,12 @@ export async function resolvePanoramaRequestScope(args: {
 
   // Intersect scope with the viewer's assignments (never widens for govt).
   const scoped: DashboardJurisdiction[] =
-    provinceObj && role !== "admin"
+    provinceObj && !universal
       ? narrowGovtScope(jurisdictions, provinceObj.name, localityRow?.localityName ?? null)
       : jurisdictions;
 
-  const adminProvince = role === "admin" ? (provinceObj?.name ?? undefined) : undefined;
-  const adminLocality = role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
+  const adminProvince = universal ? (provinceObj?.name ?? undefined) : undefined;
+  const adminLocality = universal ? (localityRow?.localityName ?? undefined) : undefined;
 
   return { provinceObj, localityRow, scoped, adminProvince, adminLocality };
 }

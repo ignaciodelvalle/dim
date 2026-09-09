@@ -101,7 +101,7 @@ function noSession() {
 
 type ProfileOverrides = Partial<{
   id: string;
-  role: "owner" | "vet" | "govt" | "admin";
+  role: "owner" | "vet" | "govt" | "admin" | "national";
   displayName: string;
   accountType: "personal" | "institutional";
   deactivatedAt: Date | null;
@@ -310,6 +310,21 @@ describe("resolveInstitutionalPanoramaActor — admits legit operators", () => {
       expect(r.actor.jurisdictions).toEqual([{ province: "Buenos Aires", locality: "La Plata" }]);
     }
     expect(mockGetJurisdictionsCached).toHaveBeenCalledWith("govt-ok");
+  });
+
+  // Read-only national role (migration 0214): the panorama routes are
+  // READ-ONLY, so the gate admits it like admin — universal scope, no
+  // jurisdiction fan-out. Writers keep refusing it (auth-guards.test.ts).
+  it("admits an active institutional national with empty jurisdictions (read-only role)", async () => {
+    mockGetUser.mockResolvedValue(session("national-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "national-ok", role: "national" }));
+    const r = await resolveInstitutionalPanoramaActor();
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.actor.role).toBe("national");
+      expect(r.actor.jurisdictions).toEqual([]);
+    }
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
   });
 });
 

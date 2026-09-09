@@ -31,7 +31,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
+  requireGobReadAccessOrRedirect: vi.fn(async () => ({
     user: { id: "admin-1" },
     profile: { id: "admin-1", role: "admin" },
     jurisdictions: [],

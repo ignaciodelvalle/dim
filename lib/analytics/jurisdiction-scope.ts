@@ -39,7 +39,11 @@
  */
 
 import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
-import { isWholeProvinceAssignment } from "@/lib/domain/jurisdiction-canonical";
+import {
+  type GobReadRole,
+  hasNationalReadScope,
+  isWholeProvinceAssignment,
+} from "@/lib/domain/jurisdiction-canonical";
 import {
   type Locality,
   type LocalityOption,
@@ -75,8 +79,12 @@ export type JurisdictionScopeParams = {
 };
 
 export type JurisdictionScopeInput = {
-  /** From requireAdminOrGovtOrRedirect(). "admin" ⇒ universal, empty jurisdictions. */
-  role: "admin" | "govt";
+  /**
+   * From requireGobReadAccessOrRedirect(). admin | national ⇒ universal read
+   * scope, empty jurisdictions (hasNationalReadScope decides — never the
+   * emptiness of the list); govt ⇒ the mandate below.
+   */
+  role: GobReadRole;
   /** The operator's assignment set. Admin gets [] by contract (= universal). */
   jurisdictions: DashboardJurisdiction[];
   /** The raw ?province / ?locality searchParams (ISO code + slug). */
@@ -153,8 +161,13 @@ export async function resolveJurisdictionScope(
   // does not touch `selectedProvince`/map-drill state below, which stay gated
   // on the real (explicit) URL param. (It DOES now reach the locality drill —
   // see `localityScopeProvince` below, the second half of the same defect.)
-  const uniqueProvinceNames =
-    role === "govt" ? Array.from(new Set(jurisdictions.map((j) => j.province))) : [];
+  // admin | national: universal read scope, URL selection is an explicit DRILL.
+  // govt: the mandate is the ceiling, the URL selection narrows within it.
+  const universal = hasNationalReadScope(role);
+
+  const uniqueProvinceNames = universal
+    ? []
+    : Array.from(new Set(jurisdictions.map((j) => j.province)));
   const impliedSoleProvince =
     !selectedProvince && uniqueProvinceNames.length === 1
       ? provinceByName(uniqueProvinceNames[0])
@@ -176,7 +189,7 @@ export async function resolveJurisdictionScope(
   // (THE FENCE) is untouched — this narrows what the switcher offers, never
   // what the queries scope by.
   const localities =
-    role === "govt" && dropdownProvince
+    !universal && dropdownProvince
       ? constrainLocalitiesToMandate(provinceLocalities, jurisdictions, dropdownProvince.name)
       : provinceLocalities;
 
@@ -233,15 +246,14 @@ export async function resolveJurisdictionScope(
     selectedLocalityName: selectedLocality?.localityName ?? null,
   });
 
-  const allowedProvinces =
-    role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
+  const allowedProvinces = universal
+    ? GOB_ALL_PROVINCES
+    : Array.from(new Set(jurisdictions.map((j) => j.province)))
+        .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
+        .filter((p) => p.code !== "");
 
-  const adminSelectedProvince = role === "admin" ? (selectedProvince?.name ?? null) : null;
-  const adminSelectedLocality = role === "admin" ? (selectedLocality?.localityName ?? null) : null;
+  const adminSelectedProvince = universal ? (selectedProvince?.name ?? null) : null;
+  const adminSelectedLocality = universal ? (selectedLocality?.localityName ?? null) : null;
 
   return {
     selectedProvince,

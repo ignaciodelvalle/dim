@@ -287,6 +287,51 @@ async function ensureDemoOwner(): Promise<string> {
 // 7. D1 — Ensure govt@dim.test with CABA assignment
 // ---------------------------------------------------------------------------
 
+/**
+ * D1n — nacional@dim.test, the read-only national demo account (migration
+ * 0214). role='national', account_type='institutional', NO govt_assignments:
+ * its read scope is universal by role (hasNationalReadScope), it enters /gob
+ * and reads what admin reads there, and every mutating action refuses it.
+ * Provisioned the same way ensureFocalGovt provisions govt@ minus the
+ * assignment block; idempotent on re-runs.
+ */
+async function ensureFocalNational(): Promise<string> {
+  log("STEP", "D1n: ensuring nacional@dim.test (read-only national)");
+
+  const { id, created } = await ensureAuthUser(
+    "nacional@dim.test",
+    "Lectura nacional miMAR",
+    "owner",
+  );
+  log(created ? "OK" : "SKIP", `auth.users nacional@dim.test → ${id.slice(0, 8)}…`);
+
+  await supabase.auth.admin.updateUserById(id, { password: SHARED_PASSWORD });
+
+  const [profileRow] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, id))
+    .limit(1);
+
+  if (profileRow?.role !== "national") {
+    await db.execute(sql`
+      UPDATE profiles
+      SET role = 'national',
+          account_type = 'institutional',
+          display_name = 'Lectura nacional miMAR',
+          dni_hash = NULL,
+          dni_last4 = NULL,
+          updated_at = now()
+      WHERE id = ${id}
+    `);
+    log("OK", "national profile patched: role=national accountType=institutional");
+  } else {
+    log("SKIP", "national profile already role=national");
+  }
+
+  return id;
+}
+
 async function ensureFocalGovt(adminId: string): Promise<string> {
   log("STEP", "D1: ensuring govt@dim.test (focal CABA govt)");
 
@@ -1353,13 +1398,18 @@ async function backfillMicrochipEvents(adminUserId: string): Promise<void> {
 async function main(): Promise<void> {
   log("INFO", `Seeding against ${SUPABASE_URL}`);
   log("INFO", `Focal jurisdiction: ${FOCAL_PROVINCE} / ${FOCAL_LOCALITY}`);
-  log("INFO", `Demo credentials: admin@dim.test / govt@dim.test  →  password: ${SHARED_PASSWORD}`);
+  log(
+    "INFO",
+    `Demo credentials: admin@dim.test / govt@dim.test / nacional@dim.test  →  password: ${SHARED_PASSWORD}`,
+  );
 
   // Step 0: resolve admin user (must exist from seed:test).
   const adminId = await resolveAdminUserId();
 
   // D1: ensure focal govt with CABA assignment.
   const govtId = await ensureFocalGovt(adminId);
+  // D1n: the read-only national demo account (no assignments, universal READ).
+  await ensureFocalNational();
 
   // Personal owner for the demo pets (institutional accounts can't own pets).
   const ownerId = await ensureDemoOwner();

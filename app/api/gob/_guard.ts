@@ -44,6 +44,7 @@
 
 import { NextResponse } from "next/server";
 
+import { type GobReadRole, isGobReadRole } from "@/lib/domain/jurisdiction-canonical";
 import { liveUserApiResponse } from "@/lib/infra/api-liveness";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -61,8 +62,9 @@ const GOB_API_MAX_PER_MINUTE = 120;
 
 export type GobApiActor = {
   profile: CachedProfile;
-  role: "admin" | "govt";
-  // Empty for admin (universal scope); populated for govt with active tuples.
+  role: GobReadRole;
+  // Empty for admin and national (universal read scope); populated for govt
+  // with active tuples.
   jurisdictions: CachedJurisdiction[];
 };
 
@@ -96,10 +98,11 @@ export async function resolveInstitutionalGobActor(): Promise<GobApiGuardResult>
   // Role + account type — the two questions liveness does not answer. Erasure
   // and deactivation are NOT re-checked here: requireLiveUser refused both
   // above, and a second copy of a check is a second thing to drift.
-  if (
-    (profile.role !== "admin" && profile.role !== "govt") ||
-    profile.accountType !== "institutional"
-  ) {
+  //
+  // These routes are READ-ONLY, so the read-only `national` role is admitted
+  // alongside admin | govt — the same set requireGobReadAccessOrRedirect admits
+  // for the pages that call these routes.
+  if (!isGobReadRole(profile.role) || profile.accountType !== "institutional") {
     return { ok: false, response: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
   }
 

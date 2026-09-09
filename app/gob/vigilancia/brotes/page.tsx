@@ -12,8 +12,9 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { DISEASES } from "@/lib/reference/diseases";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
@@ -43,7 +44,7 @@ export default async function GobVigilanciaBrotesPage({
     diseaseCode?: string;
   }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role };
   const sp = await searchParams;
 
@@ -98,7 +99,7 @@ export default async function GobVigilanciaBrotesPage({
         subtitle={
           <>
             {/* The universal claim yields to the narrowed-view caption (never both). */}
-            {profile.role === "admin" ? (
+            {hasNationalReadScope(profile.role) ? (
               narrowedView ? null : (
                 <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.

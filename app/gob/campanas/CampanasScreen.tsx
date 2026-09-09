@@ -36,7 +36,8 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchCampaignDashboard, formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
@@ -74,12 +75,12 @@ export type CampanasScreenProps = {
 };
 
 export async function CampanasScreen({ searchParams: sp, underHub = false }: CampanasScreenProps) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role };
 
   // Capability guard: same as analytics — admin or govt with assignments.
   const hasCampaignsRead =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasCampaignsRead) {
     return (
@@ -166,7 +167,7 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
         subtitle={
           <>
             {/* The universal claim yields to the narrowed-view caption (never both). */}
-            {profile.role === "admin" ? (
+            {hasNationalReadScope(profile.role) ? (
               narrowedView ? null : (
                 <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.

@@ -29,7 +29,8 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
@@ -69,11 +70,11 @@ export default async function GobAdopcionesPage({
     species?: string;
   }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role } as const;
 
   const hasAnalyticsRead =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAnalyticsRead) {
     return (
@@ -151,7 +152,7 @@ export default async function GobAdopcionesPage({
         subtitle={
           <>
             {/* The universal claim yields to the narrowed-view caption (never both). */}
-            {profile.role === "admin" ? (
+            {hasNationalReadScope(profile.role) ? (
               narrowedView ? null : (
                 <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.
@@ -616,7 +617,7 @@ export default async function GobAdopcionesPage({
           (refugio)" headline KPI above, so this national comparison is shown
           ONLY at national (admin) scope, explicitly labelled "escala nacional".
           Local govt operators no longer see the mixed-scope percentage. */}
-      {profile.role === "admin" && (
+      {hasNationalReadScope(profile.role) && (
         <OpCard aria-labelledby={panelOccupancyId}>
           <OpCardHead
             title={<span id={panelOccupancyId}>Ocupación de refugios (escala nacional)</span>}

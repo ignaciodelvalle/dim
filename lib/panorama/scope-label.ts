@@ -1,3 +1,4 @@
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 
 /**
@@ -25,7 +26,9 @@ import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
  * multi-province branch below ("4 provincias").
  */
 export function panoramaScopeLabel(role: string, jurisdictions: AdminOrGovtJurisdiction[]): string {
-  if (role === "admin" || jurisdictions.length === 0) return "Nacional · todas las provincias";
+  if (hasNationalReadScope(role) || jurisdictions.length === 0) {
+    return "Nacional · todas las provincias";
+  }
   const provinces = [...new Set(jurisdictions.map((j) => j.province))];
   if (provinces.length === 1) {
     const localities = [...new Set(jurisdictions.map((j) => j.locality))];

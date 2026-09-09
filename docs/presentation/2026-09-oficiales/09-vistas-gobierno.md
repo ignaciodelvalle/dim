@@ -104,8 +104,12 @@ flowchart TD
 ## NO dibujar / NO afirmar
 
 - **NO afirmar que un funcionario ve el país.** El alcance solo se achica.
-  Excepción declarada: la administración de la plataforma tiene alcance
-  universal por definición del rol. Fuente:
+  Excepción declarada: dos roles tienen alcance universal por definición del
+  rol, y son los únicos: la administración de la plataforma (lee y escribe) y
+  el rol nacional de solo lectura (`national`, migración 0214: lee lo mismo que
+  la administración en los tableros y colas de `/gob`, no escribe nada, no
+  entra a `/admin` ni a los registros con datos personales). La universalidad
+  se decide en un solo lugar, `hasNationalReadScope`. Fuente:
   `lib/domain/jurisdiction-canonical.ts` y `lib/infra/gov-scope.ts`.
 - **Sí afirmar que una lista de jurisdicciones vacía falla cerrada en todas las
   pantallas (cerrado el 2026-09-09).** El único resolvedor que interpretaba una

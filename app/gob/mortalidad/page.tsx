@@ -40,7 +40,8 @@ import {
   fetchPrevMortalityTotal,
   sortLocalityCellsRollupLast,
 } from "@/lib/analytics/mortality-metrics";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
@@ -104,12 +105,12 @@ export default async function GobMortalidadPage({
     cause?: string;
   }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role } as const;
 
   // Capability guard: analytics.read = admin OR (govt AND has assignments).
   const hasAnalyticsRead =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAnalyticsRead) {
     return (
@@ -154,10 +155,9 @@ export default async function GobMortalidadPage({
   // law — it is only cited to an operator whose MANDATE (raw assignments, not
   // the page's narrowed filter) includes CABA. Admin has universal scope and
   // keeps the full citation.
-  const mandateProvinces =
-    profile.role === "admin"
-      ? ("all" as const)
-      : [...new Set(jurisdictions.map((j) => j.province))];
+  const mandateProvinces = hasNationalReadScope(profile.role)
+    ? ("all" as const)
+    : [...new Set(jurisdictions.map((j) => j.province))];
   const traceabilityLegalBasis = formatMetricLegalBasis(
     "mortality_disposal_traceability",
     mandateProvinces,
@@ -194,7 +194,7 @@ export default async function GobMortalidadPage({
         subtitle={
           <>
             {/* The universal claim yields to the narrowed-view caption (never both). */}
-            {profile.role === "admin" ? (
+            {hasNationalReadScope(profile.role) ? (
               narrowedView ? null : (
                 <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.

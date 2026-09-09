@@ -52,7 +52,8 @@ import {
   JURISDICTION_ADJUSTED_TARGET_NOTE,
   resolveJurisdictionTargetsForScope,
 } from "@/lib/analytics/jurisdiction-targets";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
@@ -259,11 +260,11 @@ export async function PoblacionScreen({
   searchParams: sp,
   underHub = false,
 }: PoblacionScreenProps) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
   const actor = { role: profile.role } as const;
 
   const hasAnalyticsRead =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAnalyticsRead) {
     return (
@@ -328,7 +329,7 @@ export async function PoblacionScreen({
   // page's loadWithTimeout group, so it needs its own deadline); admin
   // national/cross-province views stay flat (JT5).
   const jurisdictionTargets = await resolveJurisdictionTargetsForScope(
-    profile.role === "admin"
+    hasNationalReadScope(profile.role)
       ? adminProvince
         ? [{ province: adminProvince, locality: adminLocality ?? "" }]
         : []
@@ -347,7 +348,7 @@ export async function PoblacionScreen({
       subtitle={
         <>
           {/* The universal claim yields to the narrowed-view caption (never both). */}
-          {profile.role === "admin" ? (
+          {hasNationalReadScope(profile.role) ? (
             narrowedView ? null : (
               <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )
@@ -711,7 +712,7 @@ export async function PoblacionScreen({
             title={<span id={panelMapId}>Cobertura de esterilización por provincia</span>}
           />
           <OpCardBody>
-            {profile.role !== "admin" && (sp.province || sp.locality) && (
+            {!hasNationalReadScope(profile.role) && (sp.province || sp.locality) && (
               <p className="mb-2 text-sm text-ln-op-mute">
                 El mapa muestra tu asignación completa; el filtro de jurisdicción no se aplica en
                 esta vista.

@@ -21,6 +21,7 @@
  *   orgadmin@dim.test    → admin de "Refugio Test (Seed)" (verified via flow)
  *   govt@dim.test        → role=govt, Ushuaia + El Calafate (remote)
  *   govt-local@dim.test  → role=govt, La Plata + CABA/Palermo (local)
+ *   nacional@dim.test    → role=national, read-only, country-wide READ scope, no assignments
  *   ZERO_PET_OWNER_EMAIL → role=owner, GUARANTEED 0 mascotas, 0 org
  *                          memberships. The owner empty state depends on it.
  *                          The address lives in exactly one place on purpose —
@@ -169,6 +170,10 @@ const EMAILS = {
   orgAdmin: "orgadmin@dim.test",
   govt: "govt@dim.test",
   govtLocal: "govt-local@dim.test",
+  // Read-only institutional role with country-wide READ scope (migration 0214):
+  // enters /gob, sees what admin sees on the read surfaces, holds no
+  // govt_assignments, is refused by every mutating action and by /admin.
+  national: "nacional@dim.test",
 } as const;
 
 const DISPLAY = {
@@ -181,6 +186,7 @@ const DISPLAY = {
   orgAdmin: "Refugio Admin",
   govt: "Operador/a Gobierno (remoto)",
   govtLocal: "Operador/a Gobierno (local)",
+  national: "Lectura nacional (solo lectura)",
 } as const;
 
 // Remote govt — keeps a govt user covering jurisdictions no test touches.
@@ -707,6 +713,79 @@ async function provisionGovt(
   }
 
   // Always re-assert the shared password so seed re-runs leave a known login.
+  await setPassword(id, SHARED_PASSWORD);
+  return id;
+}
+
+// ---------------------------------------------------------------------------
+// Step 6d — national read-only institutional account (nacional@dim.test)
+//
+// Migration 0214. Same provisioning shape as a govt account MINUS the
+// assignments: role='national', account_type='institutional', no
+// govt_assignments (its read scope is universal by ROLE, never by an empty
+// list — lib/domain/jurisdiction-canonical.ts hasNationalReadScope), an audit
+// row and the welcome notification. Every mutating /gob action refuses it
+// (requireAdminOrGovtOrRedirect admits admin | govt only), /admin refuses it.
+// ---------------------------------------------------------------------------
+
+async function provisionNational(adminId: string): Promise<string> {
+  log("STEP", `6d/9 — national read-only institutional account (${EMAILS.national})`);
+
+  const { id, created } = await ensureAuthUser(EMAILS.national, DISPLAY.national, "owner");
+  log(
+    created ? "OK" : "SKIP",
+    `auth.users ${EMAILS.national}${created ? " (created)" : " already exists"}`,
+  );
+
+  const currentRole = await readProfileRole(id);
+  if (currentRole !== "national") {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(profiles)
+        .set({
+          role: "national",
+          accountType: "institutional",
+          displayName: DISPLAY.national,
+          // Idem admin/govt: an institution has no DNI (profiles_institutional_no_pii).
+          dniHash: null,
+          dniLast4: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(profiles.id, id));
+
+      // The audit action list is the source of a DB CHECK (db/schema.ts) and
+      // of the declared-actions fence; a dedicated action is a migration of
+      // its own. The seed is the only creator of this role today, so it logs
+      // the institutional-creation action that exists and names the role in
+      // the payload — the same row shape createInstitutionalAccountForAuthority
+      // writes for a govt.
+      await tx.insert(auditLog).values({
+        actorUserId: adminId,
+        action: "institutional_govt_created",
+        targetUserId: id,
+        payload: {
+          role: "national",
+          display_name: DISPLAY.national,
+          email: EMAILS.national,
+          method: "seed_script",
+        },
+      });
+
+      await tx.insert(notifications).values({
+        userId: id,
+        notificationType: "institutional_account_created",
+        title: "Tu cuenta institucional fue creada",
+        body: "Un administrador te creó una cuenta de lectura nacional. Iniciá sesión con tus credenciales.",
+        severity: "info",
+        ctaLabel: "Acceder",
+        ctaUrl: "/login",
+      });
+    });
+    log("OK", "national profile institutional, no jurisdictions (universal READ scope by role)");
+  } else {
+    log("SKIP", "national profile already provisioned");
+  }
+
   await setPassword(id, SHARED_PASSWORD);
   return id;
 }
@@ -1516,6 +1595,7 @@ async function main() {
     localities: GOVT_LOCAL_LOCALITIES,
   });
   await attachGovtToSanitaryAuthority([govtId, govtLocalId]);
+  await provisionNational(adminId);
   await attachVetToOrg(orgId, vetId);
   await seedOwnerPets(ownerId);
   await seedOwnerBPet(ownerBId);
@@ -1534,6 +1614,9 @@ async function main() {
   console.log(`  ${EMAILS.orgAdmin.padEnd(24)}  role=owner   → /org/${orgToken}`);
   console.log(`  ${EMAILS.govt.padEnd(24)}  role=govt    → /gob (Ushuaia + El Calafate)`);
   console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA/Palermo)`);
+  console.log(
+    `  ${EMAILS.national.padEnd(24)}  role=national → /gob (lectura nacional, sin escritura)`,
+  );
   console.log(
     `  ${ZERO_PET_OWNER_EMAIL.padEnd(24)}  role=owner   → /mis-mascotas (RESERVED: 0 mascotas, never give it any)`,
   );

@@ -61,6 +61,7 @@
 // es-AR user copy stays in the caption builders this module delegates to;
 // identifiers and comments in English (project invariant #4).
 
+import { type GobReadRole, hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { describeMandate } from "@/lib/ui/scope-chrome";
 import {
   type ViewScopeJurisdiction,
@@ -91,9 +92,10 @@ export const VIEW_SCOPE_DESCRIPTOR_VERSION = 1;
  * see the module docblock.
  */
 export type ViewScopeAuthority = {
-  role: "admin" | "govt";
-  /** Raw session assignments. Admin holds NONE: its mandate is universal, and
-   *  an empty list here means "universal", not "nothing" — role disambiguates. */
+  role: GobReadRole;
+  /** Raw session assignments. Admin and national hold NONE: their mandate is
+   *  universal, and an empty list here means "universal", not "nothing" — role
+   *  disambiguates (hasNationalReadScope). */
   mandate: ViewScopeJurisdiction[];
   /** What the queries were actually scoped to. Admin: empty unless drilled. */
   effective: ViewScopeJurisdiction[];
@@ -336,8 +338,8 @@ export function parseViewScope(text: string): ViewScopeDescriptor {
   const authority = o.authority as Record<string, unknown> | undefined;
   const view = o.view as Record<string, unknown> | undefined;
   if (!authority || !view) throw new Error("ViewScope: missing authority or view");
-  if (authority.role !== "admin" && authority.role !== "govt") {
-    throw new Error("ViewScope: role must be admin or govt");
+  if (authority.role !== "admin" && authority.role !== "govt" && authority.role !== "national") {
+    throw new Error("ViewScope: role must be admin, govt or national");
   }
   if (!isJurisdictionArray(authority.mandate) || !isJurisdictionArray(authority.effective)) {
     throw new Error("ViewScope: mandate/effective must be (province, locality) lists");
@@ -442,7 +444,9 @@ export function describeViewScope(d: ViewScopeDescriptor): {
   mandate: string;
   narrowed: string | null;
 } {
-  const mandate = d.authority.role === "admin" ? "Nacional" : describeMandate(d.authority.mandate);
+  const mandate = hasNationalReadScope(d.authority.role)
+    ? "Nacional"
+    : describeMandate(d.authority.mandate);
   const narrowed = describeNarrowedView({
     role: d.authority.role,
     mandateJurisdictions: d.authority.mandate,
@@ -460,7 +464,7 @@ export function describeViewScope(d: ViewScopeDescriptor): {
  * description (see the module docblock).
  */
 export function isNarrowedBelowMandate(d: ViewScopeDescriptor): boolean {
-  if (d.authority.role === "admin") return d.authority.adminDrill !== null;
+  if (hasNationalReadScope(d.authority.role)) return d.authority.adminDrill !== null;
   if (d.authority.effective.length === 0) return false;
   return !jurisdictionsEqual(d.authority.mandate, d.authority.effective);
 }

@@ -75,7 +75,7 @@ function noSession() {
 
 type ProfileOverrides = Partial<{
   id: string;
-  role: "owner" | "vet" | "govt" | "admin";
+  role: "owner" | "vet" | "govt" | "admin" | "national";
   displayName: string;
   accountType: "personal" | "institutional";
   deactivatedAt: Date | null;
@@ -174,6 +174,32 @@ describe("resolveInstitutionalGobActor — admits legit operators", () => {
       expect(r.actor.jurisdictions).toEqual([{ province: "CABA", locality: "Palermo" }]);
     }
     expect(mockGetJurisdictionsCached).toHaveBeenCalledWith("govt-ok");
+  });
+
+  // Read-only national role (migration 0214): these routes are READ-ONLY, so
+  // the gate admits it exactly like admin — universal scope, no jurisdiction
+  // fan-out. The write-side guard (requireAdminOrGovtOrRedirect) still refuses
+  // it; see __tests__/auth-guards.test.ts.
+  it("admits an active institutional national with empty jurisdictions (read-only role)", async () => {
+    mockGetUser.mockResolvedValue(session("national-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "national-ok", role: "national" }));
+    const r = await resolveInstitutionalGobActor();
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.actor.role).toBe("national");
+      expect(r.actor.jurisdictions).toEqual([]);
+    }
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
+  });
+
+  it("403 for a national on a PERSONAL account type (institutional invariant holds for it too)", async () => {
+    mockGetUser.mockResolvedValue(session("national-personal"));
+    mockGetProfileCached.mockResolvedValue(
+      profile({ id: "national-personal", role: "national", accountType: "personal" }),
+    );
+    const r = await resolveInstitutionalGobActor();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.response.status).toBe(403);
   });
 });
 

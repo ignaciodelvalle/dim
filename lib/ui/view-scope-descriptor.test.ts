@@ -442,10 +442,20 @@ describe("parseViewScope — what it refuses", () => {
     expect(() => parseViewScope(JSON.stringify(noView))).toThrow(/missing authority or view/i);
   });
 
-  it("refuses a role outside admin|govt — an artifact may not invent an authority", () => {
+  it("refuses a role outside admin|govt|national — an artifact may not invent an authority", () => {
     const p = goodPayload();
     (p.authority as Record<string, unknown>).role = "owner";
-    expect(() => parseViewScope(JSON.stringify(p))).toThrow(/role must be admin or govt/i);
+    expect(() => parseViewScope(JSON.stringify(p))).toThrow(
+      /role must be admin, govt or national/i,
+    );
+  });
+
+  it("accepts the read-only national role as an authority (universal read scope, no mandate)", () => {
+    const p = goodPayload();
+    (p.authority as Record<string, unknown>).role = "national";
+    (p.authority as Record<string, unknown>).mandate = [];
+    (p.authority as Record<string, unknown>).effective = [];
+    expect(() => parseViewScope(JSON.stringify(p))).not.toThrow();
   });
 
   it("refuses a mandate/effective that is not a jurisdiction list", () => {

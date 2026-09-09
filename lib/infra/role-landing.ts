@@ -88,6 +88,7 @@ export function pathForRole(role: string, options: RoleOptions | boolean): strin
     case "admin":
       return "/admin";
     case "govt":
+    case "national":
       return "/gob";
     case "vet":
       if (opts.vetFirstOrgToken) return `/org/${opts.vetFirstOrgToken}`;
@@ -175,7 +176,7 @@ export async function resolveUserLanding(userId: string): Promise<string> {
 
   // Institutional roles — fast path, no membership lookup needed.
   if (role === "admin") return "/admin";
-  if (role === "govt") return "/gob";
+  if (role === "govt" || role === "national") return "/gob";
 
   // Vet — delegate to existing resolveVetLanding.
   if (role === "vet") return resolveVetLanding(userId);

@@ -30,6 +30,7 @@
 
 import { NextResponse } from "next/server";
 
+import { type GobReadRole, isGobReadRole } from "@/lib/domain/jurisdiction-canonical";
 import { liveUserApiResponse } from "@/lib/infra/api-liveness";
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -51,8 +52,9 @@ const PANORAMA_API_MAX_PER_MINUTE = 120;
 
 export type PanoramaActor = {
   profile: CachedProfile;
-  role: "admin" | "govt";
-  // Empty for admin (universal scope); populated for govt with active tuples.
+  role: GobReadRole;
+  // Empty for admin and national (universal read scope); populated for govt
+  // with active tuples.
   jurisdictions: CachedJurisdiction[];
 };
 
@@ -83,10 +85,11 @@ export async function resolveInstitutionalPanoramaActor(): Promise<PanoramaGuard
 
   // Role + account type — the two checks liveness does not make. Erasure and
   // deactivation are no longer repeated here; requireLiveUser refused both.
-  if (
-    (profile.role !== "admin" && profile.role !== "govt") ||
-    profile.accountType !== "institutional"
-  ) {
+  //
+  // Read-only routes, so the read-only `national` role is admitted alongside
+  // admin | govt — the same set requireGobReadAccessOrRedirect admits for the
+  // panorama pages that call them.
+  if (!isGobReadRole(profile.role) || profile.accountType !== "institutional") {
     return { ok: false, response: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
   }
 

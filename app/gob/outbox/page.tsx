@@ -37,7 +37,8 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, eventNotificationOutbox } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue } from "@/lib/infra/outbox-list";
 import {
   OUTBOX_PAGE_LIMIT,
@@ -64,11 +65,11 @@ export default async function GobOutboxPage({
     cursor?: string;
   }>;
 }) {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const { profile, jurisdictions } = await requireGobReadAccessOrRedirect();
 
   // Capability guard: requires admin OR (govt AND has assignments).
   const hasAccess =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
+    hasNationalReadScope(profile.role) || (profile.role === "govt" && jurisdictions.length > 0);
 
   if (!hasAccess) {
     return (
@@ -101,8 +102,9 @@ export default async function GobOutboxPage({
   // equivalent of the JurisdictionSwitcher's province drill-down elsewhere, so
   // it's threaded into the ctx too — otherwise the freshness footer's "último
   // evento" would silently stay national while the list above is narrowed.
+  const universal = hasNationalReadScope(profile.role);
   const adminProvince =
-    profile.role === "admin" && filters.province && VALID_PROVINCE_NAMES.has(filters.province)
+    universal && filters.province && VALID_PROVINCE_NAMES.has(filters.province)
       ? filters.province
       : undefined;
   const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
@@ -132,7 +134,7 @@ export default async function GobOutboxPage({
   // `undefined` (omit the key) — no jurisdiction clause, universal scope,
   // identical to /admin/outbox.
   const whereClause = buildOutboxWhere(filters, {
-    jurisdiction: profile.role === "govt" ? jurisdictions : undefined,
+    jurisdiction: universal ? undefined : jurisdictions,
     cursor,
   });
 
@@ -163,10 +165,9 @@ export default async function GobOutboxPage({
 
   // Build allowed provinces for the province filter dropdown.
   // Govt: only their assigned provinces. Admin: all provinces.
-  const allowedProvinces =
-    profile.role === "admin"
-      ? PROVINCES
-      : PROVINCES.filter((p) => jurisdictions.some((j) => j.province === p.name));
+  const allowedProvinces = universal
+    ? PROVINCES
+    : PROVINCES.filter((p) => jurisdictions.some((j) => j.province === p.name));
 
   return (
     <div className="space-y-6">
@@ -215,7 +216,7 @@ export default async function GobOutboxPage({
               paramKey: "province",
               options: allowedProvinces.map((p) => ({ value: p.name, label: p.name })),
               current: filters.province ?? null,
-              allLabel: profile.role === "govt" ? "Todas tus provincias" : "Todas las provincias",
+              allLabel: universal ? "Todas las provincias" : "Todas tus provincias",
             },
           ] satisfies OpFilterAxis[]
         }
