@@ -35,6 +35,17 @@
 // deliberately not restated as a live count anywhere in this header: re-derive
 // it by running that query rather than by trusting this paragraph.
 //
+//   PRECISION NOTE, 2026-09-09 — "mentions `deleted_at`" means the PROTECTED
+//   TABLE'S OWN `deleted_at`. Migration 0215 added `p.deleted_at IS NULL` to
+//   the admin branches of `custody_disputes select by parties and authorities`
+//   and `pet_identifications read by admin`, where `p` is `profiles` — the
+//   ACTOR. That predicate says an erased administrator is not an administrator;
+//   it says nothing about whether the dispute or the identification is
+//   soft-deleted, and FINDING 2 is exactly as open after 0215 as before it. The
+//   section 5 assertion used to match any `deleted_at` in a policy's text and
+//   went red on those two; it now discounts references bound to `profiles` and
+//   matches only the protected row's column. The zero is still zero.
+//
 //   Measured 2026-08-29 against the local stack, from the section 5 query
 //   (`p.cmd in ('SELECT','ALL')` joined to the columns carrying `deleted_at`):
 //   EIGHT read policies, all of them `SELECT` — there is no `ALL` policy on
@@ -578,13 +589,81 @@ describe("anon reads nothing — but the LIVE control proves that is not the sof
 // 5. The catalog-level statement of the gap, independent of any fixture.
 // ---------------------------------------------------------------------------
 
-describe("no RLS policy over a deleted_at-bearing table mentions deleted_at (catalog level)", () => {
+// `deleted_at` references in a policy's USING text that are about the PROTECTED
+// ROW, as opposed to the ACTOR. Two columns share the name: every soft-deletable
+// table carries one, and so does `profiles`, where it marks a Ley 25.326 art. 16
+// erasure of the caller. Migration 0215 put `p.deleted_at IS NULL` (p = profiles)
+// into admin branches, and a matcher that greps for the bare string cannot tell
+// "the administrator was erased" from "the pet was erased".
+//
+// The text is `pg_policies.qual`, i.e. pg_get_expr output, and that deparser is
+// what makes a textual resolution sound: `public.` is stripped, every range table
+// appears in FROM/JOIN/comma position with its alias, and a column is qualified
+// whenever more than one range table is in scope — the only bare `deleted_at`
+// pg_get_expr can emit is one where the protected table is the sole table in
+// scope, which is a subject reference by construction. MEASURED 2026-09-09:
+// `... AND (pet_identifications.deleted_at IS NULL)` appended to the admin
+// policy came back from the catalog as `AND (deleted_at IS NULL)`, and tripped
+// this through the bare branch; a throwaway `FROM pets p ... p.deleted_at` on
+// pet_tags tripped it through the alias branch, `p` being bound to pets.
+//
+// Resolution: bind every alias to the table it is declared on. A reference is
+// discounted only when its qualifier is bound to `profiles` AND to nothing else
+// (an alias reused for a second table in a sibling subquery is ambiguous, and
+// ambiguity trips the wire rather than silencing it). A bare `profiles.` qualifier
+// is the actor unless the policy protects `profiles` itself, in which case it IS
+// the protected row (an inner `profiles` in a `profiles` policy is deparsed as
+// `profiles_1`, so it lands in the alias branch). Everything else — bare,
+// qualified by the protected table, or qualified by any alias bound to a table
+// other than `profiles` — survives.
+function subjectDeletedAtReferences(tablename: string, qual: string): string[] {
+  const bindings = new Map<string, Set<string>>();
+  const rangeTable =
+    /(?:\bfrom\s+\(?\s*|\bjoin\s+|,\s*)(?:public\.)?([a-z_][a-z0-9_]*)(?:\s+(?:as\s+)?(?!(?:on|where|join|left|right|inner|full|cross|natural|using|group|order|limit|union|intersect|except|having|lateral|and|or)\b)([a-z_][a-z0-9_]*))?/gi;
+  for (const m of qual.matchAll(rangeTable)) {
+    const table = m[1].toLowerCase();
+    const alias = (m[2] ?? table).toLowerCase();
+    const bound = bindings.get(alias) ?? new Set<string>();
+    bound.add(table);
+    bindings.set(alias, bound);
+  }
+  const boundOnlyToProfiles = (qualifier: string) => {
+    const bound = bindings.get(qualifier);
+    return bound !== undefined && bound.size === 1 && bound.has("profiles");
+  };
+
+  const surviving: string[] = [];
+  for (const m of qual.matchAll(/(?:\b([a-z_][a-z0-9_]*)\.)?\bdeleted_at\b/gi)) {
+    const qualifier = m[1]?.toLowerCase();
+    if (qualifier === undefined || qualifier === tablename) {
+      surviving.push(m[0]);
+      continue;
+    }
+    if (qualifier === "profiles" && tablename !== "profiles") continue;
+    if (qualifier !== "profiles" && boundOnlyToProfiles(qualifier)) continue;
+    surviving.push(m[0]);
+  }
+  return surviving;
+}
+
+describe("no RLS policy over a deleted_at-bearing table mentions ITS OWN deleted_at (catalog level)", () => {
   it("records the ZERO that the three findings above are consequences of", async () => {
     // Fixture-free and session-free: pure pg_policies introspection, so it keeps
     // stating the gap even if every probe above were deleted. It is also the
     // cheapest possible tripwire for the fix — the moment ANY policy on these
-    // six tables gains a deleted_at predicate, this goes red and points the
-    // reader at the findings to re-measure.
+    // six tables gains a predicate over the protected table's own deleted_at,
+    // this goes red and points the reader at the findings to re-measure.
+    //
+    // PRECISION, 2026-09-09. Until migration 0215 this matched any `deleted_at`
+    // in the policy text, and that was exact because no policy on these tables
+    // mentioned the column in any role. 0215 introduced the first predicates
+    // that do — `p.deleted_at IS NULL` on `profiles p`, the ACTOR: an erased
+    // administrator stops being an administrator — and the string match went
+    // red on two policies whose subject-level behaviour had not moved at all.
+    // The assertion now asks the precise question through
+    // subjectDeletedAtReferences(): does this policy reference the deleted_at
+    // OF THE TABLE IT PROTECTS. Not an allowlist — the two policies stay under
+    // the wire, and a subject-level predicate added to either still trips it.
     const rows = (await db.execute(sql`
       select p.tablename, p.policyname, coalesce(p.qual, '') as qual
       from pg_policies p
@@ -605,11 +684,12 @@ describe("no RLS policy over a deleted_at-bearing table mentions deleted_at (cat
     ).toBeGreaterThan(0);
 
     const aware = rows
-      .filter((r) => /deleted_at/.test(r.qual))
-      .map((r) => `${r.tablename}."${r.policyname}"`);
+      .map((r) => ({ ...r, refs: subjectDeletedAtReferences(r.tablename, r.qual) }))
+      .filter((r) => r.refs.length > 0)
+      .map((r) => `${r.tablename}."${r.policyname}" via ${r.refs.join(", ")}`);
     expect(
       aware,
-      `A read policy now references deleted_at: ${aware.join(", ")}. That is the FIX arriving — good. Re-measure FINDINGS 1, 2 and 3 above, flip the expectations that closed, and rewrite this file's header from "open" to what is actually left. Closing ONE policy does not close the others: the three findings are independent, and this catalog assertion goes red on the first of them.`,
+      `A read policy now references the deleted_at OF THE TABLE IT PROTECTS: ${aware.join("; ")}. That is the FIX arriving — good. Re-measure FINDINGS 1, 2 and 3 above, flip the expectations that closed, and rewrite this file's header from "open" to what is actually left. Closing ONE policy does not close the others: the three findings are independent, and this catalog assertion goes red on the first of them. (A predicate on profiles.deleted_at — the ACTOR, migration 0215's erased-admin check — is deliberately NOT this: it is discounted above and does not close anything here.)`,
     ).toEqual([]);
   });
 });
