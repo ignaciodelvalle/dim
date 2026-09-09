@@ -57,6 +57,7 @@
 // same reason plus premature-optimization.
 
 import { provinceViewbox } from "@/lib/reference/ar-viewboxes";
+import { CONTACT_EMAILS, PRIMARY_MAIL_DOMAIN } from "@/lib/ui/contact";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 // dim-codename-ok: machine-to-machine header sent to Nominatim — no human
@@ -70,10 +71,22 @@ const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 // un abuso, seguiría un enlace muerto. El mail sí está monitoreado, así que
 // queda como el contacto real y se cae la URL falsa.
 //
-// Cuando haya dominio propio verificado (la misma decisión que destraba
-// RESEND_FROM — ver lib/infra/outbound-channels.ts), esta cadena vuelve a
-// llevar su URL, ya con la marca pública y no con el nombre en clave.
-const USER_AGENT = "miMAR/1.0 (contact: ignaciodelvalle2014@gmail.com)";
+// EL DOMINIO LLEGÓ (2026-09-09), y esta cadena cumple lo que se prometió arriba:
+// vuelve a llevar su URL, ya con la marca pública, y el contacto pasa de una
+// casilla personal a una de ROL.
+//
+// LA DIFERENCIA NO ES COSMÉTICA. La política de uso de OSM pide un contacto por
+// el cual AVISARNOS de un abuso — es una dirección para RECIBIR, que es
+// exactamente lo contrario de un `noreply`. `hola@` ya es una casilla que el
+// producto publica en /privacidad, /terminos y el selector de localidades, sobre
+// un dominio con MX verificado; y sobrevive a que una persona en particular no
+// esté, que es medio punto de una dirección de rol.
+//
+// COMPUESTA DESDE `CONTACT_EMAILS` y no escrita a mano, por la razón que ese
+// módulo documenta: el dominio se deletrea UNA vez en el repositorio. La versión
+// anterior de esta constante anunciaba `https://dim.ar`, un dominio inexistente,
+// durante meses.
+const USER_AGENT = `miMAR/1.0 (+https://www.${PRIMARY_MAIL_DOMAIN}; contact: ${CONTACT_EMAILS.general})`;
 const RATE_LIMIT_PER_SECOND = 5;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const MIN_REQUEST_TIMEOUT_MS = 1000;
