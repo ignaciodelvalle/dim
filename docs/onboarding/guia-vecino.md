@@ -53,7 +53,7 @@ También podés **ofrecerte como hogar de tránsito** para los refugios de tu zo
 - **No deriva automáticamente las denuncias a organismos fuera de miMAR** (fiscalías, municipios que no usan el sistema). Está en desarrollo; hoy el seguimiento pasa por el código `DEN`.
 - **No muestra un mapa de mascotas perdidas**: hay un listado con filtros, no un mapa general. La ubicación de pérdida de cada mascota aparece solo si su dueño decidió compartirla.
 - **No te avisa novedades si denunciaste como anónimo** — no hay a quién avisarle; el código es tu único canal.
-- **No hay aplicación para descargar**: todo funciona desde el navegador. (Eso es una ventaja para el que escanea: nadie necesita instalar nada para ayudar.)
+- **No necesitás instalar nada para ayudar**: escaneás el QR y la ficha se abre en el navegador. Eso es a propósito y no va a cambiar — quien encuentra un animal perdido no puede tener que bajarse una aplicación primero. (Existe una app Android para dueños, en prueba cerrada, pero es para la persona que registra su mascota, no para vos.)
 
 ## Marco legal que te aplica
 

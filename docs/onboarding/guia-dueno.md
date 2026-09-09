@@ -42,7 +42,7 @@ La libreta sanitaria de tu mascota es un papel: se moja, se pierde en una mudanz
 - **No está integrado con Mi Argentina.** Es el destino del proyecto, pero hoy el ingreso es con correo y contraseña.
 - **El semáforo de requisitos para viajar** con tu mascota entre provincias o países figura como "Próximamente" en la app: todavía no está.
 - **No manda notificaciones push al celular por defecto:** los avisos llegan dentro de la app (la campanita).
-- **No hay aplicación en App Store / Google Play:** es una aplicación web — podés "instalarla" agregándola a tu pantalla de inicio desde el navegador.
+- **Hay una app Android, y todavía es de prueba cerrada.** Se entra por invitación, con un grupo chico de testers; no está publicada para descarga abierta. Si tenés iPhone, o preferís la computadora, **la web hace todo lo mismo** — no es una versión reducida, y podés "instalarla" agregándola a tu pantalla de inicio desde el navegador.
 
 ## Marco legal que te aplica
 

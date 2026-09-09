@@ -44,7 +44,7 @@ Resultado concreto: atendiste una mascota real, la vacuna quedó firmada con tu 
 - **No te da acceso automático al historial de un paciente por escanearlo.** El acceso de lectura del profesional "por portal" está previsto como un nivel futuro; hoy el historial se comparte porque el dueño lo decide (enlace temporal o nivel médico público). Esto es una regla de privacidad, no una limitación técnica accidental.
 - **Receta electrónica veterinaria (Res. SENASA 80/2025):** el tipo de evento existe en el sistema, pero la carga con detalle de principio activo y posología todavía no está construida.
 - **No factura ni cobra:** miMAR no maneja pagos, aranceles ni facturación de tus servicios.
-- **No hay aplicación nativa** (App Store / Google Play): funciona desde el navegador del celular o la computadora.
+- **No hay aplicación para profesionales todavía:** trabajás desde el navegador, en el celular o la computadora. Sí existe una app Android para dueños, en prueba cerrada. La superficie nativa para veterinarios y organizaciones está prevista y no construida.
 - **No está integrado con Mi Argentina** todavía (es la premisa de diseño, no una realidad operativa).
 
 ## Marco legal que te aplica

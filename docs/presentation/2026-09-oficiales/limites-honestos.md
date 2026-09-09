@@ -232,13 +232,19 @@ ejecutó nada** —ni pruebas, ni compilación, ni consultas a la base. Fuente
 general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
 `docs/reviews/2026-09-fresh/BACKLOG.md`.
 
-### D.1 — A09-1: un correo sin confirmar puede mover la titularidad
+### D.1 — A09-1: CERRADO el 2026-09-04 · un correo sin confirmar ya no mueve la titularidad
+
+> **Corregido el 2026-09-08.** Esta entrada decía "decisión pendiente" y ya no
+> corresponde: el arreglo está en el código. Se deja escrita, con su historia,
+> porque una lista de límites honestos que borra lo que se resolvió deja de
+> mostrar cómo trabaja el equipo — y porque **subestimarse frente a un
+> funcionario no es gratis**: un oficial de datos anota la frase vieja.
 
 - **Frase tentadora:** "La transferencia de titularidad exige identidad probada."
-- **Por qué no se sostiene del todo:** cuando una transferencia se dirige a una
-  dirección de correo que todavía no tiene cuenta, la aceptación se valida con una
-  comparación de texto entre la dirección invitada y la de quien acepta, **sin
-  chequear que ese correo esté confirmado**. Quien conozca la dirección podría
+- **Lo que pasaba hasta el 2026-09-04:** cuando una transferencia se dirigía a una
+  dirección de correo que todavía no tenía cuenta, la aceptación se validaba con una
+  comparación de texto entre la dirección invitada y la de quien aceptaba, **sin
+  chequear que ese correo estuviera confirmado**. Quien conociera la dirección podía
   registrarse con ella y quedarse con el animal.
 - **Lo que acota el alcance, verificado el 2026-09-02 sobre las cuentas de la
   base de ensayo —la única base viva:** las confirmaciones **sí están
@@ -247,17 +253,17 @@ general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
   ya confirmada, lo que baja el alcance real muy por debajo de lo que sugiere la
   lectura del código. El archivo de configuración local dice lo contrario porque
   es solo de desarrollo.
-- **Estado:** decisión pendiente con el responsable de producto. Las opciones
-  están escritas: exigir el correo confirmado en ese brazo, o atar la invitación
-  a un secreto de un solo uso enviado a la dirección.
-- **Fuente:** `src/modules/transfers/domain/owner-transfer-rules.ts:124`;
-  `docs/reviews/2026-09-fresh/lenses/A09.md`; `supabase/config.toml` (solo
-  desarrollo).
+- **Estado: CERRADO.** `resolveRecipientMatch` / `validateRecipientMatch` toman
+  ahora `callerEmailConfirmed` —el `email_confirmed_at` de GoTrue, no nulo— y
+  devuelven un resultado propio, `email_unconfirmed`, en vez de `email` cuando
+  ese dato es falso. El brazo por identidad de cuenta no cambió. Commit
+  `7a22a1c0f`.
+- **Fuente:** `src/modules/transfers/domain/owner-transfer-rules.ts:179,187`;
+  `docs/reviews/2026-09-fresh/lenses/A09.md`.
 - **Lo que sí se puede decir:** "La transferencia de titularidad tiene dos
   brazos: por identidad de cuenta y por dirección de correo cuando el destinatario
-  todavía no tiene cuenta. El segundo tiene una decisión de endurecimiento
-  pendiente, y el entorno vivo exige confirmación de correo, que es lo que acota
-  el riesgo hoy."
+  todavía no tiene cuenta. El segundo **exige que ese correo esté confirmado**;
+  una auditoría de septiembre encontró que no lo exigía y se corrigió." "
 
 ### D.2 — A02-1: la procedencia de un asiento es falsificable por la vía directa
 
@@ -271,8 +277,17 @@ general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
 - **Estado:** **decidido**, en cola como próxima migración, con la misma forma que
   la corrección crítica que ya se aplicó sobre los perfiles: cerrar la vía
   directa de escritura, porque los únicos escritores legítimos son la API y los
-  casos de uso. La migración **todavía no está escrita**; el número se recuenta al
-  escribirla, nunca se copia de un plan.
+  casos de uso. **La migración está escrita, testeada y sin aplicar:**
+  `0212_pet_events_lock_postgrest_writes.sql` elimina la política de INSERT
+  directamente —deny-all para la vía directa, igual que hicieron la `0163` y la
+  `0211`— y viene con una barrera independiente del nombre y su prueba en
+  `__tests__/rls/pet-events-write-lockdown.test.ts`. Commit `ff4f3a5a1`.
+
+  **APLICARLA A LA BASE VIVA SIGUE PENDIENTE, y es una decisión del responsable
+  de producto.** Esa distinción no es un tecnicismo y no se puede colapsar en la
+  sala: una política escrita no protege nada hasta que corre contra la base. Este
+  repositorio ya aprendió esa lección por las malas — "aplicada no es cerrada"—
+  y decir "cerrado" acá sería el error caro, en la dirección opuesta al de D.1.
 - **Fuente:** `db/migrations/0190_titular_only_rls.sql`;
   `docs/reviews/2026-09-fresh/lenses/A02.md`;
   `docs/reviews/2026-09-fresh/BACKLOG.md`.

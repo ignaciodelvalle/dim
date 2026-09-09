@@ -44,7 +44,7 @@ Resultado concreto al final del recorrido: sabés qué está esperando una decis
 - **No envía denuncias ni notificaciones sanitarias a sistemas estatales externos.** Las denuncias se gestionan dentro de miMAR (tu área las ve en su bandeja); la derivación automática a canales gubernamentales externos está en desarrollo, y lo mismo vale para las notificaciones de eventos de declaración obligatoria: el sistema ya mide su cola interna de salida, pero el envío automático a la autoridad todavía no está conectado.
 - **El registro de perros potencialmente peligrosos todavía no exporta al registro provincial.** La marca y la declaración jurada existen; el archivo de intercambio con la provincia está pendiente.
 - **Las reglas jurisdiccionales de cumplimiento legal (vacunación antirrábica obligatoria, esterilización, microchip) están en desarrollo.** Hoy podés configurar reglas operativas; el módulo que modela obligaciones legales con su nivel de exigencia por jurisdicción está diseñado pero no construido.
-- **No hay aplicación nativa** (App Store / Google Play): es una aplicación web. Funciona en el celular desde el navegador.
+- **Tu superficie de trabajo es web, y es a propósito.** Los tableros, las bandejas y el panorama de tu jurisdicción están pensados para una pantalla grande y no tienen aplicación para instalar. Sí existe una app Android para dueños de mascotas, hoy en prueba cerrada — no la vas a necesitar para tu tarea, pero conviene que sepas que el dato que ves puede haber entrado desde un teléfono.
 - **Los datos de tu territorio arrancan de cero.** miMAR no importa padrones preexistentes por ahora: la cobertura crece a medida que vecinos, veterinarias y refugios de tu localidad se suman.
 
 ## Marco legal que te aplica

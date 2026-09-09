@@ -42,7 +42,7 @@ Resultado concreto: tu primer animal tiene credencial con QR y libreta, tu equip
 - **No chequea automáticamente a los postulantes contra registros de infractores** (por ejemplo, el registro de la Ley Huellas de CABA). Esa integración está prevista a futuro; hoy la evaluación del adoptante es tuya.
 - **No maneja donaciones, pagos ni facturación.**
 - **No manda notificaciones push al celular por defecto:** los avisos llegan dentro de la app (campanita) y el sistema de push está en etapa temprana, apagado por defecto.
-- **No hay aplicación nativa:** funciona desde el navegador.
+- **No hay aplicación para tu equipo:** el portal del refugio funciona desde el navegador, que es donde se trabaja con un padrón de decenas o cientos de animales. Sí hay una app Android para dueños, en prueba cerrada; la superficie para organizaciones está prevista y todavía no construida.
 
 ## Marco legal que te aplica
 
