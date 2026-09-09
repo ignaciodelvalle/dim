@@ -21,8 +21,8 @@ import { eq } from "drizzle-orm";
 import { custodyDisputes, db } from "@/db";
 import type { CustodyDispute } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import { roleLabel } from "@/lib/domain/role-labels";
 import { searchOrganizations, searchUsers } from "@/lib/infra/admin-search";
-import { roleLabel } from "@/lib/utils/format";
 
 import type {
   PartyCandidate,

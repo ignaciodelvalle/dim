@@ -14,6 +14,7 @@ import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
+import { roleLabel } from "@/lib/domain/role-labels";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { isPlatformInMaintenance } from "@/lib/infra/live-user";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
@@ -21,7 +22,6 @@ import { getProfileCached } from "@/lib/infra/request-cache";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import { BRANDING } from "@/lib/ui/branding";
 import type { ShellSession } from "@/lib/ui/shell-nav";
-import { roleLabel } from "@/lib/utils/format";
 import type { Metadata } from "next";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent

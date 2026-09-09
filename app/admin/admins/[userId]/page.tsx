@@ -8,10 +8,11 @@ import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentials
 import { DeactivateAdminActions } from "@/app/admin/admins/_components/DeactivateAdminForm";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
+import { accountTypeLabel } from "@/lib/domain/role-labels";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
-import { accountTypeLabel, formatDateShort, formatDateTimeNumericAr } from "@/lib/utils/format";
+import { formatDateShort, formatDateTimeNumericAr } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.

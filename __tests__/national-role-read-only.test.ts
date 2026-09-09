@@ -24,12 +24,12 @@ import {
   hasNationalReadScope,
   isGobReadRole,
 } from "@/lib/domain/jurisdiction-canonical";
+import { roleLabel } from "@/lib/domain/role-labels";
 import { canDecideRequest, visibleRequestsClause } from "@/lib/infra/approval-scope";
 import { resolveScopedJurisdictions } from "@/lib/infra/gov-scope";
 import { pathForRole } from "@/lib/infra/role-landing";
 import { buildProjectionScope } from "@/lib/metrics/context";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { roleLabel } from "@/lib/utils/format";
 import {
   AUTH_GUARDS,
   GUARD_HOMES,

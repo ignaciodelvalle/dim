@@ -14,13 +14,13 @@ import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
+import { roleLabel } from "@/lib/domain/role-labels";
 import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import { isPlatformInMaintenance } from "@/lib/infra/live-user";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { BRANDING } from "@/lib/ui/branding";
 import { describeMandate } from "@/lib/ui/scope-chrome";
 import type { ShellSession } from "@/lib/ui/shell-nav";
-import { roleLabel } from "@/lib/utils/format";
 import type { Metadata } from "next";
 
 // Gate the /gob/* segment. admin, govt and national can access this surface.

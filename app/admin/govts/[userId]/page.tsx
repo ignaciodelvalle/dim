@@ -19,11 +19,12 @@ import {
 } from "@/components/ui/dashboard";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
 import { isWholeProvinceAssignment } from "@/lib/domain/jurisdiction-canonical";
+import { accountTypeLabel } from "@/lib/domain/role-labels";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { DEAD_GOVT_REMEDY } from "@/lib/infra/govt-roster";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
-import { accountTypeLabel, formatDateShort, formatDateTimeNumericAr } from "@/lib/utils/format";
+import { formatDateShort, formatDateTimeNumericAr } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.
