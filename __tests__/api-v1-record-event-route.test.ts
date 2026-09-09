@@ -96,6 +96,13 @@ const control = vi.hoisted(() => ({
   replayedDeath: null as null | { id: string },
   /** Every titular-alert call a caretaker-filed death produced. */
   caretakerAlerts: [] as Array<Record<string, unknown>>,
+  /**
+   * `recordPostAdoptionCheckin`'s answer — its own shape, with `notAllowed`
+   * as a three-way discriminator like the pregnancy's. The replay check lives
+   * INSIDE that writer, so a replay here is the writer answering
+   * `wasDuplicate: true`, not a ledger stub.
+   */
+  checkinResult: null as null | (() => unknown),
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -289,6 +296,15 @@ vi.mock("@/src/modules/pets/application/pregnancy/record-pregnancy-ended", () =>
   },
 }));
 
+vi.mock("@/src/modules/pets/application/checkin/record-post-adoption-checkin", () => ({
+  recordPostAdoptionCheckin: async (input: Record<string, unknown>) => {
+    control.writes.push({ kind: "post_adoption_checkin", input });
+    return control.checkinResult
+      ? control.checkinResult()
+      : { ok: true, eventId: EVENT_ID, wasDuplicate: false };
+  },
+}));
+
 vi.mock("@/lib/infra/case-helpers", () => ({
   findOpenCaseForPetAndKind: async () => control.custodyCase,
   // Una mordedura ABRE un caso, y el codigo publico que devuelve es lo que la
@@ -471,6 +487,7 @@ beforeEach(() => {
   control.caretakerAlerts = [];
   control.pregnancyResult = null;
   control.replayedPregnancy = null;
+  control.checkinResult = null;
   control.biteResult = null;
   control.flushed = [];
   control.normalized = { province: "Cordoba", locality: "Villa Carlos Paz" };
@@ -1653,6 +1670,139 @@ describe("POST .../events — embarazo, y las tres negativas que no son la misma
       await expect(res.json()).resolves.toMatchObject({ error: "event_not_allowed" });
       expect(control.writes).toHaveLength(0);
     }
+  });
+});
+
+describe("POST .../events — seguimiento post-adopción, the eighteenth and last", () => {
+  const A_CHECKIN = { kind: "post_adoption_checkin", notes: "Come bien y ya duerme en su cama." };
+
+  it("appends the check-in and answers 201 with the asiento it wrote", async () => {
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({ eventId: EVENT_ID, wasDuplicate: false });
+    expect(control.writes).toHaveLength(1);
+    expect(control.writes[0].kind).toBe("post_adoption_checkin");
+    expect(control.writes[0].input.notes).toBe("Come bien y ya duerme en su cama.");
+  });
+
+  it("hands the writer the SAME Idempotency-Key the caller sent", async () => {
+    await call(A_CHECKIN);
+    expect(control.writes[0].input.clientIdempotencyKey).toBe(KEY);
+  });
+
+  it("hands the writer NO attachment and NO location — the two things the web form has and this app does not", async () => {
+    // THE SCOPE DECISION, asserted so it cannot drift silently: no photo module
+    // and no map on the phone, so the writer gets the three nulls and the two
+    // nulls, the same way every other kind on this endpoint does. A wire that
+    // grew an attachment field would have to change this test on purpose.
+    await call(A_CHECKIN);
+    const input = control.writes[0].input;
+    expect(input.uploadedPath).toBeNull();
+    expect(input.uploadedMimeType).toBeNull();
+    expect(input.uploadedSize).toBeNull();
+    expect(input.eventJurisdictionProvince).toBeNull();
+    expect(input.eventJurisdictionLocality).toBeNull();
+  });
+
+  it("accepts the kind with no text at all, and hands the writer null notes", async () => {
+    // "Estamos bien" with nothing typed is a real check-in; the web's form has
+    // no required field either.
+    const res = await call({ kind: "post_adoption_checkin" });
+    expect(res.status).toBe(201);
+    expect(control.writes[0].input.notes).toBeNull();
+  });
+
+  it("answers a replayed key as a duplicate, not as a second check-in", async () => {
+    // The writer owns the replay — it asks the ledger BEFORE its window guard,
+    // so a retry of the write that closed the last window comes back as the
+    // original. The endpoint's half is to say so rather than draw "asiento
+    // creado" over a write that did not happen twice.
+    control.checkinResult = () => ({ ok: true, eventId: "ev-original", wasDuplicate: true });
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toMatchObject({
+      eventId: "ev-original",
+      wasDuplicate: true,
+    });
+  });
+
+  it("answers checkin_not_adopted for an animal never adopted through the platform", async () => {
+    control.checkinResult = () => ({
+      ok: false,
+      error: "No se encontró adopción registrada para esta mascota.",
+      notAllowed: "not_adopted",
+    });
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({ error: "checkin_not_adopted" });
+    expect(control.reported).toHaveLength(0);
+  });
+
+  it("answers checkin_not_adopter — 403, about the CALLER — when the adoption names somebody else", async () => {
+    // A co-owner or a caretaker holds the animal and is still not the adopter.
+    // Not `event_forbidden`: that copy sends the person to ask an admin for a
+    // capability that would not help.
+    control.checkinResult = () => ({
+      ok: false,
+      error: "No sos el adoptante registrado para esta mascota.",
+      notAllowed: "not_adopter",
+    });
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ error: "checkin_not_adopter" });
+  });
+
+  it("answers checkin_no_open_window when nothing is pending — wait, not fix", async () => {
+    control.checkinResult = () => ({
+      ok: false,
+      error: "Pampa no tiene un check-in post-adopción pendiente en este momento.",
+      notAllowed: "no_open_window",
+    });
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({ error: "checkin_no_open_window" });
+  });
+
+  it("reports an unflagged failure as the server's own, not as the animal's", async () => {
+    control.checkinResult = () => ({ ok: false, error: "connection terminated" });
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toMatchObject({ error: "event_failed" });
+    expect(control.reported).toHaveLength(1);
+  });
+
+  it("refuses the ORG path at the door, in the web shim's own terms, before the writer runs", async () => {
+    // `event.write` is granted, so the shared guard lets the member through;
+    // this refusal is the check-in's own: an organization is never the adopter.
+    control.access = orgAccess();
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ error: "checkin_not_adopter" });
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("ACCEPTS a check-in on a deceased animal — its web door is requirePetAccess, not the alive variant", async () => {
+    // The parity this kind's guard exemption exists for. A refugio that asked
+    // "¿cómo está?" is owed the answer even when the answer is that the animal
+    // died, and the web accepts that check-in (app/actions/checkin.ts guards
+    // with `requirePetAccess`, whose page gates on the adoption and the window
+    // only). Refusing here would make this the one door that hides it.
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow({ status: "deceased" }),
+      holderRole: "owner",
+    });
+    const res = await call(A_CHECKIN);
+    expect(res.status).toBe(201);
+    expect(control.writes.map((w) => w.kind)).toEqual(["post_adoption_checkin"]);
+  });
+
+  it("does not ask the writer for a day it has no field for", async () => {
+    // No `occurredAt` on the wire and none in the writer's input: the writer
+    // stamps the moment of reporting, as the web action does. A day sneaked
+    // into the body is dropped by the schema, never forwarded.
+    await call({ ...A_CHECKIN, occurredAt: A_PAST_DAY });
+    expect("occurredAt" in control.writes[0].input).toBe(false);
   });
 });
 

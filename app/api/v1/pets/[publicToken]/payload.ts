@@ -40,6 +40,7 @@ import type {
   OwnerPetDetailViewerRole,
   OwnerPetIdentitySection,
   OwnerPetObligationCardV1,
+  OwnerPetPostAdoptionCheckinSection,
   OwnerPetPppRegistriesSection,
   OwnerPetPregnancySection,
   OwnerPetRemindersSection,
@@ -142,6 +143,12 @@ export function buildOwnerPetDetailV1(input: {
    * `data: null` means the animal is not under the regime at all.
    */
   pppRegistries: CredentialSection<OwnerPetPppRegistriesSection>;
+  /**
+   * Whether this viewer owes a post-adoption check-in, already resolved — a
+   * section of the route's own for the same reason `pppRegistries` is: it is a
+   * database read with its own budget and its own `unavailable`.
+   */
+  postAdoptionCheckin: CredentialSection<OwnerPetPostAdoptionCheckinSection>;
   now: Date;
 }): OwnerPetDetailV1 {
   const { detail, now } = input;
@@ -310,6 +317,7 @@ export function buildOwnerPetDetailV1(input: {
     cases: { status: "ok", data: cases },
     pregnancy: { status: "ok", data: pregnancy },
     pppRegistries: input.pppRegistries,
+    postAdoptionCheckin: input.postAdoptionCheckin,
     carousel: { status: "ok", data: carousel },
   };
 }

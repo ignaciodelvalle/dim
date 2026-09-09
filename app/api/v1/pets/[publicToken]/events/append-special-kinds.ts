@@ -20,8 +20,11 @@
 //   · mordedura    — abre un caso, arranca la observacion antirrabica con la
 //                    ventana resuelta por jurisdiccion, y deja un fan-out a la
 //                    autoridad que corre DESPUES de la transaccion.
+//   · check-in     — el ultimo de los dieciocho (2026-09-09). No tiene dia
+//                    propio, refuta sobre la adopcion y la ventana abierta, y
+//                    avisa a los admins del refugio que la pidio.
 //
-// El router se quedo del otro lado y ahora es lo que dice ser: siete despachos
+// El router se quedo del otro lado y ahora es lo que dice ser: ocho despachos
 // tempranos, un chequeo de dia, y el switch.
 
 import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
@@ -50,6 +53,7 @@ import { createSymptomObservedWriter } from "@/src/modules/events/application/su
 import { flushNotifications } from "@/src/modules/events/application/writers";
 import { resolveDeathReportable } from "@/src/modules/events/domain/death-rules";
 import type { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
+import { recordPostAdoptionCheckin } from "@/src/modules/pets/application/checkin/record-post-adoption-checkin";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
 import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
@@ -687,6 +691,86 @@ export async function appendBite(
   const payload: EventRecordedV1 = {
     eventId: result.value.eventId,
     wasDuplicate: result.value.wasDuplicate,
+  };
+  return apiV1Json(payload, { status: 201 });
+}
+
+/**
+ * Seguimiento post-adopción — the adopter's answer to the refugio's window.
+ *
+ * THE RULES ARE NOT HERE, AND THAT IS THE POINT OF THIS KIND'S REFACTOR. Who
+ * may write a check-in, what it requires and what it closes are decided inside
+ * `recordPostAdoptionCheckin`, once, for the web action and for this door. This
+ * function hands the writer the facts a JSON request carries and answers in
+ * the endpoint's vocabulary. The web adapter's extras — the L1 location, the
+ * attachment — are the two nulls and the three nulls below: the app has no map
+ * and no photo module, and pretending otherwise would be a form that takes what
+ * it cannot send.
+ *
+ * THE ORG PATH IS REFUSED AT THIS DOOR TOO, in the web shim's own words
+ * ("Solo el adoptante puede registrar un check-in"): an organization is never
+ * the adopter, so it gets the caller-side 403 before the writer runs. The
+ * writer would refuse anyway (rule 2 compares user ids); saying it here keeps
+ * the two doors' first line the same.
+ *
+ * THE REPLAY CHECK LIVES IN THE WRITER, NOT HERE, and that is a deliberate
+ * difference from `appendPregnancy`. The pregnancy writers' guards could not
+ * be reordered without touching two web forms, so the endpoint asked the
+ * ledger first. This writer was being rewritten anyway, so the question "did
+ * THIS key already write?" sits inside it, in front of the window guard, and
+ * the web form gets the same protection for free — a retry of the write that
+ * closed the last window answers `wasDuplicate: true` on both doors.
+ *
+ * THE THREE-WAY READ OF A FAILURE, same shape as the pregnancy's:
+ *
+ *   · `not_adopted`    → `checkin_not_adopted` 409. The ANIMAL cannot have it.
+ *   · `not_adopter`    → `checkin_not_adopter` 403. The CALLER may not.
+ *   · `no_open_window` → `checkin_no_open_window` 409. Not now; wait.
+ *   · anything else    → the transaction (or a malformed adoption row) failed.
+ *                        Reported and 500, because that IS a server fault.
+ */
+export async function appendPostAdoptionCheckin(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Extract<RecordEventInput, { kind: "post_adoption_checkin" }>,
+) {
+  const pet = access.pet;
+
+  if (access.kind === "org") return apiV1Error("checkin_not_adopter", 403);
+
+  const result = await recordPostAdoptionCheckin({
+    pet: { id: pet.id, name: pet.name },
+    user: { id: ctx.userId },
+    notes: input.notes,
+    // The web runs its L1 capture through `normalizeLocationForWrite`, and an
+    // untouched form resolves to this same pair of nulls.
+    eventJurisdictionProvince: null,
+    eventJurisdictionLocality: null,
+    clientIdempotencyKey: ctx.idempotencyKey,
+    // No native upload path exists yet — see the router's file header.
+    uploadedPath: null,
+    uploadedMimeType: null,
+    uploadedSize: null,
+  });
+
+  if (!result.ok) {
+    switch (result.notAllowed) {
+      case "not_adopted":
+        return apiV1Error("checkin_not_adopted", 409);
+      case "not_adopter":
+        return apiV1Error("checkin_not_adopter", 403);
+      case "no_open_window":
+        return apiV1Error("checkin_no_open_window", 409);
+      default:
+        break;
+    }
+    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
+    return apiV1Error("event_failed", 500);
+  }
+
+  const payload: EventRecordedV1 = {
+    eventId: result.eventId,
+    wasDuplicate: result.wasDuplicate,
   };
   return apiV1Json(payload, { status: 201 });
 }

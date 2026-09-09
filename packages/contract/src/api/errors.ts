@@ -414,6 +414,33 @@
  * writer's own guard for it is unreachable from this endpoint. A response code
  * for a response that cannot happen is a name nobody can test.
  *
+ * THE THREE CHECK-IN CODES (2026-09-09). The post-adoption check-in refuses on
+ * three facts the request does not carry, and the same bar splits them: each
+ * names a different NEXT MOVE, and one of them is about the CALLER rather than
+ * the animal.
+ *
+ * - `checkin_not_adopted`
+ *                       — no `adoption_finalized` on this animal's spine. 409.
+ *                         NO next move: an animal never adopted through the
+ *                         platform can never carry this asiento. Reachable from
+ *                         a deep link or a stale menu; the app does not offer
+ *                         the form unless the pet detail says a window is open.
+ * - `checkin_not_adopter`
+ *                       — the latest adoption names somebody else, or the
+ *                         caller holds the pet through an organization. 403,
+ *                         because this is about WHO is asking: a co-owner or a
+ *                         caretaker holds the animal and is still not the
+ *                         adopter. Not `event_forbidden`, whose copy tells the
+ *                         person to ask an admin for `event.write` — a
+ *                         capability that would not help here.
+ * - `checkin_no_open_window`
+ *                       — the adopter is right and there is no follow-up window
+ *                         pending. 409. The next move is to WAIT: the refugio's
+ *                         next milestone opens one and the app is told. A retry
+ *                         of the write that just closed the last window does
+ *                         NOT land here — the writer asks the ledger for the
+ *                         key before it asks the animal for a window.
+ *
  * - `event_failed`      — the append itself failed. Same contract as
  *                         `amend_failed`: a client may retry ONCE with the SAME
  *                         `Idempotency-Key`, and if the first attempt had in fact
@@ -1020,6 +1047,9 @@ export const API_V1_ERROR_CODES = [
   "pregnancy_not_applicable",
   "pregnancy_already_open",
   "pregnancy_none_open",
+  "checkin_not_adopted",
+  "checkin_not_adopter",
+  "checkin_no_open_window",
   "event_failed",
   "lost_already",
   "pet_not_lost",

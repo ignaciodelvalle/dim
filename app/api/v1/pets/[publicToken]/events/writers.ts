@@ -203,6 +203,17 @@
 //     holds a validated matrícula. Re-deriving either would be a native write
 //     claiming a verification nobody gave it.
 //
+// THE EIGHTEENTH AND LAST OWNER KIND CROSSED ON 2026-09-09: the post-adoption
+// check-in. It was the one left because its use-case was coupled to the web
+// request — it took a `FormData` and a Supabase client — and the remedy was
+// the one the other six took: the writer now receives facts
+// (`RecordPostAdoptionCheckinInput`), the web action is the form adapter, and
+// the three rules (adopted, by this caller, with a window open) run in the
+// writer for both doors. Its door on the web is `requirePetAccess`
+// (app/actions/checkin.ts), which is why it joins the deceased-exempt list in
+// `checkWriteGuard` below; its own refusals answer `checkin_not_adopted`,
+// `checkin_not_adopter` and `checkin_no_open_window`.
+//
 // NO ATTACHMENTS ON THIS PATH. Eleven of the thirteen web forms offer a file and
 // every call below passes `uploadedPath: null`, because a native upload needs a
 // signed URL and that whole path is blocked. Stated here rather than left as
@@ -257,6 +268,7 @@ import {
   appendDangerousBreedAttestation,
   appendDeath,
   appendMicrochipReplace,
+  appendPostAdoptionCheckin,
   appendPregnancy,
   appendSymptom,
 } from "./append-special-kinds";
@@ -335,7 +347,22 @@ const EVENT_TYPE_OF_KIND = {
   pregnancy_start: "clinical_info_logged",
   pregnancy_end: "clinical_info_logged",
   bite: "incident_reported",
+  post_adoption_checkin: "post_adoption_checkin",
 } as const satisfies Record<RecordEventInput["kind"], string>;
+
+/**
+ * THE DAY THIS EVENT IS ABOUT, or `null` for the kinds entitled not to name
+ * one. Most kinds state it outright; síntoma carries an OPTIONAL `onsetAt`, and
+ * when it is absent the use-case stamps the moment of REPORTING — the same
+ * shape `createSymptomObservedAction` has. The post-adoption check-in carries
+ * no day at all: it is "how things are", stamped at the moment of reporting,
+ * exactly as its web action stamps it.
+ */
+function wireDayOf(input: RecordEventInput): string | null {
+  if (input.kind === "symptom") return input.onsetAt;
+  if (input.kind === "post_adoption_checkin") return null;
+  return input.occurredAt;
+}
 
 /** Everything from the access guard to the append. */
 export async function writeEvent(ctx: WriteContext) {
@@ -358,11 +385,7 @@ export async function writeEvent(ctx: WriteContext) {
   const guard = await checkWriteGuard(access, ctx.input.kind);
   if (guard) return guard;
 
-  // THE DAY THIS EVENT IS ABOUT, or `null` for the one kind entitled not to name
-  // one. Ten kinds state it outright; síntoma carries an OPTIONAL `onsetAt`,
-  // and when it is absent the use-case stamps the moment of REPORTING — the
-  // same shape `createSymptomObservedAction` has.
-  const day = ctx.input.kind === "symptom" ? ctx.input.onsetAt : ctx.input.occurredAt;
+  const day = wireDayOf(ctx.input);
 
   let occurredAt: Date | null = null;
   if (day !== null) {
@@ -372,11 +395,11 @@ export async function writeEvent(ctx: WriteContext) {
 
   const repo = new EventsRepository();
 
-  // BOTH GATES NEED A DAY, and the one kind that may lack one passes through
-  // both untouched anyway: síntoma is neither of the two the same-day gate
-  // reads, nor a medicación fin. Skipping them when there is no day is
-  // therefore not a carve-out — it is the same answer, reached without asking
-  // the database a question with a `null` in it.
+  // BOTH GATES NEED A DAY, and the two kinds that may lack one pass through
+  // both untouched anyway: neither síntoma nor the check-in is one of the two
+  // the same-day gate reads, nor a medicación fin. Skipping them when there is
+  // no day is therefore not a carve-out — it is the same answer, reached
+  // without asking the database a question with a `null` in it.
   if (occurredAt) {
     const plausible = assertOccurredAtPlausible({
       occurredAt,
@@ -467,7 +490,24 @@ async function checkWriteGuard(
   // after asking the ledger whether this key already wrote — which is also
   // closer to the web, whose door is `requirePetAccess` plus its own refusal
   // line (actions.ts:1172) rather than an alive-gated guard.
-  if (kind === "note" || kind === "microchip_replace" || kind === "death") return null;
+  //
+  // THE POST-ADOPTION CHECK-IN IS THE FOURTH NAME, SINCE 2026-09-09, and for
+  // the first reason rather than the third: its web door is `requirePetAccess`
+  // (app/actions/checkin.ts, the guard call at the top of the action), not
+  // the alive variant, and the page in front of it gates on the adoption and
+  // the open window — never on life status. A refugio that asked "¿cómo está?"
+  // is owed the answer even when the answer is that the animal died; the
+  // web accepts that check-in and this door must not be the one that refuses
+  // it. Its OWN three refusals live in the writer, and they are about the
+  // adoption and the window, not the animal's life record.
+  if (
+    kind === "note" ||
+    kind === "microchip_replace" ||
+    kind === "death" ||
+    kind === "post_adoption_checkin"
+  ) {
+    return null;
+  }
 
   if (access.pet.status === "deceased") return apiV1Error("event_not_allowed", 409);
 
@@ -609,6 +649,15 @@ async function append(
     return appendBite(ctx, access, input);
   }
 
+  // AND THE EIGHTH — the last of the eighteen owner kinds to cross, on
+  // 2026-09-09. It answers in its own shape, refuses on three facts the
+  // request does not carry (the adoption, the adopter, the open window), and
+  // has no day of its own to anchor: the writer stamps the moment of reporting,
+  // as the web's action does.
+  if (input.kind === "post_adoption_checkin") {
+    return appendPostAdoptionCheckin(ctx, access, input);
+  }
+
   // Every remaining kind states its day outright, and `writeEvent` refused the
   // request before reaching here if that day did not parse.
   if (!occurredAt) return apiV1Error("invalid_request", 400);
@@ -647,7 +696,8 @@ async function appendUniformKind(
         | "death"
         | "pregnancy_start"
         | "pregnancy_end"
-        | "bite";
+        | "bite"
+        | "post_adoption_checkin";
     }
   >,
   occurredAt: Date,

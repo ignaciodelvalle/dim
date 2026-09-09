@@ -565,3 +565,33 @@ describe("recordEventInputSchema — fallecimiento", () => {
     expect(codeFor(death({ occurredAt: "2026-02-30" }))).toBe("OCCURRED_AT_INVALID");
   });
 });
+
+describe("recordEventInputSchema — seguimiento post-adopción", () => {
+  it("accepts the kind ALONE — no date, no organization, nothing but an optional text", () => {
+    // The smallest body on the endpoint, and deliberately so: the refugio it
+    // is addressed to, the window it answers and the moment it happened are all
+    // the server's to decide off the animal's own record.
+    expect(codeFor({ kind: "post_adoption_checkin" })).toBe(null);
+    expect(
+      codeFor({ kind: "post_adoption_checkin", notes: "Come bien y duerme en su cama." }),
+    ).toBe(null);
+  });
+
+  it("normalizes a blank text to null, exactly as the web action reads it", () => {
+    const parsed = recordEventInputSchema.safeParse({ kind: "post_adoption_checkin", notes: "  " });
+    if (!parsed.success) throw new Error("expected the body to parse");
+    expect(parsed.data).toEqual({ kind: "post_adoption_checkin", notes: null });
+  });
+
+  it("carries NO occurredAt: the writer stamps the moment of reporting", () => {
+    // A `"how things are"` and not a `"what happened on a day"`. The wire has
+    // no field for a day, so a client cannot backdate a check-in the refugio
+    // is reading as current.
+    const parsed = recordEventInputSchema.safeParse({
+      kind: "post_adoption_checkin",
+      occurredAt: A_DAY,
+    });
+    if (!parsed.success) throw new Error("expected the body to parse");
+    expect("occurredAt" in parsed.data).toBe(false);
+  });
+});

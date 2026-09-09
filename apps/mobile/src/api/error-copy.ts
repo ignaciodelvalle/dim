@@ -207,6 +207,16 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "Esta mascota ya tiene un embarazo en seguimiento. Cerralo primero y después registrá el nuevo.";
     case "pregnancy_none_open":
       return "Esta mascota no tiene un embarazo en seguimiento para cerrar. Registrá primero el inicio.";
+    // THE THREE CHECK-IN REFUSALS. Three sentences because each names a
+    // different next move — none, none-for-you, and wait — and the third is
+    // the web page's own wording for the same fact ("Sin check-ins
+    // pendientes"), so a person reads the same explanation on both doors.
+    case "checkin_not_adopted":
+      return "Esta mascota no tiene una adopción registrada en miMAR, así que no hay un refugio al que enviarle un check-in.";
+    case "checkin_not_adopter":
+      return "Solo el adoptante registrado puede enviar el check-in de esta mascota.";
+    case "checkin_no_open_window":
+      return "Esta mascota no tiene un check-in post-adopción pendiente en este momento. Si el refugio te pide otro seguimiento más adelante, te vamos a avisar.";
     case "event_date_future":
       return "La fecha no puede ser futura.";
     case "event_date_before_birth":

@@ -907,6 +907,39 @@ const pregnancyEnd = z.object({
 });
 
 /**
+ * Seguimiento post-adopción — the adopter's answer to a window the refugio
+ * opened.
+ *
+ * THE LAST OF THE EIGHTEEN, and the smallest body on this endpoint: an optional
+ * text and nothing else. The web form (CheckinForm.tsx) has exactly one typed
+ * field — "¿Cómo está?" — and its action reads `notes` off it and nothing more
+ * (app/actions/checkin.ts). Everything else about the asiento is decided
+ * server-side off the animal's own record:
+ *
+ *   · NO `occurredAt`, as síntoma has none: the writer stamps the moment of
+ *     reporting. A check-in is "how things are", not "what happened on a day".
+ *   · NO ORGANIZATION. The refugio the check-in is addressed to is read from
+ *     the latest `adoption_finalized` event; a client naming one would be a
+ *     client choosing who gets notified.
+ *   · NO ATTACHMENT. The web form takes a photo; this app has no photo module
+ *     yet, so the variant carries none rather than pretending to.
+ *   · NO LOCATION. The web offers an L1 capture; the app sends the pair of
+ *     nulls an untouched form resolves to.
+ *
+ * THE THREE PRECONDITIONS ARE NOT HERE AND CANNOT BE: adopted through the
+ * platform, by THIS user, with a follow-up window open. All three are facts
+ * about the pet and the caller that the writer reads itself; the endpoint
+ * answers each refusal with its own code (`checkin_not_adopted`,
+ * `checkin_not_adopter`, `checkin_no_open_window`). The app's job is to not
+ * OFFER the form when the window is closed — the pet detail says whether one
+ * is pending — and to offer it anyway when it could not find out.
+ */
+const postAdoptionCheckin = z.object({
+  kind: z.literal("post_adoption_checkin"),
+  notes: optionalText,
+});
+
+/**
  * Una mordedura — el asiento que abre un caso y puede llegar a una autoridad.
  *
  * THE JURISDICTION IS THE INCIDENT'S, NOT THE ANIMAL'S, and that is a PO
@@ -1082,6 +1115,7 @@ export const recordEventInputSchema = z
     pregnancyStart,
     pregnancyEnd,
     bite,
+    postAdoptionCheckin,
   ])
   .superRefine((input, ctx) => {
     // THE ONE CROSS-FIELD RULE OF A REPLACEMENT: leaving the animal with no

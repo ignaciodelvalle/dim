@@ -54,6 +54,7 @@ export {
   type OwnerPetIdentitySection,
   type OwnerPetMemorialV1,
   type OwnerPetObligationCardV1,
+  type OwnerPetPostAdoptionCheckinSection,
   type OwnerPetPppRegistriesSection,
   type OwnerPetPppRegistryV1,
   type OwnerPetPregnancySection,

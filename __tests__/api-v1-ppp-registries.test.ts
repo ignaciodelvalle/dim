@@ -14,6 +14,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  type CheckinWindowFinder,
+  resolvePostAdoptionCheckin,
+} from "@/app/api/v1/pets/[publicToken]/post-adoption-checkin";
+import {
   PPP_RULE_BUDGET_MS,
   type PppRuleResolver,
   resolvePppRegistries,
@@ -128,5 +132,59 @@ describe("resolvePppRegistries", () => {
     // A number, asserted, because the whole degrade-alone design rests on this
     // read being the short one.
     expect(PPP_RULE_BUDGET_MS).toBeLessThan(5_000);
+  });
+});
+
+// The SECOND section the route resolves itself, and the same three-outcome
+// shape: a fact either way on the person path, a skipped read on the org path,
+// and `unavailable` for a read that did not answer — which the app's picker
+// reads as "offer the row anyway", never as "nothing pending".
+describe("resolvePostAdoptionCheckin", () => {
+  const OWNER = { kind: "owner" as const, petId: "pet-1", userId: "user-1" };
+  const A_WINDOW = { id: "rem-1", dueAt: new Date("2026-10-01T12:00:00Z") };
+
+  function finding(window: { id: string; dueAt: Date } | null) {
+    return vi.fn(async () => window) as unknown as CheckinWindowFinder;
+  }
+
+  it("answers pending:false on the ORG path WITHOUT asking — an organization is never the adopter", async () => {
+    const finder = finding(A_WINDOW);
+    const section = await resolvePostAdoptionCheckin({ ...OWNER, kind: "org" }, finder);
+
+    expect(section).toEqual({ status: "ok", data: { pending: false } });
+    expect(finder).not.toHaveBeenCalled();
+  });
+
+  it("asks about THIS viewer and THIS animal, and says pending when a window is open", async () => {
+    const finder = finding(A_WINDOW);
+    const section = await resolvePostAdoptionCheckin(OWNER, finder);
+
+    expect(finder).toHaveBeenCalledWith("pet-1", "user-1");
+    expect(section).toEqual({ status: "ok", data: { pending: true } });
+  });
+
+  it("reports NO window as a fact, distinct from a read that failed", async () => {
+    const section = await resolvePostAdoptionCheckin(OWNER, finding(null));
+    expect(section).toEqual({ status: "ok", data: { pending: false } });
+  });
+
+  it("degrades to `unavailable` when the read blows its budget, never to pending:false", async () => {
+    const slow = (() =>
+      new Promise(() => {
+        /* never settles */
+      })) as unknown as CheckinWindowFinder;
+    const section = await resolvePostAdoptionCheckin(OWNER, slow);
+
+    expect(section).toEqual({ status: "unavailable" });
+  }, 10_000);
+
+  it("lets a real fault through rather than dressing it as a degraded section", async () => {
+    const broken = vi.fn(async () => {
+      throw new Error("relation reminders does not exist");
+    }) as unknown as CheckinWindowFinder;
+
+    await expect(resolvePostAdoptionCheckin(OWNER, broken)).rejects.toThrow(
+      "relation reminders does not exist",
+    );
   });
 });

@@ -380,6 +380,33 @@ export type OwnerPetPppRegistryV1 = {
 export type OwnerPetPppRegistriesSection = OwnerPetPppRegistryV1[] | null;
 
 // ---------------------------------------------------------------------------
+// The post-adoption check-in
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether THIS viewer owes the refugio a post-adoption check-in right now.
+ *
+ * ITS OWN SECTION, for the reason `pppRegistries` is one: the fact is not in
+ * the reminders section — that list is the VACCINE reminders, deliberately
+ * (`fetchActiveRemindersForPet` filters on `reminder_type = 'vaccine'`) — and
+ * it is a read of its own, resolved by the route with its own budget, so the
+ * face still loads when this one lookup does not.
+ *
+ * `pending: true` means the pet's latest adoption names this viewer as the
+ * adopter AND at least one `post_adoption_checkin` reminder is open for them —
+ * the same two facts the web's check-in page gates on, and the same two the
+ * writer refuses without. `false` is a FACT ("nothing to report right now");
+ * `unavailable` is a different one ("could not find out"), and the app's
+ * picker reads them differently: a closed window hides the row, an unknown one
+ * offers it and lets the server's refusal say why.
+ *
+ * `false` on the org path, always: an organization is never the adopter.
+ */
+export type OwnerPetPostAdoptionCheckinSection = {
+  pending: boolean;
+};
+
+// ---------------------------------------------------------------------------
 // The carousel
 // ---------------------------------------------------------------------------
 
@@ -457,5 +484,6 @@ export type OwnerPetDetailV1 = {
   cases: CredentialSection<OwnerPetCasesSection>;
   pregnancy: CredentialSection<OwnerPetPregnancySection>;
   pppRegistries: CredentialSection<OwnerPetPppRegistriesSection>;
+  postAdoptionCheckin: CredentialSection<OwnerPetPostAdoptionCheckinSection>;
   carousel: CredentialSection<OwnerPetCarouselSection>;
 };

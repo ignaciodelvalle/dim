@@ -31,7 +31,11 @@ import { describe, expect, it } from "vitest";
 
 import { buildOwnerPetDetailV1 } from "@/app/api/v1/pets/[publicToken]/payload";
 import type { OwnerPetDetail } from "@/src/modules/pets/application/read/load-owner-pet-detail";
-import type { CredentialSection, OwnerPetPppRegistriesSection } from "@dim/contract/api";
+import type {
+  CredentialSection,
+  OwnerPetPostAdoptionCheckinSection,
+  OwnerPetPppRegistriesSection,
+} from "@dim/contract/api";
 
 const NOW = new Date("2026-08-25T12:00:00Z");
 const SELF = "DIM-PAMP-0001";
@@ -81,8 +85,9 @@ function build(input: {
   petStatus?: string;
   accessPath?: "owner" | "org";
   carousel: Parameters<typeof detailStub>[0];
-  /** The section the ROUTE resolves; this file's subject is the carousel. */
+  /** The sections the ROUTE resolves; this file's subject is the carousel. */
   pppRegistries?: CredentialSection<OwnerPetPppRegistriesSection>;
+  postAdoptionCheckin?: CredentialSection<OwnerPetPostAdoptionCheckinSection>;
 }) {
   return buildOwnerPetDetailV1({
     publicToken: SELF,
@@ -91,6 +96,7 @@ function build(input: {
     accessPath: input.accessPath ?? "owner",
     detail: detailStub(input.carousel),
     pppRegistries: input.pppRegistries ?? { status: "ok", data: null },
+    postAdoptionCheckin: input.postAdoptionCheckin ?? { status: "ok", data: { pending: false } },
     now: NOW,
   });
 }
@@ -196,5 +202,23 @@ describe("buildOwnerPetDetailV1 — the carousel is the owner's OTHER pets", () 
     const section = payload.carousel;
     if (section.status !== "ok") throw new Error("carousel section must be ok");
     expect(section.data.total).toBe(0);
+  });
+});
+
+describe("buildOwnerPetDetailV1 — the sections the route resolves cross untouched", () => {
+  it("passes the check-in section through as the route resolved it, unavailable included", () => {
+    // The builder is a pure mapping over `detail`; this section is a READ of
+    // the route's own, with its own budget. A builder that re-derived it — or
+    // flattened `unavailable` into `pending: false` — would hide the one row
+    // the adopter came for behind a network blip.
+    const carousel = { items: [], total: 0, truncated: false };
+    const pending = build({
+      carousel,
+      postAdoptionCheckin: { status: "ok", data: { pending: true } },
+    });
+    expect(pending.postAdoptionCheckin).toEqual({ status: "ok", data: { pending: true } });
+
+    const degraded = build({ carousel, postAdoptionCheckin: { status: "unavailable" } });
+    expect(degraded.postAdoptionCheckin).toEqual({ status: "unavailable" });
   });
 });
