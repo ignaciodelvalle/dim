@@ -233,6 +233,9 @@ describe("conditionalKinds — the one rule both conditional rows share", () => 
     sex: "female",
     species: "dog",
     pregnancyStatus: "none",
+    // Withheld by default so this block stays about the pregnancy rule; the
+    // check-in has its own block below.
+    postAdoptionCheckinPending: false,
     ...o,
   });
 
@@ -276,16 +279,66 @@ describe("conditionalKinds — the one rule both conditional rows share", () => 
     // — the app would silently stop being able to record a pregnancy. Offering
     // costs a round trip and a sentence that names the real reason, from the
     // server, which is authoritative where this function only guesses.
-    expect(conditionalKinds({ sex: null, species: null, pregnancyStatus: null })).toEqual([
-      "pregnancy_start",
-      "pregnancy_end",
-    ]);
+    // EVERY conditional row, the check-in included: a read that failed outright
+    // knows nothing about the window either.
+    expect(
+      conditionalKinds({
+        sex: null,
+        species: null,
+        pregnancyStatus: null,
+        postAdoptionCheckinPending: null,
+      }),
+    ).toEqual(["pregnancy_start", "pregnancy_end", "post_adoption_checkin"]);
   });
 
   it("still refuses on the fact it DOES have when only the other one is unknown", () => {
     // A partial read is not a failed one: a known male is a male whatever the
     // species section said.
-    expect(conditionalKinds({ sex: "male", species: null, pregnancyStatus: null })).toEqual([]);
-    expect(conditionalKinds({ sex: null, species: "parrot", pregnancyStatus: null })).toEqual([]);
+    const withheld = { pregnancyStatus: null, postAdoptionCheckinPending: false };
+    expect(conditionalKinds({ sex: "male", species: null, ...withheld })).toEqual([]);
+    expect(conditionalKinds({ sex: null, species: "parrot", ...withheld })).toEqual([]);
+  });
+});
+
+describe("conditionalKinds — the check-in row, on the one fact the server resolves", () => {
+  // A male dog, so the pregnancy rows stay out of the way and the array IS the
+  // check-in's answer.
+  const facts = (pending: boolean | null) => ({
+    sex: "male",
+    species: "dog",
+    pregnancyStatus: "none",
+    postAdoptionCheckinPending: pending,
+  });
+
+  it("offers the row while the refugio has a window open", () => {
+    expect(conditionalKinds(facts(true))).toEqual(["post_adoption_checkin"]);
+  });
+
+  it("withholds it when nothing is pending — the form's only outcome would be a refusal", () => {
+    // Never adopted through the platform, adopted by somebody else, or every
+    // window closed: the server folds the three into one `false`, and the menu
+    // does not need to know which. The web's anotar menu withholds its entry
+    // the same way.
+    expect(conditionalKinds(facts(false))).toEqual([]);
+  });
+
+  it("OFFERS it when the window read came back degraded, rather than hiding it", () => {
+    // The third state, and the one worth defending: `pending: false` and
+    // `unavailable` reach this function as `false` and `null`, and they must
+    // not collapse. A capability hidden behind a failed read is a dead end
+    // nobody can see; offered, the worst case is the server's own sentence
+    // (`checkin_no_open_window`) naming the real reason.
+    expect(conditionalKinds(facts(null))).toEqual(["post_adoption_checkin"]);
+  });
+
+  it("sits AFTER the pregnancy rows, so a late arrival moves nothing above it", () => {
+    expect(
+      conditionalKinds({
+        sex: "female",
+        species: "dog",
+        pregnancyStatus: "none",
+        postAdoptionCheckinPending: true,
+      }),
+    ).toEqual(["pregnancy_start", "post_adoption_checkin"]);
   });
 });

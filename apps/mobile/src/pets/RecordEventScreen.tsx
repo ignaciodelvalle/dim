@@ -204,11 +204,17 @@ function useMenuFacts(publicToken: string): PetFactsForMenu | null {
         // `conditionalKinds` reads as "offer them". Leaving this at `null`
         // would hide the rows forever behind a network blip, and nothing on
         // screen would say a capability had gone missing.
-        setFacts({ sex: null, species: null, pregnancyStatus: null });
+        setFacts({
+          sex: null,
+          species: null,
+          pregnancyStatus: null,
+          postAdoptionCheckinPending: null,
+        });
         return;
       }
       const identity = result.payload.identity;
       const status = result.payload.status;
+      const checkin = result.payload.postAdoptionCheckin;
       setFacts({
         sex: identity.status === "ok" ? identity.data.sex : null,
         species: identity.status === "ok" ? identity.data.species : null,
@@ -219,6 +225,10 @@ function useMenuFacts(publicToken: string): PetFactsForMenu | null {
         // only the start — so the section's own status is what separates them,
         // never the field's emptiness.
         pregnancyStatus: status.status === "ok" ? (status.data.pregnancyStatus ?? "none") : null,
+        // ITS OWN SECTION, resolved by the route with its own budget, so a
+        // degraded window read is `unavailable` here — "offer it" — while the
+        // rest of the face is fine. `false` is the fact that withholds the row.
+        postAdoptionCheckinPending: checkin.status === "ok" ? checkin.data.pending : null,
       });
     })();
     return () => {
@@ -625,6 +635,9 @@ function chainLength(kind: WritableKind, draft: EventDraft): number {
     // desenlace es una fila de chips y no se tipea.
     case "pregnancy_end":
       return 2 + (draft.outcome === "live_birth" ? 1 : 0);
+    // Un solo campo: cómo está.
+    case "post_adoption_checkin":
+      return 1;
   }
 }
 
@@ -1451,6 +1464,31 @@ function Fields({
               empty, the asiento is stamped at the moment of reporting — which
               is the honest answer when nobody knows when it started. */}
           {dateField("Desde cuándo (si sabés)", "onsetAt", false)}
+        </>
+      );
+
+    case "post_adoption_checkin":
+      return (
+        <>
+          {/* THE WEB'S ONE FIELD, WITH THE WEB'S OWN QUESTION (CheckinForm.tsx).
+              Not `NotesField`: "Notas" is a footnote to an asiento about
+              something else, and here the text IS the asiento. Optional, as
+              on the web — "estamos bien" with nothing typed is a real answer. */}
+          <TextField
+            label="¿Cómo está?"
+            multiline
+            value={draft.notes}
+            onChangeText={(v) => set("notes", v)}
+            placeholder="Salud, ánimo, adaptación al hogar… lo que el refugio querría saber."
+          />
+          {/* SAYS WHAT THE WEB FORM HAS AND THIS ONE DOES NOT, before the
+              person looks for the button. The web takes a photo; there is no
+              photo module in this release, and a form that silently lacks an
+              affordance the same form has elsewhere reads as broken. */}
+          <Body>
+            Se envía sin fecha: queda con el momento en que lo mandás. Si querés adjuntar una foto,
+            por ahora se hace desde la web.
+          </Body>
         </>
       );
   }

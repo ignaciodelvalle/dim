@@ -140,6 +140,9 @@ describe("RecordEventScreen — the picker's conditional rows", () => {
     species?: string | null;
     pregnancyStatus?: string | null;
     statusDegraded?: boolean;
+    /** The check-in section — its own read, so it degrades on its own. */
+    checkinPending?: boolean;
+    checkinDegraded?: boolean;
   }) {
     return {
       outcome: "ok",
@@ -149,6 +152,9 @@ describe("RecordEventScreen — the picker's conditional rows", () => {
           ? { status: "unavailable" }
           : { status: "ok", data: { pregnancyStatus: o.pregnancyStatus ?? null } },
         pppRegistries: { status: "ok", data: null },
+        postAdoptionCheckin: o.checkinDegraded
+          ? { status: "unavailable" }
+          : { status: "ok", data: { pending: o.checkinPending ?? false } },
       },
     };
   }
@@ -159,6 +165,7 @@ describe("RecordEventScreen — the picker's conditional rows", () => {
     render(<RecordEventScreen publicToken={TOKEN} />);
     expect(screen.queryByText(kindTitle("pregnancy_start"))).toBeNull();
     expect(screen.queryByText(kindTitle("pregnancy_end"))).toBeNull();
+    expect(screen.queryByText(kindTitle("post_adoption_checkin"))).toBeNull();
     // NON-VACUITY: the fixed rows ARE there, so the absence above is the
     // condition and not a screen that failed to render.
     expect(screen.getByText(kindTitle("weight"))).toBeOnTheScreen();
@@ -194,6 +201,47 @@ describe("RecordEventScreen — the picker's conditional rows", () => {
     render(<RecordEventScreen publicToken={TOKEN} />);
     expect(await screen.findByText(kindTitle("pregnancy_start"))).toBeOnTheScreen();
     expect(screen.getByText(kindTitle("pregnancy_end"))).toBeOnTheScreen();
+    // And the check-in row, for the same reason: the read knows nothing about
+    // the window either.
+    expect(screen.getByText(kindTitle("post_adoption_checkin"))).toBeOnTheScreen();
+  });
+
+  it("adds the CHECK-IN row while the refugio has a window open", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ checkinPending: true }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    expect(await screen.findByText(kindTitle("post_adoption_checkin"))).toBeOnTheScreen();
+  });
+
+  it("draws NO check-in row when nothing is pending", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ checkinPending: false }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    // The read has to LAND before the absence means anything — and this fixture
+    // grows a pregnancy row when it does, so wait on that rather than on time.
+    expect(await screen.findByText(kindTitle("pregnancy_start"))).toBeOnTheScreen();
+    expect(screen.queryByText(kindTitle("post_adoption_checkin"))).toBeNull();
+  });
+
+  it("offers the check-in row when ITS section is degraded, even though the rest of the read is fine", async () => {
+    // The section has its own budget and its own `unavailable`. A face whose
+    // status section answered "no follow-up open" and whose window read timed
+    // out must still offer the check-in: hiding it would turn a 2-second
+    // hiccup on one lookup into a capability that vanished with no sentence.
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ checkinDegraded: true }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    expect(await screen.findByText(kindTitle("post_adoption_checkin"))).toBeOnTheScreen();
+    // NON-VACUITY: the pregnancy rows followed THEIR facts (never pregnant →
+    // start only), so the row above is the section's own state and not a
+    // whole-read failure that offered everything.
+    expect(screen.getByText(kindTitle("pregnancy_start"))).toBeOnTheScreen();
+    expect(screen.queryByText(kindTitle("pregnancy_end"))).toBeNull();
+  });
+
+  it("opens the check-in form when its row is tapped — the web's own question, the web's own verb", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue(petDetail({ checkinPending: true }));
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.press(await screen.findByText(kindTitle("post_adoption_checkin")));
+    expect(screen.getByText("¿Cómo está?")).toBeOnTheScreen();
+    expect(screen.getByText("Enviar el check-in")).toBeOnTheScreen();
   });
 
   it("offers BOTH rows when the read answered but the status section is degraded", async () => {
@@ -792,6 +840,58 @@ describe("RecordEventScreen — síntoma", () => {
     render(<RecordEventScreen publicToken={TOKEN} />);
     fireEvent.press(screen.getByText("Síntoma"));
     expect(screen.getByLabelText("Qué le viste, obligatorio")).toBeOnTheScreen();
+  });
+});
+
+describe("RecordEventScreen — check-in post-adopción, the eighteenth and last", () => {
+  it("says who reads it and what it lacks BEFORE the form is filled", () => {
+    // Addressed to the refugio, sent without a date, and no photo on this
+    // release — three things a person is entitled to know while they can
+    // still decide, and the third is the one that would otherwise read as a
+    // broken form to somebody who used the web's.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="post_adoption_checkin" />);
+    expect(screen.getByText(/refugio que pidió el seguimiento/i)).toBeOnTheScreen();
+    expect(screen.getByText(/foto, por ahora se hace desde la web/i)).toBeOnTheScreen();
+    expect(screen.getByText(/no se editan ni se borran/i)).toBeOnTheScreen();
+  });
+
+  it("sends the text alone — no date, no refugio, no attachment", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="post_adoption_checkin" />);
+    fireEvent.changeText(screen.getByLabelText("¿Cómo está?"), "Come bien y ya duerme en su cama.");
+    fireEvent.press(submitControl());
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toEqual({
+      kind: "post_adoption_checkin",
+      notes: "Come bien y ya duerme en su cama.",
+    });
+    // NO `occurredAt`, even though `emptyDraft` pre-fills one: the server
+    // stamps the moment of reporting, as the web action does.
+    expect(sentBody()).not.toHaveProperty("occurredAt");
+    expect(sentKey()).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("sends with nothing typed — 'estamos bien' is a real check-in, as on the web", async () => {
+    // The web form has no required field; a client-side refusal here would be
+    // this app inventing a rule the contract does not have.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="post_adoption_checkin" />);
+    fireEvent.press(submitControl());
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(sentBody()).toEqual({ kind: "post_adoption_checkin", notes: null });
+  });
+
+  it("shows the server's own reason when the window closed under the person", async () => {
+    // The refusal the three-state menu exists to reach: offered on a degraded
+    // read, refused by the server, and the sentence names the real reason
+    // rather than a generic failure.
+    mockRecordPetEvent.mockResolvedValue({ outcome: "api-error", code: "checkin_no_open_window" });
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="post_adoption_checkin" />);
+    fireEvent.press(submitControl());
+
+    expect(
+      await screen.findByText(/no tiene un check-in post-adopción pendiente/i),
+    ).toBeOnTheScreen();
   });
 });
 

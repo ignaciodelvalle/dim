@@ -111,7 +111,11 @@ export type WritableKind =
   | "dangerous_breed_attestation"
   | "death"
   | "pregnancy_start"
-  | "pregnancy_end";
+  | "pregnancy_end"
+  // The eighteenth and last owner kind (2026-09-09). Conditional, like the
+  // two pregnancy halves: offered only while the refugio has a follow-up
+  // window open for THIS person, which the pet detail says.
+  | "post_adoption_checkin";
 
 /**
  * A yes/no answer, and `null` for one nobody gave yet.
@@ -144,6 +148,7 @@ export const WRITABLE_KINDS: ReadonlySet<WritableKind> = new Set<WritableKind>([
   "death",
   "pregnancy_start",
   "pregnancy_end",
+  "post_adoption_checkin",
 ]);
 
 /**
@@ -160,7 +165,11 @@ export const WRITABLE_KINDS: ReadonlySet<WritableKind> = new Set<WritableKind>([
  * pet detail already carries — no new endpoint — and it is a pure function, so
  * the rule is testable without a screen.
  */
-export const CONDITIONAL_KINDS = ["pregnancy_start", "pregnancy_end"] as const;
+export const CONDITIONAL_KINDS = [
+  "pregnancy_start",
+  "pregnancy_end",
+  "post_adoption_checkin",
+] as const;
 
 /**
  * What the animal's own facts say about the conditional rows.
@@ -173,6 +182,13 @@ export type PetFactsForMenu = {
   sex: string | null;
   species: string | null;
   pregnancyStatus: string | null;
+  /**
+   * Whether the refugio has a post-adoption follow-up window open for THIS
+   * person. A fact about the viewer-and-animal pair rather than the animal
+   * alone, and the server resolves it (`postAdoptionCheckin.pending`); `null`
+   * is the degraded read, as everywhere on this type.
+   */
+  postAdoptionCheckinPending: boolean | null;
 };
 
 /**
@@ -221,6 +237,11 @@ const PREGNANCY_SPECIES: ReadonlySet<string> = new Set([
  * vanishes mid-scroll is not.
  */
 export function conditionalKinds(facts: PetFactsForMenu): readonly WritableKind[] {
+  return [...pregnancyRows(facts), ...checkinRows(facts)];
+}
+
+/** The pregnancy halves — see `conditionalKinds` for the three-state rule. */
+function pregnancyRows(facts: PetFactsForMenu): readonly WritableKind[] {
   // A pregnancy needs a female of a species this build can date. `null` on
   // either is the unknown case and passes — see the header.
   const canCarry =
@@ -234,6 +255,25 @@ export function conditionalKinds(facts: PetFactsForMenu): readonly WritableKind[
   if (facts.pregnancyStatus === "in_progress") return ["pregnancy_end"];
   if (facts.pregnancyStatus === null) return ["pregnancy_start", "pregnancy_end"];
   return ["pregnancy_start"];
+}
+
+/**
+ * The post-adoption check-in — the same three-state read, on one fact.
+ *
+ *   · `true`  → the refugio is waiting for one. Offer it.
+ *   · `false` → nothing pending: the animal was not adopted through the
+ *               platform, this person is not its adopter, or every window is
+ *               closed. The row would be a form whose only outcome is a
+ *               refusal, so it is withheld — exactly as the web's anotar menu
+ *               withholds its "Check-in post-adopción" entry.
+ *   · `null`  → the read did not answer. OFFER IT ANYWAY, for the reason
+ *               `conditionalKinds` gives: a capability hidden behind a failed
+ *               read is a dead end nobody can see, and the server's own
+ *               refusal (`checkin_no_open_window` and its siblings) names the
+ *               real reason where this function can only guess.
+ */
+function checkinRows(facts: PetFactsForMenu): readonly WritableKind[] {
+  return facts.postAdoptionCheckinPending === false ? [] : ["post_adoption_checkin"];
 }
 
 /**
@@ -294,6 +334,11 @@ export function kindTitle(kind: WritableKind): string {
       return "Embarazo · inicio";
     case "pregnancy_end":
       return "Embarazo · fin";
+    // The web's own row label (anotar/handoff.ts) rather than the asiento's
+    // name in the libreta ("Seguimiento post-adopción"): the picker is the
+    // menu the web has, and a person who used one should recognise the other.
+    case "post_adoption_checkin":
+      return "Check-in post-adopción";
   }
 }
 
@@ -350,6 +395,11 @@ export function kindSubtitle(kind: WritableKind): string {
       // Says "cómo terminó" rather than "el parto", because four of the five
       // outcomes are not a birth and one of them is "no lo sé".
       return "Cómo terminó la gestación. Cierra el seguimiento y los controles que quedaban.";
+    case "post_adoption_checkin":
+      // SAYS WHO READS IT, as síntoma says who is told. This asiento is
+      // addressed to somebody — the refugio that asked — and a person should
+      // know that before typing how the animal is doing at home.
+      return "Cómo está desde que llegó a casa. Le llega al refugio que pidió el seguimiento y cierra la ventana pendiente.";
   }
 }
 
@@ -421,6 +471,11 @@ export function recordEventCta(kind: WritableKind): { label: string; busyLabel: 
       // "Cerrar" and not "Registrar el fin": the act is closing a follow-up
       // that has been open for weeks, and one of the five outcomes is a loss.
       return { label: "Cerrar el seguimiento", busyLabel: "Cerrando…" };
+    case "post_adoption_checkin":
+      // The web's own verb ("Enviar check-in", CheckinForm.tsx): nothing was
+      // observed and nothing is confirmed — a message is SENT to the refugio.
+      // The fourth shape of the four-verb rule, a domain verb with its object.
+      return { label: "Enviar el check-in", busyLabel: "Enviando…" };
   }
 }
 
@@ -1039,6 +1094,11 @@ function draftToWire(
         severity: draft.severity,
         onsetAt: dayOrNull(draft.onsetAt),
       };
+    case "post_adoption_checkin":
+      // The smallest body on the endpoint: the text, or nothing. No date (the
+      // server stamps the moment of reporting, as the web action does), no
+      // refugio (read off the adoption), no photo (no module for one yet).
+      return { kind, notes: orNull(draft.notes) };
   }
 }
 
