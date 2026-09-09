@@ -27,7 +27,7 @@
 import * as Sentry from "@sentry/react-native";
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 // The PORT, not the settings card that used to export it (finding F7): this
@@ -36,6 +36,11 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 // look for here.
 import { EXPO_UPDATES_PORT } from "../src/account/expo-updates-port";
 import { useForegroundUpdateCheck } from "../src/account/foreground-update";
+import { ASYNC_STORAGE_MARKER_STORE } from "../src/account/launch-gate-marker-store";
+import {
+  LAUNCH_GATE_UPDATING_MESSAGE,
+  useLaunchUpdateGate,
+} from "../src/account/launch-update-gate";
 import { useSessionBootstrap } from "../src/auth/useSession";
 import { initSentry } from "../src/observability/sentry";
 import { useNavigationBreadcrumb } from "../src/observability/use-navigation-breadcrumb";
@@ -76,13 +81,24 @@ function RootLayout() {
   // font gate returns early — a hook that runs conditionally is not a hook, and
   // the cold-start screens are the ones whose order matters most.
   useNavigationBreadcrumb(usePathname());
+  // THE FIRST LAUNCH OF A FRESH INSTALL WAITS FOR A PENDING OTA (2026-09-09).
+  // A Play install runs the bundle baked into the binary on its first open, and
+  // `fallbackToCacheTimeout: 0` means whatever was published since applies on
+  // the SECOND open — a tester was shown a screen deleted two days earlier and
+  // followed its stale instruction into the browser. This holds that one
+  // launch, bounded, and every other launch answers `done` synchronously. It
+  // only exists in builds that embed it, so it cannot fix installs that
+  // predate it — see `src/account/launch-update-gate.ts` for both halves.
+  const launchGate = useLaunchUpdateGate(EXPO_UPDATES_PORT, ASYNC_STORAGE_MARKER_STORE);
   // AN OTA HOTFIX HAS TO REACH A PHONE NOBODY RESTARTS (A6-cuenta-resiliencia-08).
   // `checkAutomatically` is ON_LOAD, so a resident app never looks; this stages
   // the bundle on the way back to the foreground, silently, so the next launch
   // applies it instead of the one after that. It never reloads on its own — see
   // `src/account/foreground-update.ts`. Called BEFORE the font gate returns
   // early, like the breadcrumb above: a hook that runs conditionally is not one.
-  useForegroundUpdateCheck(EXPO_UPDATES_PORT);
+  // `suspended` while the launch gate is fetching: two fetches into one staging
+  // directory is the overlap that hook's own `running` guard exists to stop.
+  useForegroundUpdateCheck(EXPO_UPDATES_PORT, { suspended: launchGate !== "done" });
 
   // THE FIRST PAINT WAITS FOR THE TYPEFACE, and the alternative is worse than a
   // pause. React Native draws immediately with the system face and re-lays-out
@@ -91,7 +107,13 @@ function RootLayout() {
   // is a few hundred milliseconds ONCE per cold start, on a bundled asset with
   // no network in the path. `useLnFonts` releases the gate on failure too, so a
   // font that cannot load costs an ugly app rather than an app that never opens.
-  if (!fontsReady) {
+  //
+  // THE LAUNCH GATE SHARES THIS FRAME. While it is deciding (a local read,
+  // milliseconds) it is indistinguishable from the font wait; while it is
+  // fetching, one sentence says so. A bare `Text` and not the kit's `Body`,
+  // for the reason `expo-updates-port.ts` gives: the root layout must not pull
+  // in the UI kit to draw a spinner.
+  if (!fontsReady || launchGate !== "done") {
     return (
       <SafeAreaProvider>
         <StatusBar style="dark" />
@@ -104,6 +126,18 @@ function RootLayout() {
           }}
         >
           <ActivityIndicator color={COLORS.accent} />
+          {launchGate === "updating" ? (
+            <Text
+              style={{
+                marginTop: 16,
+                color: COLORS.inkSoft,
+                fontFamily: fontsReady ? FONTS.sans : undefined,
+                fontSize: TYPE.md,
+              }}
+            >
+              {LAUNCH_GATE_UPDATING_MESSAGE}
+            </Text>
+          ) : null}
         </View>
       </SafeAreaProvider>
     );

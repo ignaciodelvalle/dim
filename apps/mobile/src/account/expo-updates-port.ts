@@ -34,6 +34,8 @@ import type { UpdatesPort } from "./update-check";
  */
 export const EXPO_UPDATES_PORT: UpdatesPort = {
   isEnabled: Updates.isEnabled,
+  isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+  updateId: Updates.updateId,
   checkForUpdateAsync: () => Updates.checkForUpdateAsync(),
   fetchUpdateAsync: () => Updates.fetchUpdateAsync(),
   reloadAsync: () => Updates.reloadAsync(),

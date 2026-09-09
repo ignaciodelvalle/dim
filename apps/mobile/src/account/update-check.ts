@@ -31,6 +31,23 @@ import { reportHandledFailure } from "../observability/report";
  */
 export type UpdatesPort = {
   isEnabled: boolean;
+  /**
+   * True while the running bundle is the one baked into the binary
+   * (`Updates.isEmbeddedLaunch`, expo-updates 57). The first launch of a fresh
+   * install is ALWAYS an embedded launch — the bundle that shipped with the
+   * build, however old — and `launch-update-gate.ts` is the one consumer. It
+   * stays true forever on an install that never receives an update, which is
+   * why that gate does not fire on this flag alone.
+   */
+  isEmbeddedLaunch: boolean;
+  /**
+   * The id of the running update, or `null` where updates are disabled. On an
+   * embedded launch it is the embedded manifest's id, which is different for
+   * every build — the launch gate keys its one-time marker on it so a NEW
+   * binary from Play (whose embedded bundle is also as old as its build) gets
+   * its own first-launch check instead of inheriting the previous one's.
+   */
+  updateId: string | null;
   checkForUpdateAsync(): Promise<{ isAvailable: boolean; isRollBackToEmbedded?: boolean }>;
   /**
    * `isRollBackToEmbedded` IS PART OF THE ANSWER AND WAS MISSING FROM THIS TYPE

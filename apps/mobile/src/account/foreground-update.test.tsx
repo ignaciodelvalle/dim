@@ -63,6 +63,8 @@ function emit(next: AppStateStatus): void {
 function fakeUpdates(over: Partial<UpdatesPort> = {}): UpdatesPort {
   return {
     isEnabled: true,
+    isEmbeddedLaunch: false,
+    updateId: "11111111-1111-4111-8111-111111111111",
     checkForUpdateAsync: async () => ({ isAvailable: true }),
     fetchUpdateAsync: async () => ({ isNew: true }),
     reloadAsync: async () => {},

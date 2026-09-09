@@ -144,10 +144,26 @@ export function shouldCheckOnForeground(args: {
  * written for a button somebody presses. `{ report: false }` is what makes this
  * call site silent in the way its own docblock already claimed to be.
  */
-export function useForegroundUpdateCheck(port: UpdatesPort): void {
+export function useForegroundUpdateCheck(
+  port: UpdatesPort,
+  options: {
+    /**
+     * True while `useLaunchUpdateGate` holds the launch. The gate is a
+     * check → fetch → reload of its own; somebody who backgrounds the app
+     * during those seconds and comes back would otherwise start a SECOND
+     * fetch into the same staging directory. `running` cannot see the gate's
+     * fetch — it lives in a different hook — so the layout says so here.
+     * Read through a ref so the platform listener sees the current value
+     * without being re-registered on every render.
+     */
+    suspended?: boolean;
+  } = {},
+): void {
   const previous = useRef<AppStateStatus | null>(null);
   const lastCheckedAt = useRef<number | null>(null);
   const running = useRef(false);
+  const suspended = useRef(options.suspended === true);
+  suspended.current = options.suspended === true;
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
@@ -162,7 +178,10 @@ export function useForegroundUpdateCheck(port: UpdatesPort): void {
       // `running` is not the throttle — it is the overlap guard. A check that is
       // slow on a bad connection must not have a second one started on top of
       // it, because `fetchUpdateAsync` writes into the same staging directory.
-      if (!decision || running.current) return;
+      // `suspended` is the same guard for a fetch this hook cannot see: the
+      // launch gate's. A suspended edge is DROPPED, not deferred — the launch
+      // gate's own check is fresher than anything this one would find.
+      if (!decision || running.current || suspended.current) return;
       running.current = true;
       lastCheckedAt.current = Date.now();
       void (async () => {

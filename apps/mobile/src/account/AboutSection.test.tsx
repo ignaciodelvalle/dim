@@ -76,6 +76,8 @@ import { setUpdateStaged } from "./foreground-update";
 function fakeUpdates(overrides: Partial<UpdatesPort> = {}): UpdatesPort {
   return {
     isEnabled: true,
+    isEmbeddedLaunch: false,
+    updateId: "11111111-1111-4111-8111-111111111111",
     checkForUpdateAsync: async () => ({ isAvailable: false }),
     fetchUpdateAsync: async () => ({ isNew: true }),
     reloadAsync: async () => undefined,
