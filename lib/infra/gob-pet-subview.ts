@@ -37,7 +37,10 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import {
+  hasNationalReadScope,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { type PetOpenCase, findOpenCasesForPetWithCodes } from "@/lib/infra/case-queries";
 import type { WelfareReportStatus } from "@/src/modules/welfare/domain/types";
@@ -92,7 +95,23 @@ export async function loadGobPetSubView(
   publicToken: string,
 ): Promise<GobPetSubViewResult> {
   const { profile, jurisdictions } = session;
-  const isGovt = profile.role === "govt";
+  // NAMED FOR THE CAPABILITY IT GRANTS, NOT FOR THE ROLE IT EXCLUDES.
+  //
+  // This was `const isGovt = profile.role === "govt"`, and every use below is
+  // its negation: not-govt meant "see the whole country, unfiltered". That is
+  // the same rule `loadWelfareInspectorDetail` states as
+  // `!hasNationalReadScope(profile.role)` — the two halves of ONE inspector —
+  // and the two spellings answered identically for as long as `admin` was the
+  // only non-govt caller. `session.profile.role` is `GobReadRole`, a union that
+  // GREW on 2026-09-09 (migration 0214 added `national`), and a rule phrased as
+  // the complement of one role reads as narrowing while behaving as widening:
+  // the next role added to that union would inherit country-wide reach here
+  // without anyone writing a line that says so. Phrased this way it inherits
+  // the jurisdiction filter instead, which is the safe default.
+  //
+  // No behaviour changes today: `hasNationalReadScope` is true for exactly
+  // `admin` and `national`, the two roles `!isGovt` already admitted.
+  const isScoped = !hasNationalReadScope(profile.role);
 
   const [pet] = await db
     .select({
@@ -114,7 +133,7 @@ export async function loadGobPetSubView(
   // Linking authorization — gather every welfare report / case that names this
   // pet as subject/primary, then require at least one INSIDE the caller's scope.
   const inScope = (province: string | null, locality: string | null): boolean =>
-    isGovt ? jurisdictionScopeContains(jurisdictions, province, locality) : true;
+    isScoped ? jurisdictionScopeContains(jurisdictions, province, locality) : true;
 
   // Timing-oracle hardening (task #59, LOW-1): run the linking-record lookups
   // with the SAME query shape whether or not the pet exists, so response latency
@@ -156,19 +175,21 @@ export async function loadGobPetSubView(
     status: string;
   }): boolean =>
     inScope(r.province, r.locality) &&
-    (!isGovt || !isTerminalStatus(r.status as WelfareReportStatus));
+    (!isScoped || !isTerminalStatus(r.status as WelfareReportStatus));
   const caseGrants = (c: {
     province: string | null;
     locality: string | null;
     status: string;
-  }): boolean => inScope(c.province, c.locality) && (!isGovt || ACTIVE_CASE_STATUSES.has(c.status));
+  }): boolean =>
+    inScope(c.province, c.locality) && (!isScoped || ACTIVE_CASE_STATUSES.has(c.status));
 
   const hasLink = reportRows.some(reportGrants) || caseRows.some(caseGrants);
   if (!pet || !hasLink) return { ok: false };
 
   // Fence the open-cases list to the caller's jurisdiction (task #59) — see
-  // loadPetSubViewTail. Admin keeps universal visibility (undefined → unfiltered).
-  return { ok: true, pet: await loadPetSubViewTail(pet, isGovt ? jurisdictions : undefined) };
+  // loadPetSubViewTail. A country-wide reader keeps universal visibility
+  // (undefined → unfiltered).
+  return { ok: true, pet: await loadPetSubViewTail(pet, isScoped ? jurisdictions : undefined) };
 }
 
 // Row shape shared by both loaders' initial `pets` SELECT.
