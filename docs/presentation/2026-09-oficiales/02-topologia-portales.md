@@ -61,7 +61,7 @@ El detalle por ruta y el inventario de páginas están en
 
 Tamaño del árbol: <!-- fact:pages -->262<!-- /fact --> páginas,
 <!-- fact:route_handlers -->83<!-- /fact --> manejadores de ruta y apenas
-<!-- fact:layouts -->10<!-- /fact --> capas de entrada. Esa proporción es el
+<!-- fact:layouts -->11<!-- /fact --> capas de entrada. Esa proporción es el
 argumento: el control está concentrado en las capas de entrada, no repartido
 entre las páginas que protege.
 

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-08",
-  "sha": "f8c995e32",
+  "generatedAt": "2026-09-09",
+  "sha": "34c8b3822",
   "facts": {
     "event_types": {
       "value": 55,
@@ -38,12 +38,12 @@
       "method": "files named exactly `route.ts` anywhere under `app/`."
     },
     "layouts": {
-      "value": 10,
+      "value": 11,
       "source": "app/**/layout.tsx",
       "method": "files named exactly `layout.tsx` anywhere under `app/`."
     },
     "migrations": {
-      "value": 211,
+      "value": 212,
       "source": "db/migrations/*.sql",
       "method": "files ending in `.sql` under `db/migrations/`. Migrations are forward-only and immutable, so this only ever grows."
     },
