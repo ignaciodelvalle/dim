@@ -9,8 +9,10 @@
 //   - updateProfileForUser: happy path, validation rejections, unauthorized
 //   - uploadAvatarForUser: happy path (storage stub), validation rejections
 
+import { readFileSync } from "node:fs";
+
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // updateEmergencyContactsAction (pet-document-redesign ADR-13, Phase 5) calls
@@ -32,8 +34,12 @@ vi.mock("next/cache", () => ({
 import { updateEmergencyContactsAction } from "@/app/actions/profile";
 import { auditLog, db, notifications, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { MAX_IMAGE_BYTES } from "@/lib/media/validate";
 import { updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
-import { uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
+import {
+  avatarObjectKey,
+  uploadAvatarForUser,
+} from "@/src/modules/pets/application/profile/upload-avatar";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -417,18 +423,244 @@ describe("uploadAvatarForUser — validation: wrong mime type", () => {
     if (!("error" in result)) return;
     expect(result.error).toMatch(/VALIDATION_ERROR/);
   });
+});
 
-  it("rejects files larger than 2MB", async () => {
-    const largeBlob = new Blob([new Uint8Array(2 * 1024 * 1024 + 1)], { type: "image/jpeg" });
+// ============================================================================
+// uploadAvatarForUser — the bytes decide (audit 2026-09-fresh, finding A07-2)
+// ============================================================================
+//
+// The defect these pin: the ceiling was enforced against `input.fileSize`, a
+// number the caller sends beside the blob. Nothing compared the two, so a
+// spoofed `fileSize: 1` carried an arbitrarily large body straight into a
+// SERVICE-ROLE upload. `mimeType` was trusted the same way.
+//
+// THE FIXTURE SIZES BELOW ARE DOMAIN NUMBERS, NOT `MAX_IMAGE_BYTES + 1`. A test
+// whose input is derived from the constant it is checking cannot fail when that
+// constant is mutated — it moves with it. 6 MiB is a plain phone photo that is
+// bigger than a profile picture has any business being; 12 bytes is a header.
+//
+// `_storageStub` is deliberately NOT passed to the rejection cases: they must
+// fail before any upload function is chosen, and a stub would hide it if the
+// order ever inverted.
+
+/** 6 MiB — a full-resolution phone photo. Over any sane avatar ceiling. */
+const OVERSIZED_PHOTO_BYTES = 6 * 1024 * 1024;
+
+/** Real JPEG magic bytes (FF D8 FF) plus a JFIF header. */
+const REAL_JPEG = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+]);
+
+describe("uploadAvatarForUser — validates the blob, not the caller's claims", () => {
+  it("refuses an oversized blob with a Spanish sentence that says what to do", async () => {
+    const bigJpeg = new Uint8Array(OVERSIZED_PHOTO_BYTES);
+    bigJpeg.set(REAL_JPEG, 0);
+    const largeBlob = new Blob([bigJpeg], { type: "image/jpeg" });
+
     const result = await uploadAvatarForUser(actorUserId, {
       fileBlob: largeBlob,
-      fileName: "big.jpg",
+      fileName: "foto.jpg",
       mimeType: "image/jpeg",
-      fileSize: largeBlob.size,
+      fileSize: largeBlob.size, // honest caller
     });
+
     expect(result).toHaveProperty("error");
     if (!("error" in result)) return;
-    expect(result.error).toMatch(/VALIDATION_ERROR/);
+    expect(result.error).toContain("VALIDATION_ERROR");
+    expect(result.error).toContain("La imagen no puede superar los 5 MB");
+    expect(result.error).toContain("Probá con una foto más liviana");
+  });
+
+  // THE DEFECT ITSELF. Identical body to the test above; the only difference is
+  // that the caller lies about the size. Before the fix this one returned ok.
+  it("refuses a large blob even when fileSize claims it is one byte", async () => {
+    const bigJpeg = new Uint8Array(OVERSIZED_PHOTO_BYTES);
+    bigJpeg.set(REAL_JPEG, 0);
+    const largeBlob = new Blob([bigJpeg], { type: "image/jpeg" });
+
+    const result = await uploadAvatarForUser(actorUserId, {
+      fileBlob: largeBlob,
+      fileName: "foto.jpg",
+      mimeType: "image/jpeg",
+      fileSize: 1, // the lie
+    });
+
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toContain("La imagen no puede superar los 5 MB");
+  });
+
+  // The magic-byte half. A PDF is not made an image by saying so.
+  it("refuses a non-image blob that declares an allowed image content type", async () => {
+    const notAnImage = new Blob([new TextEncoder().encode("%PDF-1.7 not a raster at all")], {
+      type: "image/jpeg",
+    });
+
+    const result = await uploadAvatarForUser(actorUserId, {
+      fileBlob: notAnImage,
+      fileName: "foto.jpg",
+      mimeType: "image/jpeg", // the lie
+      fileSize: notAnImage.size,
+    });
+
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toContain("VALIDATION_ERROR");
+    expect(result.error).toContain("El archivo debe ser una imagen JPG, PNG o WebP");
+  });
+
+  // The other side of the same guard: a real image at a normal size still gets
+  // through.
+  it("accepts a real JPEG at a normal size", async () => {
+    const smallFile = new Blob([REAL_JPEG], { type: "image/jpeg" });
+
+    const result = await uploadAvatarForUser(actorUserId, {
+      fileBlob: smallFile,
+      fileName: "foto.jpg",
+      mimeType: "image/jpeg",
+      fileSize: smallFile.size,
+      _storageStub: async () => ({
+        storagePath: `${actorUserId}/1.jpg`,
+        publicUrl: `https://example.com/storage/avatars/${actorUserId}/1.jpg`,
+      }),
+    });
+
+    expect(result).not.toHaveProperty("error");
+  });
+
+  // PROPAGATION, and the fixture is built so it can only pass one way. The
+  // caller declares PNG over JPEG bytes: a mutant that forwards `input.mimeType`
+  // sends "image/png" and a correct implementation sends "image/jpeg", so the
+  // assertion tells them apart. The first version of this test declared JPEG
+  // over JPEG bytes — the two answers were identical and it could not fail.
+  //
+  // This disagreement is also the executable form of a decision: a mismatch is
+  // NOT an error. `File.type` is filled in by the OS from the extension, so a
+  // JPEG saved as `foto.png` produces exactly this input with no malice, and
+  // the upload must succeed with the bytes' own type.
+  it("forwards the DETECTED mime to storage when the caller declares another", async () => {
+    const jpegBytes = new Blob([REAL_JPEG], { type: "image/png" });
+    const seen: string[] = [];
+
+    const result = await uploadAvatarForUser(actorUserId, {
+      fileBlob: jpegBytes,
+      fileName: "foto.png",
+      mimeType: "image/png", // the OS's guess, and it is wrong
+      fileSize: jpegBytes.size,
+      _storageStub: async ({ mimeType }) => {
+        seen.push(mimeType);
+        return {
+          storagePath: `${actorUserId}/1.jpg`,
+          publicUrl: `https://example.com/storage/avatars/${actorUserId}/1.jpg`,
+        };
+      },
+    });
+
+    expect(result).not.toHaveProperty("error");
+    expect(seen).toEqual(["image/jpeg"]);
+  });
+});
+
+// The object key, tested through the function that actually builds it.
+//
+// WHY IT IS A SEPARATE FUNCTION AND A SEPARATE TEST: while the derivation was
+// inline in `defaultStorageUpload`, no test could see it — every test above
+// drives the writer through `_storageStub`, which computes no key at all, so
+// restoring `fileName.split(".").pop()` left the entire suite green. The
+// extension must come off the VALIDATED mime; a client filename in an object
+// key is how "x.jpg/../../evil" gets into a storage path.
+describe("avatarObjectKey", () => {
+  const USER = "11111111-2222-3333-4444-555555555555";
+
+  it("takes the extension from the mime, one per raster type", () => {
+    expect(avatarObjectKey(USER, "image/jpeg")).toMatch(/^11111111-.*\/\d+\.jpg$/);
+    expect(avatarObjectKey(USER, "image/png")).toMatch(/^11111111-.*\/\d+\.png$/);
+    expect(avatarObjectKey(USER, "image/webp")).toMatch(/^11111111-.*\/\d+\.webp$/);
+  });
+
+  it("puts the object under the user's own prefix and nothing else", () => {
+    const key = avatarObjectKey(USER, "image/jpeg");
+    expect(key.startsWith(`${USER}/`)).toBe(true);
+    expect(key.split("/")).toHaveLength(2);
+  });
+});
+
+// ============================================================================
+// The avatars bucket enforces the SAME bounds at the object store (0218)
+// ============================================================================
+//
+// The app check above only runs when our code runs. Migration 0171 grants
+// authenticated callers `insert`/`update` on `storage.objects` for their own
+// `avatars` objects, so the Storage API is reachable with a caller's own token
+// and never passes through `uploadAvatarForUser`. The bucket is what bounds
+// that path.
+//
+// This reads the LIVE bucket row, so it fails if the migration was never
+// applied to the environment under test — the failure mode a test that only
+// grepped the .sql file could not see. And it anchors `MAX_IMAGE_BYTES` to an
+// EXTERNAL requirement (what the object store actually enforces) rather than to
+// itself: mutate the constant and the two layers disagree, which is exactly the
+// condition worth failing on.
+
+// ============================================================================
+// The client-side hint may not drift away from the ceiling
+// ============================================================================
+//
+// `EditProfileForm.tsx` restates the number as a literal on purpose — it is a
+// client component and `lib/media/validate.ts` dynamically imports sharp — but
+// a restatement with no fence is a restatement that will disagree. The repo
+// already settled this: `packages/contract/src/input/pet-photo.ts:64-68`
+// restates for the same reason and says the rule out loud — "The two lists are
+// kept equal by __tests__/pet-photo-upload.test.ts, which asserts them against
+// each other — not by anyone noticing."
+//
+// Without this, dropping MAX_IMAGE_BYTES to 3 MiB leaves the form advertising 5,
+// waving a 4 MiB photo through, and the person is refused by the server for a
+// file the interface had just approved.
+
+const AVATAR_FORM = "app/(app)/cuenta/editar/EditProfileForm.tsx";
+
+describe("avatar size ceiling — the form agrees with the server", () => {
+  const megabytes = MAX_IMAGE_BYTES / (1024 * 1024);
+  const src = readFileSync(AVATAR_FORM, "utf8");
+
+  it("guards on the same byte count", () => {
+    const guard = src.match(/file\.size > (\d+) \* 1024 \* 1024/);
+    expect(guard, `no client-side size guard found in ${AVATAR_FORM}`).not.toBeNull();
+    expect(Number(guard?.[1]) * 1024 * 1024).toBe(MAX_IMAGE_BYTES);
+  });
+
+  it("tells the person the same number, in both places it says it", () => {
+    expect(src).toContain(`máx. ${megabytes} MB`);
+    expect(src).toContain(`no puede superar los ${megabytes} MB`);
+  });
+});
+
+describe("avatars storage bucket", () => {
+  it("declares a size ceiling and a raster-only mime allowlist", async () => {
+    const rows = (await db.execute(sql`
+      select file_size_limit::bigint as file_size_limit, allowed_mime_types
+      from storage.buckets
+      where id = 'avatars'
+    `)) as Array<{ file_size_limit: string | number | null; allowed_mime_types: string[] | null }>;
+
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0].file_size_limit)).toBeGreaterThan(0);
+    expect([...(rows[0].allowed_mime_types ?? [])].sort()).toEqual([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ]);
+  });
+
+  it("agrees with the ceiling the use-case refuses on", async () => {
+    const rows = (await db.execute(sql`
+      select file_size_limit::bigint as file_size_limit
+      from storage.buckets
+      where id = 'avatars'
+    `)) as Array<{ file_size_limit: string | number | null }>;
+
+    expect(Number(rows[0].file_size_limit)).toBe(MAX_IMAGE_BYTES);
   });
 });
 

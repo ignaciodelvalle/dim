@@ -77,10 +77,15 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
       }));
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
+    // Courtesy pre-check only — it saves an upload, it decides nothing. The
+    // real bound is `MAX_IMAGE_BYTES` in lib/media/validate.ts, enforced on the
+    // bytes by uploadAvatarForUser and again by the avatars bucket itself
+    // (migration 0218). Restated as a literal rather than imported because that
+    // module dynamically imports sharp and this is a client component.
+    if (file.size > 5 * 1024 * 1024) {
       setFieldErrors((prev) => ({
         ...prev,
-        avatar: "La imagen no puede superar 2 MB",
+        avatar: "La imagen no puede superar los 5 MB. Probá con una foto más liviana.",
       }));
       return;
     }
@@ -217,7 +222,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
             >
               {avatarPreview ? "Cambiar foto" : "Subir foto"}
             </button>
-            <p className="text-xs text-[var(--color-ln-mute)]">JPEG, PNG o WebP · máx. 2 MB</p>
+            <p className="text-xs text-[var(--color-ln-mute)]">JPEG, PNG o WebP · máx. 5 MB</p>
             {fieldErrors.avatar && (
               <p className="text-xs text-[var(--color-ln-err)]">{fieldErrors.avatar}</p>
             )}
