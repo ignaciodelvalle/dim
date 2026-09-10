@@ -92,7 +92,21 @@ export async function createTattooAction(
     };
   }
 
-  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  // `stripMetadata: true` — EL EXIF SE VA, Y ESTA PUERTA NO LO HACIA.
+  //
+  // La opcion es opt-in y por defecto `false` (lib/infra/uploads.ts), y
+  // `event-attachments` no esta en `PUBLIC_REENCODE_BUCKETS`, asi que hasta
+  // 2026-09-10 toda foto de tatuaje cargada desde el navegador conservaba sus
+  // coordenadas GPS. Una foto de tatuaje se saca en casa, y el adjunto lo
+  // alcanza cualquier miembro de una organizacion con `event.write` a traves de
+  // una URL firmada — o sea, el domicilio de una persona viajando adentro de un
+  // registro de identificacion.
+  //
+  // Mismo opt-in que ya pasan las dos puertas anonimas de foto
+  // (report-pet-sighting.ts:228, encontre/action.ts:275), por la misma razon.
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments", {
+    stripMetadata: true,
+  });
   if (upload.error) return { error: upload.error };
   if (!upload.uploadedPath) {
     return { error: "No se pudo subir la foto del tatuaje." };
