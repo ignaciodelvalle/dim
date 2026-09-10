@@ -1030,6 +1030,64 @@
  *                         own: deleting a row that is already gone is a
  *                         SUCCESS (`changed: false`), not a refusal — see
  *                         `VaccineReminderCommandAckV1`.
+ *
+ * THE REHOME CODES (2026-09-10). `POST /api/v1/pets/{publicToken}/rehome` runs
+ * the titular's three acts of the acompañamiento de adopción — pedir, cancelar
+ * el pedido, dar de baja el acompañamiento — and closed the three `write:*`
+ * entries `scripts/check-owner-surface-parity.ts` carried for them. Six codes,
+ * split by the bar this file applies: each names a different NEXT MOVE.
+ *
+ * - `rehome_forbidden`  — the caller holds this animal and is not the LEGAL
+ *                         OWNER: a co-owner, a foster, a caretaker, the org
+ *                         path — or, on `withdraw_request`, a titular who did
+ *                         not send the request being cancelled. 403, never
+ *                         404: they hold the animal, and the one refusal on
+ *                         this surface NARROWER than `requireTitularAccess`
+ *                         must say so rather than pretend the pet is gone.
+ *                         The web's `NOT_TITULAR_ERROR` is this sentence.
+ * - `rehome_not_allowed`
+ *                       — the ANIMAL refuses, whoever is asking: it is
+ *                         registered deceased or reported lost
+ *                         (`PET_DECEASED_ERROR`, `PET_LOST_ERROR`). 409,
+ *                         nothing about the caller. The move is "not now",
+ *                         and a client already holds `status` to say which.
+ * - `rehome_already_open`
+ *                       — REQ-16: a request is already pending, or a
+ *                         sponsorship is already running, so a second ask has
+ *                         nowhere to go. 409, and its own code because the
+ *                         move is specific and available: cancel or withdraw
+ *                         the one in flight, then ask.
+ *
+ *                         IT IS ALSO WHAT A REPLAYED REQUEST COMES BACK AS.
+ *                         `request_sponsorship` takes no `Idempotency-Key`
+ *                         (see `@dim/contract/input`'s `rehome.ts`), so a
+ *                         retry after a timeout that in fact landed meets the
+ *                         request it created and lands here. Re-read; the
+ *                         state says who was asked.
+ * - `rehome_org_invalid`
+ *                       — the org named cannot be asked: no such token, not a
+ *                         shelter or rescue network, not verified, or it does
+ *                         not cover the animal's zone. 400. ONE code for the
+ *                         four because the move is one move — pick a different
+ *                         org from the list the read carries, which is built
+ *                         from the same predicate the write refuses on (W-4).
+ *                         The pet-has-no-province refusal lands here too: the
+ *                         read reported `zone.province: null` and an empty
+ *                         list, so reaching it means a client that did not
+ *                         read.
+ * - `rehome_nothing_to_withdraw`
+ *                       — the ledger did NOT recognise the key, and there is no
+ *                         pending request (for `withdraw_request`) or no
+ *                         running sponsorship (for `withdraw_sponsorship`) to
+ *                         act on — or the request was answered by the org in
+ *                         the meantime. 409. The move is RE-READ: the state
+ *                         moved under the person's feet, or their own earlier
+ *                         attempt with a DIFFERENT key landed. Never reached
+ *                         by a true replay, which answers 200 `replayed: true`.
+ * - `rehome_failed`     — the writer refused for any other reason. 500. For the
+ *                         two withdraws a retry WITH THE SAME KEY is safe: if
+ *                         the first attempt had in fact committed, the retry
+ *                         resolves to it instead of refusing.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -1124,6 +1182,12 @@ export const API_V1_ERROR_CODES = [
   "return_no_source_org",
   "return_failed",
   "reminder_failed",
+  "rehome_forbidden",
+  "rehome_not_allowed",
+  "rehome_already_open",
+  "rehome_org_invalid",
+  "rehome_nothing_to_withdraw",
+  "rehome_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

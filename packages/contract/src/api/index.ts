@@ -245,6 +245,15 @@ export {
   type PetRegisteredV1,
 } from "./pets.ts";
 export type { PetMoveJurisdictionV1, PetMoveRecordedV1 } from "./pet-move.ts";
+export {
+  PET_REHOME_PAYLOAD_VERSION,
+  PET_REHOME_STALE_AFTER_MS,
+  type PetRehomeCapabilitiesV1,
+  type PetRehomeOrgV1,
+  type PetRehomeStateV1,
+  type PetRehomeV1,
+  type RehomeCommandAckV1,
+} from "./pet-rehome.ts";
 export type { VaccineReminderCommandAckV1 } from "./pet-reminders.ts";
 export {
   PET_RETURN_PAYLOAD_VERSION,

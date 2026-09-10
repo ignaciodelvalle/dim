@@ -29,6 +29,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { findExistingByKey } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
   closeCaseOwned,
@@ -58,11 +59,18 @@ import type {
   PetSummary,
   RehomeRepositoryPort,
   RequestCase,
+  RequestWithdrawnByKey,
+  SponsorCandidateRow,
   SponsorOrg,
+  SponsorshipEndedByKey,
   StrandedApplication,
 } from "../application/ports";
+import { REHOME_ELIGIBLE_ORG_TYPES } from "../domain/rehome-rules";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** The `organizations.org_type` enum, as the column types it. */
+type SponsorOrgType = (typeof organizations.$inferSelect)["orgType"];
 
 const PET_SUMMARY_COLUMNS = {
   id: pets.id,
@@ -113,6 +121,8 @@ async function closeCaseWithNote(
     organizationId: string;
     timelineNote: string;
     now: Date;
+    /** The titular's cancel keeps its client key here — the ledger `findRequestWithdrawnByKey` reads. */
+    clientIdempotencyKey?: string | null;
   },
   client: Tx,
 ): Promise<{ won: boolean }> {
@@ -127,7 +137,11 @@ async function closeCaseWithNote(
     notes: args.timelineNote,
     recordedByUserId: args.closedByUserId,
     occurredAt: args.now,
-    payload: { rehome_decision: args.decision, organization_id: args.organizationId },
+    payload: {
+      rehome_decision: args.decision,
+      organization_id: args.organizationId,
+      ...(args.clientIdempotencyKey ? { client_idempotency_key: args.clientIdempotencyKey } : {}),
+    },
   });
   return { won: true };
 }
@@ -261,6 +275,61 @@ export const RehomeRepository = {
       .where(eq(organizations.id, orgId))
       .limit(1);
     return row ?? null;
+  },
+
+  async findOrgByPublicToken(publicToken: string): Promise<SponsorOrg | null> {
+    const [row] = await db
+      .select({
+        id: organizations.id,
+        displayName: organizations.displayName,
+        publicToken: organizations.publicToken,
+        orgType: organizations.orgType,
+        verified: organizations.verified,
+      })
+      .from(organizations)
+      .where(eq(organizations.publicToken, publicToken))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * The picker's candidates: verified shelters and rescue networks with a
+   * coverage row in the province — one row per (org, coverage) pair, the
+   * zone predicate left to `listCoveringOrgs`. The same join the web page ran
+   * inline until 2026-09-10.
+   */
+  async findSponsorCandidatesInProvince(province: string): Promise<SponsorCandidateRow[]> {
+    const rows = await db
+      .select({
+        id: organizations.id,
+        publicToken: organizations.publicToken,
+        displayName: organizations.displayName,
+        orgType: organizations.orgType,
+        jurisdictionProvince: organizationCoverage.jurisdictionProvince,
+        jurisdictionLocality: organizationCoverage.jurisdictionLocality,
+      })
+      .from(organizations)
+      .innerJoin(organizationCoverage, eq(organizationCoverage.organizationId, organizations.id))
+      .where(
+        and(
+          eq(organizations.verified, true),
+          // The domain's list, narrowed to the column's enum: `REHOME_ELIGIBLE_ORG_TYPES`
+          // is `readonly string[]` on purpose (the rule compares strings), and the
+          // column refuses a member outside its enum at the type level.
+          inArray(organizations.orgType, [...REHOME_ELIGIBLE_ORG_TYPES] as SponsorOrgType[]),
+          eq(organizationCoverage.jurisdictionProvince, province),
+        ),
+      );
+    return rows.map((r) => ({
+      id: r.id,
+      publicToken: r.publicToken,
+      displayName: r.displayName,
+      orgType: r.orgType,
+      coverage: {
+        jurisdictionProvince: r.jurisdictionProvince,
+        jurisdictionLocality: r.jurisdictionLocality,
+      },
+    }));
   },
 
   /**
@@ -510,6 +579,76 @@ export const RehomeRepository = {
   },
 
   // -------------------------------------------------------------------------
+  // The ledger — what a replayed withdraw asks before the state guard
+  // -------------------------------------------------------------------------
+
+  /**
+   * The `rehome_sponsorship_ended` this titular signed under this client key,
+   * joined to the custody row it names and that row's org. `findExistingByKey`
+   * is the same lookup every idempotent writer on the spine uses; the join is
+   * what lets a replay answer with the org the first attempt answered with.
+   */
+  async findSponsorshipEndedByKey(
+    petId: string,
+    titularUserId: string,
+    key: string,
+    tx?: unknown,
+  ): Promise<SponsorshipEndedByKey | null> {
+    const client = (tx as Tx | undefined) ?? db;
+    const event = await findExistingByKey(petId, "rehome_sponsorship_ended", key, client);
+    if (!event || event.recordedByUserId !== titularUserId) return null;
+    const ownershipId = (event.payload as { ownership_id?: unknown }).ownership_id;
+    if (typeof ownershipId !== "string") return null;
+    const [custody] = await client
+      .select({
+        organizationId: ownerships.ownerOrganizationId,
+        organizationPublicToken: organizations.publicToken,
+      })
+      .from(ownerships)
+      .leftJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
+      .where(eq(ownerships.id, ownershipId))
+      .limit(1);
+    return {
+      ownershipId,
+      sponsoringOrganizationId: custody?.organizationId ?? null,
+      sponsoringOrganizationPublicToken: custody?.organizationPublicToken ?? null,
+    };
+  },
+
+  /**
+   * The `rehome_request` case this titular closed under this client key: the
+   * `case_closed` entry `closeCaseWithNote` wrote, found by the key it kept in
+   * its payload, scoped to this pet and this actor.
+   */
+  async findRequestWithdrawnByKey(
+    petId: string,
+    titularUserId: string,
+    key: string,
+    tx?: unknown,
+  ): Promise<RequestWithdrawnByKey | null> {
+    const client = (tx as Tx | undefined) ?? db;
+    const [row] = await client
+      .select({
+        caseId: cases.id,
+        casePublicCode: cases.publicCode,
+        receiverOrganizationId: cases.receiverOrganizationId,
+      })
+      .from(caseEvents)
+      .innerJoin(cases, eq(cases.id, caseEvents.caseId))
+      .where(
+        and(
+          eq(cases.primaryPetId, petId),
+          eq(cases.caseKind, "rehome_request"),
+          eq(caseEvents.entryType, "case_closed"),
+          eq(caseEvents.recordedByUserId, titularUserId),
+          sql`${caseEvents.payload} ->> 'client_idempotency_key' = ${key}`,
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  // -------------------------------------------------------------------------
   // Writes — withdraw (inside the caller's transaction)
   // -------------------------------------------------------------------------
 
@@ -558,6 +697,7 @@ export const RehomeRepository = {
         authorOrganizationId: null,
         authorVerified: false,
         now: args.now,
+        clientIdempotencyKey: args.clientIdempotencyKey,
       },
       tx as Tx,
     );

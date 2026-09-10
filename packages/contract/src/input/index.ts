@@ -293,6 +293,15 @@ export {
   registerPetInputSchema,
 } from "./register-pet.ts";
 export {
+  REHOME_COMMAND_INPUT_CODES,
+  REHOME_COMMANDS_REQUIRING_IDEMPOTENCY_KEY,
+  type RehomeCommand,
+  type RehomeCommandInput,
+  type RehomeCommandInputCode,
+  firstRehomeCommandInputCode,
+  rehomeCommandInputSchema,
+} from "./rehome.ts";
+export {
   VACCINE_REMINDER_COMMAND_INPUT_CODES,
   type VaccineReminderCommand,
   type VaccineReminderCommandInput,

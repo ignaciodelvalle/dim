@@ -148,6 +148,12 @@ export type EndSponsorshipArgs = {
   authorOrganizationId: string | null;
   authorVerified: boolean;
   now: Date;
+  /**
+   * The client's replay key, stamped on the closing event so the titular's
+   * withdraw can recognise its own retry (`pet_events_idempotency_idx` on
+   * (pet, type, key) refuses a second row). Absent from every other caller.
+   */
+  clientIdempotencyKey?: string | null;
 };
 
 /**
@@ -187,6 +193,7 @@ export async function endRehomeSponsorship(
       ended_at: args.now.toISOString(),
     }),
     caseId: listingCase?.id ?? null,
+    clientIdempotencyKey: args.clientIdempotencyKey ?? null,
   });
 
   return open;

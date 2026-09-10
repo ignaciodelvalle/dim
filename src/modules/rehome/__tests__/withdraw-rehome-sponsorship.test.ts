@@ -62,12 +62,91 @@ function makePort(stranded: StrandedApplication[] = []): RehomeWithdrawPort {
     findOpenRequestForPet: vi.fn().mockResolvedValue(null),
     lockRequestCase: vi.fn().mockResolvedValue(null),
     closeRequestCase: vi.fn().mockResolvedValue(undefined),
+    findSponsorshipEndedByKey: vi.fn().mockResolvedValue(null),
+    findRequestWithdrawnByKey: vi.fn().mockResolvedValue(null),
   };
 }
 
 const transaction = async <T>(cb: (tx: unknown) => Promise<T>): Promise<T> => cb("fake-tx");
 const deps = (repo: RehomeWithdrawPort) => ({ repo, now: () => new Date(), transaction });
 const input = { petPublicToken: PET.publicToken, titularUserId: "titular-1" };
+const KEY = "3f6b7c1e-9d2a-4b8f-8c1d-0a1b2c3d4e5f";
+
+describe("withdrawRehomeSponsorship — the ledger is asked before the state guard", () => {
+  it("a key the ledger knows answers ok + replayed, writes nothing and tells nobody again", async () => {
+    const repo = makePort();
+    (repo.findSponsorshipEndedByKey as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ownershipId: "own-custody-1",
+      sponsoringOrganizationId: ORG.id,
+      sponsoringOrganizationPublicToken: ORG.publicToken,
+    });
+    // THE STATE GUARD WOULD REFUSE: nothing is open any more, because the first
+    // attempt ended it. The replay must never reach that guard.
+    (repo.findOpenSponsorshipForPet as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    const r = await withdrawRehomeSponsorship({ ...input, clientIdempotencyKey: KEY }, deps(repo));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.replayed).toBe(true);
+    expect(r.value.ownershipId).toBe("own-custody-1");
+    expect(r.value.sponsoringOrganizationPublicToken).toBe(ORG.publicToken);
+    expect(r.notifications).toEqual([]);
+    // MUTATION APPLIED: move the ledger lookup after the state guard. Red —
+    // `NO_ACTIVE_SPONSORSHIP_ERROR` is what a lost-response retry would be told,
+    // forever, about a withdraw that already happened.
+    expect(repo.findSponsorshipEndedByKey).toHaveBeenCalledWith(
+      PET.id,
+      "titular-1",
+      KEY,
+      "fake-tx",
+    );
+    expect(repo.endCustodyRow).not.toHaveBeenCalled();
+    expect(repo.endSponsorshipByTitular).not.toHaveBeenCalled();
+    expect(repo.closeListingCase).not.toHaveBeenCalled();
+  });
+
+  it("the ledger is read UNDER the pet lock, after it and before the owner-row lock", async () => {
+    const repo = makePort();
+    const order: string[] = [];
+    (repo.acquirePetAdvisoryLock as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push("advisory");
+    });
+    (repo.findSponsorshipEndedByKey as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push("ledger");
+      return null;
+    });
+    (repo.lockLiveOwnerRow as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push("owner-row");
+      return { id: "own-owner-1" };
+    });
+    const r = await withdrawRehomeSponsorship({ ...input, clientIdempotencyKey: KEY }, deps(repo));
+    expect(r.ok).toBe(true);
+    expect(order).toEqual(["advisory", "ledger", "owner-row"]);
+  });
+
+  it("a key the ledger does not know takes the ordinary path and is stamped on the closing fact", async () => {
+    const repo = makePort();
+    const r = await withdrawRehomeSponsorship({ ...input, clientIdempotencyKey: KEY }, deps(repo));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.replayed).toBe(false);
+    expect(repo.endSponsorshipByTitular).toHaveBeenCalledWith(
+      expect.objectContaining({ petId: PET.id, clientIdempotencyKey: KEY }),
+      "fake-tx",
+    );
+  });
+
+  it("no key — the web's door — never asks the ledger and stamps null", async () => {
+    const repo = makePort();
+    const r = await withdrawRehomeSponsorship(input, deps(repo));
+    expect(r.ok).toBe(true);
+    expect(repo.findSponsorshipEndedByKey).not.toHaveBeenCalled();
+    expect(repo.endSponsorshipByTitular).toHaveBeenCalledWith(
+      expect.objectContaining({ clientIdempotencyKey: null }),
+      "fake-tx",
+    );
+  });
+});
 
 describe("withdrawRehomeSponsorship — what the stranded applicants are told", () => {
   it("an APPROVED-but-unfinalized adopter is told the approval existed and the adoption will not happen", async () => {

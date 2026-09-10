@@ -1220,6 +1220,20 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // exactly, is one person in a form acting on their own record — the
   // authenticated-write anchor.
   api_v1_reminders_write_ip: "authenticated-write",
+
+  // Landed with the acompañamiento de adopción door (`pets/{token}/rehome`),
+  // closing the three `write:*` rehome entries `check-owner-surface-parity.ts`
+  // carried. THE READ joins `authenticated-read` on the argument every
+  // pet-scoped read makes: a client that opens a pet and taps "Acompañamiento
+  // de adopción" calls `/pets/{token}` and this inside one second. THE WRITE
+  // is `authenticated-write`, and the family's own anchor describes this act
+  // literally — `me/transfers`: "What this write PRODUCES is not a row — it is
+  // a change of who owns an animal in the national registry." A sponsorship
+  // withdrawal ENDS an org's custody row; a request puts a consent case in a
+  // shelter's inbox. Not `pet-disclosure-write` (nothing new is published
+  // about the animal by the titular's own act) and not `inbox-state`.
+  api_v1_rehome_read_ip: "authenticated-read",
+  api_v1_rehome_write_ip: "authenticated-write",
 };
 
 /**

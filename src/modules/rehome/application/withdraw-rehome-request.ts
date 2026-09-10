@@ -17,6 +17,21 @@
 // the same closedReason an org decline uses, told apart by who closed it —
 // and the `case_closed` timeline entry says so in words (REQ-3: "textually
 // distinct from an org decline and from an operator's manual close").
+//
+// THE LEDGER IS ASKED BEFORE THE STATE GUARD (2026-09-10, with the bearer
+// door). This cancel's success invalidates its own precondition: once the case
+// is closed there is "no pending request", which is exactly what a RETRY of
+// the same cancel — a phone that never saw the 200 — would then be refused
+// with, forever. So when the caller hands in a `clientIdempotencyKey`, the
+// `case_closed` entry keeps it, and a later call with the same key finds that
+// entry FIRST and answers the way the first attempt did: ok, the same case,
+// `replayed: true`, nothing written and nobody notified twice. The web sends
+// no key and takes the state path it always took.
+//
+// THE LOOKUP RUNS UNDER THE PET ADVISORY LOCK, the first lock every custody
+// writer of this feature takes (repository header, lock order), so two replays
+// of one key serialise: the second reads the first's committed entry instead
+// of racing it to a "no pending request" refusal.
 
 import {
   NOT_TITULAR_ERROR,
@@ -35,6 +50,8 @@ type Deps = {
 export type WithdrawRehomeRequestInput = {
   petPublicToken: string;
   titularUserId: string;
+  /** The client's replay key (a UUID), or null from a door that sends none. */
+  clientIdempotencyKey?: string | null;
 };
 
 export type WithdrawRehomeRequestValue = {
@@ -42,11 +59,21 @@ export type WithdrawRehomeRequestValue = {
   casePublicCode: string;
   petId: string;
   petPublicToken: string;
-  receiverOrganizationId: string;
+  receiverOrganizationId: string | null;
+  /** `true` when the ledger recognised the key: this cancel had already happened. */
+  replayed: boolean;
 };
 
 type TxOutcome =
-  | { ok: true; caseId: string; casePublicCode: string; orgId: string; orgDisplayName: string }
+  | {
+      ok: true;
+      replayed: false;
+      caseId: string;
+      casePublicCode: string;
+      orgId: string;
+      orgDisplayName: string;
+    }
+  | { ok: true; replayed: true; caseId: string; casePublicCode: string; orgId: string | null }
   | { ok: false; error: string };
 
 export async function withdrawRehomeRequest(
@@ -54,6 +81,7 @@ export async function withdrawRehomeRequest(
   deps: Deps,
 ): Promise<UseCaseResult<WithdrawRehomeRequestValue>> {
   const { repo } = deps;
+  const key = input.clientIdempotencyKey ?? null;
 
   const pet = await repo.findPetByToken(input.petPublicToken);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
@@ -62,13 +90,29 @@ export async function withdrawRehomeRequest(
   const ownerRow = await repo.findLiveOwnerRow(pet.id, input.titularUserId);
   if (!ownerRow) return { ok: false, error: NOT_TITULAR_ERROR };
 
-  // Pre-transaction read: a readable refusal. Re-read under the lock below.
-  const pre = await repo.findOpenRequestForPet(pet.id);
-  if (!pre) return { ok: false, error: NO_PENDING_REQUEST_ERROR };
-
   const now = deps.now();
 
   const outcome = await deps.transaction<TxOutcome>(async (tx) => {
+    await repo.acquirePetAdvisoryLock(pet.id, tx);
+
+    // The ledger, before the state guard — see the header.
+    if (key !== null) {
+      const done = await repo.findRequestWithdrawnByKey(pet.id, input.titularUserId, key, tx);
+      if (done) {
+        return {
+          ok: true,
+          replayed: true,
+          caseId: done.caseId,
+          casePublicCode: done.casePublicCode,
+          orgId: done.receiverOrganizationId,
+        };
+      }
+    }
+
+    // The state guard: a readable refusal, re-read under the row lock below.
+    const pre = await repo.findOpenRequestForPet(pet.id);
+    if (!pre) return { ok: false, error: NO_PENDING_REQUEST_ERROR };
+
     // The org's answer and this cancel race for the same row; the lock
     // serialises them and the loser reads the flipped status.
     const locked = await repo.lockRequestCase(pre.id, tx);
@@ -96,12 +140,14 @@ export async function withdrawRehomeRequest(
         organizationId: locked.receiverOrganizationId,
         timelineNote: `El titular canceló la solicitud de nuevo hogar antes de que ${orgName} respondiera. El animal sigue con su titular y no se creó ninguna publicación.`,
         now,
+        clientIdempotencyKey: key,
       },
       tx,
     );
 
     return {
       ok: true,
+      replayed: false,
       caseId: locked.id,
       casePublicCode: locked.publicCode,
       orgId: locked.receiverOrganizationId,
@@ -110,6 +156,23 @@ export async function withdrawRehomeRequest(
   });
 
   if (!outcome.ok) return { ok: false, error: outcome.error };
+
+  // A replay wrote nothing and tells nobody again: the org was told the first
+  // time, and a second "cancelada" notice for one cancel is a bug in a bandeja.
+  if (outcome.replayed) {
+    return {
+      ok: true,
+      value: {
+        caseId: outcome.caseId,
+        casePublicCode: outcome.casePublicCode,
+        petId: pet.id,
+        petPublicToken: pet.publicToken,
+        receiverOrganizationId: outcome.orgId,
+        replayed: true,
+      },
+      notifications: [],
+    };
+  }
 
   const titularName = (await repo.findDisplayName(input.titularUserId)) ?? "El titular";
   const recipients = await repo.orgAdminAndCoordinatorUserIds(outcome.orgId);
@@ -135,6 +198,7 @@ export async function withdrawRehomeRequest(
       petId: pet.id,
       petPublicToken: pet.publicToken,
       receiverOrganizationId: outcome.orgId,
+      replayed: false,
     },
     notifications,
   };

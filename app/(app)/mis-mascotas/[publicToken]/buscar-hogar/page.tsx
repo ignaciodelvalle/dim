@@ -22,15 +22,15 @@
 // point and the page cannot drift apart again.
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { db, organizationCoverage, organizations, ownerships, pets, profiles } from "@/db";
+import { db, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   type RehomeState,
   getRehomeStateForPet,
 } from "@/src/modules/rehome/application/get-rehome-state-for-pet";
-import { coverageAreaCoversZone } from "@/src/modules/rehome/domain/rehome-rules";
+import { listCoveringOrgs } from "@/src/modules/rehome/application/list-covering-orgs";
 import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RehomeRequestForm } from "./RehomeRequestForm";
@@ -45,55 +45,13 @@ const backLinkCls =
 const titleCls =
   "m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]";
 
-/**
- * Verified shelters and rescue networks covering the pet's zone — the same
- * picker both branches offer, because the org's qualification is the same
- * (the rehome use-case re-checks it: validateSponsorTarget).
- *
- * The zone half is NOT decided here (W-4): the province narrows the query,
- * and `coverageAreaCoversZone` — the domain predicate the request use-case
- * refuses on — decides which of those rows actually reach the pet. One
- * predicate, so a POST straight at the action cannot address an org this
- * page would never have listed.
- */
-async function findCoveringOrgs(province: string | null, locality: string | null) {
-  if (!province) return [];
-
-  const zone = { province, locality };
-
-  const rows = await db
-    .select({
-      id: organizations.id,
-      displayName: organizations.displayName,
-      orgType: organizations.orgType,
-      verified: organizations.verified,
-      publicToken: organizations.publicToken,
-      email: organizations.email,
-      phone: organizations.phone,
-      jurisdictionProvince: organizationCoverage.jurisdictionProvince,
-      jurisdictionLocality: organizationCoverage.jurisdictionLocality,
-    })
-    .from(organizations)
-    .innerJoin(organizationCoverage, eq(organizationCoverage.organizationId, organizations.id))
-    .where(
-      and(
-        eq(organizations.verified, true),
-        inArray(organizations.orgType, ["shelter", "rescue_network"]),
-        eq(organizationCoverage.jurisdictionProvince, province),
-      ),
-    );
-
-  const seen = new Set<string>();
-  const deduped: typeof rows = [];
-  for (const row of rows) {
-    if (!coverageAreaCoversZone(row, zone)) continue;
-    if (!seen.has(row.id)) {
-      seen.add(row.id);
-      deduped.push(row);
-    }
-  }
-  return deduped;
-}
+// THE PICKER'S LIST IS `listCoveringOrgs` (src/modules/rehome/application),
+// shared with `GET /api/v1/pets/{token}/rehome` since 2026-09-10. It used to
+// be an inline `findCoveringOrgs` here — the same join and the same
+// `coverageAreaCoversZone` predicate the request use-case refuses on (W-4) —
+// and a second door needing it would have been the fifth copy of that
+// predicate. Both branches below offer the same list, because the org's
+// qualification is the same whoever is asking.
 
 /** The loader's state, narrowed to what the panel renders (the org picker travels with "none"). */
 function toPanelState(state: RehomeState, orgs: RehomeOrgOption[]): TitularRehomeState {
@@ -212,7 +170,7 @@ export default async function BuscarHogarPage({
   const province = pet.jurisdictionProvince ?? null;
   const locality = pet.jurisdictionLocality ?? null;
 
-  const coveringOrgs = await findCoveringOrgs(province, locality);
+  const coveringOrgs = await listCoveringOrgs({ province, locality }, { repo: RehomeRepository });
 
   if (resolvedRole === "owner") {
     const state = await getRehomeStateForPet(pet.id, { repo: RehomeRepository });
@@ -228,7 +186,7 @@ export default async function BuscarHogarPage({
             id: o.id,
             displayName: o.displayName,
             orgType: o.orgType,
-            locality: o.jurisdictionLocality ?? o.jurisdictionProvince ?? null,
+            locality: o.locality,
           })),
         )}
       />
@@ -297,7 +255,7 @@ export default async function BuscarHogarPage({
                 <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                   {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {" · "}
-                  {org.jurisdictionLocality ?? org.jurisdictionProvince}
+                  {org.locality}
                 </p>
               </div>
               <RehomeRequestForm

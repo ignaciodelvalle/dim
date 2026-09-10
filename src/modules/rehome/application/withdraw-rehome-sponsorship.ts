@@ -50,6 +50,17 @@
 //
 // Notifications and revalidation are OUTSIDE the transaction, per house
 // convention: a dead SMTP must never roll back the titular's exit.
+//
+// THE LEDGER IS ASKED BEFORE THE STATE GUARD (2026-09-10, with the bearer
+// door). Step 1's "is there something to withdraw" is the precondition this
+// write's own success invalidates: once the sponsorship is ended there is
+// nothing open, which is exactly what a RETRY of the same withdraw — a phone
+// that never saw the 200 — would be refused with, forever. So when the caller
+// hands in a `clientIdempotencyKey`, step 4's `rehome_sponsorship_ended`
+// carries it, and a later call with the same key finds that fact under the pet
+// lock (step 0, before step 1) and answers the way the first attempt did: ok,
+// the same custody row, `replayed: true`, nothing written and nobody told
+// twice. The web sends no key and takes the state path it always took.
 
 import { pgErrorCode } from "@/lib/infra/db-errors";
 
@@ -79,24 +90,30 @@ type Deps = {
 export type WithdrawRehomeSponsorshipInput = {
   petPublicToken: string;
   titularUserId: string;
+  /** The client's replay key (a UUID), or null from a door that sends none. */
+  clientIdempotencyKey?: string | null;
 };
 
 export type WithdrawRehomeSponsorshipValue = {
   petId: string;
   petPublicToken: string;
-  sponsoringOrganizationId: string;
+  /** Null only on a replay whose custody row's org could not be re-read. */
+  sponsoringOrganizationId: string | null;
   sponsoringOrganizationPublicToken: string | null;
   /** The custody row the sponsorship opened, now closed. */
   ownershipId: string;
-  /** The `adoption_listing` case this closed, or null if none was open. */
+  /** The `adoption_listing` case this closed, or null if none was open (or on a replay). */
   listingCasePublicCode: string | null;
-  /** False when the row had already been closed elsewhere (drift, healed here). */
+  /** False when the row had already been closed elsewhere (drift, healed here), and on a replay. */
   custodyRowWasLive: boolean;
+  /** `true` when the ledger recognised the key: this withdraw had already happened. */
+  replayed: boolean;
 };
 
 type TxOutcome =
   | {
       ok: true;
+      replayed: false;
       ownershipId: string;
       org: SponsorOrg | null;
       orgId: string;
@@ -105,6 +122,13 @@ type TxOutcome =
       /** The applications step 6 closed — each applicant told after commit, in words that fit their case. */
       strandedApplications: StrandedApplication[];
     }
+  | {
+      ok: true;
+      replayed: true;
+      ownershipId: string;
+      orgId: string | null;
+      orgPublicToken: string | null;
+    }
   | { ok: false; error: string };
 
 export async function withdrawRehomeSponsorship(
@@ -112,6 +136,7 @@ export async function withdrawRehomeSponsorship(
   deps: Deps,
 ): Promise<UseCaseResult<WithdrawRehomeSponsorshipValue>> {
   const { repo } = deps;
+  const key = input.clientIdempotencyKey ?? null;
 
   const pet: PetSummary | null = await repo.findPetByToken(input.petPublicToken);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
@@ -121,6 +146,20 @@ export async function withdrawRehomeSponsorship(
   const outcome = await runWithdrawTransaction(pet.name, deps, async (tx) => {
     // 0. The pet lock, before any row lock (see the header: lock order).
     await repo.acquirePetAdvisoryLock(pet.id, tx);
+
+    // 0b. The ledger, before the state guard — see the header.
+    if (key !== null) {
+      const done = await repo.findSponsorshipEndedByKey(pet.id, input.titularUserId, key, tx);
+      if (done) {
+        return {
+          ok: true,
+          replayed: true,
+          ownershipId: done.ownershipId,
+          orgId: done.sponsoringOrganizationId,
+          orgPublicToken: done.sponsoringOrganizationPublicToken,
+        };
+      }
+    }
 
     // 1. The titular's row, locked; the arrangement, on the spine.
     const ownerRow = await repo.lockLiveOwnerRow(pet.id, input.titularUserId, tx);
@@ -141,9 +180,10 @@ export async function withdrawRehomeSponsorship(
     // 3. The listing cache.
     await repo.unpublishListing({ petId: pet.id, now }, tx);
 
-    // 4. The closing fact, while the listing case is still open.
+    // 4. The closing fact, while the listing case is still open — carrying the
+    //    client's key, which is what step 0b reads on a replay.
     await repo.endSponsorshipByTitular(
-      { petId: pet.id, titularUserId: input.titularUserId, now },
+      { petId: pet.id, titularUserId: input.titularUserId, now, clientIdempotencyKey: key },
       tx,
     );
 
@@ -185,6 +225,7 @@ export async function withdrawRehomeSponsorship(
 
     return {
       ok: true,
+      replayed: false,
       ownershipId: open.ownershipId,
       org,
       orgId: open.sponsoringOrganizationId,
@@ -195,6 +236,26 @@ export async function withdrawRehomeSponsorship(
   });
 
   if (!outcome.ok) return { ok: false, error: outcome.error };
+
+  // A replay wrote nothing and tells nobody again: the org and every stranded
+  // applicant were told the first time, and the dedupe keys below would have
+  // collapsed the rows anyway — this simply does not build them.
+  if (outcome.replayed) {
+    return {
+      ok: true,
+      value: {
+        petId: pet.id,
+        petPublicToken: pet.publicToken,
+        sponsoringOrganizationId: outcome.orgId,
+        sponsoringOrganizationPublicToken: outcome.orgPublicToken,
+        ownershipId: outcome.ownershipId,
+        listingCasePublicCode: null,
+        custodyRowWasLive: false,
+        replayed: true,
+      },
+      notifications: [],
+    };
+  }
 
   const titularName = (await repo.findDisplayName(input.titularUserId)) ?? "El titular";
   const recipients = await repo.orgAdminAndCoordinatorUserIds(outcome.orgId);
@@ -258,6 +319,7 @@ export async function withdrawRehomeSponsorship(
       ownershipId: outcome.ownershipId,
       listingCasePublicCode: outcome.listing?.publicCode ?? null,
       custodyRowWasLive: outcome.custodyRowWasLive,
+      replayed: false,
     },
     notifications,
   };

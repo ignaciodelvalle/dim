@@ -43,16 +43,24 @@ export const REHOME_ELIGIBLE_ORG_TYPES: readonly string[] = ["shelter", "rescue_
 
 export type SponsorTargetSnapshot = { orgType: string; verified: boolean };
 
+/**
+ * The three refusals about the ORG the titular named, NAMED (2026-09-10) for
+ * the reason the animal-state pair below was: a second door now maps each
+ * refusal to a wire code, and a door that recognised a sentence by its text
+ * would break the day the sentence was edited. Same strings as before; the
+ * only change is that they have a name a caller can compare against.
+ */
+export const ORG_NOT_FOUND_ERROR = "Organización no encontrada.";
+export const ORG_NOT_ELIGIBLE_ERROR =
+  "La organización no puede acompañar adopciones: tiene que ser un refugio o una red de rescate.";
+export const ORG_NOT_VERIFIED_ERROR = "La organización no está verificada.";
+
 export function validateSponsorTarget(org: SponsorTargetSnapshot | null): RuleResult {
-  if (!org) return { ok: false, error: "Organización no encontrada." };
+  if (!org) return { ok: false, error: ORG_NOT_FOUND_ERROR };
   if (!REHOME_ELIGIBLE_ORG_TYPES.includes(org.orgType)) {
-    return {
-      ok: false,
-      error:
-        "La organización no puede acompañar adopciones: tiene que ser un refugio o una red de rescate.",
-    };
+    return { ok: false, error: ORG_NOT_ELIGIBLE_ERROR };
   }
-  if (!org.verified) return { ok: false, error: "La organización no está verificada." };
+  if (!org.verified) return { ok: false, error: ORG_NOT_VERIFIED_ERROR };
   return { ok: true };
 }
 
@@ -177,6 +185,10 @@ export const PET_DECEASED_ERROR = "Esta mascota está registrada como fallecida.
  * match the accept, which puts CUSTODY_PRESENT_ERROR ahead of `lost` because
  * under its lock a live custody row is the more actionable fact.
  */
+/** REQ-16's other arm: a sponsorship is already running. Named for the same reason as its sibling. */
+export const OPEN_SPONSORSHIP_RUNNING_ERROR =
+  "Esta mascota ya tiene una organización acompañando su adopción. Dá de baja ese acompañamiento antes de pedir otro.";
+
 export function validateRequestOpen(s: RequestOpenSnapshot): RuleResult {
   if (s.petStatus === "lost") {
     return { ok: false, error: PET_LOST_ERROR };
@@ -185,11 +197,7 @@ export function validateRequestOpen(s: RequestOpenSnapshot): RuleResult {
     return { ok: false, error: PET_DECEASED_ERROR };
   }
   if (s.hasOpenSponsorship) {
-    return {
-      ok: false,
-      error:
-        "Esta mascota ya tiene una organización acompañando su adopción. Dá de baja ese acompañamiento antes de pedir otro.",
-    };
+    return { ok: false, error: OPEN_SPONSORSHIP_RUNNING_ERROR };
   }
   if (s.hasOpenRequest) {
     return { ok: false, error: OPEN_REQUEST_PENDING_ERROR };
@@ -348,15 +356,20 @@ export type WithdrawRequestSnapshot = {
  * The request is the opener's to cancel. A later titular (after a transfer)
  * holds the owner row but did not send this request; they open their own.
  */
+/** The cancel's three refusals, named so a second door can map them (2026-09-10). */
+export const NOT_A_REQUEST_ERROR = "Este caso no es una solicitud de nuevo hogar.";
+export const REQUEST_ALREADY_ANSWERED_ERROR = "Esta solicitud ya fue respondida o cancelada.";
+export const REQUEST_NOT_SENDER_ERROR = "Solo quien envió la solicitud puede cancelarla.";
+
 export function validateWithdrawRequest(s: WithdrawRequestSnapshot): RuleResult {
   if (s.caseKind !== "rehome_request") {
-    return { ok: false, error: "Este caso no es una solicitud de nuevo hogar." };
+    return { ok: false, error: NOT_A_REQUEST_ERROR };
   }
   if (s.caseStatus !== "open") {
-    return { ok: false, error: "Esta solicitud ya fue respondida o cancelada." };
+    return { ok: false, error: REQUEST_ALREADY_ANSWERED_ERROR };
   }
   if (s.caseOpenedByUserId !== s.actingUserId) {
-    return { ok: false, error: "Solo quien envió la solicitud puede cancelarla." };
+    return { ok: false, error: REQUEST_NOT_SENDER_ERROR };
   }
   return { ok: true };
 }

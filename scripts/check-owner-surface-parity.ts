@@ -37,10 +37,15 @@
 //   · THE RECEIPT is the part that goes past event kinds. What a web action
 //     READS off its use-case result and can show the person (`result.value.
 //     casePublicCode`, the CAS-XXXX-XXXX on the mordedura receipt) must be
-//     something the app can also get: either the v1 surface reads the same
-//     field, or a v1 DTO in packages/contract/src/api carries it. A field the
-//     web hands its client and no v1 read carries is a divergence, whatever
-//     the write endpoint answered.
+//     something the app can also get: either a v1 file THAT REACHES THE SAME
+//     USE-CASE reads the same field, or a v1 DTO in packages/contract/src/api
+//     carries it. A field the web hands its client and no v1 read carries is a
+//     divergence, whatever the write endpoint answered. The read half is scoped
+//     to the use-case since 2026-09-10: the rehome door reads its own
+//     `casePublicCode` off `withdrawRehomeRequest`, and an unscoped check took
+//     that as the mordedura's receipt arriving — a real gap waved through by a
+//     field NAME. The DTO half stays global, because a DTO key has no use-case
+//     to scope by; a DTO that names a different case must say so in the name.
 //
 // EXCLUSIONS ARE EXPLICIT, REASONED AND FEW. A deliberate divergence lives in
 // DECLARED_DIVERGENCES, once, with the sentence saying WHY and the sentence
@@ -168,12 +173,6 @@ export const DECLARED_DIVERGENCES: Record<string, DeclaredDivergence> = {
     closes:
       "Migrate recordMoveAction to call recordJurisdictionMove (the migration record-jurisdiction-move.ts already announces); the two doors then share one use-case and this entry goes stale.",
   },
-  "write:requestRehomeSponsorshipAction→requestRehomeSponsorship": {
-    reason:
-      "The titular can ask for a rehome sponsorship (buscar-hogar) on the web; the app reads the resulting banner (OwnerPetRehomeBannerV1) but no v1 route writes the request.",
-    closes:
-      "A POST /api/v1/pets/{token}/rehome route calling requestRehomeSponsorship, and the buscar-hogar flow on the phone.",
-  },
   "write:setPetDisclosurePrefsAction→disclosureKeyRequiresTitular": {
     reason:
       "Not a door: disclosureKeyRequiresTitular only decides WHICH guard the web action takes. The v1 lost surface reaches setPetDisclosurePrefs (the join sees that) and enforces the same titular-only rule with its own TITULAR_ONLY check (lost/commands.ts, the set_disclosure refusal), so the capability is at parity.",
@@ -185,15 +184,6 @@ export const DECLARED_DIVERGENCES: Record<string, DeclaredDivergence> = {
       "The §4.20 physical-tag interest toggle is a demand-signal placeholder on the web pet page; no v1 route or DTO carries it, so the app can neither show nor toggle it.",
     closes:
       "A boolean on OwnerPetDetailV1 and a `toggle_physical_tag_interest` command on POST /api/v1/pets/{token}/profile — or the PO retires the placeholder on the web too.",
-  },
-  "write:withdrawRehomeRequestAction→withdrawRehomeRequest": {
-    reason:
-      "The titular can withdraw a rehome request on the web; the app has no write route for the rehome flow.",
-    closes: "Same rehome route as requestRehomeSponsorship, with a withdraw command.",
-  },
-  "write:withdrawRehomeSponsorshipAction→withdrawRehomeSponsorship": {
-    reason: "The sponsorship half of the same withdrawal; no v1 route reaches it.",
-    closes: "Same rehome route, with a withdraw-sponsorship command.",
   },
 };
 
@@ -488,8 +478,12 @@ type Derived = {
   actions: OwnerAction[];
   /** Use-case identities some v1 route imports and names. */
   v1UseCases: Set<string>;
-  /** Every property the v1 surface reads off anything. */
-  v1Reads: Set<string>;
+  /**
+   * Per use-case identity, every property read in the v1 files that REACH it.
+   * Scoped, not global: a `.casePublicCode` read off one use-case's result is
+   * not the receipt of another use-case that happens to name a field the same.
+   */
+  v1ReadsByUseCase: Map<string, Set<string>>;
   apiKeys: Set<string>;
   contract: string[] | null;
   mobile: string[] | null;
@@ -499,19 +493,24 @@ type Derived = {
 function derive(inputs: ParityInputs): Derived {
   const guards = ownerGuardNames(inputs.guardSources);
   const v1UseCases = new Set<string>();
-  const v1Reads = new Set<string>();
+  const v1ReadsByUseCase = new Map<string, Set<string>>();
   for (const file of inputs.v1Files) {
     const text = stripComments(file.src);
+    const reads = propertyReads(file.src);
     for (const ref of parseUseCaseImports(file)) {
-      if (mentions(text, ref.local)) v1UseCases.add(useCaseIdentity(ref));
+      if (!mentions(text, ref.local)) continue;
+      const identity = useCaseIdentity(ref);
+      v1UseCases.add(identity);
+      const bucket = v1ReadsByUseCase.get(identity) ?? new Set<string>();
+      for (const r of reads) bucket.add(r);
+      v1ReadsByUseCase.set(identity, bucket);
     }
-    for (const r of propertyReads(file.src)) v1Reads.add(r);
   }
   return {
     guards,
     actions: inputs.webActionFiles.flatMap((f) => ownerActionsIn(f, guards)),
     v1UseCases,
-    v1Reads,
+    v1ReadsByUseCase,
     apiKeys: contractApiKeys(inputs.contractApiFiles),
     contract: kindsFromContract(inputs.contractRecordEvent),
     mobile: kindsFromMobile(inputs.mobileViewModel),
@@ -609,11 +608,12 @@ function findDivergences(d: Derived): { divergences: Divergence[]; joined: numbe
         continue;
       }
       anyAtParity = true;
+      const v1Reads = d.v1ReadsByUseCase.get(useCaseIdentity(ref)) ?? new Set<string>();
       for (const field of action.receipt.get(ref.local) ?? []) {
-        if (d.v1Reads.has(field) || d.apiKeys.has(field)) continue;
+        if (v1Reads.has(field) || d.apiKeys.has(field)) continue;
         divergences.push({
           key: `read:${action.name}.${field}`,
-          detail: `${action.path} — ${action.name} reads \`${field}\` off ${ref.exported}'s result and can show it; no file under ${V1_ROOT} reads that field and no DTO in ${CONTRACT_API_DIR} carries it. The web shows a fact the app cannot obtain.`,
+          detail: `${action.path} — ${action.name} reads \`${field}\` off ${ref.exported}'s result and can show it; no file under ${V1_ROOT} that reaches ${ref.exported} reads that field and no DTO in ${CONTRACT_API_DIR} carries it. The web shows a fact the app cannot obtain.`,
         });
       }
     }

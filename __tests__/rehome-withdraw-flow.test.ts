@@ -76,6 +76,15 @@ let firstCustodyId: string;
 let firstListingCaseId: string;
 let firstRequestCode: string;
 
+/**
+ * The bearer door's replay keys (2026-09-10). The titular's two exits below
+ * carry one each, and the step after each exit re-sends the SAME key: the
+ * ledger must answer the way the first attempt did, over a spine that now has
+ * nothing to withdraw.
+ */
+const WITHDRAW_KEY = "0b1e7a52-6c3d-4f8e-9a1b-2c3d4e5f6071";
+const CANCEL_KEY = "9c8b7a65-4d3e-4f2a-8b1c-0d9e8f7a6b5c";
+
 const transaction = db.transaction.bind(db) as <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 const requestDeps = () => ({ repo: RehomeRepository, now: () => new Date() });
 const withdrawDeps = () => ({ repo: RehomeRepository, now: () => new Date(), transaction });
@@ -444,11 +453,12 @@ describe("withdraw — who may, and what one transaction does (REQ-8, REQ-10, RE
 
   it("the titular withdraws: custody closes, the listing clears, the spine says withdrawn_by_titular, the listing case closes, the owner row is never touched, the org is told", async () => {
     const r = await withdrawRehomeSponsorship(
-      { petPublicToken: PET_TOKEN, titularUserId: ids.titular },
+      { petPublicToken: PET_TOKEN, titularUserId: ids.titular, clientIdempotencyKey: WITHDRAW_KEY },
       withdrawDeps(),
     );
     expect(r.ok ? "" : r.error).toBe("");
     if (!r.ok) return;
+    expect(r.value.replayed).toBe(false);
     expect(r.value.sponsoringOrganizationId).toBe(orgAId);
     expect(r.value.petPublicToken).toBe(PET_TOKEN);
 
@@ -631,6 +641,57 @@ describe("withdraw — who may, and what one transaction does (REQ-8, REQ-10, RE
     if (!r.ok) expect(r.error).toMatch(/no tiene un acompañamiento .*activo/);
     expect(await spineTypes()).toHaveLength(7);
   });
+
+  it("the SAME key replays the withdraw: ok, replayed, the same custody row and org, nothing written, nobody told again", async () => {
+    // The closing fact carries the key — that is the ledger the replay reads.
+    const [ended] = await db
+      .select({ key: petEvents.clientIdempotencyKey })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "rehome_sponsorship_ended")));
+    expect(ended.key).toBe(WITHDRAW_KEY);
+
+    const r = await withdrawRehomeSponsorship(
+      { petPublicToken: PET_TOKEN, titularUserId: ids.titular, clientIdempotencyKey: WITHDRAW_KEY },
+      withdrawDeps(),
+    );
+    // THE ASSERTION THIS TEST EXISTS FOR: over a spine with nothing active, the
+    // retry of a withdraw that landed answers the way the first attempt did —
+    // never "no tiene un acompañamiento activo".
+    expect(r.ok ? "" : r.error).toBe("");
+    if (!r.ok) return;
+    expect(r.value.replayed).toBe(true);
+    expect(r.value.ownershipId).toBe(firstCustodyId);
+    expect(r.value.sponsoringOrganizationId).toBe(orgAId);
+    expect(r.value.sponsoringOrganizationPublicToken).toBe(ORG_A_TOKEN);
+    expect(r.notifications).toEqual([]);
+    expect(await spineTypes()).toHaveLength(7);
+  });
+
+  it("a DIFFERENT key with nothing active is the ordinary refusal — the ledger knows only its own", async () => {
+    const r = await withdrawRehomeSponsorship(
+      {
+        petPublicToken: PET_TOKEN,
+        titularUserId: ids.titular,
+        clientIdempotencyKey: "11111111-2222-4333-8444-555555555555",
+      },
+      withdrawDeps(),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/no tiene un acompañamiento .*activo/);
+  });
+
+  it("the foster replaying the titular's key is still refused — the ledger is scoped to the actor", async () => {
+    const r = await withdrawRehomeSponsorship(
+      {
+        petPublicToken: PET_TOKEN,
+        titularUserId: ids.fosterer,
+        clientIdempotencyKey: WITHDRAW_KEY,
+      },
+      withdrawDeps(),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/titular/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -670,11 +731,12 @@ describe("cancel — the titular withdraws a request the org has not answered (R
   it("the titular cancels: closed as cancelled BY the titular, the note says so, nothing on the spine, the org is told", async () => {
     const before = await spineTypes();
     const r = await withdrawRehomeRequest(
-      { petPublicToken: PET_TOKEN, titularUserId: ids.titular },
+      { petPublicToken: PET_TOKEN, titularUserId: ids.titular, clientIdempotencyKey: CANCEL_KEY },
       withdrawDeps(),
     );
     expect(r.ok ? "" : r.error).toBe("");
     if (!r.ok) return;
+    expect(r.value.replayed).toBe(false);
     expect(r.value.casePublicCode).toBe(pendingCode);
 
     // The row: the same closedReason an org decline uses, told apart by the
@@ -694,6 +756,10 @@ describe("cancel — the titular withdraws a request the org has not answered (R
     expect(entry?.notes).toContain("Refugio Padrino");
     expect((entry?.payload as { rehome_decision?: string }).rehome_decision).toBe("withdrawn");
     expect(entry?.by).toBe(ids.titular);
+    // The entry keeps the client's key — the ledger the replay below reads.
+    expect((entry?.payload as { client_idempotency_key?: string }).client_idempotency_key).toBe(
+      CANCEL_KEY,
+    );
 
     // Nothing about the animal changed: spine and rows are as they were.
     expect(await spineTypes()).toEqual(before);
@@ -719,6 +785,41 @@ describe("cancel — the titular withdraws a request the org has not answered (R
   it("cancelling again is refused — there is no pending request", async () => {
     const r = await withdrawRehomeRequest(
       { petPublicToken: PET_TOKEN, titularUserId: ids.titular },
+      withdrawDeps(),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/no hay una solicitud .*pendiente/i);
+  });
+
+  it("the SAME key replays the cancel: ok, replayed, the same case, closed once, nobody told again", async () => {
+    const r = await withdrawRehomeRequest(
+      { petPublicToken: PET_TOKEN, titularUserId: ids.titular, clientIdempotencyKey: CANCEL_KEY },
+      withdrawDeps(),
+    );
+    // THE ASSERTION THIS TEST EXISTS FOR: with no pending request left, the
+    // retry of the cancel that closed it answers the way the first attempt did.
+    expect(r.ok ? "" : r.error).toBe("");
+    if (!r.ok) return;
+    expect(r.value.replayed).toBe(true);
+    expect(r.value.caseId).toBe(pendingCaseId);
+    expect(r.value.casePublicCode).toBe(pendingCode);
+    expect(r.value.receiverOrganizationId).toBe(orgAId);
+    expect(r.notifications).toEqual([]);
+    // One `case_closed` entry, not two: the replay wrote nothing.
+    const entries = await db
+      .select({ id: caseEvents.id })
+      .from(caseEvents)
+      .where(and(eq(caseEvents.caseId, pendingCaseId), eq(caseEvents.entryType, "case_closed")));
+    expect(entries).toHaveLength(1);
+  });
+
+  it("a DIFFERENT key with nothing pending is the ordinary refusal", async () => {
+    const r = await withdrawRehomeRequest(
+      {
+        petPublicToken: PET_TOKEN,
+        titularUserId: ids.titular,
+        clientIdempotencyKey: "22222222-3333-4444-8555-666666666666",
+      },
       withdrawDeps(),
     );
     expect(r.ok).toBe(false);

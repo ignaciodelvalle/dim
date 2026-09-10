@@ -70,6 +70,12 @@ export interface RehomeRequestPort {
   findLiveOwnerRow(petId: string, userId: string, tx?: unknown): Promise<{ id: string } | null>;
   findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
   /**
+   * The org by its PUBLIC token — what the bearer door is handed, since a
+   * client is never given an internal id (`@dim/contract/api`'s rule). The
+   * web form posts ids and never calls this.
+   */
+  findOrgByPublicToken(publicToken: string): Promise<SponsorOrg | null>;
+  /**
    * The org's `organization_coverage` rows — the zones it works in. The rule
    * (`validateSponsorCoverage`) decides; this only fetches. Same rows the
    * picker joins on, so the two cannot disagree about who covers what.
@@ -119,6 +125,12 @@ export type CloseRequestCaseArgs = {
   /** The `case_closed` timeline note the titular reads (spec REQ-5). */
   timelineNote: string;
   now: Date;
+  /**
+   * The client's replay key, kept on the `case_closed` entry so a retried
+   * cancel can be recognised as the SAME cancel (`findRequestWithdrawnByKey`).
+   * Null from the web, which sends none.
+   */
+  clientIdempotencyKey?: string | null;
 };
 
 export interface RehomeAnswerPort {
@@ -157,7 +169,32 @@ export interface RehomeAnswerPort {
 /** The unmatched `rehome_sponsorship_started`, keyed on the spine. */
 export type OpenSponsorshipRef = { ownershipId: string; sponsoringOrganizationId: string };
 
-export type EndSponsorshipByTitularArgs = { petId: string; titularUserId: string; now: Date };
+export type EndSponsorshipByTitularArgs = {
+  petId: string;
+  titularUserId: string;
+  now: Date;
+  /** Stamped on `rehome_sponsorship_ended` so a replay can find its own fact. */
+  clientIdempotencyKey: string | null;
+};
+
+/**
+ * THE LEDGER'S ANSWER to "did this exact withdraw already happen?" — the
+ * `rehome_sponsorship_ended` the titular wrote under this key, joined back to
+ * the custody row it closed and the org that held it, so a replay can answer
+ * with the same facts the first attempt did.
+ */
+export type SponsorshipEndedByKey = {
+  ownershipId: string;
+  sponsoringOrganizationId: string | null;
+  sponsoringOrganizationPublicToken: string | null;
+};
+
+/** The ledger's answer for a cancel: the `rehome_request` case this key closed. */
+export type RequestWithdrawnByKey = {
+  caseId: string;
+  casePublicCode: string;
+  receiverOrganizationId: string | null;
+};
 
 export type CloseListingCaseArgs = {
   caseId: string;
@@ -199,6 +236,25 @@ export interface RehomeWithdrawPort {
   findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
   orgAdminAndCoordinatorUserIds(orgId: string): Promise<string[]>;
   findDisplayName(userId: string): Promise<string | null>;
+  // --- the ledger, asked BEFORE the state guard (both withdraws) ---
+  /**
+   * The `rehome_sponsorship_ended` THIS titular wrote on THIS pet under this
+   * client key, or null. Read under the pet advisory lock inside the withdraw
+   * transaction, so two replays of one key serialise on the same answer.
+   */
+  findSponsorshipEndedByKey(
+    petId: string,
+    titularUserId: string,
+    key: string,
+    tx?: unknown,
+  ): Promise<SponsorshipEndedByKey | null>;
+  /** The `rehome_request` case THIS titular closed on THIS pet under this client key, or null. */
+  findRequestWithdrawnByKey(
+    petId: string,
+    titularUserId: string,
+    key: string,
+    tx?: unknown,
+  ): Promise<RequestWithdrawnByKey | null>;
   // --- withdraw an active sponsorship ---
   findOpenSponsorshipForPet(petId: string, tx?: unknown): Promise<OpenSponsorshipRef | null>;
   /** Closes the custody row the sponsorship opened. `ended: false` when it was already closed. */
@@ -245,7 +301,31 @@ export interface RehomeStatePort {
   findOrgById(orgId: string, tx?: unknown): Promise<SponsorOrg | null>;
 }
 
+/**
+ * One (org, coverage row) pair: a verified shelter or rescue network and one
+ * zone it declares. An org with three coverage rows in the province comes back
+ * three times; `listCoveringOrgs` folds them and applies the zone predicate.
+ */
+export type SponsorCandidateRow = {
+  id: string;
+  publicToken: string;
+  displayName: string;
+  orgType: string;
+  coverage: CoverageArea;
+};
+
+/** The READ behind the picker — the web page's and the bearer door's, once. */
+export interface RehomeCandidatesPort {
+  /**
+   * Verified shelters and rescue networks with at least one coverage row in
+   * the province. The PROVINCE narrows the query; whether a row reaches the
+   * pet's locality is `coverageAreaCoversZone`'s decision, made by the caller.
+   */
+  findSponsorCandidatesInProvince(province: string): Promise<SponsorCandidateRow[]>;
+}
+
 export type RehomeRepositoryPort = RehomeRequestPort &
   RehomeAnswerPort &
   RehomeWithdrawPort &
-  RehomeStatePort;
+  RehomeStatePort &
+  RehomeCandidatesPort;

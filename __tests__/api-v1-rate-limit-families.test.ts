@@ -802,7 +802,29 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     //                                     14.124
     //
     // and 14.004 + 120 = 14.124 agrees.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(14_124);
+    //
+    // 14.844 WITH THE ACOMPAÑAMIENTO DE ADOPCIÓN DOOR (`pets/{token}/rehome`),
+    // which is GET+POST and so contributes TWO buckets — one
+    // `authenticated-read` (600) and one `authenticated-write` (120), the same
+    // shape `return` added. Hand-summed per family over the map as this lane
+    // leaves it, and NOT read off the `reduce` this assertion compares against
+    // — a computed value agreeing with itself is not evidence:
+    //
+    //   authenticated-read     19 × 600 = 11.400
+    //   authenticated-write    13 × 120 =  1.560
+    //   account-security        2 ×  60 =    120
+    //   public-reference        1 × 600 =    600
+    //   inbox-state             1 × 240 =    240
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 42 buckets ─────────
+    //                                     14.844
+    //
+    // and 14.124 + 600 + 120 = 14.844 agrees.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(14_844);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

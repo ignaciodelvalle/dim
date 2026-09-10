@@ -519,5 +519,32 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "No pudimos completar la devolución. Volvé a abrir la pantalla antes de intentar de nuevo.";
     case "reminder_failed":
       return "No pudimos guardar el recordatorio. Volvé a intentar en unos segundos.";
+    // Acompañamiento de adopción. Cinco instrucciones distintas y una sola
+    // manda a reintentar: la primera nombra de quién es la decisión, la
+    // segunda dice que el animal no está en situación, dos mandan a MIRAR de
+    // nuevo (el estado se mueve solo: del otro lado hay una organización), y
+    // una manda a elegir otra organización de la lista.
+    case "rehome_forbidden":
+      // La web dice exactamente esto (`NOT_TITULAR_ERROR`): pedir, cancelar y
+      // dar de baja son del titular, y un co-titular o un cuidador que llegó
+      // acá tiene al animal y NO tiene esta decisión.
+      return "Solo el titular de la mascota puede pedir, cancelar o dar de baja un acompañamiento de adopción.";
+    case "rehome_not_allowed":
+      // Perdida o fallecida. La ficha ya dice cuál; esta es la frase de
+      // respaldo para quien llegó sin leerla.
+      return "La situación de esta mascota no permite buscarle hogar ahora. Abrí su ficha para ver por qué.";
+    case "rehome_already_open":
+      // TAMBIÉN es la respuesta de un pedido reintentado que sí había llegado,
+      // así que la copia no puede decir "otra persona pidió": dice que ya hay
+      // uno y manda a mirar.
+      return "Ya hay un pedido de acompañamiento en curso para esta mascota. Actualizá la pantalla para ver cómo quedó.";
+    case "rehome_org_invalid":
+      return "Esa organización no puede acompañar la adopción de tu mascota. Elegí otra de la lista.";
+    case "rehome_nothing_to_withdraw":
+      // Puede ser que se haya resuelto — por la organización, o por un intento
+      // anterior con otra clave. Por eso no dice "no había nada": dice que mires.
+      return "Ya no hay un pedido ni un acompañamiento para dar de baja. Actualizá la pantalla para ver cómo quedó.";
+    case "rehome_failed":
+      return "No pudimos completar la acción. Volvé a intentar en unos segundos.";
   }
 }
