@@ -412,10 +412,10 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->69<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1512<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1515<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
-    <!-- fact:mobile_jest_files -->102<!-- /fact -->.
+    <!-- fact:mobile_jest_files -->104<!-- /fact -->.
   - Flujos de integración continua: <!-- fact:ci_workflows -->7<!-- /fact -->.
   - Reglas del canon de convenciones que algo hace cumplir:
     <!-- fact:canon_enforced -->179<!-- /fact --> de
@@ -454,7 +454,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - Trabajos diarios hacia los que reparte:
     <!-- fact:cron_jobs -->23<!-- /fact -->.
   - Puntos de entrada de la interfaz de programación:
-    <!-- fact:route_handlers -->84<!-- /fact -->.
+    <!-- fact:route_handlers -->85<!-- /fact -->.
 - **Respaldo.**
   - `vercel.json` — las tareas programadas declaradas.
   - `lib/infra/cron-dispatcher.ts` — el repartidor de tareas: cada trabajo corre aislado y el
@@ -485,7 +485,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Pantallas: <!-- fact:pages -->262<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->215<!-- /fact -->.
+    <!-- fact:migrations -->216<!-- /fact -->.
   - Tablas: <!-- fact:tables -->53<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que
