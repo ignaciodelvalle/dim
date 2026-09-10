@@ -187,6 +187,17 @@ export type DrainOutcome = {
    * how a table grows for months under a green dashboard.
    */
   backlogged: boolean;
+  /**
+   * The message of the throw that ENDED this drain, when one did. Absent on
+   * every drain that stopped for an ordinary reason (short batch, cap,
+   * deadline), so `error !== undefined` is the single test for "this target
+   * failed" and no caller has to distinguish a failure from a quiet zero.
+   *
+   * The batches that ran BEFORE the throw are still counted in `deleted` —
+   * they really did delete those rows, and a report that swallowed them would
+   * be describing a run that did not happen.
+   */
+  error?: string;
 };
 
 /**
@@ -214,6 +225,19 @@ export type DrainOutcome = {
  * progress is decided by the share the caller computed, not by how fast the
  * clock ticks between the caller's reading and this one (on a real clock a
  * 1 ms share can elapse in between; that is "no time", honestly reported).
+ *
+ * A STEP THAT THROWS ENDS THIS DRAIN AND NOTHING ELSE (2026-09-10). The throw
+ * is caught here, the batches already taken are kept, and the outcome comes
+ * back `backlogged: true` with `error` set — because rows ARE still on the
+ * table and the caller must be able to say which target broke and why. This is
+ * the ONLY place the isolation lives: `runDataLifecyclePurge` had no per-target
+ * catch, so one target's throw escaped the whole composite, the route caught it,
+ * and the run recorded ZERO for all six targets — including the ones that had
+ * already deleted their rows. The counts were a lie and the alert named nothing.
+ *
+ * It does NOT retry. A step that threw once inside a bounded nightly budget is
+ * far likelier to be a dead pool, a missing grant or an outage than a blip, and
+ * a retry loop here would spend the share the targets after it are owed.
  */
 export async function drainPurge(
   step: () => Promise<number>,
@@ -226,7 +250,19 @@ export async function drainPurge(
   let deleted = 0;
   let batches = 0;
   for (;;) {
-    const batch = await step();
+    let batch: number;
+    try {
+      batch = await step();
+    } catch (err) {
+      // NOT counted as a batch: it never completed. `deleted` keeps whatever
+      // the completed batches took off, which is the true number.
+      return {
+        deleted,
+        batches,
+        backlogged: true,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
     deleted += batch;
     batches += 1;
     // A SHORT batch is the only proof the backlog is gone: the DELETE takes up
@@ -373,6 +409,24 @@ export async function purgeOldCronRuns(): Promise<number> {
 // Composite runner (called by the cron route)
 // ---------------------------------------------------------------------------
 
+/**
+ * The six targets, by the key they carry through every layer of this job — the
+ * `backlogged` map, the failure list, and the route's table-name lookup.
+ */
+export type DataLifecycleTarget =
+  | "rateLimitBuckets"
+  | "notifications"
+  | "pushSubscriptions"
+  | "orgContactIps"
+  | "cronRuns"
+  | "stagedUploads";
+
+/** One target that THREW, and what it said. */
+export type DataLifecycleFailure = {
+  target: DataLifecycleTarget;
+  reason: string;
+};
+
 export interface DataLifecycleResult {
   notificationsDeleted: number;
   rateLimitBucketsDeleted: number;
@@ -404,6 +458,29 @@ export interface DataLifecycleResult {
     orgContactIps: boolean;
     stagedUploads: boolean;
   };
+  /**
+   * The targets that THREW, in run order. Empty on a clean run, which is the
+   * only thing a caller has to test.
+   *
+   * WHY THIS IS A FIELD AND NOT AN EXCEPTION. The six targets are independent —
+   * six tables, six statements, no shared transaction — so one of them being
+   * unable to run says nothing about the other five, and until 2026-09-10 it
+   * silenced all of them: the throw escaped the composite, the route caught it,
+   * and `counts` stayed at the initial all-zeros literal even though the targets
+   * ahead of the failure had already deleted their rows. The run then recorded
+   * zero, marked itself failed and paged a human — nightly, with the counts
+   * wrong about work that really happened.
+   *
+   * So the composite no longer throws for a target: it runs all six, reports the
+   * TRUE counts of the ones that worked, marks the one that failed as backlogged
+   * (its rows are still there), and names it here. The route turns a non-empty
+   * list into `status: "failed"`, HTTP 500 and a critical alert — the run is
+   * still visibly failed, which is the half that must not be lost.
+   *
+   * Additive on purpose: every existing consumer of the counts and of
+   * `backlogged` reads exactly what it read before.
+   */
+  failures: DataLifecycleFailure[];
 }
 
 /** One single-batch purge per target. Injectable so the composite's arithmetic
@@ -441,9 +518,17 @@ export type DataLifecycleOptions = {
 };
 
 /**
- * Runs all six purges in sequence. Each is independent — a failure in one
- * does not abort the others (the route handles per-section error logging).
- * Returns per-section counts for the cron_runs.details payload.
+ * Runs all six purges in sequence. Each is independent — a failure in one does
+ * not abort the others, and the ones that ran report their TRUE counts next to
+ * the name of the one that broke (`failures`). Returns per-section counts for
+ * the cron_runs.details payload.
+ *
+ * THIS DOCBLOCK USED TO CLAIM THAT INDEPENDENCE AND THE CODE DID NOT HAVE IT
+ * ("the route handles per-section error logging" — it did not; there was no per
+ * -section anything). A throw escaped the whole composite and the route recorded
+ * six zeros over work that had really been done. `drainPurge` now owns the
+ * isolation, `failures` carries the verdict, and the route turns it into a
+ * failed run that names the target. See the `failures` field for the full story.
  *
  * THE ORDER IS A PRIORITY AND THE DEADLINE IS SPLIT FAIRLY. Each target's
  * deadline is `now + fairShareMs(budget left, targets still to run)` — the
@@ -535,6 +620,7 @@ export async function runDataLifecyclePurge(
   ] as const;
 
   const outcomes = {} as Record<(typeof targets)[number]["key"], DrainOutcome>;
+  const failures: DataLifecycleFailure[] = [];
   for (const [index, target] of targets.entries()) {
     // ONE reading per target: what is left is measured from the same instant
     // the target's own deadline is anchored on.
@@ -544,13 +630,20 @@ export async function runDataLifecyclePurge(
       targets.length - index,
       Number.POSITIVE_INFINITY,
     );
-    outcomes[target.key] = await drainPurge(
+    const outcome = await drainPurge(
       target.step,
       target.batchSize,
       startedAt + share,
       target.maxBatches,
       now,
     );
+    outcomes[target.key] = outcome;
+    // The loop does NOT break: the targets after this one are independent of
+    // it, they still have their own share of the budget, and the whole reason
+    // this list exists is that a failure used to take them down with it.
+    if (outcome.error !== undefined) {
+      failures.push({ target: target.key, reason: outcome.error });
+    }
   }
 
   return {
@@ -568,5 +661,6 @@ export async function runDataLifecyclePurge(
       orgContactIps: outcomes.orgContactIps.backlogged,
       stagedUploads: outcomes.stagedUploads.backlogged,
     },
+    failures,
   };
 }

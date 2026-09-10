@@ -33,6 +33,7 @@ const DRAINED: DataLifecycleResult = {
     orgContactIps: false,
     stagedUploads: false,
   },
+  failures: [],
 };
 
 describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
@@ -49,6 +50,7 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
     vi.restoreAllMocks();
     vi.doUnmock("@/lib/infra/data-lifecycle");
     vi.doUnmock("@/db");
+    vi.doUnmock("@/lib/infra/cron-alert");
   });
 
   function mockDeps(purge: () => Promise<DataLifecycleResult>) {
@@ -66,7 +68,19 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
 
     const runDataLifecyclePurge = vi.fn().mockImplementation(purge);
     vi.doMock("@/lib/infra/data-lifecycle", () => ({ runDataLifecyclePurge }));
-    return { runDataLifecyclePurge };
+
+    // THE ALERT MUST BE MOCKED TO BE OBSERVED. Left real it no-ops in the test
+    // env (CRON_ALERT_WEBHOOK is unset), so nothing sees whether it was called
+    // or what it said — which let two mutants live: deleting the whole
+    // `if (status === "failed") { await sendCronAlert(...) }` block, and
+    // dropping the `${section}: ` prefix that names the failed target. Same
+    // recipe as __tests__/cron-reconcile-pet-status-route.test.ts.
+    const sendCronAlert = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("@/lib/infra/cron-alert", () => ({ sendCronAlert }));
+
+    // `setMock` is what the cron_runs row is built from — the assertions about
+    // what a failed run RECORDS read it rather than trusting the JSON body.
+    return { runDataLifecyclePurge, setMock, sendCronAlert };
   }
 
   async function callRoute(extraHeaders: Record<string, string> = {}) {
@@ -185,5 +199,106 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
 
     expect(res.status).toBe(500);
     expect(warnings()).not.toContain("backlog remains");
+  });
+
+  // -------------------------------------------------------------------------
+  // A FAILED TARGET IS A FAILED RUN THAT STILL TELLS THE TRUTH (2026-09-10)
+  //
+  // The composite no longer throws when one of six targets breaks — it isolates
+  // it so the other five report the rows they really deleted. The danger in that
+  // fix is the opposite mistake, and it is worse: a partial failure quietly
+  // returning 200. So the route must read `failures`, fail the run, page, AND
+  // keep the honest counts.
+  // -------------------------------------------------------------------------
+
+  it("a FAILED TARGET fails the run, names it, and still records the counts the other five earned", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { setMock, sendCronAlert } = mockDeps(async () => ({
+      ...DRAINED,
+      pushSubscriptionsDeleted: 0,
+      backlogged: { ...DRAINED.backlogged, pushSubscriptions: true },
+      failures: [{ target: "pushSubscriptions" as const, reason: "pooler down" }],
+    }));
+
+    const res = await callRoute();
+
+    // STILL VISIBLY FAILED. Isolation must not become silence: Vercel's cron
+    // dashboard reads the status code, and a 200 here would hide a broken
+    // target forever.
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ok).toBe(false);
+
+    // AND STILL TRUE. These are the counts the defect used to overwrite with
+    // zeros — five targets' real work, erased because a sixth threw.
+    expect(body).toMatchObject({
+      rateLimitBucketsDeleted: 7,
+      notificationsDeleted: 3,
+      cronRunsDeleted: 1,
+      orgContactIpsPurged: 4,
+      stagedUploadsDeleted: 6,
+      pushSubscriptionsDeleted: 0,
+    });
+
+    // The cron_runs row carries the same story: itemsProcessed sums the real
+    // work, and `details.errors` NAMES the target rather than saying an error
+    // occurred somewhere in a six-target job.
+    const [recorded] = setMock.mock.calls[0] as [
+      {
+        status: string;
+        itemsProcessed: number;
+        details: { errors?: { section: string; reason: string }[] };
+      },
+    ];
+    expect(recorded.status).toBe("failed");
+    expect(recorded.itemsProcessed).toBe(7 + 3 + 1 + 4 + 6);
+    expect(recorded.details.errors).toEqual([
+      { section: "pushSubscriptions", reason: "pooler down" },
+    ]);
+
+    // The human-readable log names the table the reader is about to open.
+    const logged = errorSpy.mock.calls.map((args: unknown[]) => args.join(" ")).join("\n");
+    expect(logged).toContain("pushSubscriptions");
+    expect(logged).toContain("push_subscriptions");
+    expect(logged).toContain("pooler down");
+
+    // THE PAGE STILL FIRES, and its headline NAMES the target. A partial
+    // failure that alerted with a bare reason would leave the person woken at
+    // 3am guessing which of six targets it came from; one that did not alert at
+    // all would be the isolation turning into silence.
+    expect(sendCronAlert).toHaveBeenCalledTimes(1);
+    expect(sendCronAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job: "data_lifecycle",
+        severity: "critical",
+        error: "pushSubscriptions: pooler down",
+        details: expect.objectContaining({
+          // The counts the other five earned ride along, so the alert itself
+          // says what DID happen rather than implying nothing did.
+          rateLimitBucketsDeleted: 7,
+          errors: [{ section: "pushSubscriptions", reason: "pooler down" }],
+        }),
+      }),
+    );
+
+    // The failed target's rows are still on the table, so the backlog warning
+    // is an honest measurement here — unlike on a run whose composite threw.
+    expect(warnings()).toContain("push_subscriptions");
+  });
+
+  it("a clean run records no errors, stays 200, and pages NOBODY", async () => {
+    const { setMock, sendCronAlert } = mockDeps(async () => DRAINED);
+
+    const res = await callRoute();
+
+    expect(res.status).toBe(200);
+    // NON-VACUITY for the alert assertion above: an alert that fired on every
+    // run would satisfy it while training the recipient to ignore the channel.
+    expect(sendCronAlert).not.toHaveBeenCalled();
+    const [recorded] = setMock.mock.calls[0] as [{ status: string; details: { errors?: unknown } }];
+    expect(recorded.status).toBe("ok");
+    // NON-VACUITY for the test above: `errors` is only added to `details` when
+    // there is one, so an empty run must not carry the key at all.
+    expect(recorded.details.errors).toBeUndefined();
   });
 });

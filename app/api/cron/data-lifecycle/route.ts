@@ -28,6 +28,22 @@
 // anything is left, and an unfinished purge that reports only a count is
 // indistinguishable from a completed one on a table that keeps growing.
 //
+// ONE TARGET FAILING DOES NOT ERASE THE OTHER FIVE (2026-09-10). The composite
+// isolates each target, so a throw comes back as `failures: [{ target, reason }]`
+// alongside the TRUE counts of everything that ran. This route turns a non-empty
+// list into a failed run — 500, a critical alert, an `errors` entry per target —
+// so the isolation buys honesty, never silence. Before it, one throw made the
+// row read six zeros over rows that had really been deleted, and the alert named
+// nothing.
+//
+// THAT 500 PROPAGATES, and it is worth meeting on paper rather than at 3am: when
+// this job runs under the daily fan-out, `app/api/cron/daily/route.ts` sets
+// `failed: r.failed > 0`, so ONE failed target here also flips cron_daily to
+// failed, returns 500 from the dispatcher and fires its own critical alert. Two
+// pages, not one. Correct — a target that cannot run must be visible — but the
+// storage collector in particular used to answer a Storage refusal with a
+// `console.error` and nothing else, so this is a real change in blast radius.
+//
 // THE DEADLINE COMES FROM THE DISPATCHER (RN-3 F17). /api/cron/daily forwards
 // this job's fair share of what is left of its 55 s as `x-cron-budget-ms`
 // (lib/infra/cron-dispatcher.ts); this route passes it through. Called
@@ -48,28 +64,41 @@ import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { cronBudgetFromHeaders } from "@/lib/infra/cron-dispatcher";
-import { type DataLifecycleResult, runDataLifecyclePurge } from "@/lib/infra/data-lifecycle";
+import {
+  type DataLifecycleResult,
+  type DataLifecycleTarget,
+  runDataLifecyclePurge,
+} from "@/lib/infra/data-lifecycle";
 
 export const dynamic = "force-dynamic";
 
 const CRON_NAME = "data_lifecycle";
 
 /**
- * Backlog flag → the table it drains.
+ * Target → the table (or bucket) it drains. Every log line built from this names
+ * the SQL table, not the camelCase field, because the person reading a function
+ * log is about to go look at that table.
  *
- * The warning names the SQL table, not the camelCase field, because the person
- * reading a function log is about to go look at that table.
+ * A `Record`, not a list of pairs, because `Record<DataLifecycleTarget, string>`
+ * is EXHAUSTIVENESS-CHECKED: a seventh target added to the union is a compile
+ * error here until it is given a label. As an array it was not, and the seventh
+ * target would have logged `(unknown)` on a failure and dropped silently out of
+ * the backlog warning below — the same class of quiet omission this whole change
+ * is about. Insertion order is the run order, and `Object.entries` preserves it,
+ * so the warning still reads in the order the targets ran.
  */
-const BACKLOG_TABLES: [keyof DataLifecycleResult["backlogged"], string][] = [
-  ["rateLimitBuckets", "rate_limit_buckets"],
-  ["notifications", "notifications"],
-  ["pushSubscriptions", "push_subscriptions"],
-  ["orgContactIps", "org_contact_messages.submitter_ip"],
-  ["cronRuns", "cron_runs"],
+const TARGET_TABLE: Record<DataLifecycleTarget, string> = {
+  rateLimitBuckets: "rate_limit_buckets",
+  notifications: "notifications",
+  pushSubscriptions: "push_subscriptions",
+  orgContactIps: "org_contact_messages.submitter_ip",
+  cronRuns: "cron_runs",
   // Not a table. The person reading this log line goes and looks at a BUCKET,
   // so the label names the bucket the same way the others name the table.
-  ["stagedUploads", "uploads-staging (storage bucket)"],
-];
+  stagedUploads: "uploads-staging (storage bucket)",
+};
+
+const BACKLOG_TABLES = Object.entries(TARGET_TABLE) as [DataLifecycleTarget, string][];
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -103,14 +132,37 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       orgContactIps: true,
       stagedUploads: true,
     },
+    failures: [],
   };
   const errors: { section: string; reason: string }[] = [];
+  /**
+   * Did the purge come back at all? A composite that threw leaves `counts` at
+   * the literal above, which MEASURES NOTHING; a composite that returned with
+   * failures measured five targets honestly and one not at all. The two are
+   * different facts and only the second may be read as a backlog report.
+   */
+  let measured = false;
 
   // The dispatcher's fair share, or nothing (standalone → the lib's own ceiling).
   const budgetMs = cronBudgetFromHeaders(req.headers);
 
   try {
     counts = await runDataLifecyclePurge(budgetMs === null ? {} : { maxDurationMs: budgetMs });
+    measured = true;
+
+    // A TARGET THAT FAILED IS STILL A FAILED RUN. The composite no longer
+    // throws for one — it isolates it so the other five report the rows they
+    // really deleted — but isolation must not become silence: the run goes to
+    // "failed", answers 500, and pages, exactly as it did when the throw
+    // escaped. What changes is that the report is now TRUE about the rest and
+    // NAMES the one that broke, instead of six zeros and "an error occurred".
+    for (const failure of counts.failures) {
+      status = "failed";
+      errors.push({ section: failure.target, reason: failure.reason });
+      console.error(
+        `[cron/${CRON_NAME}] target failed: ${failure.target} (${TARGET_TABLE[failure.target]}) — ${failure.reason}. The other targets ran; their counts in this row are real.`,
+      );
+    }
   } catch (err) {
     status = "failed";
     errors.push({
@@ -126,9 +178,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // exists precisely to distinguish "finished" from "ran out of budget on a
   // table that keeps growing" was only visible to someone already suspicious.
   //
-  // Only on an OK run: a failed run reports the initial all-true shape, which
-  // means "nothing ran", not "three tables are behind", and it already pages a
-  // human below.
+  // Only on a run that MEASURED something. A composite that threw leaves the
+  // initial all-true shape, which means "nothing ran", not "six tables are
+  // behind" — reporting that would be a fabricated measurement, and the failure
+  // already pages a human below. A run whose composite RETURNED did measure,
+  // failures and all: the five targets that worked reported real flags, and the
+  // one that threw is genuinely backlogged (its rows are still there), so the
+  // warning is honest and belongs even though `status` is "failed".
   //
   // NO sendCronAlert here, deliberately. Siblings DO use it for non-failure
   // conditions — app/api/cron/reconcile-pet-status/route.ts fires severity
@@ -138,7 +194,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // shared wall-clock deadline in lib/infra/data-lifecycle.ts): paging every
   // tick would train the recipient to ignore the channel. Escalating needs a
   // threshold — N consecutive runs backlogged — and that is its own change.
-  if (status === "ok") {
+  if (measured) {
     const backlogged = BACKLOG_TABLES.filter(([flag]) => counts.backlogged[flag]).map(
       ([, table]) => table,
     );
@@ -179,7 +235,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     await sendCronAlert({
       job: CRON_NAME,
       severity: "critical",
-      error: errors[0]?.reason ?? "data-lifecycle purge failed",
+      // The SECTION is part of the alert's headline, not buried in `details`:
+      // "stagedUploads: permission denied for schema storage" is actionable at
+      // a glance; the bare reason leaves the reader guessing which of six
+      // targets it came from.
+      error: errors[0]
+        ? `${errors[0].section}: ${errors[0].reason}`
+        : "data-lifecycle purge failed",
       details: { ...counts, errors },
     });
   }

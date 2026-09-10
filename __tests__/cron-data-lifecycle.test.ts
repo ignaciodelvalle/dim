@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
 import { eq, like, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   attachments,
@@ -444,6 +444,39 @@ describe("drainPurge", () => {
     expect(result.backlogged).toBe(true);
   });
 
+  it("keeps the rows it already took when a later batch THROWS, and names the reason", async () => {
+    // THE PARTIAL COUNT IS THE WHOLE POINT. Two batches completed and really
+    // deleted 1,000 rows; the third never returned. A drain that reported 0
+    // here — which is what a `catch { return 0 }` inside the step produces —
+    // would be describing a run that did not happen.
+    let call = 0;
+    const step = async () => {
+      call += 1;
+      if (call === 3) throw new Error("pooler down");
+      return 500;
+    };
+
+    const result = await drainPurge(step, 500, NO_DEADLINE);
+
+    expect(result.deleted).toBe(1000);
+    // The throwing batch is NOT counted: it never completed.
+    expect(result.batches).toBe(2);
+    // Rows are still on the table, so this is a backlog by any reading.
+    expect(result.backlogged).toBe(true);
+    expect(result.error).toBe("pooler down");
+  });
+
+  it("leaves `error` unset when the drain stopped for an ORDINARY reason", async () => {
+    // NON-VACUITY for the field above: if `error` were always set, "this target
+    // failed" would be true of every target and the composite's failure list
+    // would name all six every night.
+    const short = await drainPurge(fakeStep([120]).step, 500, NO_DEADLINE);
+    expect(short.error).toBeUndefined();
+
+    const capped = await drainPurge(fakeStep(Array(50).fill(500)).step, 500, NO_DEADLINE, 3);
+    expect(capped.error).toBeUndefined();
+  });
+
   it("reports NO backlog when the very first batch is short", async () => {
     const fake = fakeStep([0]);
 
@@ -724,6 +757,149 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       stagedUploads: true,
     });
     expect(result.rateLimitBucketsDeleted + result.notificationsDeleted).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // ONE TARGET FAILING MUST NOT ERASE THE OTHER FIVE (2026-09-10)
+  //
+  // The defect this closes was not a crash — it was a LIE. `runDataLifecyclePurge`
+  // ran six targets with no per-target catch, so a throw escaped the composite,
+  // the route caught it, and `counts` stayed at its initial all-zeros literal.
+  // The targets ahead of the failure had already deleted their rows; the run
+  // recorded zero for all six, marked itself failed and paged a human. Nightly,
+  // with the cron_runs history quietly wrong about work that really happened.
+  //
+  // The counts below are ordinary nightly volumes chosen for the SCENARIO, not
+  // derived from any constant in the module under test: they only have to be
+  // distinct, non-zero and short of a batch, so a target reporting somebody
+  // else's number — or its own zero — cannot pass.
+  // -------------------------------------------------------------------------
+
+  /** A purger that drains in one short batch, counting its call. */
+  function drains(calls: string[], name: string, rows: number) {
+    return async () => {
+      calls.push(name);
+      return rows;
+    };
+  }
+
+  /** A purger that cannot run at all — the pooler is down, the grant is missing. */
+  function throws(calls: string[], name: string, message: string) {
+    return async () => {
+      calls.push(name);
+      throw new Error(message);
+    };
+  }
+
+  it("isolates a target that THROWS: the ones after it still run, every count stays TRUE, and the failure is NAMED", async () => {
+    const calls: string[] = [];
+    const result = await runDataLifecyclePurge({
+      maxDurationMs: Number.POSITIVE_INFINITY,
+      now: ticking(0),
+      purgers: {
+        rateLimitBuckets: drains(calls, "b", 7),
+        notifications: drains(calls, "n", 3),
+        // Third of six: two targets have already deleted rows, three have not
+        // run yet. Both halves are what the old behaviour destroyed.
+        pushSubscriptions: throws(calls, "p", "pooler down"),
+        orgContactIps: drains(calls, "o", 4),
+        cronRuns: drains(calls, "c", 1),
+        stagedUploads: drains(calls, "s", 6),
+      },
+    });
+
+    // (1) THE OTHERS RAN. All six were attempted, in order, and the throw at
+    // "p" did not take "o", "c" and "s" down with it.
+    expect(calls).toEqual(["b", "n", "p", "o", "c", "s"]);
+
+    // (2) THE COUNTS ARE TRUE. Every target that worked reports what it really
+    // took off — the two before the failure included, which is precisely what
+    // the all-zeros literal used to overwrite.
+    expect(result.rateLimitBucketsDeleted).toBe(7);
+    expect(result.notificationsDeleted).toBe(3);
+    expect(result.orgContactIpsPurged).toBe(4);
+    expect(result.cronRunsDeleted).toBe(1);
+    expect(result.stagedUploadsDeleted).toBe(6);
+    // The one that threw took nothing off, and says so honestly.
+    expect(result.pushSubscriptionsDeleted).toBe(0);
+
+    // (3) THE FAILURE IS NAMED, with the target AND the reason. "An error
+    // occurred somewhere in a six-target job" is what this replaces.
+    expect(result.failures).toEqual([{ target: "pushSubscriptions", reason: "pooler down" }]);
+
+    // (4) The failed target is BACKLOGGED — its rows are still on the table —
+    // and the five that drained are not. A blanket true here would be the same
+    // fabricated measurement in the other direction.
+    expect(result.backlogged).toEqual({
+      rateLimitBuckets: false,
+      notifications: false,
+      pushSubscriptions: true,
+      orgContactIps: false,
+      cronRuns: false,
+      stagedUploads: false,
+    });
+  });
+
+  it("names EVERY target that failed, in run order — a second failure is not swallowed by the first", async () => {
+    const calls: string[] = [];
+    const result = await runDataLifecyclePurge({
+      maxDurationMs: Number.POSITIVE_INFINITY,
+      now: ticking(0),
+      purgers: {
+        rateLimitBuckets: throws(calls, "b", "permission denied for table rate_limit_buckets"),
+        notifications: drains(calls, "n", 3),
+        pushSubscriptions: drains(calls, "p", 2),
+        orgContactIps: drains(calls, "o", 4),
+        cronRuns: drains(calls, "c", 1),
+        stagedUploads: throws(calls, "s", "storage api 503"),
+      },
+    });
+
+    expect(calls).toEqual(["b", "n", "p", "o", "c", "s"]);
+    expect(result.failures).toEqual([
+      { target: "rateLimitBuckets", reason: "permission denied for table rate_limit_buckets" },
+      { target: "stagedUploads", reason: "storage api 503" },
+    ]);
+    // The four in between are untouched by either failure.
+    expect(result.notificationsDeleted).toBe(3);
+    expect(result.pushSubscriptionsDeleted).toBe(2);
+    expect(result.orgContactIpsPurged).toBe(4);
+    expect(result.cronRunsDeleted).toBe(1);
+  });
+
+  it("reports NO failure when all six succeed — the happy path is exactly what it was", async () => {
+    // The regression guard for the isolation itself: `failures` must be EMPTY
+    // on a clean run, or the route would mark every night failed and page.
+    const calls: string[] = [];
+    const result = await runDataLifecyclePurge({
+      maxDurationMs: Number.POSITIVE_INFINITY,
+      now: ticking(0),
+      purgers: {
+        rateLimitBuckets: drains(calls, "b", 7),
+        notifications: drains(calls, "n", 3),
+        pushSubscriptions: drains(calls, "p", 2),
+        orgContactIps: drains(calls, "o", 4),
+        cronRuns: drains(calls, "c", 1),
+        stagedUploads: drains(calls, "s", 6),
+      },
+    });
+
+    expect(calls).toEqual(["b", "n", "p", "o", "c", "s"]);
+    expect(result.failures).toEqual([]);
+    expect(result.backlogged).toEqual({
+      rateLimitBuckets: false,
+      notifications: false,
+      pushSubscriptions: false,
+      orgContactIps: false,
+      cronRuns: false,
+      stagedUploads: false,
+    });
+    expect(result.rateLimitBucketsDeleted).toBe(7);
+    expect(result.notificationsDeleted).toBe(3);
+    expect(result.pushSubscriptionsDeleted).toBe(2);
+    expect(result.orgContactIpsPurged).toBe(4);
+    expect(result.cronRunsDeleted).toBe(1);
+    expect(result.stagedUploadsDeleted).toBe(6);
   });
 });
 
@@ -1116,5 +1292,100 @@ describe("purgeAbandonedStagedUploads — the uploads-staging collector", () => 
     expect(outcome.deleted).toBeGreaterThanOrEqual(names.length);
     expect(outcome.batches).toBeGreaterThanOrEqual(1);
     expect(outcome.backlogged).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The collector's FAILURE branches — the half the suite above cannot see
+// ---------------------------------------------------------------------------
+//
+// Everything in the describe above is happy path, age guard and cap: it proves
+// what the collector does when it WORKS. Nothing exercised either way it can
+// break, and that gap had a measurable shape — restoring the old
+// `catch { return 0 }` swallow killed ZERO tests.
+//
+// That is the exact false-green this repo has been bitten by. `drainPurge`
+// reads a 0 as a SHORT BATCH (data-lifecycle.ts: `if (batch < batchSize)
+// return { ..., backlogged: false }`), i.e. "the bucket is drained, nothing
+// left". So a collector that swallows its errors and answers 0 closes the run
+// GREEN, every night, while the bucket fills forever — and somebody six months
+// from now, reading "an error is zero, not a throw" in the git history and
+// wanting to quiet a noisy page, can restore that swallow with the whole suite
+// still passing. These two tests are what stops them.
+//
+// DB-less and Storage-less on purpose: both branches are about what the
+// function does with an answer it was GIVEN, so the answer is injected. The
+// module is re-imported over mocked dependencies inside each test and unmocked
+// afterwards, which leaves the statically-imported bindings the rest of this
+// file uses untouched.
+describe("purgeAbandonedStagedUploads — an error must THROW, never read as a drained bucket", () => {
+  afterEach(() => {
+    vi.doUnmock("@/lib/supabase/admin");
+    vi.doUnmock("@/db");
+    vi.resetModules();
+  });
+
+  type RemoveAnswer = { data: { name: string }[] | null; error: { message: string } | null };
+
+  /**
+   * A fresh `purgeAbandonedStagedUploads` over an injected listing and an
+   * injected `remove()`.
+   *
+   * `db.execute` IS the listing: `listAbandonedStagedObjects` is a raw
+   * `db.execute` against the `storage` schema and returns its rows directly.
+   */
+  async function loadCollector(opts: {
+    list: () => Promise<{ name: string }[]>;
+    remove?: () => Promise<RemoveAnswer>;
+  }) {
+    vi.resetModules();
+    vi.doMock("@/db", () => ({ db: { execute: opts.list } }));
+    vi.doMock("@/lib/supabase/admin", () => ({
+      createAdminClient: () => ({
+        storage: {
+          from: () => ({
+            remove: opts.remove ?? (async (): Promise<RemoveAnswer> => ({ data: [], error: null })),
+          }),
+        },
+      }),
+    }));
+    return (await import("@/lib/infra/storage-gc")).purgeAbandonedStagedUploads;
+  }
+
+  it("THROWS when the Storage API refuses the batch — a refused removal is not an empty bucket", async () => {
+    // `remove()` does not throw; it answers `{ data, error }`. That branch used
+    // to log and return 0, which `drainPurge` reads as "drained".
+    const collect = await loadCollector({
+      list: async () => [{ name: "pet/abandoned.jpg" }],
+      remove: async () => ({ data: null, error: { message: "storage api 503" } }),
+    });
+
+    await expect(collect()).rejects.toThrow("storage api 503");
+  });
+
+  it("THROWS when the cross-schema listing fails — a collector that cannot LOOK has not looked", async () => {
+    // `listAbandonedStagedObjects` is the one runtime read in this repo against
+    // the `storage` schema. A production role without SELECT on
+    // `storage.objects` breaks here on the very first night, and reporting that
+    // as "no orphans" is how the bucket grows forever under a green cron.
+    const collect = await loadCollector({
+      list: async () => {
+        throw new Error("permission denied for schema storage");
+      },
+    });
+
+    await expect(collect()).rejects.toThrow("permission denied for schema storage");
+  });
+
+  it("returns the count Storage confirmed when nothing failed — the harness can answer normally", async () => {
+    // NON-VACUITY for the two above: if this rig made every call reject, the
+    // `rejects.toThrow` assertions would pass against a broken harness rather
+    // than against the branches they name.
+    const collect = await loadCollector({
+      list: async () => [{ name: "pet/a.jpg" }, { name: "pet/b.jpg" }],
+      remove: async () => ({ data: [{ name: "pet/a.jpg" }, { name: "pet/b.jpg" }], error: null }),
+    });
+
+    await expect(collect()).resolves.toBe(2);
   });
 });

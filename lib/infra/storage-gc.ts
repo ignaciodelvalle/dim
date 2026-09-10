@@ -294,45 +294,60 @@ export async function listAbandonedStagedObjects(limit: number): Promise<string[
  * every night on a backlog that never shrinks. Reporting the real number makes
  * that show up as the short batch it is.
  *
- * AN ERROR IS ZERO, NOT A THROW, AND THE LISTING IS INSIDE THE TRY FOR THAT
- * REASON. It used to sit outside, which made this docblock a lie about the one
- * statement most likely to break it: `listAbandonedStagedObjects` is a raw
- * `db.execute` against the **`storage` schema**, a cross-schema read nothing
- * else in this repo performs at runtime. If the production role turns out to
- * lack SELECT on `storage.objects` — or the pool simply hiccups — it throws.
+ * AN ERROR IS A THROW, NOT A ZERO — REVERSED ON 2026-09-10, AND THE REVERSAL IS
+ * THE POINT. This function used to swallow both of its failure modes and return
+ * 0, with a docblock arguing "a collector that cannot list is a collector that
+ * collected nothing". That was a local patch for a general hole: at the time
+ * `runDataLifecyclePurge` had NO per-target catch, so a throw here escaped the
+ * whole composite and the run recorded ZERO for all six targets — over rows the
+ * five preceding purges had really deleted.
  *
- * `runDataLifecyclePurge` has NO per-target catch, so that throw escaped the
- * whole composite. The route catches it, and `counts` stays at the initial
- * all-zeros literal with all six `backlogged: true`. THE FIVE PRECEDING PURGES
- * REALLY DELETED THEIR ROWS AND THE RUN WOULD RECORD ZERO, mark itself failed,
- * and page a human — nightly, with the cron_runs history quietly wrong about
- * work that actually happened. A collector that cannot list is a collector that
- * collected nothing; that is all it may ever report.
+ * The hole is closed where it belongs. `drainPurge` now isolates every target,
+ * keeps the batches that completed, flags the failed one as backlogged and hands
+ * the message up as `failures: [{ target, reason }]`; the route turns that into a
+ * failed run that NAMES this collector. So swallowing here is no longer a guard,
+ * it is a second layer telling the opposite story: `drainPurge` reads a 0 as a
+ * SHORT BATCH, i.e. "the bucket is drained, nothing left", and the run would
+ * close green over a collector that never listed a single object. Two layers,
+ * one of them lying.
+ *
+ * Both failure modes therefore throw, and they are different kinds of likely:
+ *   · `listAbandonedStagedObjects` is a raw `db.execute` against the **`storage`
+ *     schema**, a cross-schema read nothing else in this repo performs at
+ *     runtime. A production role without SELECT on `storage.objects` throws here
+ *     on the very first night, and must not read as "no orphans".
+ *   · `remove()` does not throw — it answers `{ data, error }` — so its error
+ *     branch is turned into one, on purpose: an object store that refused the
+ *     batch is not an empty bucket either.
+ *
+ * WHAT THIS GUARD DOES NOT COVER, said plainly so nobody reads more into it.
+ * The argument above — a 0 is read as a short batch, so the run closes green —
+ * applies verbatim to EVERY `n < batchSize`, not only to zero. `remove()` can
+ * answer `error === null` with a SHORTER `data` array when some keys did not
+ * come off (a missing key, a race with a concurrent delete), and 60 confirmed
+ * against a batch of 100 is a short batch: the drain stops, `backlogged` reads
+ * false, and 40 objects stay. So this covers the TOTAL failure, not the PARTIAL
+ * one. Pre-existing, unchanged here, and not a thing this function can fix
+ * alone — telling a partial removal from a genuinely drained bucket needs the
+ * caller to compare `requested` against `confirmed`, which is a change to the
+ * drain contract every target shares.
+ *
+ * A FAILURE HERE NOW FAILS THE WHOLE NIGHTLY FAN-OUT, and that escalation is
+ * worth meeting on paper rather than at 3am. The route marks the run failed and
+ * answers 500; `app/api/cron/daily/route.ts` sets `failed: r.failed > 0`, so the
+ * dispatcher returns 500 and fires its own critical alert too. Before this, a
+ * Storage refusal was a `console.error` and nothing else. Correct — a collector
+ * that cannot collect must be visible — but it is two pages, not one.
  */
 export async function purgeAbandonedStagedUploads(): Promise<number> {
-  try {
-    const paths = await listAbandonedStagedObjects(STORAGE_GC_BATCH_SIZE);
-    if (paths.length === 0) return 0;
+  const paths = await listAbandonedStagedObjects(STORAGE_GC_BATCH_SIZE);
+  if (paths.length === 0) return 0;
 
-    const { data, error } = await createAdminClient().storage.from(STAGING_BUCKET).remove(paths);
-    if (error) {
-      console.error("[storage-gc] could not remove abandoned staged objects", {
-        bucket: STAGING_BUCKET,
-        requested: paths.length,
-        message: error.message,
-      });
-      return 0;
-    }
-    return data?.length ?? 0;
-  } catch (err) {
-    // Covers BOTH statements above — the cross-schema listing and the Storage
-    // round trip — so `requested` is deliberately absent: on a listing failure
-    // there is no path count to report, and inventing one would misdescribe the
-    // commonest way this catch fires.
-    console.error("[storage-gc] collecting abandoned staged objects threw", {
-      bucket: STAGING_BUCKET,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return 0;
+  const { data, error } = await createAdminClient().storage.from(STAGING_BUCKET).remove(paths);
+  if (error) {
+    throw new Error(
+      `[storage-gc] could not remove ${paths.length} abandoned staged object(s) from ${STAGING_BUCKET}: ${error.message}`,
+    );
   }
+  return data?.length ?? 0;
 }
