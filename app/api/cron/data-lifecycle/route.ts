@@ -9,12 +9,18 @@
 //   - If CRON_SECRET is NOT set AND NODE_ENV !== 'production': warn and proceed.
 //   - If CRON_SECRET is NOT set AND NODE_ENV === 'production': 401.
 //
-// Four conservative purges per run (all batched — see lib/infra/data-lifecycle.ts),
+// Six conservative purges per run (all batched — see lib/infra/data-lifecycle.ts),
 // in this order:
 //   1. rate_limit_buckets WHERE expires_at < now()  (via cleanupExpiredBuckets)
 //   2. notifications WHERE expires_at < now()
 //   3. push_subscriptions WHERE revoked_at < now() - PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS
-//   4. cron_runs WHERE started_at < now() - 90d AND status IN ('ok','failed')
+//   4. org_contact_messages.submitter_ip nulled past ORG_CONTACT_IP_TTL_DAYS
+//   5. cron_runs WHERE started_at < now() - 90d AND status IN ('ok','failed')
+//   6. uploads-staging OBJECTS older than ABANDONED_STAGED_UPLOAD_MIN_AGE_MS that
+//      no row references — the repo's first and only storage GC, and the answer
+//      to the open hole migration 0206 documented. It is the only target that
+//      deletes an object rather than a row, and the only one whose batches are
+//      HTTP calls to the Storage API, which is why it runs last.
 //
 // Each drains in bounded batches under its fair share of the run's deadline,
 // and each reports whether it FINISHED. `backlogged.*` is the field that makes
@@ -60,6 +66,9 @@ const BACKLOG_TABLES: [keyof DataLifecycleResult["backlogged"], string][] = [
   ["pushSubscriptions", "push_subscriptions"],
   ["orgContactIps", "org_contact_messages.submitter_ip"],
   ["cronRuns", "cron_runs"],
+  // Not a table. The person reading this log line goes and looks at a BUCKET,
+  // so the label names the bucket the same way the others name the table.
+  ["stagedUploads", "uploads-staging (storage bucket)"],
 ];
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -85,12 +94,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     cronRunsDeleted: 0,
     pushSubscriptionsDeleted: 0,
     orgContactIpsPurged: 0,
+    stagedUploadsDeleted: 0,
     backlogged: {
       notifications: true,
       rateLimitBuckets: true,
       cronRuns: true,
       pushSubscriptions: true,
       orgContactIps: true,
+      stagedUploads: true,
     },
   };
   const errors: { section: string; reason: string }[] = [];
@@ -152,7 +163,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         counts.pushSubscriptionsDeleted +
         // Counted as an item processed even though it is an UPDATE: what the
         // number means is "rows this run acted on", not "rows deleted".
-        counts.orgContactIpsPurged,
+        counts.orgContactIpsPurged +
+        // Counted for the same reason and with the same caveat: these are
+        // storage OBJECTS, not rows. `details` carries them under their own
+        // name, so the breakdown is never lost in the sum.
+        counts.stagedUploadsDeleted,
       details: errors.length > 0 ? { ...counts, errors } : counts,
     })
     .where(eq(cronRuns.id, run.id));

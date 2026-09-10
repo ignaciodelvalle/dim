@@ -190,8 +190,8 @@ Places where two documents, or a document and the code, say different things.
 ### data-lifecycle cron purge targets
 
 - **The doc says:** docs/architecture/retention-policy-pending-decision.md#context — purges only targets with explicit, non-PII expiry semantics, naming three (notifications, rate-limit buckets, cron_runs).
-- **The tree says:** FIVE targets (lib/infra/data-lifecycle.ts:3-14): purgeExpiredRateLimitBuckets, purgeExpiredNotifications, purgeRevokedPushSubscriptions, purgeOldOrgContactIps, purgeOldCronRuns — the fourth nulls org_contact_messages.submitter_ip, which the same file calls 'a personal datum' (:12-13), so the 'non-PII' qualifier no longer holds either.
-- **Evidence:** lib/infra/data-lifecycle.ts:3-14,10-13,102 (affects CANON-233, CANON-186)
+- **The tree says:** SIX targets (lib/infra/data-lifecycle.ts:3-15): purgeExpiredRateLimitBuckets, purgeExpiredNotifications, purgeRevokedPushSubscriptions, purgeOldOrgContactIps, purgeOldCronRuns, purgeAbandonedStagedUploads — the fourth nulls org_contact_messages.submitter_ip, which the same file calls 'a personal datum' (:10-13), so the 'non-PII' qualifier no longer holds either, and the sixth (added 2026-09-10) widens the gap in a second direction: it deletes storage OBJECTS, not rows, so 'expiry semantics' is not even the same kind of claim about it.
+- **Evidence:** lib/infra/data-lifecycle.ts:3-15,10-13,114 (affects CANON-233, CANON-186)
 
 ### Where the native-directory .easignore listing lives
 

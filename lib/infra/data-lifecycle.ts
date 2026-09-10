@@ -1,6 +1,6 @@
 // Data-lifecycle purge helpers — called by /api/cron/data-lifecycle.
 //
-// Five conservative purges, all batched to avoid long table locks, in THIS
+// Six conservative purges, all batched to avoid long table locks, in THIS
 // order (the order is a priority — see runDataLifecyclePurge):
 //   1. purgeExpiredRateLimitBuckets — delegates to cleanupExpiredBuckets() already
 //      declared in lib/rate-limit.ts; re-exported here for symmetry.
@@ -12,6 +12,13 @@
 //      a row: the message is the organization's record, the raw IP is a personal
 //      datum with no reader that had indefinite retention.
 //   5. purgeOldCronRuns             — DELETE cron_runs older than CRON_RUNS_TTL_DAYS.
+//   6. purgeAbandonedStagedUploads  — the ONLY target that deletes an OBJECT
+//      rather than a row: `uploads-staging` keys that were ticketed, PUT, and
+//      never confirmed. It is last because every batch is an HTTP round trip to
+//      the Storage API rather than a statement the pooler plans, and a slow
+//      object store must not starve the five targets that hold locks.
+//      lib/infra/storage-gc.ts owns the age, the caps, and — the part worth
+//      reading — the reason the other eight buckets are out of scope.
 //
 // retention_until tables (profiles, pets, pet_identifications, custody_disputes):
 //   All four carry Ley 25.326 PII. No retention policy has been defined in any
@@ -40,13 +47,18 @@
 // (`x-cron-budget-ms`, lib/infra/cron-dispatcher.ts) and the route passes it in
 // as `maxDurationMs`; the 45 s constant is only the ceiling for a standalone
 // invocation. Inside the job the SAME arithmetic splits the share across the
-// five targets, so a backlog on one table can no longer starve the others.
+// six targets, so a backlog on one table can no longer starve the others.
 
 import { sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { fairShareMs } from "@/lib/infra/cron-dispatcher";
 import { RATE_LIMIT_CLEANUP_BATCH_SIZE, cleanupExpiredBuckets } from "@/lib/infra/rate-limit";
+import {
+  STORAGE_GC_BATCH_SIZE,
+  STORAGE_GC_MAX_BATCHES,
+  purgeAbandonedStagedUploads,
+} from "@/lib/infra/storage-gc";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -130,7 +142,7 @@ export const MAX_DURATION_MS = 45_000;
  * Vercel's 300 s default; only refresh-cube is raised to 300), and
  * `app/api/cron/daily/route.ts` fans out to ~23 jobs inside a 55 s wall-clock
  * budget, skipping whatever does not fit. data_lifecycle is ONE of those jobs
- * and drains FIVE targets, so a fair share here is single-digit seconds, not
+ * and drains SIX targets, so a fair share here is single-digit seconds, not
  * 45. 40 batches is ~10× what the old one-batch-per-day pass could clear and
  * still small enough that the deadline — not this cap — is what stops a
  * genuinely slow night. Raising it is cheap; raising it without also raising
@@ -369,6 +381,15 @@ export interface DataLifecycleResult {
   /** Rows whose `submitter_ip` was nulled — an UPDATE, not a DELETE. */
   orgContactIpsPurged: number;
   /**
+   * Abandoned `uploads-staging` OBJECTS deleted — not rows.
+   *
+   * The only target here that acts on the object store rather than on a table,
+   * and the name says so because the drain contract everything else in this file
+   * satisfies counts rows. See lib/infra/storage-gc.ts for which buckets are in
+   * scope and, more importantly, why the other eight are not.
+   */
+  stagedUploadsDeleted: number;
+  /**
    * Per target: did this run stop with rows still on the table?
    *
    * It rides in `cron_runs.details` and in the route's JSON so /admin/sistema
@@ -381,6 +402,7 @@ export interface DataLifecycleResult {
     cronRuns: boolean;
     pushSubscriptions: boolean;
     orgContactIps: boolean;
+    stagedUploads: boolean;
   };
 }
 
@@ -392,6 +414,7 @@ export type Purgers = {
   pushSubscriptions: () => Promise<number>;
   orgContactIps: () => Promise<number>;
   cronRuns: () => Promise<number>;
+  stagedUploads: () => Promise<number>;
 };
 
 const DEFAULT_PURGERS: Purgers = {
@@ -400,6 +423,7 @@ const DEFAULT_PURGERS: Purgers = {
   pushSubscriptions: purgeRevokedPushSubscriptions,
   orgContactIps: purgeOldOrgContactIps,
   cronRuns: purgeOldCronRuns,
+  stagedUploads: purgeAbandonedStagedUploads,
 };
 
 export type DataLifecycleOptions = {
@@ -417,7 +441,7 @@ export type DataLifecycleOptions = {
 };
 
 /**
- * Runs all five purges in sequence. Each is independent — a failure in one
+ * Runs all six purges in sequence. Each is independent — a failure in one
  * does not abort the others (the route handles per-section error logging).
  * Returns per-section counts for the cron_runs.details payload.
  *
@@ -445,6 +469,13 @@ export type DataLifecycleOptions = {
  *      not a backlog.
  *   5. cron_runs — 90 days of rows is a debugging convenience, not a
  *      correctness property.
+ *   6. uploads-staging objects — LAST, and for a reason none of the five above
+ *      have: its batches are HTTP calls to the Storage API, whose latency this
+ *      process neither controls nor can predict. A slow object store on a tight
+ *      night must cost this target its share and nobody else's. It is also the
+ *      least urgent: 0206 already BOUNDS the leak (private bucket, 5 MiB an
+ *      object, ~60 abandonable uploads per account per day) — this only stops
+ *      it accumulating forever.
  *
  * Every target is capped as well (the STATED worst case per target); the
  * deadline is the safety net for a slow night.
@@ -453,7 +484,7 @@ export type DataLifecycleOptions = {
  * handed to drainPurge as a deadline equal to the target's own start, and
  * drainPurge issues nothing (see its header). The zero leftover then flows to
  * the next target unchanged (0 / targets left is still 0), so a spent budget
- * reads as five `backlogged: true` flags and zero DELETEs, never as one free
+ * reads as six `backlogged: true` flags and zero DELETEs, never as one free
  * batch per table under a budget the dispatcher no longer has.
  */
 export async function runDataLifecyclePurge(
@@ -495,6 +526,12 @@ export async function runDataLifecyclePurge(
       batchSize: PURGE_BATCH_SIZE,
       maxBatches: CRON_RUNS_CLEANUP_MAX_BATCHES,
     },
+    {
+      key: "stagedUploads",
+      step: purgers.stagedUploads,
+      batchSize: STORAGE_GC_BATCH_SIZE,
+      maxBatches: STORAGE_GC_MAX_BATCHES,
+    },
   ] as const;
 
   const outcomes = {} as Record<(typeof targets)[number]["key"], DrainOutcome>;
@@ -522,12 +559,14 @@ export async function runDataLifecyclePurge(
     cronRunsDeleted: outcomes.cronRuns.deleted,
     pushSubscriptionsDeleted: outcomes.pushSubscriptions.deleted,
     orgContactIpsPurged: outcomes.orgContactIps.deleted,
+    stagedUploadsDeleted: outcomes.stagedUploads.deleted,
     backlogged: {
       notifications: outcomes.notifications.backlogged,
       rateLimitBuckets: outcomes.rateLimitBuckets.backlogged,
       cronRuns: outcomes.cronRuns.backlogged,
       pushSubscriptions: outcomes.pushSubscriptions.backlogged,
       orgContactIps: outcomes.orgContactIps.backlogged,
+      stagedUploads: outcomes.stagedUploads.backlogged,
     },
   };
 }

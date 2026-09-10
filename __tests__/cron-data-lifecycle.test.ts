@@ -9,12 +9,20 @@
 //   2. purgeExpiredRateLimitBuckets — expired buckets deleted, live ones kept.
 //   3. purgeOldCronRuns — old terminal rows deleted, recent and running rows kept.
 //   4. runDataLifecyclePurge — composite; returns summed counts.
+//   5. purgeAbandonedStagedUploads — the uploads-staging collector: the age
+//      boundary in both directions, the reference guard, the batch cap and the
+//      drain. It runs against the real Storage service and cleans up after
+//      itself, because it is the only target in this file that deletes an object
+//      somebody uploaded.
+
+import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, like } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  attachments,
   cronRuns,
   db,
   notifications,
@@ -27,6 +35,7 @@ import {
 import {
   CRON_RUNS_CLEANUP_MAX_BATCHES,
   CRON_RUNS_TTL_DAYS,
+  MAX_DURATION_MS,
   NOTIFICATIONS_CLEANUP_MAX_BATCHES,
   ORG_CONTACT_IP_CLEANUP_MAX_BATCHES,
   ORG_CONTACT_IP_TTL_DAYS,
@@ -41,6 +50,15 @@ import {
   purgeRevokedPushSubscriptions,
   runDataLifecyclePurge,
 } from "@/lib/infra/data-lifecycle";
+import { STAGING_BUCKET } from "@/lib/infra/pet-photo-upload";
+import {
+  ABANDONED_STAGED_UPLOAD_MIN_AGE_MS,
+  STORAGE_GC_BATCH_SIZE,
+  STORAGE_GC_MAX_BATCHES,
+  listAbandonedStagedObjects,
+  purgeAbandonedStagedUploads,
+} from "@/lib/infra/storage-gc";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // ---------------------------------------------------------------------------
 // Test auth bootstrap — we need a real user profile because notifications
@@ -558,6 +576,13 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
           calls.push("cron_runs");
           return 0;
         },
+        // Stubbed even though this test does not assert on it: the real
+        // collector talks to the Storage API, and an ordering test must not
+        // delete anybody's object as a side effect.
+        stagedUploads: async () => {
+          calls.push("staged_uploads");
+          return 0;
+        },
       },
     });
     expect(calls).toEqual([
@@ -565,6 +590,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       "notifications",
       "push_subscriptions",
       "cron_runs",
+      "staged_uploads",
     ]);
   });
 
@@ -579,6 +605,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         pushSubscriptions: endless(500, calls, "p"),
         orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
+        stagedUploads: endless(STORAGE_GC_BATCH_SIZE, calls, "s"),
       },
     });
 
@@ -591,14 +618,21 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
     expect(count("p")).toBe(PUSH_SUBSCRIPTIONS_CLEANUP_MAX_BATCHES);
     expect(count("o")).toBe(ORG_CONTACT_IP_CLEANUP_MAX_BATCHES);
     expect(count("c")).toBe(CRON_RUNS_CLEANUP_MAX_BATCHES);
+    // THE CAP THIS BRIEF ASKED FOR, proven the same way the five above are:
+    // more orphans than the cap allows means the CAP is what comes off, not the
+    // backlog. `endless` never returns a short batch, so the only thing that
+    // can stop the loop at exactly STORAGE_GC_MAX_BATCHES is the cap.
+    expect(count("s")).toBe(STORAGE_GC_MAX_BATCHES);
     expect(result.backlogged).toEqual({
       rateLimitBuckets: true,
       notifications: true,
       pushSubscriptions: true,
       orgContactIps: true,
       cronRuns: true,
+      stagedUploads: true,
     });
     expect(result.notificationsDeleted).toBe(NOTIFICATIONS_CLEANUP_MAX_BATCHES * 500);
+    expect(result.stagedUploadsDeleted).toBe(STORAGE_GC_MAX_BATCHES * STORAGE_GC_BATCH_SIZE);
   });
 
   it("splits the deadline FAIRLY: a backlogged first target cannot starve the ones after it", async () => {
@@ -609,14 +643,25 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
     // clock). Under the fair share each target gets (what is left) / (targets
     // still to run): 10 s, then 10 s, then 10 s, then 10 s, then the rest.
     //
-    // The budget was 40 s while there were four targets. It scales with the
-    // target count on purpose: the property under test is "each target gets a
-    // real share", and holding the budget fixed while adding a fifth target
-    // would have shrunk every share and turned a passing bound into a failing
-    // one without anything about fairness having changed.
+    // THE BUDGET ARGUMENT IS NOT WHAT DECIDES THIS, and the previous version of
+    // this comment said it was. It claimed the number "scales with the target
+    // count on purpose" — 40 s at four targets, 50 s at five — implying that
+    // raising it buys every target more batches. It does not:
+    // `runDataLifecyclePurge` takes `Math.min(MAX_DURATION_MS, maxDurationMs)`,
+    // so anything at or above 45 s is the SAME run. Measured across 60/72/84/
+    // 96/108/120 s: identical counts, every time. The argument is passed as
+    // MAX_DURATION_MS now so the test states the budget it actually gets.
+    //
+    // What the counts therefore show is the real arithmetic of a 45 s ceiling
+    // split six ways under a clock that costs 1 s per reading: the first target
+    // gets 7 batches and the last gets 3, because each target's share is
+    // computed from what is LEFT and the readings themselves spend it. Three is
+    // the number the lower bound has to admit — the property is "the last target
+    // is not starved down to the one batch the loop always runs", not "every
+    // target gets an equal count", and 3 vs 1 is exactly that distinction.
     const calls: string[] = [];
     const result = await runDataLifecyclePurge({
-      maxDurationMs: 50_000,
+      maxDurationMs: MAX_DURATION_MS,
       now: ticking(1_000),
       purgers: {
         rateLimitBuckets: endless(500, calls, "b"),
@@ -624,15 +669,28 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         pushSubscriptions: endless(500, calls, "p"),
         orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
+        stagedUploads: endless(STORAGE_GC_BATCH_SIZE, calls, "s"),
       },
     });
 
     const count = (name: string) => calls.filter((c) => c === name).length;
-    // Each target drained for roughly its fifth — not one, not forty.
+    // THE FLOOR IS PER TARGET, NOT SHARED, and an earlier draft of this loop got
+    // that wrong: it dropped every target to `>= 3` because the new sixth one
+    // scores 3. That would have let a regression starve rate_limit_buckets —
+    // the highest-priority, attacker-influenced table — from 7 batches down to
+    // 3 with this test still green, and starvation is the only thing this test
+    // exists to catch. The five SQL targets score 5-7 and keep the bound they
+    // have always had to clear.
     for (const name of ["b", "n", "p", "o", "c"]) {
       expect(count(name)).toBeGreaterThanOrEqual(5);
       expect(count(name)).toBeLessThanOrEqual(15);
     }
+    // The storage target runs LAST and its share is what is left after five
+    // others have spent theirs, so 3 is the honest floor for it alone — still
+    // several times the one batch `drainPurge` always runs, which is the
+    // distinction that matters.
+    expect(count("s")).toBeGreaterThanOrEqual(3);
+    expect(count("s")).toBeLessThanOrEqual(15);
     expect(result.backlogged.cronRuns).toBe(true);
   });
 
@@ -653,6 +711,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         pushSubscriptions: endless(500, calls, "p"),
         orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
+        stagedUploads: endless(STORAGE_GC_BATCH_SIZE, calls, "s"),
       },
     });
     expect(calls).toEqual([]);
@@ -662,6 +721,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       pushSubscriptions: true,
       orgContactIps: true,
       cronRuns: true,
+      stagedUploads: true,
     });
     expect(result.rateLimitBucketsDeleted + result.notificationsDeleted).toBe(0);
   });
@@ -793,8 +853,8 @@ describe("runDataLifecyclePurge", () => {
 
     const result = await runDataLifecyclePurge();
 
-    // The shape, not the value: on a dev DB the five targets drain in one
-    // batch each, so all five read false. What must exist is the CHANNEL — a
+    // The shape, not the value: on a dev DB the six targets drain in one
+    // batch each, so all six read false. What must exist is the CHANNEL — a
     // cron row that can only say "N deleted" cannot distinguish a finished
     // purge from one that stopped at the cap on a table still filling up.
     expect(result.backlogged).toEqual({
@@ -803,6 +863,258 @@ describe("runDataLifecyclePurge", () => {
       cronRuns: expect.any(Boolean),
       pushSubscriptions: expect.any(Boolean),
       orgContactIps: expect.any(Boolean),
+      stagedUploads: expect.any(Boolean),
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// uploads-staging — the sixth target, and the first thing in this repo that
+// deletes an OBJECT rather than a row
+// ---------------------------------------------------------------------------
+//
+// These run against the real local Storage service and the real
+// `storage.objects` table, because the only interesting properties here are the
+// ones a mock would decide for us: what the age predicate does AT ITS BOUNDARY,
+// and whether a row somebody planted can save an object from deletion.
+//
+// EVERY OBJECT THESE TESTS CREATE LIVES UNDER ONE PREFIX and is removed in
+// afterAll whether the assertions passed or not. Nothing here may touch an
+// object it did not upload — this is the one suite in the file whose subject is
+// the deletion of user data.
+//
+// KNOW THE BLAST RADIUS BEFORE RUNNING THIS AGAINST ANYTHING BUT LOCAL. The
+// four DB-backed tests call `purgeAbandonedStagedUploads()` UNMODIFIED, which is
+// the point — the subject under test is the real collector — but it means each
+// call deletes EVERY qualifying object in whatever database `DATABASE_URL`
+// happens to name, not only the ones this suite staged. The cleanup above is
+// about not leaving litter; it is not a containment boundary, and there is no
+// way to have one while still testing the real function. This repo's own notes
+// record that staging env files are routinely half-loaded, so check what
+// `DATABASE_URL` points at before running this suite anywhere but locally.
+describe("purgeAbandonedStagedUploads — the uploads-staging collector", () => {
+  // A pet-id-shaped prefix, matching `stagedKeyFor`'s `{petId}/{uuid}.{ext}`.
+  // It is deliberately NOT a real pet id: the collector never resolves the
+  // prefix, and borrowing a real one would put test objects under a real
+  // animal's key space.
+  const PREFIX = "00000000-0000-4000-8000-00000000f00d";
+  const admin = createAdminClient();
+
+  /** SOI + DQT — enough bytes for the bucket's declared image/jpeg allow-list. */
+  const TINY_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xdb]);
+
+  const staged: string[] = [];
+
+  /** Uploads one object into uploads-staging and remembers it for cleanup. */
+  async function stage(): Promise<string> {
+    const name = `${PREFIX}/${randomUUID()}.jpg`;
+    const { error } = await admin.storage
+      .from(STAGING_BUCKET)
+      .upload(name, TINY_JPEG, { contentType: "image/jpeg" });
+    if (error) throw new Error(`stage(${name}): ${error.message}`);
+    staged.push(name);
+    return name;
+  }
+
+  /**
+   * Moves objects' `created_at` back by a SQL interval.
+   *
+   * THE INTERVAL IS EVALUATED BY POSTGRES, and every age assertion below is
+   * therefore expressed entirely in database time. A test that read `new Date()`
+   * in Node and compared it against a column the database wrote is the exact
+   * shape of failure this repo has already paid for once, when a Docker VM's
+   * clock drifted behind the host and a correct tree went red.
+   *
+   * The name list is an explicit `IN` of one placeholder per name rather than
+   * `= ANY(${names})`: drizzle expands a JS array inside a `sql` template into a
+   * PARENTHESISED TUPLE, not a Postgres array, so `ANY` rejects it with
+   * "requires array on right side". A tuple is exactly what `IN` wants.
+   */
+  async function backdate(names: string[], interval: string): Promise<void> {
+    const list = sql.join(
+      names.map((n) => sql`${n}`),
+      sql`, `,
+    );
+    await db.execute(sql`
+      UPDATE storage.objects
+         SET created_at = now() - ${interval}::interval
+       WHERE bucket_id = ${STAGING_BUCKET}
+         AND name IN (${list})
+    `);
+  }
+
+  /** Does the object store still hold this key? */
+  async function exists(name: string): Promise<boolean> {
+    const rows = (await db.execute(sql`
+      SELECT 1 AS hit FROM storage.objects
+       WHERE bucket_id = ${STAGING_BUCKET} AND name = ${name}
+    `)) as Array<{ hit: number }>;
+    return rows.length > 0;
+  }
+
+  // THE FIXTURE AGES ARE INDEPENDENT OF THE CONSTANT UNDER TEST, and an earlier
+  // draft made them `MIN_AGE ± 1 hour` — which is the "never assert a value
+  // against the function that produced it" rule broken in its subtlest form.
+  // Mutation testing proved it: setting the minimum age to ZERO left all 26
+  // tests green, because a fixture defined as `MIN_AGE - 1 hour` became a
+  // NEGATIVE interval, placing the object an hour in the FUTURE, where no
+  // predicate would collect it. The guard was mutated away and its own test
+  // followed it down.
+  //
+  // Both ages are now literals derived from the DOMAIN, not from the code:
+  /**
+   * The scenario that sets the collector's floor: somebody picks a tattoo photo
+   * in `RecordEventScreen` (which uploads at PICK time), is interrupted, and
+   * comes back the next day to finish the asiento. Twenty-six hours is past any
+   * round number a collector might have been given and still a live flow.
+   */
+  const INTERRUPTED_ASIENTO = "26 hours";
+  /** Long past any flow at all — the unambiguous abandoned case. */
+  const LONG_ABANDONED = "30 days";
+
+  // The independent requirement the constant has to meet, asserted as a
+  // requirement rather than restated as a value. This is NOT circular: it
+  // compares the configured window against a scenario derived from
+  // `RecordEventScreen`, so lowering the constant below the interrupted-asiento
+  // case fails HERE, loudly, instead of silently narrowing the test below.
+  it("grants a window wider than the interrupted-asiento flow", () => {
+    expect(ABANDONED_STAGED_UPLOAD_MIN_AGE_MS).toBeGreaterThan(26 * 60 * 60 * 1000);
+  });
+
+  afterAll(async () => {
+    // Cleaning up after a suite that deletes user data is not optional, and it
+    // runs over the objects THIS suite uploaded — never over the bucket.
+    if (staged.length > 0) {
+      await admin.storage
+        .from(STAGING_BUCKET)
+        .remove(staged)
+        .catch(() => {});
+    }
+    await db
+      .delete(attachments)
+      .where(like(attachments.storagePath, `${PREFIX}/%`))
+      .catch(() => {});
+  });
+
+  it("collects an orphan older than the minimum age", async () => {
+    const name = await stage();
+    await backdate([name], LONG_ABANDONED);
+
+    // The PRESENCE assertion this test rests on: the collector's own candidate
+    // query names this object. Asserting only that it was gone afterwards would
+    // pass just as well if something unrelated had taken it.
+    expect(await listAbandonedStagedObjects(STORAGE_GC_BATCH_SIZE)).toContain(name);
+
+    const deleted = await purgeAbandonedStagedUploads();
+    expect(deleted).toBeGreaterThanOrEqual(1);
+    expect(await exists(name)).toBe(false);
+  });
+
+  it("does NOT collect an orphan younger than the minimum age — the live-upload guard", async () => {
+    // THE TEST THAT PROTECTS SOMEBODY MID-UPLOAD. A staged object is
+    // unreferenced BY DESIGN for the whole window between the ticket being
+    // minted and the confirm landing, so "no row points at it" is not on its own
+    // a reason to delete anything here — the age is. This object sits one hour
+    // INSIDE the window, which makes it the BOUNDARY case rather than a
+    // brand-new upload that any predicate at all would spare.
+    const name = await stage();
+    await backdate([name], INTERRUPTED_ASIENTO);
+
+    expect(await listAbandonedStagedObjects(STORAGE_GC_BATCH_SIZE)).not.toContain(name);
+
+    await purgeAbandonedStagedUploads();
+
+    // The object is STILL THERE — the property under test, stated as presence.
+    expect(await exists(name)).toBe(true);
+  });
+
+  it("does NOT collect a referenced object, however old it is", async () => {
+    const name = await stage();
+    await backdate([name], LONG_ABANDONED);
+
+    // A PARENTLESS `attachments` ROW IS NOT A CONTRIVANCE — it is the transient
+    // state `db/schema.ts` declares legal on purpose: "uploadRevocationEvidence
+    // stages the row before claimAttachmentsForAudit claims it inside the
+    // revocation transaction". A row with no pet, no event and no audit entry is
+    // therefore exactly what a live evidence upload looks like mid-flight, and
+    // it is the row a collector that only checked PARENTS would step over on its
+    // way to deleting the object.
+    await db.insert(attachments).values({
+      storagePath: name,
+      mimeType: "image/jpeg",
+      fileSize: TINY_JPEG.byteLength,
+    });
+
+    expect(await listAbandonedStagedObjects(STORAGE_GC_BATCH_SIZE)).not.toContain(name);
+
+    await purgeAbandonedStagedUploads();
+
+    expect(await exists(name)).toBe(true);
+  });
+
+  it("takes AT MOST one batch per call, and repeated calls finish the backlog", async () => {
+    // More orphans than the cap admits, so the CAP — not the backlog — is what
+    // decides the first call. Uploaded concurrently because this is a hundred
+    // and five HTTP round trips to the local Storage service.
+    const overCap = STORAGE_GC_BATCH_SIZE + 5;
+    const names = await Promise.all(Array.from({ length: overCap }, () => stage()));
+    await backdate(names, LONG_ABANDONED);
+
+    // THE CAP. Exactly a batch, never the whole backlog. This one CAN be an
+    // exact equality: the cap is a ceiling the code itself applies, and there
+    // are demonstrably more than STORAGE_GC_BATCH_SIZE candidates behind it.
+    const first = await purgeAbandonedStagedUploads();
+    expect(first).toBe(STORAGE_GC_BATCH_SIZE);
+
+    // THE DRAIN, asserted as CONVERGENCE rather than as an exact residual.
+    //
+    // This used to say `second === overCap - STORAGE_GC_BATCH_SIZE`, and that is
+    // NOT a property of the code — it is a property of the bucket holding no
+    // other old orphan. Mutation testing is what exposed it: breaking the
+    // reference guard made a sibling test abort mid-way, leaving one old object
+    // behind, and this line then read 6 where it demanded 5. It was reporting a
+    // neighbour's leftovers as this function's bug.
+    //
+    // What the code actually promises is what is asserted now: every call takes
+    // at most a batch, repeated calls finish the backlog, and the sequence ENDS
+    // at zero. A short batch is the only proof the backlog is gone — the same
+    // signal `drainPurge` reads.
+    let total = first;
+    let last = first;
+    let calls = 1;
+    while (last > 0) {
+      last = await purgeAbandonedStagedUploads();
+      expect(last).toBeLessThanOrEqual(STORAGE_GC_BATCH_SIZE);
+      total += last;
+      calls += 1;
+      // The loop must terminate because the backlog SHRINKS, not because a
+      // guard rescued it. A runaway here is a convergence bug worth failing on.
+      expect(calls).toBeLessThan(20);
+    }
+
+    // Everything this test staged came off, and the last call found nothing.
+    expect(total).toBeGreaterThanOrEqual(overCap);
+    expect(last).toBe(0);
+    expect(calls).toBeGreaterThanOrEqual(3);
+  }, 120_000);
+
+  it("drains under drainPurge and REPORTS that it finished", async () => {
+    const names = await Promise.all([stage(), stage(), stage()]);
+    await backdate(names, LONG_ABANDONED);
+
+    // The same drain the composite runs, with a deadline far enough out that the
+    // BACKLOG is what ends the loop rather than the clock. `backlogged: false`
+    // is the assertion that matters: a count alone cannot tell a finished purge
+    // from one that stopped at its cap on a bucket still filling up.
+    const outcome = await drainPurge(
+      purgeAbandonedStagedUploads,
+      STORAGE_GC_BATCH_SIZE,
+      Date.now() + 30_000,
+      STORAGE_GC_MAX_BATCHES,
+    );
+
+    expect(outcome.deleted).toBeGreaterThanOrEqual(names.length);
+    expect(outcome.batches).toBeGreaterThanOrEqual(1);
+    expect(outcome.backlogged).toBe(false);
   });
 });

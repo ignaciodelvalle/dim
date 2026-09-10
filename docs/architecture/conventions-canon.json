@@ -3064,15 +3064,15 @@
         "AGENTS.md:1743"
       ],
       "enforcer": [
-        "lib/infra/data-lifecycle.ts:102 ORG_CONTACT_IP_TTL_DAYS",
-        "__tests__/cron-data-lifecycle.test.ts:671-755"
+        "lib/infra/data-lifecycle.ts:114 ORG_CONTACT_IP_TTL_DAYS",
+        "__tests__/cron-data-lifecycle.test.ts:740-817"
       ],
       "enforcementKind": "vitest",
       "wired": "test:verified",
       "status": "ENFORCED",
       "clause": "R10",
-      "statusBasis": "__tests__/cron-data-lifecycle.test.ts:717-744 inserts two ORDINARY org_contact_messages rows (no erasure request anywhere in the fixture), runs purgeOldOrgContactIps() and asserts the past-TTL row's submitter_ip is null, the fresh one's survives, and the message body is untouched — that is the 'for everyone' half. :746-756 pins convergence. lib/infra/data-lifecycle.ts:102 ORG_CONTACT_IP_TTL_DAYS = 30, used as the cutoff at :309.",
-      "notes": "The value 30 is live in the constant, but the test derives its fixtures from ORG_CONTACT_IP_TTL_DAYS (:719,:748) rather than from a literal, so a change to the constant would not be caught by an assertion — the behaviour is pinned, the policy number is not. Not enough to cap the row: the rule's contested clause is 'for everyone', and that is what the test exercises.",
+      "statusBasis": "__tests__/cron-data-lifecycle.test.ts:775-804 inserts two ORDINARY org_contact_messages rows (no erasure request anywhere in the fixture), runs purgeOldOrgContactIps() and asserts the past-TTL row's submitter_ip is null, the fresh one's survives, and the message body is untouched — that is the 'for everyone' half. :806-816 pins convergence. lib/infra/data-lifecycle.ts:114 ORG_CONTACT_IP_TTL_DAYS = 30, used as the cutoff at :321.",
+      "notes": "The value 30 is live in the constant, but the test derives its fixtures from ORG_CONTACT_IP_TTL_DAYS (:779,:808) rather than from a literal, so a change to the constant would not be caught by an assertion — the behaviour is pinned, the policy number is not. Not enough to cap the row: the rule's contested clause is 'for everyone', and that is what the test exercises. 2026-09-10: this exact fixture shape was measured to be WORSE than 'not caught' in a sibling target — see storage-gc.ts's ABANDONED_STAGED_UPLOAD_MIN_AGE_MS, where fixtures derived from the constant made a mutation of that constant kill ZERO tests, because zeroing it moved the 'young' fixture into the future where nothing collects it. A boundary test whose fixtures come from the boundary cannot fail when the boundary moves. Deriving from the domain instead (a named real scenario) plus one assertion of the constant against an EXTERNAL requirement is the shape that works.",
       "confidence": 0.75,
       "numberKey": "ORG_CONTACT_IP_TTL_DAYS",
       "verifiedAt": "d7dbf25f7"
@@ -3942,8 +3942,8 @@
       "status": "PARTIAL",
       "partialShape": "subset",
       "clause": "R4",
-      "statusBasis": "__tests__/cron-data-lifecycle.test.ts:594-600 pins result.backlogged to exactly five target keys (rateLimitBuckets, notifications, pushSubscriptions, orgContactIps, cronRuns), so a sixth purger fails there; but nothing asserts the rule's 'explicit non-PII expiry semantics' predicate — org_contact_ips (raw IPs) and push_subscriptions are purged and sit outside the doc's three-target list.",
-      "notes": "docSays: 3 (notifications, rate-limit buckets, cron_runs). Live purger set is 5 (:37-41). The v3 basis said nothing constrains the target set; :594-600 does constrain it via the injected-purger result shape, which does not rescue the non-PII predicate.",
+      "statusBasis": "__tests__/cron-data-lifecycle.test.ts:626-633 pins result.backlogged to exactly SIX target keys (rateLimitBuckets, notifications, pushSubscriptions, orgContactIps, cronRuns, stagedUploads), so a seventh purger fails there; but nothing asserts the rule's 'explicit non-PII expiry semantics' predicate — org_contact_ips (raw IPs) and push_subscriptions are purged and sit outside the doc's three-target list, and stagedUploads deletes storage OBJECTS rather than rows.",
+      "notes": "docSays: 3 (notifications, rate-limit buckets, cron_runs). Live purger set is 6 (:5-15). 2026-09-10: the sixth, purgeAbandonedStagedUploads, was added deliberately and the key-pinning test was updated with it — the earlier basis predicted 'a sixth purger fails there' and that is exactly what happened, which is the constraint working, not breaking. The gap the rule names is unchanged and now one target wider: the target set is constrained by shape, never by the non-PII predicate.",
       "confidence": 0.72,
       "numberKey": "data-lifecycle purge targets",
       "verifiedAt": "d7dbf25f7"
@@ -9530,8 +9530,8 @@
     {
       "subject": "data-lifecycle cron purge targets",
       "docSays": "docs/architecture/retention-policy-pending-decision.md#context — purges only targets with explicit, non-PII expiry semantics, naming three (notifications, rate-limit buckets, cron_runs).",
-      "liveValue": "FIVE targets (lib/infra/data-lifecycle.ts:3-14): purgeExpiredRateLimitBuckets, purgeExpiredNotifications, purgeRevokedPushSubscriptions, purgeOldOrgContactIps, purgeOldCronRuns — the fourth nulls org_contact_messages.submitter_ip, which the same file calls 'a personal datum' (:12-13), so the 'non-PII' qualifier no longer holds either.",
-      "evidence": "lib/infra/data-lifecycle.ts:3-14,10-13,102 (affects CANON-233, CANON-186)",
+      "liveValue": "SIX targets (lib/infra/data-lifecycle.ts:3-15): purgeExpiredRateLimitBuckets, purgeExpiredNotifications, purgeRevokedPushSubscriptions, purgeOldOrgContactIps, purgeOldCronRuns, purgeAbandonedStagedUploads — the fourth nulls org_contact_messages.submitter_ip, which the same file calls 'a personal datum' (:10-13), so the 'non-PII' qualifier no longer holds either, and the sixth (added 2026-09-10) widens the gap in a second direction: it deletes storage OBJECTS, not rows, so 'expiry semantics' is not even the same kind of claim about it.",
+      "evidence": "lib/infra/data-lifecycle.ts:3-15,10-13,114 (affects CANON-233, CANON-186)",
       "verdictSource": "G2 contradictionsFound"
     },
     {
