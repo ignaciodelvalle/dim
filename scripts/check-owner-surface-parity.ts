@@ -155,12 +155,14 @@ export const DECLARED_DIVERGENCES: Record<string, DeclaredDivergence> = {
   },
 
   // --- Web writers with no v1 door ---------------------------------------
-  "write:createTattooAction→createTattooForUser": {
-    reason:
-      "Tatuaje is the nineteenth owner asiento on the web (eventos/nuevo/tatuaje, guarded by requireAlivePetAccess) and RecordEventInput has no `tattoo` kind; the '18 of 18' count never included it.",
-    closes:
-      "A `tattoo` variant in packages/contract/src/input/record-event.ts (tattooCode, location, occurredAt, notes), a branch in the v1 events router calling createTattooForUser, and a form in the phone's Asentar picker.",
-  },
+  // TATUAJE SALIO DE ESTA LISTA EL 2026-09-10, cerrado y no despriorizado: el
+  // contrato tiene su variante `tattoo`, el router llama a `createTattooForUser`
+  // y el selector del telefono tiene su formulario. Lo que NO cierra este cambio
+  // es que una persona pueda usarlo: la foto es obligatoria en las dos puertas y
+  // esta build no tiene selector de imagenes, asi que el formulario dibuja el
+  // callout honesto en vez de un boton muerto. Esa mitad es una decision de
+  // build (`docs/mobile/camera-modules-handback.md`), no una brecha de la API, y
+  // esta fence mide alcance de API.
   "write:dismissFirstStepAction→dismissFirstStep": {
     reason:
       "'Primeros pasos' is a web-only onboarding checklist on the pet page; the app has no such checklist, so there is nothing for it to dismiss. Not a capability an owner loses — a surface the app does not have.",

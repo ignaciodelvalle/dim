@@ -595,3 +595,96 @@ describe("recordEventInputSchema — seguimiento post-adopción", () => {
     expect("occurredAt" in parsed.data).toBe(false);
   });
 });
+
+describe("recordEventInputSchema — tatuaje", () => {
+  /** The shape a ticket mints: `{petId}/{uuid}.{ext}`. */
+  const A_STAGED_PATH =
+    "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.jpg";
+
+  const aTattoo = {
+    kind: "tattoo",
+    tattooCode: "ABC-1234",
+    stagedPath: A_STAGED_PATH,
+  };
+
+  it("accepts the code and the staged photo alone", () => {
+    expect(codeFor(aTattoo)).toBe(null);
+  });
+
+  it("REFUSES a tattoo with no photo — the one kind on this endpoint that does", () => {
+    // PARITY AND NOT STRICTNESS. `createTattooAction` refuses the same
+    // submission in its own words before it calls the writer, and the writer
+    // stores the attachment's id as `pet_identifications.photo_id`. Accepting
+    // one without would let a phone RETIRE a photographed tattoo — the writer
+    // supersedes the active row — on the identification a credential reads.
+    const { stagedPath: _dropped, ...noPhoto } = aTattoo;
+    expect(codeFor(noPhoto)).toBe("TATTOO_PHOTO_REQUIRED");
+    expect(codeFor({ ...aTattoo, stagedPath: "" })).toBe("TATTOO_PHOTO_REQUIRED");
+  });
+
+  it("refuses a staged path that is not the shape a ticket mints", () => {
+    // NOT the check that matters — the server re-derives the pet-id prefix from
+    // the pet whose access check just passed. This is the one that makes an
+    // obviously-malformed value a 400 instead of a Storage round trip.
+    expect(codeFor({ ...aTattoo, stagedPath: "../../etc/passwd" })).toBe("TATTOO_PHOTO_REQUIRED");
+    expect(
+      codeFor({
+        ...aTattoo,
+        stagedPath: "11111111-1111-4111-8111-111111111111/../x.jpg",
+      }),
+    ).toBe("TATTOO_PHOTO_REQUIRED");
+    expect(codeFor({ ...aTattoo, stagedPath: `${A_STAGED_PATH}/deeper.jpg` })).toBe(
+      "TATTOO_PHOTO_REQUIRED",
+    );
+  });
+
+  it("refuses an empty code", () => {
+    expect(codeFor({ ...aTattoo, tattooCode: "   " })).toBe("TATTOO_CODE_REQUIRED");
+  });
+
+  it("REFUSES an unknown place, where the web silently drops it", () => {
+    // STRICTER THAN THE WEB, DELIBERATELY. `createTattooAction` coerces an
+    // unrecognised `locationOnBody` to null because it reads a `<select>` whose
+    // options it drew itself. A JSON client is not a `<select>`, and quietly
+    // dropping a place somebody named would put "no dijeron dónde" on a
+    // permanent identification record.
+    expect(codeFor({ ...aTattoo, locationOnBody: "left_paw" })).toBe("TATTOO_LOCATION_INVALID");
+    expect(codeFor({ ...aTattoo, locationOnBody: "inner_ear_left" })).toBe(null);
+  });
+
+  it("accepts NO place at all — 'no lo dijeron' is a real answer", () => {
+    const parsed = recordEventInputSchema.safeParse(aTattoo);
+    if (!parsed.success) throw new Error("expected the body to parse");
+    expect(parsed.data).toMatchObject({ locationOnBody: null });
+  });
+
+  it("takes the day as OPTIONAL, and a blank one means 'no sé cuándo'", () => {
+    // The web's field is optional too, and the writer records the absence as a
+    // fact (`tattoo_date_known: false`) rather than stamping today. A tattoo
+    // read off an adopted animal has no known date.
+    const blank = recordEventInputSchema.safeParse({ ...aTattoo, occurredAt: "  " });
+    if (!blank.success) throw new Error("expected the body to parse");
+    expect(blank.data).toMatchObject({ occurredAt: null });
+
+    const dated = recordEventInputSchema.safeParse({ ...aTattoo, occurredAt: A_DAY });
+    if (!dated.success) throw new Error("expected the body to parse");
+    expect(dated.data).toMatchObject({ occurredAt: A_DAY });
+  });
+
+  it("holds a stated day to the SAME calendar as every other kind", () => {
+    // 31 February passes a `YYYY-MM-DD` regex and `new Date` rolls it to 3
+    // March. Optional does not mean unchecked.
+    expect(codeFor({ ...aTattoo, occurredAt: "2026-02-31" })).toBe("OCCURRED_AT_INVALID");
+    expect(codeFor({ ...aTattoo, occurredAt: "20/08/2026" })).toBe("OCCURRED_AT_MALFORMED");
+  });
+
+  it("normalizes its two free-text fields to null when blank", () => {
+    const parsed = recordEventInputSchema.safeParse({
+      ...aTattoo,
+      description: "  ",
+      recordedBy: "",
+    });
+    if (!parsed.success) throw new Error("expected the body to parse");
+    expect(parsed.data).toMatchObject({ description: null, recordedBy: null });
+  });
+});

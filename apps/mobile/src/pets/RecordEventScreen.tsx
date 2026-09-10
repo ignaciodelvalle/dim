@@ -40,15 +40,32 @@
 // `POST /pets/{token}/photo` is the ticket-then-confirm door, and
 // `lib/infra/pet-photo-upload.ts` is a primitive an event attachment can reuse.
 //
-// What is still true is the other half: `POST .../events` takes no attachment,
-// so wiring one here would be a client offering a field the endpoint discards.
-// The two doors agree about it, and they have to move together — an attachment
-// on an event is a `attachments` row with an `event_id`, which means the confirm
-// step has to know which event it is claiming for, which is its own work unit.
+// AND ON 2026-09-10 THE OTHER HALF STOPPED BEING TRUE TOO, FOR EXACTLY ONE
+// KIND. It said `POST .../events` takes no attachment, so wiring one would be a
+// client offering a field the endpoint discards, and that the confirm step would
+// have to know which event it is claiming for. The tatuaje kind is that work
+// unit: the ASIENTO is the confirm, so there is no third call to teach anything
+// to. The app stages the bytes with the pet photo's own ticket, names the staged
+// object in the body, and the server claims it into `event-attachments` inside
+// the same transaction that appends the event.
+//
+// SEVENTEEN OF THE EIGHTEEN STILL SEND NO ATTACHMENT, and that is unchanged:
+// their writers take `uploadedPath: null` and their web forms merely OFFER a
+// file. Tatuaje is the one whose web action REFUSES a submission without one, so
+// it is the one where a photo-less door would not be a smaller form but a
+// different rule. See the contract's `tattoo` variant.
+//
+// WHICH MAKES THIS THE ONE FORM THAT CANNOT BE FILLED IN EVERY BUILD. Choosing
+// a photo needs `expo-image-picker`, a native module this build does not carry
+// (`src/native/image-picker-port.ts`), so where the port is unavailable this
+// form draws the callout `PetPhotoScreen` draws and NO submit button. A button
+// that could only ever refuse is the dead end the port's `available` flag exists
+// to prevent. The day the adapter ships, `setImagePickerPort()` runs at
+// bootstrap and this form lights up with no change here.
 
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 
 import type { EventRecordedV1, OwnerPetPppRegistryV1 } from "@dim/contract/api";
 import {
@@ -61,6 +78,7 @@ import type { ApiResult } from "../api/client";
 import { fetchOwnerPetDetail, recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
+import { getImagePickerPort } from "../native/image-picker-port";
 import { Body, Card } from "../ui/components";
 import {
   Callout,
@@ -76,12 +94,18 @@ import {
   Title,
 } from "../ui/kit";
 import { credentialRoute } from "../ui/routes";
-import { SPACE } from "../ui/theme";
+import { COLORS, RADIUS, SPACE } from "../ui/theme";
 import { useIsDirty } from "../ui/use-draft-dirty";
 import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useReturnKeyChain } from "../ui/use-return-key-chain";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 import { LocalityPicker } from "./LocalityPicker";
+import {
+  type AcceptedImage,
+  acceptPickedImage,
+  petPhotoFailureMessage,
+} from "./pet-photo-view-model";
+import { stageTattooPhoto } from "./tattoo-photo-flow";
 
 import { createAttemptSession } from "./idempotency";
 import {
@@ -101,6 +125,7 @@ import {
   SAME_DAY_PROMPT_LABEL,
   STERILIZATION_PROCEDURE_OPTIONS,
   SYMPTOM_SEVERITY_OPTIONS,
+  TATTOO_LOCATION_OPTIONS,
   type WritableKind,
   YES_NO,
   attestationRegistryOptions,
@@ -124,6 +149,7 @@ import {
   recordEventCta,
   sterilizationProcedureLabel,
   symptomSeverityLabel,
+  tattooLocationLabel,
   validateDraft,
   vetContactLabel,
   yesNoLabel,
@@ -358,6 +384,28 @@ function useOwnerPetFacts(kind: WritableKind, publicToken: string) {
   return { registries, species };
 }
 
+/**
+ * Donde esta la foto del tatuaje, el unico archivo que este formulario manda.
+ *
+ * FUERA DEL BORRADOR A PROPOSITO. `EventDraft` es texto serializable que
+ * `useIsDirty` compara campo por campo, y un `Blob` no es ninguna de las dos
+ * cosas. Ademas el borrador se compara para preguntar "¿salir sin guardar?", y
+ * unos bytes elegidos son justamente algo que la persona no quiere perder por
+ * un gesto de atras — el guard ya cubre eso mirando el resto.
+ *
+ * `ready` GUARDA EL `stagedPath` Y NO LOS BYTES. Una vez subidos, lo unico que
+ * el asiento necesita es el nombre del objeto, y ese nombre no es una
+ * capacidad: el servidor vuelve a derivar el prefijo que le corresponde a ESTA
+ * mascota y rechaza cualquier otro.
+ */
+type TattooPhotoState =
+  | { phase: "none" }
+  /** El selector del sistema esta arriba. Su UI es del modulo, no de esta pantalla. */
+  | { phase: "picking" }
+  | { phase: "uploading"; image: AcceptedImage }
+  | { phase: "ready"; previewUri: string | null; stagedPath: string }
+  | { phase: "failed"; message: string };
+
 function EventForm({
   kind,
   publicToken,
@@ -439,6 +487,35 @@ function EventForm({
   // renders from it. Never `restart()`-ed: this form IS one attempt, and the
   // same-day confirm below is the SAME attempt resent.
   const attempt = useRef(createAttemptSession());
+  const [photo, setPhoto] = useState<TattooPhotoState>({ phase: "none" });
+
+  // ELEGIR Y SUBIR SON UN SOLO GESTO, y suben AHORA y no al enviar. La persona
+  // se entera de que la subida fallo mientras todavia esta mirando la foto, no
+  // despues de completar cuatro campos mas; y un campo mal cargado no cuesta
+  // megabytes. El objeto en staging dura dos horas, mas de lo que tarda
+  // cualquiera en terminar este formulario. Ver `tattoo-photo-flow.ts`.
+  async function pickTattooPhoto() {
+    setPhoto({ phase: "picking" });
+    const picked = acceptPickedImage(await getImagePickerPort().pickImage());
+    if (!picked.ok) {
+      // `message: null` es cancelar: volver al principio sin nada que decir.
+      setPhoto(
+        picked.message === null ? { phase: "none" } : { phase: "failed", message: picked.message },
+      );
+      return;
+    }
+    setPhoto({ phase: "uploading", image: picked.image });
+    const staged = await stageTattooPhoto(sessionPort, publicToken, picked.image);
+    if (staged.outcome === "failed") {
+      setPhoto({ phase: "failed", message: petPhotoFailureMessage(staged.failure) });
+      return;
+    }
+    setPhoto({
+      phase: "ready",
+      previewUri: picked.image.previewUri,
+      stagedPath: staged.stagedPath,
+    });
+  }
 
   function set<K extends keyof EventDraft>(field: K, value: EventDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -451,7 +528,14 @@ function EventForm({
   }
 
   async function submit(sameDayOverride: boolean) {
-    const validated = validateDraft(kind, draft, { sourceEventId, sameDayOverride });
+    const validated = validateDraft(kind, draft, {
+      sourceEventId,
+      sameDayOverride,
+      // NULL HASTA QUE LA FOTO ESTE ARRIBA, y el contrato lo refuta con
+      // `TATTOO_PHOTO_REQUIRED` — cuya copia nombra el paso que falta y no un
+      // campo del cuerpo, porque la persona nunca escribe un `stagedPath`.
+      stagedPath: photo.phase === "ready" ? photo.stagedPath : null,
+    });
     if (!validated.ok) {
       setError(validated.message);
       setInvalid(invalidFields(validated.code));
@@ -479,6 +563,30 @@ function EventForm({
     }
     setError(failureMessage(result));
     setState({ phase: "editing" });
+  }
+
+  // ESTA BUILD NO PUEDE ELEGIR UNA FOTO, y el tatuaje es el unico asiento que
+  // EXIGE una. La regla es la del puerto y la que `PetPhotoScreen` ya sigue:
+  // leer `available` ANTES de dibujar un control, para que nadie busque un
+  // boton que no puede funcionar. Se lee en cada render — un test cambia el
+  // puerto por caso; la app lo cambia una sola vez, al arrancar.
+  if (kind === "tattoo" && !getImagePickerPort().available) {
+    return (
+      <Screen>
+        <View style={styles.header}>
+          <Eyebrow>Asentar</Eyebrow>
+          <Title>{kindTitle(kind)}</Title>
+        </View>
+        <Callout tone="neutral" title="Todavía no se puede registrar un tatuaje desde la app">
+          <Body>
+            El tatuaje necesita una foto, y en esta versión la foto se carga desde la web: entrá a
+            Mis mascotas, abrí la mascota y elegí Tatuaje. La credencial lo va a mostrar acá apenas
+            lo cargues.
+          </Body>
+        </Callout>
+        {onBack === null ? null : <SecondaryButton label="Elegir otro tipo" onPress={onBack} />}
+      </Screen>
+    );
   }
 
   if (state.phase === "done") {
@@ -532,6 +640,10 @@ function EventForm({
         species={species}
       />
 
+      {kind === "tattoo" ? (
+        <TattooPhotoField state={photo} busy={busy} onPick={() => void pickTattooPhoto()} />
+      ) : null}
+
       <Card>
         <Body>{RECORD_IMMUTABILITY_NOTE}</Body>
       </Card>
@@ -572,6 +684,83 @@ function EventForm({
         />
       )}
     </Screen>
+  );
+}
+
+/**
+ * LA FOTO DEL TATUAJE, dibujada.
+ *
+ * VIVE FUERA DE `Fields` porque `Fields` renderiza el BORRADOR y nada mas: le
+ * llegan `draft` y `set`, y la foto no esta en ninguno de los dos. Meterla ahi
+ * obligaria a pasarle tres props que dieciocho de los diecinueve kinds ignoran.
+ *
+ * NO HAY ESTADO `unavailable` EN ESTA UNION. Cuando el puerto no puede elegir
+ * una imagen el formulario entero no se dibuja — `EventForm` contesta antes con
+ * el callout que nombra la web. Un estado mas aca seria un segundo lugar donde
+ * decidir lo mismo.
+ */
+function TattooPhotoField({
+  state,
+  busy,
+  onPick,
+}: {
+  state: TattooPhotoState;
+  /** El asiento se esta mandando: nada de cambiar la foto en el medio. */
+  busy: boolean;
+  onPick: () => void;
+}) {
+  const working = state.phase === "picking" || state.phase === "uploading";
+  const label = (() => {
+    switch (state.phase) {
+      case "picking":
+        return "Abriendo tus fotos…";
+      case "uploading":
+        // NOMBRA LA SUBIDA, que es la parte que tarda en un plan de datos flojo.
+        return "Subiendo la foto…";
+      case "ready":
+        return "Elegir otra foto";
+      default:
+        return "Elegir la foto del tatuaje";
+    }
+  })();
+
+  return (
+    <Card>
+      {/* POR QUE SE PIDE, y no solo que se pide. Es la misma frase con la que la
+          web refuta un formulario sin archivo: la foto es lo que hace que quien
+          encuentre al animal reconozca la marca. */}
+      <Body>
+        La foto es obligatoria: es la mejor forma de que quien encuentre a tu mascota reconozca el
+        tatuaje.
+      </Body>
+
+      {state.phase === "ready" && state.previewUri !== null ? (
+        <Image
+          source={{ uri: state.previewUri }}
+          style={styles.tattooPreview}
+          resizeMode="cover"
+          accessibilityRole="image"
+          accessibilityLabel="Vista previa de la foto del tatuaje"
+        />
+      ) : null}
+
+      {state.phase === "ready" ? (
+        <Callout tone="ok" title="Foto lista">
+          {/* DICE QUE TODAVIA NO SE GUARDO NADA. Los bytes estan arriba pero el
+              asiento no existe hasta que se aprieta el boton de abajo, y una
+              pantalla que dijera "listo" acá estaría mintiendo. */}
+          <Body>Se va a guardar junto con el asiento cuando lo registres.</Body>
+        </Callout>
+      ) : null}
+
+      {state.phase === "failed" ? (
+        <Callout tone="err">
+          <Body>{state.message}</Body>
+        </Callout>
+      ) : null}
+
+      <SecondaryButton label={label} disabled={working || busy} onPress={onPick} />
+    </Card>
   );
 }
 
@@ -628,6 +817,10 @@ function chainLength(kind: WritableKind, draft: EventDraft): number {
     // tampoco se tipean.
     case "bite":
       return 6;
+    // Codigo, fecha, descripcion y quien lo hizo. La fila de chips del lugar no
+    // se tipea y el boton de la foto tampoco.
+    case "tattoo":
+      return 4;
     // Semanas, fecha, veterinario. Tres campos tipeados.
     case "pregnancy_start":
       return 3;
@@ -1110,6 +1303,50 @@ function Fields({
       );
     }
 
+    case "tattoo":
+      return (
+        <>
+          <TextField
+            label="Código del tatuaje"
+            required
+            mono
+            value={draft.tattooCode}
+            invalid={invalid.has("tattooCode")}
+            onChangeText={(v) => set("tattooCode", v)}
+            placeholder="Como está tatuado"
+            autoCapitalize="characters"
+            {...link()}
+          />
+          <Choice
+            label="¿Dónde está?"
+            options={TATTOO_LOCATION_OPTIONS}
+            selected={draft.tattooLocation}
+            optionLabel={tattooLocationLabel}
+            onSelect={(value) => set("tattooLocation", value)}
+          />
+          {dateField("Fecha del tatuaje", "occurredAt", false)}
+          {/* DICE QUE SE PUEDE BORRAR, porque el campo viene con la fecha de
+              hoy como todos los demas y un tatuaje leido de un animal adoptado
+              no tiene fecha conocida. El escritor asienta esa ausencia como un
+              hecho (`tattoo_date_known: false`) en vez de inventar un dia. */}
+          <Body>Si no sabés cuándo se lo hicieron, dejá la fecha vacía.</Body>
+          <TextField
+            label="Cómo es"
+            value={draft.tattooDescription}
+            onChangeText={(v) => set("tattooDescription", v)}
+            placeholder="Letras, números, color…"
+            {...link()}
+          />
+          <TextField
+            label="Quién lo hizo"
+            value={draft.tattooRecordedBy}
+            onChangeText={(v) => set("tattooRecordedBy", v)}
+            placeholder="La veterinaria, el refugio…"
+            {...link()}
+          />
+        </>
+      );
+
     case "bite":
       return (
         <>
@@ -1517,5 +1754,13 @@ function NotesField({
 // that screen, so it moved rather than being copied.
 
 const styles = StyleSheet.create({
+  // Cuadrada, como la vista previa de `PetPhotoScreen`: lo que se mira acá es
+  // si la marca se lee, y un recorte apaisado corta justo las orejas.
+  tattooPreview: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: RADIUS.control,
+    backgroundColor: COLORS.stripe,
+  },
   header: { gap: SPACE.xs },
 });

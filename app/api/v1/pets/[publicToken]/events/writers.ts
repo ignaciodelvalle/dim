@@ -271,6 +271,7 @@ import {
   appendPostAdoptionCheckin,
   appendPregnancy,
   appendSymptom,
+  appendTattoo,
 } from "./append-special-kinds";
 import { type WriteContext, parseWireDay } from "./write-context";
 
@@ -348,6 +349,7 @@ const EVENT_TYPE_OF_KIND = {
   pregnancy_end: "clinical_info_logged",
   bite: "incident_reported",
   post_adoption_checkin: "post_adoption_checkin",
+  tattoo: "tattoo_recorded",
 } as const satisfies Record<RecordEventInput["kind"], string>;
 
 /**
@@ -361,6 +363,13 @@ const EVENT_TYPE_OF_KIND = {
 function wireDayOf(input: RecordEventInput): string | null {
   if (input.kind === "symptom") return input.onsetAt;
   if (input.kind === "post_adoption_checkin") return null;
+  // EL TATUAJE NECESITA NINGUNA RAMA ACA Y ESO ES LO QUE HAY QUE NOTAR: su
+  // `occurredAt` ya es `string | null` en el contrato, asi que el retorno de
+  // abajo lo devuelve tal cual y `writeEvent` saltea las dos guardas de fecha
+  // cuando no hay dia. Que un tatuaje pueda no tener fecha es un hecho
+  // registrado y no un default — la web deja el campo vacio y el escritor
+  // asienta `tattoo_date_known: false`. Un tatuaje leido de un animal adoptado
+  // no tiene dia conocido, y stampear hoy seria inventarlo.
   return input.occurredAt;
 }
 
@@ -658,6 +667,17 @@ async function append(
     return appendPostAdoptionCheckin(ctx, access, input);
   }
 
+  // AND THE NINTH, THE ONLY ONE THAT REFUSES TO BE WRITTEN WITHOUT A PHOTO.
+  // `createTattooForUser` answers its own shape and inserts an `attachments`
+  // row inside its transaction whose id becomes the identification's
+  // `photo_id`; `common` has nowhere to put an attachment, and every other
+  // branch on this surface passes `uploadedPath: null`. It also carries the
+  // only OPTIONAL day of the eighteen. See `appendTattoo` for why the photo is
+  // a requirement and not strictness.
+  if (input.kind === "tattoo") {
+    return appendTattoo(ctx, access, input);
+  }
+
   // Every remaining kind states its day outright, and `writeEvent` refused the
   // request before reaching here if that day did not parse.
   if (!occurredAt) return apiV1Error("invalid_request", 400);
@@ -697,7 +717,8 @@ async function appendUniformKind(
         | "pregnancy_start"
         | "pregnancy_end"
         | "bite"
-        | "post_adoption_checkin";
+        | "post_adoption_checkin"
+        | "tattoo";
     }
   >,
   occurredAt: Date,

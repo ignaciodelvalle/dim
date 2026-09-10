@@ -1,4 +1,9 @@
-// Los seis kinds que NO entran en el switch de `appendUniformKind`.
+// Los kinds que NO entran en el switch de `appendUniformKind`.
+//
+// EMPEZARON SIENDO SEIS Y LA CUENTA NO SE MANTIENE A MANO, porque un numero en
+// prosa hay que editarlo cada vez que cruza un kind y nada falla cuando no se
+// edita — la leccion que `EVENT_TYPE_OF_KIND` ya dejo escrita en `writers.ts`.
+// La lista de abajo es la que importa.
 //
 // NO ES UN CORTE POR TAMANO, aunque una fence de tamano lo haya forzado: el
 // router de `writers.ts` ya los nombraba como una categoria, uno por uno —
@@ -23,8 +28,13 @@
 //   · check-in     — el ultimo de los dieciocho (2026-09-09). No tiene dia
 //                    propio, refuta sobre la adopcion y la ventana abierta, y
 //                    avisa a los admins del refugio que la pidio.
+//   · tatuaje      — el decimonoveno, y el UNICO que exige una foto (2026-09-10).
+//                    Inserta una fila de `attachments` adentro de su propia
+//                    transaccion cuyo id termina siendo el `photo_id` de la
+//                    identificacion, y `common` manda `uploadedPath: null` en
+//                    todas las demas ramas. Ademas es el unico con dia OPCIONAL.
 //
-// El router se quedo del otro lado y ahora es lo que dice ser: ocho despachos
+// El router se quedo del otro lado y ahora es lo que dice ser: los despachos
 // tempranos, un chequeo de dia, y el switch.
 
 import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
@@ -37,6 +47,10 @@ import { findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 import { OWNER_AUTHORSHIP, type PetHolderAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { reportError } from "@/lib/infra/report-error";
+import {
+  claimStagedEventAttachment,
+  discardClaimedAttachment,
+} from "@/lib/infra/staged-event-attachment";
 
 // `makeTransaction` Y NO `db.transaction` INLINE, y la fence de frontera
 // app/→db es la que lo pidio: `writers.ts` tiene ese llamado apadrinado desde el
@@ -57,6 +71,7 @@ import { recordPostAdoptionCheckin } from "@/src/modules/pets/application/checki
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
 import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
+import { createTattooForUser } from "@/src/modules/pets/application/tattoo/create-tattoo";
 import { reportBite } from "@/src/modules/surveillance/application/report-bite";
 import { RABIES_OBSERVATION_DAYS } from "@/src/modules/surveillance/domain/rabies-observation";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
@@ -823,6 +838,138 @@ export async function appendDangerousBreedAttestation(
   const payload: EventRecordedV1 = {
     eventId: result.value.eventId,
     wasDuplicate: result.value.wasDuplicate,
+  };
+  return apiV1Json(payload, { status: 201 });
+}
+
+/**
+ * Un tatuaje — el noveno kind que no entra en el switch, y el UNICO de los
+ * diecinueve que no puede escribirse sin una foto.
+ *
+ * IT ANSWERS ITS OWN SHAPE (`CreateTattooResult`) and it needs a fact the
+ * `common` object has nowhere to put: an `attachments` row, inserted inside the
+ * writer's own transaction alongside the event, whose id becomes
+ * `pet_identifications.photo_id`.
+ *
+ * THE PHOTO IS REQUIRED HERE BECAUSE IT IS REQUIRED ON THE WEB, and the
+ * consequence of relaxing it is worse than the asymmetry: `createTattooForUser`
+ * SUPERSEDES the animal's active tattoo (`status: "replaced"`) before inserting
+ * the new one, so a photo-less record written from a phone would retire a
+ * photographed one on the identification row a public credential reads. The
+ * column is nullable; that is not a permission. The contract states the rule and
+ * this function could not honour it anyway — the writer's `TattooInput` has no
+ * arm without an attachment.
+ *
+ * SO THE ORDER IS THE WEB'S ORDER, and each step is refusable:
+ *
+ *   1. CLAIM the staged object into `event-attachments` — outside the
+ *      transaction, exactly as `createTattooAction` uploads before it calls the
+ *      writer, so a failed insert never leaks orphan bytes it cannot see.
+ *   2. APPEND. On failure, take the attachment back.
+ *   3. ON A REPLAY, take it back too. `wasNoop` means the first attempt's event
+ *      and ITS attachment already exist and are already linked; this request's
+ *      bytes are a second copy nothing points at. `createTattooAction` performs
+ *      the identical cleanup on the identical condition, and the reason it is
+ *      not a bug to have uploaded them first is that the idempotency key is only
+ *      consulted inside the transaction.
+ *
+ * THE TWO REFUSAL CODES ARE THE PET PHOTO'S, reused rather than widened:
+ * `photo_not_an_image` is a 400 because the request was well formed and the
+ * FILE is the problem — a different instruction to the person holding the phone
+ * than "re-read your body" — and `photo_failed` is a 500 the caller may safely
+ * retry with the same staged path.
+ */
+export async function appendTattoo(
+  ctx: WriteContext,
+  access: Exclude<PetHolderAccess, { kind: "none" }>,
+  input: Extract<RecordEventInput, { kind: "tattoo" }>,
+) {
+  const pet = access.pet;
+
+  // THE DAY IS OPTIONAL AND ITS ABSENCE IS A RECORDED FACT, not a default: the
+  // writer stamps `tattoo_date_known: false` and anchors the event at the
+  // moment of reporting. `writeEvent` already refused a day that does not exist
+  // and already ran the plausibility rules against the pet's own record; this
+  // re-parse is the backstop `parseWireDay`'s own docblock argues for.
+  let recordedAt: Date | null = null;
+  if (input.occurredAt !== null) {
+    recordedAt = parseWireDay(input.occurredAt);
+    if (!recordedAt) return apiV1Error("invalid_request", 400);
+  }
+
+  // THE LEDGER IS ASKED BEFORE THE CLAIM, AND THE ORDER IS THE FIX.
+  //
+  // It used to claim first and let `createTattooForUser` consult the key inside
+  // its transaction — which is fine for every kind whose replay costs nothing,
+  // and wrong for this one, because a SUCCESSFUL first request DELETES the
+  // staged object on its way out (`claimStagedEventAttachment`'s cleanup). So:
+  // request 1 commits, the app's 10s abort fires before the phone hears it, the
+  // person presses again, the same stable `Idempotency-Key` and the same
+  // `stagedPath` arrive, the download 404s — and they are told their photo is
+  // not an image, about a tattoo that exists.
+  //
+  // THE SECOND HALF IS WHY THIS IS NOT COSMETIC. A person told that would open
+  // a fresh form, which mints a NEW attempt key (`RecordEventScreen` remounts
+  // per asiento, deliberately), pick the photo again, and succeed — and the
+  // writer SUPERSEDES the active tattoo, so the animal ends with two
+  // `tattoo_recorded` events and two `pet_identifications` rows on an
+  // append-only spine, the second retiring the first, on the row a public
+  // credential reads.
+  //
+  // Same remedy and same sentence as `appendMicrochipReplace` and `appendDeath`
+  // above — ask the ledger before asking anything else. It differs from those
+  // two only in being UNCONDITIONAL: their replay check guards a refusal that a
+  // success made unreachable, and this one guards a side effect that a success
+  // made unrepeatable.
+  const replayed = await findExistingByKey(pet.id, "tattoo_recorded", ctx.idempotencyKey);
+  if (replayed) {
+    const replayPayload: EventRecordedV1 = { eventId: replayed.id, wasDuplicate: true };
+    return apiV1Json(replayPayload, { status: 201 });
+  }
+
+  const claimed = await claimStagedEventAttachment({ petId: pet.id, stagedPath: input.stagedPath });
+  if (!claimed.ok) {
+    return apiV1Error(claimed.code, claimed.code === "photo_not_an_image" ? 400 : 500);
+  }
+
+  const result = await createTattooForUser(
+    pet.id,
+    ctx.userId,
+    access.kind === "org" ? access.eventAuthorship : OWNER_AUTHORSHIP,
+    {
+      code: input.tattooCode,
+      location: input.locationOnBody,
+      description: input.description,
+      recordedAt,
+      recordedBy: input.recordedBy,
+      uploadedAttachment: {
+        path: claimed.attachment.path,
+        mimeType: claimed.attachment.mimeType,
+        size: claimed.attachment.size,
+      },
+      clientIdempotencyKey: ctx.idempotencyKey,
+    },
+  );
+
+  if ("error" in result) {
+    await discardClaimedAttachment(claimed.attachment.path);
+    reportError("api-v1-event", new Error(result.error), { userId: ctx.userId });
+    return apiV1Error("event_failed", 500);
+  }
+
+  // STILL HERE AFTER THE LEDGER CHECK ABOVE, AND NOT REDUNDANT. That check
+  // catches the ordinary replay — the one whose first request already
+  // committed. This one catches the RACE the check cannot: two requests under
+  // one key in flight at once, where both read the ledger before either
+  // committed, and `insertEventIdempotent`'s partial unique index is what
+  // decides. The loser gets `wasNoop`, and its bytes are a second copy nothing
+  // points at.
+  const wasDuplicate = result.wasNoop === true;
+  if (wasDuplicate) await discardClaimedAttachment(claimed.attachment.path);
+
+  const payload: EventRecordedV1 = {
+    eventId: result.eventId,
+    wasDuplicate,
   };
   return apiV1Json(payload, { status: 201 });
 }

@@ -10,12 +10,14 @@ export type EventFormState = {
   redirectTo?: string | null;
 };
 
-export type TattooLocation =
-  | "inner_ear_left"
-  | "inner_ear_right"
-  | "inner_thigh"
-  | "belly"
-  | "other";
+// THE FIVE PLACES ARE NAMED ONCE, IN THE CONTRACT, since the app grew a
+// `tattoo` kind (2026-09-10). They lived here as a TS union and next door as a
+// runtime array, which is two lists that had to agree by hand — and a native
+// picker could not have named either. Re-exported under the same name so the
+// web's call sites (`app/actions/tattoo.ts`, the form) read unchanged.
+import type { TattooLocation } from "@dim/contract/input";
+
+export type { TattooLocation };
 
 export type TattooInput = {
   code: string;

@@ -41,6 +41,8 @@ import {
   SYMPTOM_SEVERITIES,
   type SterilizationProcedure,
   type SymptomSeverity,
+  TATTOO_LOCATIONS,
+  type TattooLocation,
   type VetContactValue,
   dangerousBreedRegistryLabel,
   firstRecordEventInputCode,
@@ -86,6 +88,10 @@ export const RECORD_KINDS = [
   "clinical_info",
   "sterilization",
   "microchip",
+  // JUNTO AL MICROCHIP, porque es el otro acto de IDENTIDAD y ocurre con la
+  // misma frecuencia: una vez en la vida del animal. El microchip va primero
+  // porque es el que la ley pide; el tatuaje es el que se lee a simple vista.
+  "tattoo",
   "note",
 ] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
@@ -330,6 +336,11 @@ export function kindTitle(kind: WritableKind): string {
     // lives with the animal, not by the vet who confirmed it.
     case "bite":
       return "Mordedura";
+    // "Tatuaje" y no "Tatuaje identificatorio": la persona que abre este menu
+    // sabe cual es el tatuaje del que se habla, y el adjetivo solo alarga la
+    // fila.
+    case "tattoo":
+      return "Tatuaje";
     case "pregnancy_start":
       return "Embarazo · inicio";
     case "pregnancy_end":
@@ -383,6 +394,13 @@ export function kindSubtitle(kind: WritableKind): string {
       // describes. Este asiento termina el registro del animal: después sólo se
       // admiten notas. Una persona tiene derecho a saberlo antes, no después.
       return "Cierra el registro del animal. Se dan de baja los tránsitos abiertos y los casos en curso, y después sólo se pueden agregar notas.";
+    case "tattoo":
+      // DICE QUE LA FOTO ES OBLIGATORIA, ANTES y no despues de completar el
+      // formulario. Es el unico asiento que exige un archivo, y descubrirlo al
+      // apretar el boton seria descubrirlo tarde. Dice tambien que reemplaza al
+      // anterior, porque el modelo es UN tatuaje activo por mascota y la
+      // credencial muestra el ultimo.
+      return "Necesita una foto del tatuaje. Reemplaza al que estuviera cargado: la credencial muestra el último.";
     case "bite":
       // DICE LO QUE SE ABRE, como fallecimiento dice lo que se cierra. Este
       // asiento no es solo una entrada en la libreta: abre un caso, arranca el
@@ -465,6 +483,12 @@ export function recordEventCta(kind: WritableKind): { label: string; busyLabel: 
       return { label: "Asentar el fallecimiento", busyLabel: "Asentando…" };
     case "bite":
       return { label: "Registrar la mordedura", busyLabel: "Registrando…" };
+    case "tattoo":
+      // "Subiendo…" Y NO "Registrando…" porque el primer paso REAL es la foto:
+      // la app la sube antes de mandar el asiento, y en un plan de datos flojo
+      // ese paso es el que tarda. Un boton que dijera "Registrando" mientras
+      // sube 4 MB estaria nombrando la parte rapida.
+      return { label: "Registrar el tatuaje", busyLabel: "Subiendo…" };
     case "pregnancy_start":
       return { label: "Registrar el embarazo", busyLabel: "Registrando…" };
     case "pregnancy_end":
@@ -714,6 +738,16 @@ export type EventDraft = {
   biteProvinceCode: string;
   biteLocalityName: string;
   biteLocalityIndecId: string;
+  // tatuaje — el unico asiento que exige un archivo. La FOTO NO ESTA ACA: el
+  // borrador es texto serializable que `useIsDirty` compara, y los bytes de una
+  // imagen no son ninguna de las dos cosas. Viven en el estado de la pantalla,
+  // junto al resto del paso de subida.
+  tattooCode: string;
+  /** Donde esta el tatuaje. `null` es "no lo dijeron", una respuesta valida. */
+  tattooLocation: TattooLocation | null;
+  tattooDescription: string;
+  /** Quien lo hizo, en texto libre: la veterinaria, el refugio, "no sé". */
+  tattooRecordedBy: string;
   // embarazo — `vetName` NO está acá, igual que en fallecimiento: ya existe y
   // significa lo mismo. `weeksAtDiagnosis` es texto porque el campo es texto;
   // el contrato juzga el número.
@@ -788,6 +822,13 @@ export function emptyDraft(now: Date = new Date()): EventDraft {
     biteProvinceCode: "",
     biteLocalityName: "",
     biteLocalityIndecId: "",
+    tattooCode: "",
+    // NULL Y NO "other": "otro lugar" es una respuesta que alguien elige, no la
+    // que le queda a quien no contesto. El valor viaja a la columna canonica
+    // `pet_identifications.tattoo_location`.
+    tattooLocation: null,
+    tattooDescription: "",
+    tattooRecordedBy: "",
     weeksAtDiagnosis: "",
     // NULL AND NOT A DEFAULT OUTCOME, the same reason `cause` is null on the
     // death form: a pre-selected "parto exitoso" would let somebody close a
@@ -887,6 +928,13 @@ function draftToWire(
   draft: EventDraft,
   sourceEventId: string | null,
   sameDayOverride: boolean,
+  /**
+   * The staged object the photo already landed in, for the ONE kind that needs
+   * one. `null` while no photo has been uploaded yet — the contract then
+   * refuses with `TATTOO_PHOTO_REQUIRED`, which is the same refusal the web
+   * gives a form submitted with an empty file input.
+   */
+  stagedPath: string | null,
 ): unknown {
   switch (kind) {
     case "vaccination":
@@ -1023,6 +1071,22 @@ function draftToWire(
         localityIndecId: orNull(draft.biteLocalityIndecId),
         notes: orNull(draft.notes),
       };
+    case "tattoo":
+      return {
+        kind,
+        // BLANCO ES "NO SE LA FECHA" y el contrato lo normaliza a null: el
+        // escritor asienta `tattoo_date_known: false` en vez de inventar un dia.
+        occurredAt: dateInputToIso(draft.occurredAt),
+        tattooCode: draft.tattooCode,
+        // PUEDE SER NULL y el contrato lo acepta; lo que el contrato NO acepta
+        // es un lugar que no esta en la lista. La web coerce un valor
+        // desconocido a null sin decir nada porque lee un <select> que ella
+        // misma dibujo — un cliente JSON no es un <select>.
+        locationOnBody: draft.tattooLocation,
+        description: orNull(draft.tattooDescription),
+        recordedBy: orNull(draft.tattooRecordedBy),
+        stagedPath,
+      };
     case "pregnancy_start":
       return {
         kind,
@@ -1142,7 +1206,12 @@ function unreadableWeight(kind: WritableKind, draft: EventDraft): boolean {
 export function validateDraft(
   kind: WritableKind,
   draft: EventDraft,
-  options: { sourceEventId?: string | null; sameDayOverride?: boolean } = {},
+  options: {
+    sourceEventId?: string | null;
+    sameDayOverride?: boolean;
+    /** The staged photo, for `tattoo`. Ignored by every other kind. */
+    stagedPath?: string | null;
+  } = {},
 ): DraftResult {
   if (unreadableWeight(kind, draft)) {
     return { ok: false, code: "WEIGHT_INVALID", message: inputCodeMessage("WEIGHT_INVALID") };
@@ -1153,6 +1222,7 @@ export function validateDraft(
     draft,
     options.sourceEventId ?? null,
     options.sameDayOverride ?? false,
+    options.stagedPath ?? null,
   );
   const parsed = recordEventInputSchema.safeParse(wire);
   if (parsed.success) return { ok: true, input: parsed.data };
@@ -1282,6 +1352,15 @@ export function inputCodeMessage(code: RecordEventInputCode | null): string {
       return "La cantidad de crías va de 1 a 20.";
     case "PREGNANCY_BIRTHS_REQUIRED":
       return "Indicá cuántas crías nacieron con vida.";
+    case "TATTOO_CODE_REQUIRED":
+      return "Falta el código del tatuaje.";
+    case "TATTOO_LOCATION_INVALID":
+      return "Elegí dónde está el tatuaje.";
+    case "TATTOO_PHOTO_REQUIRED":
+      // NOMBRA EL PASO QUE FALTA, no el campo del cuerpo. La persona nunca
+      // escribe un `stagedPath`: lo produce la subida. Si este codigo llega, lo
+      // que no paso es la foto.
+      return "Falta la foto del tatuaje. Elegí una imagen antes de registrarlo.";
     case "BITE_VICTIM_KIND_INVALID":
       return "Elegí a quién mordió.";
     case "BITE_SEVERITY_INVALID":
@@ -1399,6 +1478,15 @@ export function invalidFields(code: RecordEventInputCode | null): ReadonlySet<ke
       case "PREGNANCY_BIRTHS_REQUIRED":
       case "PREGNANCY_BIRTHS_REQUIRES_LIVE_BIRTH":
         return ["liveBirthsCount"];
+      case "TATTOO_CODE_REQUIRED":
+        return ["tattooCode"];
+      case "TATTOO_LOCATION_INVALID":
+        return ["tattooLocation"];
+      case "TATTOO_PHOTO_REQUIRED":
+        // NINGUN CAMPO DEL BORRADOR. La foto no vive en el borrador — vive en
+        // el estado de la pantalla — asi que no hay recuadro que poner en rojo,
+        // y devolver uno cualquiera dejaria marcado un campo que esta bien.
+        return [];
       case "BITE_VICTIM_KIND_INVALID":
         return ["victimKind"];
       case "BITE_SEVERITY_INVALID":
@@ -1611,6 +1699,32 @@ export function biteSeverityLabel(severity: BiteSeverity): string {
 }
 
 /** Los tres valores de cada fila de chips, como el formulario los dibuja. */
+/**
+ * Donde esta el tatuaje, en las palabras de quien mira al animal.
+ *
+ * "Oreja izquierda" Y NO "pabellon auricular izquierdo": la persona que carga
+ * esto es la que vive con el animal, no la veterinaria que lo tatuo. Las dos
+ * orejas se nombran por separado porque en la credencial la diferencia es lo
+ * que hace que alguien encuentre la marca.
+ */
+export function tattooLocationLabel(location: TattooLocation): string {
+  switch (location) {
+    case "inner_ear_left":
+      return "Oreja izquierda, por dentro";
+    case "inner_ear_right":
+      return "Oreja derecha, por dentro";
+    case "inner_thigh":
+      return "Ingle o cara interna del muslo";
+    case "belly":
+      return "Panza";
+    case "other":
+      return "Otro lugar";
+  }
+}
+
+/** Los cinco lugares, como la fila de chips los dibuja. */
+export const TATTOO_LOCATION_OPTIONS: readonly TattooLocation[] = TATTOO_LOCATIONS;
+
 export const BITE_VICTIM_KIND_OPTIONS: readonly BiteVictimKind[] = BITE_VICTIM_KINDS;
 export const BITE_SEVERITY_OPTIONS: readonly BiteSeverity[] = BITE_SEVERITIES;
 

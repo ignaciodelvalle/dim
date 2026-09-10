@@ -16,6 +16,7 @@ import {
   kindSubtitle,
   kindTitle,
   symptomSeverityLabel,
+  tattooLocationLabel,
   todayInAr,
   validateDraft,
 } from "./record-event-view-model";
@@ -340,5 +341,99 @@ describe("conditionalKinds — the check-in row, on the one fact the server reso
         postAdoptionCheckinPending: true,
       }),
     ).toEqual(["pregnancy_start", "post_adoption_checkin"]);
+  });
+});
+
+describe("tatuaje — el asiento que no viaja sin foto", () => {
+  const A_STAGED_PATH =
+    "77777777-7777-4777-8777-777777777777/88888888-8888-4888-8888-888888888888.jpg";
+
+  it("REFUSES without a staged photo, and names the step rather than a field", () => {
+    // La persona nunca escribe un `stagedPath` — lo produce la subida — asi que
+    // una copia que dijera "revisá el campo stagedPath" nombraria algo que no
+    // existe en la pantalla.
+    const result = validateDraft("tattoo", draft({ tattooCode: "ABC-1234" }));
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.code).toBe("TATTOO_PHOTO_REQUIRED");
+    expect(result.message).toBe(
+      "Falta la foto del tatuaje. Elegí una imagen antes de registrarlo.",
+    );
+  });
+
+  it("sends the code, the place and the staged photo once it has one", () => {
+    const result = validateDraft(
+      "tattoo",
+      draft({
+        tattooCode: "ABC-1234",
+        tattooLocation: "inner_thigh",
+        tattooDescription: "Letras negras",
+        tattooRecordedBy: "Veterinaria del barrio",
+      }),
+      { stagedPath: A_STAGED_PATH },
+    );
+    if (!result.ok) throw new Error(`expected the draft to validate, got ${result.code}`);
+    expect(result.input).toEqual({
+      kind: "tattoo",
+      occurredAt: A_DAY,
+      tattooCode: "ABC-1234",
+      locationOnBody: "inner_thigh",
+      description: "Letras negras",
+      recordedBy: "Veterinaria del barrio",
+      stagedPath: A_STAGED_PATH,
+    });
+  });
+
+  it("manda la fecha en null cuando la persona la borra — 'no sé cuándo' es una respuesta", () => {
+    // El escritor asienta esa ausencia como un hecho (`tattoo_date_known:
+    // false`) en vez de inventar un dia. Un tatuaje leido de un animal adoptado
+    // no tiene fecha conocida.
+    const result = validateDraft("tattoo", draft({ tattooCode: "ABC-1234", occurredAt: "" }), {
+      stagedPath: A_STAGED_PATH,
+    });
+    if (!result.ok) throw new Error(`expected the draft to validate, got ${result.code}`);
+    expect(result.input).toMatchObject({ occurredAt: null });
+  });
+
+  it("refuses an empty code before the network", () => {
+    const result = validateDraft("tattoo", draft({ tattooCode: "   " }), {
+      stagedPath: A_STAGED_PATH,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.code).toBe("TATTOO_CODE_REQUIRED");
+    expect(result.message).toBe("Falta el código del tatuaje.");
+  });
+
+  it("empieza sin lugar elegido: null y no 'otro lugar'", () => {
+    // "Otro lugar" es una respuesta que alguien elige, no la que le queda a
+    // quien no contesto. El valor viaja a `pet_identifications.tattoo_location`.
+    expect(emptyDraft(new Date("2026-08-25T15:00:00Z")).tattooLocation).toBe(null);
+  });
+
+  it("nombra los cinco lugares en las palabras de quien mira al animal", () => {
+    expect(tattooLocationLabel("inner_ear_left")).toBe("Oreja izquierda, por dentro");
+    expect(tattooLocationLabel("inner_ear_right")).toBe("Oreja derecha, por dentro");
+    expect(tattooLocationLabel("inner_thigh")).toBe("Ingle o cara interna del muslo");
+    expect(tattooLocationLabel("belly")).toBe("Panza");
+    expect(tattooLocationLabel("other")).toBe("Otro lugar");
+  });
+
+  it("avisa que la foto es obligatoria ANTES del formulario, en el subtítulo", () => {
+    // Es el unico asiento que exige un archivo, y descubrirlo al apretar el
+    // boton seria descubrirlo tarde.
+    expect(kindSubtitle("tattoo")).toBe(
+      "Necesita una foto del tatuaje. Reemplaza al que estuviera cargado: la credencial muestra el último.",
+    );
+    expect(kindTitle("tattoo")).toBe("Tatuaje");
+  });
+
+  it("está en el selector, junto al otro acto de identidad", () => {
+    expect(RECORD_KINDS).toContain("tattoo");
+    expect(RECORD_KINDS.indexOf("tattoo")).toBe(RECORD_KINDS.indexOf("microchip") + 1);
+  });
+
+  it("nombra el paso que falta para cada código del tatuaje", () => {
+    expect(inputCodeMessage("TATTOO_LOCATION_INVALID")).toBe("Elegí dónde está el tatuaje.");
   });
 });

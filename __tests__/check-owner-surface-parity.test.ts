@@ -98,7 +98,10 @@ describe("check-owner-surface-parity — the fence is not vacuous", () => {
     // asked for.
     const keys = evaluate(live).divergences.map((d) => d.key);
     expect(keys).toContain("read:reportBiteAction.casePublicCode");
-    expect(keys).toContain("write:createTattooAction→createTattooForUser");
+    // `write:createTattooAction→createTattooForUser` USED TO BE ASSERTED HERE
+    // and was removed the day the kind crossed (2026-09-10). It is not a
+    // weakened test: the fence's own stale-declaration check is what guards a
+    // closed divergence now, and it runs against the live tree.
   });
 });
 

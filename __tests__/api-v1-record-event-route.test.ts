@@ -103,6 +103,17 @@ const control = vi.hoisted(() => ({
    * `wasDuplicate: true`, not a ledger stub.
    */
   checkinResult: null as null | (() => unknown),
+  /** `createTattooForUser`'s answer — its own shape, `wasNoop` and not `wasDuplicate`. */
+  tattooResult: null as null | (() => unknown),
+  /**
+   * What the staged photo turns into, or the refusal. `photo_not_an_image` is
+   * the FILE's fault (400) and `photo_failed` is the store's (500).
+   */
+  claimResult: null as null | (() => unknown),
+  /** Every staged path the endpoint tried to claim. Empty means it never got there. */
+  claims: [] as Array<{ petId: string; stagedPath: string }>,
+  /** Every attachment the endpoint took back. The unwind, observable. */
+  discarded: [] as string[],
 }));
 
 vi.mock("@/lib/infra/live-user", async (importOriginal) => {
@@ -305,6 +316,34 @@ vi.mock("@/src/modules/pets/application/checkin/record-post-adoption-checkin", (
   },
 }));
 
+vi.mock("@/src/modules/pets/application/tattoo/create-tattoo", () => ({
+  createTattooForUser: async (
+    petId: string,
+    userId: string,
+    eventAuthorship: Record<string, unknown>,
+    input: Record<string, unknown>,
+  ) => {
+    control.writes.push({ kind: "tattoo", input: { ...input, petId, userId, eventAuthorship } });
+    return control.tattooResult ? control.tattooResult() : { ok: true, eventId: EVENT_ID };
+  },
+  VALID_LOCATIONS: ["inner_ear_left", "inner_ear_right", "inner_thigh", "belly", "other"],
+}));
+
+vi.mock("@/lib/infra/staged-event-attachment", () => ({
+  claimStagedEventAttachment: async (params: { petId: string; stagedPath: string }) => {
+    control.claims.push(params);
+    return control.claimResult
+      ? control.claimResult()
+      : {
+          ok: true,
+          attachment: { path: `${PET_ID}/claimed.jpg`, mimeType: "image/jpeg", size: 4242 },
+        };
+  },
+  discardClaimedAttachment: async (path: string) => {
+    control.discarded.push(path);
+  },
+}));
+
 vi.mock("@/lib/infra/case-helpers", () => ({
   findOpenCaseForPetAndKind: async () => control.custodyCase,
   // Una mordedura ABRE un caso, y el codigo publico que devuelve es lo que la
@@ -444,6 +483,20 @@ const AN_ATTESTATION = {
   occurredAt: A_PAST_DAY,
 };
 
+/**
+ * The staged object a ticket minted. Its PREFIX is the pet's id, which is what
+ * the server re-derives and refuses anything else against; the leaf is a fresh
+ * uuid with an extension picked from a closed list.
+ */
+const A_STAGED_PATH = `${PET_ID}/66666666-6666-4666-8666-666666666666.jpg`;
+const A_TATTOO = {
+  kind: "tattoo",
+  tattooCode: "ABC-1234",
+  locationOnBody: "inner_ear_left",
+  occurredAt: A_PAST_DAY,
+  stagedPath: A_STAGED_PATH,
+};
+
 async function call(
   body: unknown = A_VACCINE,
   init: { key?: string | null; authorization?: string | null } = {},
@@ -492,6 +545,10 @@ beforeEach(() => {
   control.flushed = [];
   control.normalized = { province: "Cordoba", locality: "Villa Carlos Paz" };
   control.normalizeCalls = [];
+  control.tattooResult = null;
+  control.claimResult = null;
+  control.claims = [];
+  control.discarded = [];
 });
 
 describe("POST .../events — the guard is the web's, and it is not uniform", () => {
@@ -1945,5 +2002,191 @@ describe("POST .../events — mordedura, y la jurisdiccion es la del hecho", () 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toMatchObject({ error: "event_not_allowed" });
     expect(control.writes).toHaveLength(0);
+  });
+});
+
+describe("POST .../events — tatuaje, el unico asiento que exige una foto", () => {
+  it("claims the staged photo FIRST, then appends, and hands the writer what it claimed", async () => {
+    const response = await call(A_TATTOO);
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({
+      eventId: EVENT_ID,
+      wasDuplicate: false,
+    });
+
+    // THE ORDER IS THE WEB'S ORDER — `createTattooAction` uploads before it
+    // calls the writer, so a failed insert never leaks bytes it cannot see.
+    expect(control.claims).toEqual([{ petId: PET_ID, stagedPath: A_STAGED_PATH }]);
+
+    const write = control.writes.find((w) => w.kind === "tattoo");
+    expect(write).toBeDefined();
+    expect(write?.input).toMatchObject({
+      petId: PET_ID,
+      userId: OWNER_ID,
+      code: "ABC-1234",
+      location: "inner_ear_left",
+      // FROM THE CLAIM AND NOT FROM THE WIRE. Nothing a client says about the
+      // bytes is believed: the path, the type and the size are all what the
+      // server decided after reading them.
+      uploadedAttachment: { path: `${PET_ID}/claimed.jpg`, mimeType: "image/jpeg", size: 4242 },
+      clientIdempotencyKey: KEY,
+    });
+    // Nothing was taken back — the append succeeded on the first attempt.
+    expect(control.discarded).toEqual([]);
+  });
+
+  it("refuses a staged object that is not an image with 400, and writes NOTHING", async () => {
+    // The FILE is the problem, not the body — a different instruction to the
+    // person holding the phone than "re-read your request".
+    control.claimResult = () => ({ ok: false, code: "photo_not_an_image" });
+    const response = await call(A_TATTOO);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "photo_not_an_image" });
+    expect(control.writes.filter((w) => w.kind === "tattoo")).toEqual([]);
+  });
+
+  it("answers 500 when the object store fails, and still writes nothing", async () => {
+    control.claimResult = () => ({ ok: false, code: "photo_failed" });
+    const response = await call(A_TATTOO);
+    expect(response.status).toBe(500);
+    expect(control.writes.filter((w) => w.kind === "tattoo")).toEqual([]);
+  });
+
+  it("TAKES THE ATTACHMENT BACK when the append fails", async () => {
+    // The same cleanup `createTattooAction` performs. Without it the bytes sit
+    // in `event-attachments` with no row pointing at them and nothing to
+    // collect them.
+    control.tattooResult = () => ({ error: "no se pudo registrar el tatuaje" });
+    const response = await call(A_TATTOO);
+    expect(response.status).toBe(500);
+    expect(control.discarded).toEqual([`${PET_ID}/claimed.jpg`]);
+    expect(control.reported).toContain("api-v1-event");
+  });
+
+  it("ON A REPLAY answers 201 wasDuplicate and DISCARDS the redundant upload", async () => {
+    // `wasNoop` means the first attempt's event AND its attachment already
+    // exist and are already linked. This request's bytes are a second copy
+    // nothing points at — the identical condition the web action cleans up on.
+    control.tattooResult = () => ({ ok: true, eventId: EVENT_ID, wasNoop: true });
+    const response = await call(A_TATTOO);
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ eventId: EVENT_ID, wasDuplicate: true });
+    expect(control.discarded).toEqual([`${PET_ID}/claimed.jpg`]);
+  });
+
+  it("takes NO DAY at all, and passes the absence through as null", async () => {
+    // A tattoo read off an adopted animal has no known date. The writer records
+    // that as a fact (`tattoo_date_known: false`) rather than stamping today,
+    // and the endpoint must not invent one on the way.
+    const { occurredAt: _dropped, ...noDay } = A_TATTOO;
+    const response = await call(noDay);
+    expect(response.status).toBe(201);
+    expect(control.writes.find((w) => w.kind === "tattoo")?.input).toMatchObject({
+      recordedAt: null,
+    });
+  });
+
+  it("anchors a stated day the way every other kind's is anchored", async () => {
+    await call(A_TATTOO);
+    const recordedAt = control.writes.find((w) => w.kind === "tattoo")?.input.recordedAt;
+    expect(recordedAt).toBeInstanceOf(Date);
+    expect((recordedAt as Date).toISOString().slice(0, 10)).toBe(A_PAST_DAY);
+  });
+
+  it("refuses it on a DECEASED animal, and never touches the staged object", async () => {
+    // NOT among the four kinds exempt from the animal's half of the guard. A
+    // closed life record accepts no new identification act, and the refusal
+    // lands BEFORE the claim so a refused request costs no Storage round trip.
+    control.access = () => ({
+      kind: "owner",
+      pet: petRow({ status: "deceased" }),
+      holderRole: "owner",
+    });
+    const response = await call(A_TATTOO);
+    expect(response.status).toBe(409);
+    expect(control.claims).toEqual([]);
+    expect(control.writes.filter((w) => w.kind === "tattoo")).toEqual([]);
+  });
+
+  it("refuses an org caller without event.write, before the claim", async () => {
+    control.access = orgAccess();
+    control.capabilities = new Set();
+    const response = await call(A_TATTOO);
+    expect(response.status).toBe(403);
+    expect(control.claims).toEqual([]);
+  });
+
+  it("signs an ORG write with the member's resolved authorship, never re-derived", async () => {
+    control.access = orgAccess();
+    await call(A_TATTOO);
+    expect(control.writes.find((w) => w.kind === "tattoo")?.input.eventAuthorship).toEqual({
+      authorRole: "shelter",
+      authorOrganizationId: "org-1",
+      authorVerified: false,
+    });
+  });
+});
+
+describe("POST .../events — tatuaje, el replay que no puede volver a subir la foto", () => {
+  it("ASKS THE LEDGER BEFORE THE CLAIM, and answers the replay without touching Storage", async () => {
+    // THE ORDER IS THE FIX. A successful first request DELETES the staged
+    // object on its way out, so a claim-first replay downloads a key that is
+    // gone, 404s, and tells the person their photo is not an image — about a
+    // tattoo that exists. With the app's 10s abort that is not theoretical.
+    control.replayEvent = { id: EVENT_ID };
+
+    const response = await call(A_TATTOO);
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ eventId: EVENT_ID, wasDuplicate: true });
+    // NEVER REACHED THE OBJECT STORE. This is the assertion that pins the
+    // ORDER rather than the outcome: claiming first would answer the same 201
+    // only when the bytes happened to still be there.
+    expect(control.claims).toEqual([]);
+    expect(control.discarded).toEqual([]);
+    // And nothing was appended a second time.
+    expect(control.writes.filter((w) => w.kind === "tattoo")).toEqual([]);
+  });
+
+  it("hands back the FIRST attempt's event id, not a new one", async () => {
+    // The caller asked for an asiento to exist and one exists. Answering with a
+    // fresh id would point them at a row that is not the one on the spine.
+    const firstEventId = "99999999-9999-4999-8999-999999999999";
+    control.replayEvent = { id: firstEventId };
+
+    const response = await call(A_TATTOO);
+
+    await expect(response.json()).resolves.toEqual({
+      eventId: firstEventId,
+      wasDuplicate: true,
+    });
+  });
+
+  it("does NOT short-circuit when the ledger has nothing under this key", async () => {
+    // The other half of the branch: a first attempt still claims and appends.
+    // Without this, a mutation that always short-circuited would pass above.
+    control.replayEvent = null;
+
+    const response = await call(A_TATTOO);
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ eventId: EVENT_ID, wasDuplicate: false });
+    expect(control.claims).toHaveLength(1);
+    expect(control.writes.filter((w) => w.kind === "tattoo")).toHaveLength(1);
+  });
+
+  it("still discards the redundant upload when the WRITER reports the duplicate", async () => {
+    // The race the ledger check cannot catch: two requests under one key in
+    // flight at once, both past the ledger read before either committed, and
+    // the partial unique index decides. The loser's bytes are a second copy
+    // nothing points at.
+    control.replayEvent = null;
+    control.tattooResult = () => ({ ok: true, eventId: EVENT_ID, wasNoop: true });
+
+    const response = await call(A_TATTOO);
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ eventId: EVENT_ID, wasDuplicate: true });
+    expect(control.discarded).toEqual([`${PET_ID}/claimed.jpg`]);
   });
 });

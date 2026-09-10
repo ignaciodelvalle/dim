@@ -251,6 +251,9 @@ export const RECORD_EVENT_INPUT_CODES = [
   "BITE_VICTIM_KIND_INVALID",
   "BITE_SEVERITY_INVALID",
   "BITE_JURISDICTION_INCOMPLETE",
+  "TATTOO_CODE_REQUIRED",
+  "TATTOO_LOCATION_INVALID",
+  "TATTOO_PHOTO_REQUIRED",
 ] as const;
 export type RecordEventInputCode = (typeof RECORD_EVENT_INPUT_CODES)[number];
 
@@ -438,6 +441,29 @@ export type BiteVictimKind = (typeof BITE_VICTIM_KINDS)[number];
 
 export const BITE_SEVERITIES = ["minor", "moderate", "severe"] as const;
 export type BiteSeverity = (typeof BITE_SEVERITIES)[number];
+
+/**
+ * Where on the animal the tattoo is.
+ *
+ * NAMED ONCE, HERE, for the reason the two bite enums are: the list existed as
+ * a TS union in `src/modules/pets/application/tattoo/types.ts` and as a runtime
+ * array (`VALID_LOCATIONS`) in the writer beside it, and a native picker that
+ * cannot name the same five values can only ever produce a refusal. The writer
+ * now derives both from this constant, so the web form, the wire and the
+ * canonical `pet_identifications.tattoo_location` column read one list.
+ *
+ * `other` IS A REAL PLACE and not a fallback for a bad value. A tattoo on a
+ * flank or a tail is a tattoo; the four named spots are the common ones, not
+ * the permitted ones.
+ */
+export const TATTOO_LOCATIONS = [
+  "inner_ear_left",
+  "inner_ear_right",
+  "inner_thigh",
+  "belly",
+  "other",
+] as const;
+export type TattooLocation = (typeof TATTOO_LOCATIONS)[number];
 
 /** `"YYYY-MM-DD"` — what `<input type="date">` posts. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -1096,6 +1122,92 @@ function refineDeath(
   }
 }
 
+/**
+ * `"YYYY-MM-DD"` or NOT STATED — the shape of a day a form may leave empty.
+ *
+ * `nextDueAt` above is the same rule under different codes, and the duplication
+ * is deliberate rather than a missed abstraction: the message a person reads
+ * has to name the field they left wrong, and a shared helper would have to be
+ * parameterised by two codes to say either sentence. Reusing `OCCURRED_AT_*`
+ * here is exact — the day this refuses IS the tattoo's `occurredAt`.
+ */
+const optionalOccurredAt = z
+  .union([z.string(), z.null()])
+  .nullish()
+  .transform((v) => {
+    const trimmed = typeof v === "string" ? v.trim() : "";
+    return trimmed.length === 0 ? null : trimmed;
+  })
+  .refine((v) => v === null || ISO_DATE_RE.test(v), { error: "OCCURRED_AT_MALFORMED" })
+  .refine((v) => v === null || isRealDay(v), { error: "OCCURRED_AT_INVALID" });
+
+/**
+ * Un tatuaje — el asiento que le pone al animal una marca que se lee a simple
+ * vista, y el unico de esta union que EXIGE una foto.
+ *
+ * THE PHOTO IS REQUIRED, AND THAT IS PARITY RATHER THAN STRICTNESS.
+ * `createTattooAction` (app/actions/tattoo.ts) refuses a submission with no
+ * attachment in its own words — "Subí una foto del tatuaje" — before it calls
+ * the writer, and `createTattooForUser` then stores the attachment's id as
+ * `pet_identifications.photo_id`. A door that accepted a tattoo WITHOUT one
+ * would not merely be laxer: the writer SUPERSEDES whatever active tattoo the
+ * animal had (`status: "replaced"`), so a photo-less record written from a
+ * phone would retire a photographed one, on an identification row a public
+ * credential reads. The column is nullable and that is not a permission.
+ *
+ * SO THE BYTES DO NOT TRAVEL IN THIS BODY — a `stagedPath` does. This endpoint
+ * is JSON and `docs/architecture/api-invariants.md` §1.5 refuses a signed PUT
+ * straight into a serving bucket, so the app takes the SAME two steps a pet
+ * photo takes (`POST /pets/{token}/photo` with `command: "request_ticket"`,
+ * then a PUT into `uploads-staging`) and names the staged object here. The
+ * server downloads it, decides by MAGIC BYTES what it is, and writes it into
+ * `event-attachments` inside the same request that appends the event. Nothing
+ * a client says about those bytes is believed.
+ *
+ * IT IS A CLAIM AND NOT A CAPABILITY, exactly as `pet-photo.ts` says of its own
+ * `stagedPath`: the shape below makes an obviously-malformed value a 400
+ * instead of a Storage round trip, and the check that MATTERS is the server
+ * re-deriving the pet-id prefix from the pet whose access check just passed.
+ *
+ * THE DAY IS OPTIONAL, because the web's is. A tattoo read off an animal
+ * somebody adopted has no known date, and the writer records that fact
+ * explicitly (`tattoo_date_known: false`) rather than inventing one.
+ *
+ * THE LOCATION IS AN ENUM AND A BAD VALUE IS REFUSED, which is STRICTER than
+ * the web: `createTattooAction` silently coerces an unrecognised
+ * `locationOnBody` to `null`, because it reads a `<select>` whose options it
+ * drew itself. A JSON client is not a `<select>`, and quietly dropping a place
+ * somebody named would put "no dijeron dónde" on a permanent identification
+ * record. Refusing is the safe direction and it is declared here.
+ */
+const tattoo = z.object({
+  kind: z.literal("tattoo"),
+  occurredAt: optionalOccurredAt,
+  tattooCode: z
+    .string({ error: "TATTOO_CODE_REQUIRED" })
+    .trim()
+    .min(1, { error: "TATTOO_CODE_REQUIRED" }),
+  locationOnBody: z
+    .enum(TATTOO_LOCATIONS, { error: "TATTOO_LOCATION_INVALID" })
+    .nullish()
+    .transform((v) => v ?? null),
+  description: optionalText,
+  recordedBy: optionalText,
+  /**
+   * The staged object the upload ticket minted. `{petId}/{uuid}.{ext}` — the
+   * ONLY shape the server ever hands out, anchored on both ends so a traversal
+   * segment cannot ride along behind a valid prefix.
+   */
+  stagedPath: z
+    .string({ error: "TATTOO_PHOTO_REQUIRED" })
+    .trim()
+    .min(1, { error: "TATTOO_PHOTO_REQUIRED" })
+    .max(200, { error: "TATTOO_PHOTO_REQUIRED" })
+    .regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/, {
+      error: "TATTOO_PHOTO_REQUIRED",
+    }),
+});
+
 export const recordEventInputSchema = z
   .discriminatedUnion("kind", [
     vaccination,
@@ -1116,6 +1228,7 @@ export const recordEventInputSchema = z
     pregnancyEnd,
     bite,
     postAdoptionCheckin,
+    tattoo,
   ])
   .superRefine((input, ctx) => {
     // THE ONE CROSS-FIELD RULE OF A REPLACEMENT: leaving the animal with no

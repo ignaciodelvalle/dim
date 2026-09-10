@@ -29,6 +29,7 @@ jest.mock("../api/endpoints", () => ({
 import type { SessionPort } from "../api/client";
 import { runPetPhotoUpload } from "./pet-photo-upload-flow";
 import type { AcceptedImage } from "./pet-photo-view-model";
+import { stageTattooPhoto } from "./tattoo-photo-flow";
 
 const TOKEN = "DIM-PAMP-0001";
 const STAGED = "22222222-2222-4222-8222-222222222222/333.jpg";
@@ -156,5 +157,59 @@ describe("the ticket dies here", () => {
     mockPut.mockResolvedValue({ outcome: "expired" });
     const result = await runPetPhotoUpload(session, TOKEN, image, stepLogger);
     expect(JSON.stringify(result)).not.toContain("capability-tok");
+  });
+});
+
+// `stageTattooPhoto` — the SAME two first steps, and then it stops.
+//
+// TESTED IN THIS FILE AND NOT ITS OWN, because the two modules share a subject,
+// a mock surface and every fixture above. What separates them is exactly one
+// property and it is the one worth asserting side by side: a pet photo's
+// confirm is its own endpoint; a tattoo's confirm is the ASIENTO, so this walk
+// must NOT make a third call and must hand back the staged path for the event
+// body to carry.
+describe("stageTattooPhoto — dos pasos, y el tercero es el asiento", () => {
+  it("mints a ticket, PUTs the bytes, and hands back the staged path", async () => {
+    const result = await stageTattooPhoto(session, TOKEN, image);
+    expect(result).toEqual({ outcome: "staged", stagedPath: STAGED });
+    expect(log).toEqual(["call:ticket", "call:put"]);
+  });
+
+  it("NEVER CALLS CONFIRM — the asiento is the confirm", async () => {
+    await stageTattooPhoto(session, TOKEN, image);
+    expect(mockConfirm).not.toHaveBeenCalled();
+  });
+
+  it("passes the ticket to the PUT verbatim, and returns the TICKET's own path", async () => {
+    // Never a value this module derived: the server re-derives the prefix it
+    // will accept from the pet whose access check passed, so a path composed
+    // here could only ever be refused.
+    await stageTattooPhoto(session, TOKEN, image);
+    expect(mockPut).toHaveBeenCalledWith(ticket, image.bytes, "image/jpeg");
+  });
+
+  it("stops at a refused ticket, and never uploads", async () => {
+    mockTicket.mockImplementation(async () => ({ outcome: "api-error", code: "not_found" }));
+    const result = await stageTattooPhoto(session, TOKEN, image);
+    expect(result).toMatchObject({ outcome: "failed", failure: { stage: "ticket" } });
+    expect(mockPut).not.toHaveBeenCalled();
+  });
+
+  it("reports an expired signed URL as its own failure — the retry IS the fix", async () => {
+    mockPut.mockImplementation(async () => ({ outcome: "expired" }));
+    const result = await stageTattooPhoto(session, TOKEN, image);
+    expect(result).toEqual({
+      outcome: "failed",
+      failure: { stage: "put", kind: "expired" },
+    });
+  });
+
+  it("carries the PUT's detail through when the upload itself failed", async () => {
+    mockPut.mockImplementation(async () => ({ outcome: "failed", detail: "network down" }));
+    const result = await stageTattooPhoto(session, TOKEN, image);
+    expect(result).toEqual({
+      outcome: "failed",
+      failure: { stage: "put", kind: "failed", detail: "network down" },
+    });
   });
 });

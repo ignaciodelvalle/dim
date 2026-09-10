@@ -13,16 +13,19 @@ import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 import { normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
+import { TATTOO_LOCATIONS } from "@dim/contract/input";
 
 import type { CreateTattooResult, TattooInput, TattooLocation } from "./types";
 
-export const VALID_LOCATIONS: readonly TattooLocation[] = [
-  "inner_ear_left",
-  "inner_ear_right",
-  "inner_thigh",
-  "belly",
-  "other",
-];
+/**
+ * The five places, from the contract that now names them once.
+ *
+ * KEPT AS AN EXPORT UNDER THIS NAME because `app/actions/tattoo.ts` and the web
+ * form both read it, and re-pointing the alias is a smaller change than moving
+ * two call sites onto a new one. The values are identical — this is where the
+ * list stopped being a second copy, not where it changed.
+ */
+export const VALID_LOCATIONS: readonly TattooLocation[] = TATTOO_LOCATIONS;
 
 // Inner writer — testable without Next.js request context. The outer action
 // resolves access + uploads the photo + delegates here. Photo upload happens

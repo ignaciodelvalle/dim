@@ -43,6 +43,25 @@ jest.mock("../api/endpoints", () => ({
 
 jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 
+/**
+ * The two network steps a tattoo photo takes before the asiento.
+ *
+ * MOCKED AT THE FLOW AND NOT AT THE ENDPOINTS, because the endpoints module is
+ * already replaced whole by the mock above and adding two more exports to it
+ * would spread this kind's wiring across two stubs. The flow's OWN rules are
+ * covered by its own test; what these cases prove is what the SCREEN does with
+ * each of its two outcomes.
+ */
+const mockStageTattooPhoto = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+jest.mock("./tattoo-photo-flow", () => ({
+  stageTattooPhoto: (...args: unknown[]) => mockStageTattooPhoto(...args),
+}));
+
+import {
+  type ImagePickerPort,
+  resetImagePickerPort,
+  setImagePickerPort,
+} from "../native/image-picker-port";
 import { RecordEventScreen } from "./RecordEventScreen";
 import {
   RECORD_KINDS,
@@ -103,7 +122,33 @@ function sentKey(index = 0) {
   return call?.[3] as string | undefined;
 }
 
+/**
+ * A build that CAN choose a photo.
+ *
+ * INSTALLED FOR EVERY CASE BELOW, because the default port answers
+ * `available: false` and the tatuaje form then draws a callout instead of a
+ * form — which is correct behaviour and would silently take that kind out of
+ * every loop in this file. The loops walk the whole union on purpose, so they
+ * have to walk it in a build where every kind HAS a form. The unavailable build
+ * gets its own cases, which reset the port first.
+ *
+ * It never actually picks: the cases that press the pick control assert what
+ * the screen does with an outcome, not what a native module returns.
+ */
+/** The shape a ticket mints — `{petId}/{uuid}.{ext}`. */
+const A_STAGED_PATH =
+  "77777777-7777-4777-8777-777777777777/88888888-8888-4888-8888-888888888888.jpg";
+
+const availablePicker: ImagePickerPort = {
+  name: "test-available",
+  available: true,
+  pickImage: async () => ({ outcome: "cancelled" }),
+};
+
 beforeEach(() => {
+  setImagePickerPort(availablePicker);
+  mockStageTattooPhoto.mockReset();
+  mockStageTattooPhoto.mockResolvedValue({ outcome: "staged", stagedPath: A_STAGED_PATH });
   mockPush.mockReset();
   mockReplace.mockReset();
   mockRecordPetEvent.mockReset();
@@ -1216,5 +1261,125 @@ describe("fallecimiento — el asiento que cierra el registro", () => {
 
     await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
     expect(sentBody()).toMatchObject({ kind: "death", cause: "natural" });
+  });
+});
+
+describe("tatuaje — el asiento que necesita una foto", () => {
+  /** A build with no `expo-image-picker`, which is every build shipped so far. */
+  function withoutPicker() {
+    resetImagePickerPort();
+  }
+
+  it("EN UNA BUILD SIN SELECTOR no dibuja el formulario ni un botón que no puede funcionar", () => {
+    // La regla del puerto, la misma que sigue `PetPhotoScreen`: leer
+    // `available` ANTES de dibujar un control. La foto es obligatoria en las dos
+    // puertas, así que un formulario sin manera de elegirla sólo podría terminar
+    // en un refusal — y buscar un botón que no puede andar es el callejón que
+    // esta pantalla existe para evitar.
+    withoutPicker();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="tattoo" />);
+
+    expect(
+      screen.getByText("Todavía no se puede registrar un tatuaje desde la app"),
+    ).toBeOnTheScreen();
+    expect(screen.getByText(/la foto se carga desde la web/i)).toBeOnTheScreen();
+    // NI EL CAMPO DEL CÓDIGO NI EL BOTÓN DE ENVIAR.
+    expect(screen.queryByText("Código del tatuaje")).not.toBeOnTheScreen();
+    expect(screen.queryByText(recordEventCta("tattoo").label)).not.toBeOnTheScreen();
+  });
+
+  it("con selector disponible dibuja el formulario y dice que la foto es obligatoria", () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="tattoo" />);
+    expect(screen.getByText(/la foto es obligatoria/i)).toBeOnTheScreen();
+    expect(screen.getByText("Elegir la foto del tatuaje")).toBeOnTheScreen();
+    expect(screen.getByText(recordEventCta("tattoo").label)).toBeOnTheScreen();
+  });
+
+  it("REFUSES sin foto y no manda nada — el contrato nombra el paso que falta", async () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="tattoo" />);
+    fireEvent.changeText(screen.getByLabelText("Código del tatuaje, obligatorio"), "ABC-1234");
+    fireEvent.press(submitControl());
+
+    await waitFor(() => expect(screen.getByText(/falta la foto del tatuaje/i)).toBeOnTheScreen());
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("SUBE LA FOTO AL ELEGIRLA, no al enviar", async () => {
+    // Que la persona se entere de que la subida falló mientras todavía está
+    // mirando la foto, y que un campo mal cargado no cueste megabytes.
+    setImagePickerPort({
+      name: "test-picks",
+      available: true,
+      pickImage: async () => ({
+        outcome: "picked",
+        bytes: new Blob(["x"], { type: "image/jpeg" }),
+        contentType: "image/jpeg",
+        previewUri: null,
+      }),
+    });
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="tattoo" />);
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("Elegir la foto del tatuaje"));
+    });
+
+    expect(mockStageTattooPhoto).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Foto lista")).toBeOnTheScreen();
+    // NO DICE "LISTO" A SECAS: los bytes están arriba, el asiento no existe.
+    expect(screen.getByText(/se va a guardar junto con el asiento/i)).toBeOnTheScreen();
+    // Y todavía no salió ningún asiento.
+    expect(mockRecordPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("manda el asiento con el stagedPath que dejó la subida", async () => {
+    setImagePickerPort({
+      name: "test-picks",
+      available: true,
+      pickImage: async () => ({
+        outcome: "picked",
+        bytes: new Blob(["x"], { type: "image/jpeg" }),
+        contentType: "image/jpeg",
+        previewUri: null,
+      }),
+    });
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="tattoo" />);
+
+    fireEvent.changeText(screen.getByLabelText("Código del tatuaje, obligatorio"), "ABC-1234");
+    await act(async () => {
+      fireEvent.press(screen.getByText("Elegir la foto del tatuaje"));
+    });
+    fireEvent.press(submitControl());
+
+    await waitFor(() => expect(mockRecordPetEvent).toHaveBeenCalledTimes(1));
+    expect(mockRecordPetEvent.mock.calls[0]?.[2]).toMatchObject({
+      kind: "tattoo",
+      tattooCode: "ABC-1234",
+      stagedPath: A_STAGED_PATH,
+    });
+  });
+
+  it("muestra la razón cuando la subida falla, y sigue sin foto", async () => {
+    setImagePickerPort({
+      name: "test-picks",
+      available: true,
+      pickImage: async () => ({
+        outcome: "picked",
+        bytes: new Blob(["x"], { type: "image/jpeg" }),
+        contentType: "image/jpeg",
+        previewUri: null,
+      }),
+    });
+    mockStageTattooPhoto.mockResolvedValue({
+      outcome: "failed",
+      failure: { stage: "put", kind: "expired" },
+    });
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="tattoo" />);
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("Elegir la foto del tatuaje"));
+    });
+
+    expect(screen.getByText(/el permiso venció/i)).toBeOnTheScreen();
+    expect(screen.queryByText("Foto lista")).not.toBeOnTheScreen();
   });
 });
