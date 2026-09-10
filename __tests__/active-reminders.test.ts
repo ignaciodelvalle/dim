@@ -61,6 +61,31 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
   return { ...actual, enforceRateLimit: async () => {} };
 });
 
+// The WEB door's guard (T12b only). `requireOwnedPetByToken` resolves a cookie
+// session and redirects/404s on refusal; here it hands the action a fixture
+// (user, pet) pair — or `null`, to reach the wrapper's own "Sesión expirada."
+// arm, which the real guard never returns through. The use-case underneath is
+// real, against the real DB.
+const webControl = vi.hoisted(() => ({
+  session: null as { userId: string; petId: string } | null,
+}));
+
+vi.mock("@/lib/infra/pets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/pets")>();
+  return {
+    ...actual,
+    requireOwnedPetByToken: async () =>
+      webControl.session === null
+        ? null
+        : {
+            user: { id: webControl.session.userId },
+            pet: { id: webControl.session.petId },
+            accessPath: "person",
+            organization: null,
+          },
+  };
+});
+
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 
@@ -638,6 +663,87 @@ describe("deleteVaccineReminder — cancels a reminder and reports what happened
     // reminder that belongs to a DIFFERENT one of the same owner's animals.
     const result = await deleteVaccineReminder(petId, rem.id);
     expect(result).toEqual({ changed: false });
+
+    const rows = await db.select().from(reminders).where(eq(reminders.id, rem.id));
+    expect(rows.length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T12b: deleteVaccineReminderAction — the web door, nav contract N3
+// ---------------------------------------------------------------------------
+// The action used to call redirect() after the delete, which Next 15.5.x's App
+// Router can DROP (scripts/check-action-redirect.ts): the row was gone and the
+// person watched nothing happen. It now RETURNS `redirectTo` and the island
+// (`DeleteReminderInlineForm`) navigates. What these pin is the return shape
+// the island depends on — a use-case test cannot see the wrapper.
+
+describe("deleteVaccineReminderAction — returns redirectTo instead of calling redirect()", () => {
+  const EMAIL = "ar-delete-action@dim-test.local";
+  const PASS = "ArDeleteAction_2026!";
+  let userId: string;
+  let pet: { id: string; publicToken: string };
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    userId = await createUser(EMAIL, PASS);
+    pet = await createPetForUser(userId, `DLA-${userId.slice(0, 4)}`);
+  });
+
+  afterAll(async () => {
+    webControl.session = null;
+    await cleanupUser(userId);
+  });
+
+  async function act(publicToken: string, reminderId: string) {
+    const { deleteVaccineReminderAction } = await import("@/app/actions/reminders");
+    return deleteVaccineReminderAction(publicToken, reminderId, { error: null }, new FormData());
+  }
+
+  it("deletes the row and RETURNS the pet page as redirectTo — no redirect() thrown", async () => {
+    webControl.session = { userId, petId: pet.id };
+    const rem = await insertReminder({
+      petId: pet.id,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Antirrábica",
+    });
+
+    // A redirect() here would REJECT with NEXT_REDIRECT; the island's
+    // useActionState would never see a state to navigate on.
+    const state = await act(pet.publicToken, rem.id);
+    expect(state).toEqual({ error: null, redirectTo: `/mis-mascotas/${pet.publicToken}` });
+
+    const rows = await db.select().from(reminders).where(eq(reminders.id, rem.id));
+    expect(rows.length).toBe(0);
+  });
+
+  it("a REPLAYED cancel through the action is the same success, not an error", async () => {
+    webControl.session = { userId, petId: pet.id };
+    const rem = await insertReminder({
+      petId: pet.id,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Sextuple",
+    });
+
+    await act(pet.publicToken, rem.id);
+    const second = await act(pet.publicToken, rem.id);
+    expect(second).toEqual({ error: null, redirectTo: `/mis-mascotas/${pet.publicToken}` });
+  });
+
+  it("with no session it answers the form-state error and deletes nothing", async () => {
+    webControl.session = { userId, petId: pet.id };
+    const rem = await insertReminder({
+      petId: pet.id,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Bordetella",
+    });
+
+    webControl.session = null;
+    const state = await act(pet.publicToken, rem.id);
+    expect(state).toEqual({ error: "Sesión expirada." });
 
     const rows = await db.select().from(reminders).where(eq(reminders.id, rem.id));
     expect(rows.length).toBe(1);

@@ -20,7 +20,6 @@ import type {
   ReminderFormState,
   SnoozeReminderResult,
 } from "@/src/modules/pets/application/reminders/types";
-import { redirect } from "next/navigation";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -42,13 +41,19 @@ export async function createVaccineReminderAction(
   return _create(session.user.id, session.pet.id, publicToken, _previous, formData);
 }
 
-export async function deleteVaccineReminderAction(publicToken: string, reminderId: string) {
+// Nav contract N3: RETURNS `redirectTo` and `DeleteReminderInlineForm` navigates —
+// the App Router can drop an action's own redirect() (check-action-redirect.ts).
+// A replayed cancel (row already gone) is still a success (`changed` flag).
+export async function deleteVaccineReminderAction(
+  publicToken: string,
+  reminderId: string,
+  _previous: ReminderFormState,
+  _formData: FormData,
+): Promise<ReminderFormState> {
   const session = await requireOwnedPetByToken(publicToken);
-  if (!session) {
-    throw new Error("No autorizado.");
-  }
+  if (!session) return { error: "Sesión expirada." };
   await _delete(session.pet.id, reminderId);
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 export async function snoozeReminderAction(reminderId: string): Promise<SnoozeReminderResult> {

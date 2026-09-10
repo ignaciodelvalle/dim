@@ -3,12 +3,13 @@
 
 import Link from "next/link";
 
-import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 import { pluralizeEs } from "@/lib/utils/format";
+
+import { DeleteReminderInlineForm } from "./DeleteReminderInlineForm";
 
 // ---------------------------------------------------------------------------
 // Date formatting helpers — Spanish, no date-fns dependency.
@@ -129,14 +130,9 @@ export function PetReminders({
                     >
                       Registrar
                     </Link>
-                    <form action={deleteVaccineReminderAction.bind(null, petToken, r.reminderId)}>
-                      <button
-                        type="submit"
-                        className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] text-xs font-medium hover:bg-[var(--color-ln-stripe)] transition-colors"
-                      >
-                        Eliminar
-                      </button>
-                    </form>
+                    {/* Client island: the action returns redirectTo (nav
+                        contract N3) and the island navigates. */}
+                    <DeleteReminderInlineForm petToken={petToken} reminderId={r.reminderId} />
                   </div>
                 }
               />
