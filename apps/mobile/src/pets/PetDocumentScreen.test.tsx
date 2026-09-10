@@ -15,17 +15,25 @@ import { RefreshControl, StyleSheet } from "react-native";
 
 import type { OwnerPetDetailV1 } from "@dim/contract/api";
 
+import { createNavigationFake } from "../ui/navigation-fake";
+import { vaccineRemindersRoute } from "../ui/routes";
 import { TOUCH_TARGET } from "../ui/theme";
 
 const mockPush = jest.fn();
 const mockFetchOwnerPetDetail = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockFetchPetLibreta = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockSendReminder = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
 /** Every focus callback currently mounted, so a test can fire a RE-focus. */
 const mockFocusCallbacks: Array<() => void> = [];
 
+// For `VacunasScreen`'s draft-discard guard (`useNavigation`); the document
+// screen itself never asks for one. See `ui/navigation-fake.ts`.
+const mockNav = createNavigationFake();
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
+  useNavigation: () => mockNav.navigation,
   // The real one runs its callback when the screen gains focus. Under test
   // there is no navigator, so the stand-in runs it on mount AND keeps a handle
   // on it, because the F9 defect is about a screen that is ALREADY MOUNTED when
@@ -47,6 +55,7 @@ jest.mock("expo-router", () => ({
 jest.mock("../api/endpoints", () => ({
   fetchOwnerPetDetail: (...args: unknown[]) => mockFetchOwnerPetDetail(...args),
   fetchPetLibreta: (...args: unknown[]) => mockFetchPetLibreta(...args),
+  sendVaccineReminderCommand: (...args: unknown[]) => mockSendReminder(...args),
 }));
 
 // The screen now re-reads when the network comes back (B-05, `useReconnect`),
@@ -62,6 +71,7 @@ jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
 import { BAND_MAX_FONT_SCALE, IDENTITY_POKE_OUT } from "./DocumentChromeNative";
 import { QR_SIZE, ownerFaceStyles } from "./OwnerFace";
 import { PetDocumentScreen } from "./PetDocumentScreen";
+import { VacunasScreen } from "./VacunasScreen";
 import { TURN_PERSPECTIVE } from "./document-turn";
 
 const TOKEN = "DIM-PAMP-0001";
@@ -577,11 +587,17 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     await screen.findByText("Pampa");
 
     // Empty: gone entirely — not the title, not the sentence it used to carry.
-    expect(screen.queryByText("Recordatorios")).toBeNull();
     expect(screen.queryByText("Trámites")).toBeNull();
     expect(screen.queryByText("Preñez")).toBeNull();
     expect(screen.queryByText("No está preñada.")).toBeNull();
     expect(screen.queryByText("No tiene trámites abiertos.")).toBeNull();
+
+    // THE ONE EXCEPTION: the reminders card is a DOOR (to `/vacunas`), not only
+    // a list, and an empty list of reminders is exactly the moment to schedule
+    // one. It stays, says the web's own empty line, and offers the write.
+    expect(screen.getByText("Recordatorios")).toBeOnTheScreen();
+    expect(screen.getByText("Sin próximas vacunas.")).toBeOnTheScreen();
+    expect(screen.getByText("Programar vacuna")).toBeOnTheScreen();
 
     // Unavailable: still there, still saying so. A server that could not
     // answer is not an animal with nothing to report.
@@ -1101,5 +1117,153 @@ describe("the credential photo", () => {
     });
 
     expect(screen.getByText("Foto no disponible")).toBeOnTheScreen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The reminders card is a DOOR, and the screen behind it
+// ---------------------------------------------------------------------------
+//
+// `VacunasScreen` is tested HERE rather than in a file of its own because the
+// count of `apps/mobile/src/**/*.test.tsx` is an architecture fact
+// (`scripts/architecture-facts.ts` → `mobile_jest_files`) with a three-step
+// chain behind it, and because the screen IS this document's reminders section
+// continued: the card below the credential is the way in, and what it offers
+// in each of its three states is the first thing to prove.
+
+describe("PetDocumentScreen — the reminders card offers the write in all three states", () => {
+  it("SOME: with rows on it, offers 'Programar o eliminar' and pushes /vacunas", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    expect(screen.getByText("Antirrábica anual")).toBeOnTheScreen();
+
+    fireEvent.press(screen.getByText("Programar o eliminar"));
+    expect(mockPush).toHaveBeenCalledWith(vaccineRemindersRoute(TOKEN));
+  });
+
+  it("UNKNOWN still offers: a reminders read that FAILED draws its refusal AND the door", async () => {
+    // The dead end this exists against: a card that hid the button because a
+    // read failed tells the person the app cannot schedule a vaccine, when the
+    // truth is that the app could not READ the list. The write needs no list.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ reminders: UNAVAILABLE }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("Recordatorios")).toBeOnTheScreen();
+    expect(screen.getByText("No se pudo leer esta sección.")).toBeOnTheScreen();
+    // MUTATION APPLIED: drop `{door}` from RemindersCard's unavailable arm —
+    // the refusal still drawn, the button not. Red here, and ONLY here: the
+    // "renders every unavailable section as its refusal" test above catches
+    // a hidden REFUSAL; this one catches a hidden DOOR, which is the dead end.
+    fireEvent.press(screen.getByText("Programar vacuna"));
+    expect(mockPush).toHaveBeenCalledWith(vaccineRemindersRoute(TOKEN));
+  });
+});
+
+describe("VacunasScreen — programar y eliminar, behind the card", () => {
+  beforeEach(() => {
+    mockSendReminder.mockReset();
+    mockNav.reset();
+  });
+
+  it("a REPLAYED cancel (changed: false) renders as DONE, not as an error, and the row leaves", async () => {
+    // The endpoint answers 200 `changed: false` when the row was already gone —
+    // a second tap, or a retry after a lost response. That is a success and
+    // the screen must say so; "no hay recordatorio que eliminar" would tell
+    // somebody their cancel failed when it is exactly what already happened.
+    mockSendReminder.mockResolvedValue({
+      outcome: "ok",
+      payload: { command: "cancel_vaccine_reminder", reminderId: "rem-1", changed: false },
+    });
+    render(<VacunasScreen publicToken={TOKEN} />);
+    await screen.findByText("Antirrábica anual");
+
+    fireEvent.press(screen.getByText("Eliminar"));
+
+    expect(await screen.findByText("Ese recordatorio ya estaba eliminado.")).toBeOnTheScreen();
+    expect(screen.queryByText("Antirrábica anual")).toBeNull();
+    expect(screen.getByText("Sin próximas vacunas.")).toBeOnTheScreen();
+    expect(screen.queryByText("No pudimos guardar el recordatorio.")).toBeNull();
+    expect(mockSendReminder).toHaveBeenCalledWith({}, TOKEN, {
+      command: "cancel_vaccine_reminder",
+      reminderId: "rem-1",
+    });
+  });
+
+  it("a first cancel (changed: true) says it is done and the row leaves", async () => {
+    mockSendReminder.mockResolvedValue({
+      outcome: "ok",
+      payload: { command: "cancel_vaccine_reminder", reminderId: "rem-1", changed: true },
+    });
+    render(<VacunasScreen publicToken={TOKEN} />);
+    await screen.findByText("Antirrábica anual");
+
+    fireEvent.press(screen.getByText("Eliminar"));
+
+    expect(await screen.findByText("Listo. El recordatorio quedó eliminado.")).toBeOnTheScreen();
+    expect(screen.queryByText("Antirrábica anual")).toBeNull();
+  });
+
+  it("schedules in the contract's shape: the typed DD/MM/AAAA crosses as YYYY-MM-DD, blank notes as null", async () => {
+    mockSendReminder.mockResolvedValue({
+      outcome: "ok",
+      payload: { command: "create_vaccine_reminder", reminderId: "rem-9" },
+    });
+    render(<VacunasScreen publicToken={TOKEN} />);
+    await screen.findByText("Antirrábica anual");
+
+    fireEvent.changeText(screen.getByLabelText("Vacuna, obligatorio"), "Sextuple");
+    fireEvent.changeText(screen.getByLabelText("Fecha estimada, obligatorio"), "20/11/2026");
+    fireEvent.press(screen.getByText("Programar vacuna"));
+
+    await waitFor(() => expect(mockSendReminder).toHaveBeenCalledTimes(1));
+    expect(mockSendReminder).toHaveBeenCalledWith({}, TOKEN, {
+      command: "create_vaccine_reminder",
+      vaccineName: "Sextuple",
+      dueAt: "2026-11-20",
+      description: null,
+    });
+    expect(
+      await screen.findByText("Listo. Te vamos a avisar cuando se acerque la fecha de Sextuple."),
+    ).toBeOnTheScreen();
+    // The list is RE-READ after a landed schedule: the ack carries only the id,
+    // and the due label is the server's to compute.
+    await waitFor(() => expect(mockFetchOwnerPetDetail).toHaveBeenCalledTimes(2));
+  });
+
+  it("refuses a blank vaccine name locally, in the web's own words, and posts nothing", async () => {
+    render(<VacunasScreen publicToken={TOKEN} />);
+    await screen.findByText("Antirrábica anual");
+
+    fireEvent.changeText(screen.getByLabelText("Fecha estimada, obligatorio"), "20/11/2026");
+    fireEvent.press(screen.getByText("Programar vacuna"));
+
+    expect(await screen.findByText("Falta el nombre de la vacuna.")).toBeOnTheScreen();
+    expect(mockSendReminder).not.toHaveBeenCalled();
+  });
+
+  it("UNKNOWN still offers: a reminders read that failed keeps the form and does not say 'sin próximas vacunas'", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ reminders: UNAVAILABLE }),
+    });
+    render(<VacunasScreen publicToken={TOKEN} />);
+
+    expect(await screen.findByText("No se pudo leer esta sección.")).toBeOnTheScreen();
+    expect(screen.getByText("Programar vacuna")).toBeOnTheScreen();
+    expect(screen.queryByText("Sin próximas vacunas.")).toBeNull();
+  });
+
+  it("a whole read that FAILED still keeps the form", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue({ outcome: "unreachable", detail: "no network" });
+    render(<VacunasScreen publicToken={TOKEN} />);
+
+    expect(
+      await screen.findByText("No pudimos conectarnos. Revisá tu conexión."),
+    ).toBeOnTheScreen();
+    expect(screen.getByText("Programar vacuna")).toBeOnTheScreen();
   });
 });

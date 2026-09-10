@@ -36,7 +36,7 @@ import { CredentialQr } from "../credential/CredentialQr";
 import { Icon } from "../ui/Icon";
 import { Body, Card, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { Callout, ListRow, pressedOpacity } from "../ui/kit";
+import { Callout, ListRow, SecondaryButton, pressedOpacity } from "../ui/kit";
 import {
   caretakerPetRoute,
   editPetRoute,
@@ -47,12 +47,15 @@ import {
   returnPetRoute,
   sharesRoute,
   transferPetRoute,
+  vaccineRemindersRoute,
 } from "../ui/routes";
 import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import { FaceDivider, FaceSection, IDENTITY_POKE_OUT } from "./DocumentChromeNative";
 import {
   type OwnerFaceGates,
   type OwnerFaceView,
+  REMINDERS_EMPTY_HINT,
+  REMINDERS_EMPTY_LINE,
   type SectionView,
   alertHeadline,
   alertTone,
@@ -64,6 +67,8 @@ import {
   registeredBadgeWord,
   rehomeBannerLine,
   reminderDueLabel,
+  remindersOffer,
+  remindersOfferLabel,
   titularOnlyRowCaption,
   transitBannerLine,
   truncationNote,
@@ -775,6 +780,77 @@ function Section<T>({
 }
 
 /**
+ * THE REMINDERS CARD — the one section below the document that is a DOOR and
+ * not only a list, and therefore the one that renders in all three states.
+ *
+ * The web's "Próximas vacunas" card offers "+ Programar" whether or not it has
+ * rows, and "Eliminar" on each row. This app's writes each live on a route of
+ * their own (`asentar`, `mudanza`, `editar`), so both operations live on
+ * `/vacunas` and this card is how somebody gets there. That is what breaks the
+ * hide-when-empty rule `Section` applies to its siblings: an empty list of
+ * reminders is exactly the moment to schedule one, and a card that vanished
+ * would take the only affordance with it.
+ *
+ * THE UNAVAILABLE ARM STILL OFFERS. The section failing to load says nothing
+ * about whether a reminder can be scheduled — the write does not read the list
+ * — and a door that closed because a read failed would be a dead end the
+ * person cannot see. The refusal is drawn, in its own words, and the button
+ * stays under it.
+ */
+function RemindersCard({
+  view,
+  publicToken,
+}: {
+  view: OwnerFaceView["reminders"];
+  publicToken: string;
+}) {
+  const router = useRouter();
+  const offer = remindersOffer(view);
+  const door = (
+    <SecondaryButton
+      label={remindersOfferLabel(offer)}
+      accessibilityHint="Programar un recordatorio de vacuna, o eliminar uno que ya no hace falta."
+      onPress={() => router.push(vaccineRemindersRoute(publicToken))}
+    />
+  );
+
+  if (view.state === "unavailable") {
+    return (
+      <View style={styles.stack}>
+        <Unavailable title="Recordatorios" message={view.message} />
+        {door}
+      </View>
+    );
+  }
+
+  const reminders = view.data;
+  const note = truncationNote(reminders.items.length, reminders.total, "recordatorios");
+  return (
+    <Card title="Recordatorios">
+      <View style={styles.stack}>
+        {reminders.items.length === 0 ? (
+          <>
+            <Body>{REMINDERS_EMPTY_LINE}</Body>
+            <Body>{REMINDERS_EMPTY_HINT}</Body>
+          </>
+        ) : (
+          reminders.items.map((reminder) => (
+            <Row
+              key={reminder.reminderId}
+              label={reminder.title}
+              value={reminderDueLabel(reminder.daysUntilDue)}
+            />
+          ))
+        )}
+        {/* A list that shows some of what exists must SAY so. */}
+        {note ? <Body>{note}</Body> : null}
+        {door}
+      </View>
+    </Card>
+  );
+}
+
+/**
  * Everything the payload carries that the web's credential sheet does NOT
  * print on the document: reminders, arrangements, open cases, pregnancy, the
  * owner's other pets. On the web these live in other surfaces (reminder rows,
@@ -789,32 +865,7 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
   return (
     <>
       {/* REMINDERS ------------------------------------------------------- */}
-      <Section
-        view={view.reminders}
-        title="Recordatorios"
-        isEmpty={(reminders) => reminders.items.length === 0}
-      >
-        {/* No empty arm: `isEmpty` above already returned null for a list of
-            zero, so a "No hay recordatorios activos." branch here was dead
-            code that read as a second, contradictory empty-state policy. */}
-        {(reminders) => (
-          <>
-            {reminders.items.map((reminder) => (
-              <Row
-                key={reminder.reminderId}
-                label={reminder.title}
-                value={reminderDueLabel(reminder.daysUntilDue)}
-              />
-            ))}
-            {/* A list that shows some of what exists must SAY so. */}
-            {truncationNote(reminders.items.length, reminders.total, "recordatorios") ? (
-              <Body>
-                {truncationNote(reminders.items.length, reminders.total, "recordatorios")}
-              </Body>
-            ) : null}
-          </>
-        )}
-      </Section>
+      <RemindersCard view={view.reminders} publicToken={view.publicToken} />
 
       {/* THE BANNERS ------------------------------------------------------ */}
       {/* The empty test here is NOT symmetric with the others, and the

@@ -7,15 +7,21 @@ import type {
 import { describe, expect, it } from "@jest/globals";
 
 import {
+  EMPTY_SCHEDULE_REMINDER_DRAFT,
   SECTION_UNAVAILABLE_MESSAGE,
   alertHeadline,
   alertTone,
+  buildCancelReminder,
+  buildScheduleReminder,
   caretakerBannerLines,
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
   rehomeBannerLine,
+  reminderCancelledMessage,
   reminderDueLabel,
+  remindersOffer,
+  remindersOfferLabel,
   sectionView,
   transitBannerLine,
   truncationNote,
@@ -224,5 +230,112 @@ describe("banners — the two-key public-contact model", () => {
     expect(transitBannerLine(banners({ transit: { canManageFosterActions: false } }))).toContain(
       "web",
     );
+  });
+});
+
+describe("remindersOffer — three states, and unknown is not none", () => {
+  const reminder = {
+    reminderId: "rem-1",
+    title: "Antirrábica anual",
+    dueAt: "2026-10-01T12:00:00.000Z",
+    daysUntilDue: 28,
+    variant: "vacuna",
+    isReportable: true,
+  };
+
+  it("names each state from the section view", () => {
+    expect(
+      remindersOffer({ state: "ok", data: { items: [reminder], total: 1, truncated: false } }),
+    ).toBe("some");
+    expect(remindersOffer({ state: "ok", data: { items: [], total: 0, truncated: false } })).toBe(
+      "none",
+    );
+    expect(remindersOffer({ state: "unavailable", message: SECTION_UNAVAILABLE_MESSAGE })).toBe(
+      "unknown",
+    );
+  });
+
+  it("offers the write in ALL three, and names the second operation only where rows exist", () => {
+    // A door that closed because a read failed would be a dead end the person
+    // cannot see. `unknown` gets the same label as `none`: nothing to delete
+    // that the app can show, but scheduling never needed the list.
+    expect(remindersOfferLabel("some")).toBe("Programar o eliminar");
+    expect(remindersOfferLabel("none")).toBe("Programar vacuna");
+    expect(remindersOfferLabel("unknown")).toBe("Programar vacuna");
+  });
+});
+
+describe("buildScheduleReminder — the contract's schema, the web's words", () => {
+  it("converts the typed DD/MM/AAAA to the wire's YYYY-MM-DD and blank notes to null", () => {
+    const built = buildScheduleReminder({
+      vaccineName: "  Sextuple ",
+      dueAt: "20/11/2026",
+      description: "   ",
+    });
+    expect(built).toEqual({
+      ok: true,
+      input: {
+        command: "create_vaccine_reminder",
+        vaccineName: "Sextuple",
+        dueAt: "2026-11-20",
+        description: null,
+      },
+    });
+  });
+
+  it("refuses a blank name with the sentence the web's own form shows", () => {
+    const built = buildScheduleReminder({ ...EMPTY_SCHEDULE_REMINDER_DRAFT, dueAt: "20/11/2026" });
+    expect(built).toEqual({
+      ok: false,
+      code: "VACCINE_NAME_REQUIRED",
+      message: "Falta el nombre de la vacuna.",
+    });
+  });
+
+  it("refuses a half-typed date as MALFORMED and a day that does not exist as INVALID", () => {
+    const half = buildScheduleReminder({
+      ...EMPTY_SCHEDULE_REMINDER_DRAFT,
+      vaccineName: "X",
+      dueAt: "20/1",
+    });
+    expect(half.ok).toBe(false);
+    if (!half.ok) expect(half.code).toBe("DUE_AT_MALFORMED");
+
+    // 31/02 rolls over to 3 March under `new Date`; the contract's
+    // `isRealArDay` is the backstop, and the sentence must not be the
+    // "escribí la fecha como" one — the shape was right, the day was not.
+    const rolled = buildScheduleReminder({
+      ...EMPTY_SCHEDULE_REMINDER_DRAFT,
+      vaccineName: "X",
+      dueAt: "31/02/2026",
+    });
+    expect(rolled.ok).toBe(false);
+    if (!rolled.ok) expect(rolled.code).toBe("DUE_AT_INVALID");
+  });
+
+  it("cancels by the row id, in the contract's shape", () => {
+    expect(buildCancelReminder("rem-1")).toEqual({
+      command: "cancel_vaccine_reminder",
+      reminderId: "rem-1",
+    });
+  });
+});
+
+describe("reminderCancelledMessage — a replayed cancel is a success", () => {
+  it("words both arms of `changed` as done, never as a refusal", () => {
+    expect(
+      reminderCancelledMessage({
+        command: "cancel_vaccine_reminder",
+        reminderId: "r",
+        changed: true,
+      }),
+    ).toBe("Listo. El recordatorio quedó eliminado.");
+    expect(
+      reminderCancelledMessage({
+        command: "cancel_vaccine_reminder",
+        reminderId: "r",
+        changed: false,
+      }),
+    ).toBe("Ese recordatorio ya estaba eliminado.");
   });
 });

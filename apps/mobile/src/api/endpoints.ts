@@ -111,6 +111,7 @@ import {
   type SignupV1,
   type SubjectDataErasedV1,
   type TransferCommandAckV1,
+  type VaccineReminderCommandAckV1,
   type WelfareReportCommandAckV1,
 } from "@dim/contract/api";
 import type {
@@ -132,6 +133,7 @@ import type {
   ShareCommandInput,
   SubjectRightsCommandInput,
   TransferCommandInput,
+  VaccineReminderCommandInput,
   WelfareReportCommandInput,
 } from "@dim/contract/input";
 
@@ -1553,6 +1555,42 @@ export function sendPetReturnCommand(
   return apiRequest<PetReturnCommandAckV1>(
     {
       path: `/api/v1/pets/${encodeURIComponent(publicToken)}/return`,
+      method: "POST",
+      body: input,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/reminders` — VACUNAS: schedule a vaccine reminder,
+ * or cancel one.
+ *
+ * THE OTHER HALF OF A CAPABILITY THIS APP COULD ONLY READ. `fetchOwnerPetDetail`
+ * has carried `OwnerPetRemindersSection` since the face was built; nothing here
+ * could act on it. Both commands reach the IDENTICAL use-cases the web's two
+ * actions reach (`createVaccineReminder`, `deleteVaccineReminder`), so a phone
+ * and a browser scheduling the same booster agree on what counts as a duplicate.
+ *
+ * NO READ OF ITS OWN, like `sendPetMoveCommand`: the list is on the face
+ * already, and a second GET would be a route and a per-IP bucket bought to
+ * re-send it. A screen that wants the list after a write re-reads the pet.
+ *
+ * NEITHER COMMAND TAKES AN `idempotencyKey`, and each is safe to replay for
+ * its own reason. `create_vaccine_reminder` is absorbed by the writer's own
+ * guard (same vaccine + same due date → the SAME `reminderId` back, no second
+ * row). `cancel_vaccine_reminder` is idempotent on the STATE: a reminder that
+ * is already gone answers 200 with `changed: false` — a SUCCESS a caller must
+ * render as one, never as "no hay recordatorio que cancelar".
+ */
+export function sendVaccineReminderCommand(
+  session: SessionPort,
+  publicToken: string,
+  input: VaccineReminderCommandInput,
+): Promise<ApiResult<VaccineReminderCommandAckV1>> {
+  return apiRequest<VaccineReminderCommandAckV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/reminders`,
       method: "POST",
       body: input,
     },

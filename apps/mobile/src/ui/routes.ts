@@ -469,6 +469,24 @@ export function movePetRoute(publicToken: string): `/mascotas/${string}/mudanza`
 }
 
 /**
+ * PRÓXIMAS VACUNAS — programar un recordatorio de vacuna, o eliminar uno.
+ *
+ * ONE SCREEN FOR WHAT THE WEB SPLITS IN TWO. The web schedules on a page of its
+ * own (`/mis-mascotas/{token}/vacunas/programar`) and deletes inline on the
+ * pet page's "Próximas vacunas" card. A stack navigator has no inline form
+ * post, and the face here never writes (every write in this app is a route of
+ * its own — `asentar`, `mudanza`, `editar`); so both operations live on this
+ * one screen, and the face's reminders card is the door to it.
+ *
+ * THE SEGMENT MATCHES THE WEB'S PARENT (`/vacunas`), not its leaf: nothing
+ * deep-links in today, and when something does the two forms already agree on
+ * the word.
+ */
+export function vaccineRemindersRoute(publicToken: string): `/mascotas/${string}/vacunas` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/vacunas`;
+}
+
+/**
  * DEVOLUCIÓN — responder a quien quiere devolverte el animal, o proponer
  * devolvérselo a la organización de origen.
  *
@@ -530,6 +548,7 @@ export type AppRoute =
   | ReturnType<typeof editPetRoute>
   | ReturnType<typeof petPhotoRoute>
   | ReturnType<typeof movePetRoute>
+  | ReturnType<typeof vaccineRemindersRoute>
   | ReturnType<typeof returnPetRoute>
   | ReturnType<typeof transferRoute>
   | ReturnType<typeof transferPetRoute>

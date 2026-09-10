@@ -24,8 +24,18 @@ import type {
   OwnerPetPregnancySection,
   OwnerPetRemindersSection,
   OwnerPetStatusSection,
+  VaccineReminderCommandAckV1,
 } from "@dim/contract/api";
+import type {
+  VaccineReminderCommandInput,
+  VaccineReminderCommandInputCode,
+} from "@dim/contract/input";
+import {
+  firstVaccineReminderCommandInputCode,
+  vaccineReminderCommandInputSchema,
+} from "@dim/contract/input";
 
+import { dateInputToIso } from "../ui/date-input";
 import { unknownEnumLabel } from "../ui/enum-label";
 
 /** The es-AR sentence every unavailable section shows. Decided once. */
@@ -183,6 +193,134 @@ export function reminderDueLabel(daysUntilDue: number): string {
   if (daysUntilDue > 1) return `Vence en ${daysUntilDue} días`;
   const overdue = Math.abs(daysUntilDue);
   return overdue === 1 ? "Venció ayer" : `Venció hace ${overdue} días`;
+}
+
+// ---------------------------------------------------------------------------
+// Reminders — the writes (`POST /pets/{token}/reminders`)
+// ---------------------------------------------------------------------------
+//
+// The face could READ this section since it was built and could do nothing
+// about it. What follows is the pure half of the two operations the web has
+// on the same card — "Programar vacuna" and "Eliminar" — worded as the web
+// words them, validated by the CONTRACT's own schema rather than restated.
+
+/**
+ * THE THREE STATES OF "WHAT IS SCHEDULED", kept apart on purpose.
+ *
+ * `unknown` is NOT `none`. The section can fail to load, and a card that hid
+ * the door because a read failed would be a dead end the person cannot see:
+ * they would conclude the app cannot schedule a vaccine, when the truth is
+ * that the app could not READ the list. The write does not need the list at
+ * all, so every one of the three states offers it.
+ */
+export type RemindersOffer = "some" | "none" | "unknown";
+
+export function remindersOffer(view: SectionView<OwnerPetRemindersSection>): RemindersOffer {
+  if (view.state === "unavailable") return "unknown";
+  return view.data.items.length === 0 ? "none" : "some";
+}
+
+/**
+ * What the face's card offers. With rows on it, the screen behind the button
+ * can also delete one, and a label that said only "Programar" would hide the
+ * second operation until somebody tapped through.
+ */
+export function remindersOfferLabel(offer: RemindersOffer): string {
+  return offer === "some" ? "Programar o eliminar" : "Programar vacuna";
+}
+
+/** The web's own empty line on the same card (`PetReminders.tsx`). */
+export const REMINDERS_EMPTY_LINE = "Sin próximas vacunas.";
+export const REMINDERS_EMPTY_HINT =
+  "Programá un recordatorio y te avisamos cuando se acerque la fecha.";
+
+/** What the form holds before it is a command. `dueAt` is `DD/MM/AAAA`. */
+export type ScheduleReminderDraft = {
+  vaccineName: string;
+  dueAt: string;
+  description: string;
+};
+
+export const EMPTY_SCHEDULE_REMINDER_DRAFT: ScheduleReminderDraft = {
+  vaccineName: "",
+  dueAt: "",
+  description: "",
+};
+
+export type ScheduleReminderResult =
+  | { ok: true; input: VaccineReminderCommandInput }
+  | { ok: false; code: VaccineReminderCommandInputCode | null; message: string };
+
+/**
+ * One sentence per input code. The first two are the web's own
+ * (`createVaccineReminder`), so a person who has used both surfaces reads the
+ * same refusal on each.
+ */
+export function scheduleReminderInputCodeMessage(
+  code: VaccineReminderCommandInputCode | null,
+): string {
+  switch (code) {
+    case "VACCINE_NAME_REQUIRED":
+      return "Falta el nombre de la vacuna.";
+    case "DUE_AT_REQUIRED":
+      return "Falta la fecha estimada.";
+    case "DUE_AT_MALFORMED":
+      return "Escribí la fecha estimada como DD/MM/AAAA.";
+    case "DUE_AT_INVALID":
+      return "Esa fecha no existe en el calendario. Revisá el día y el mes.";
+    case "REMINDER_ID_REQUIRED":
+    case "COMMAND_REQUIRED":
+    case null:
+      return "No pudimos armar el recordatorio. Volvé a cargar los datos.";
+  }
+}
+
+/**
+ * PROGRAMAR UNA VACUNA, from the form's three answers.
+ *
+ * The date crosses `dateInputToIso` at this boundary and nowhere else: the
+ * field shows `DD/MM/AAAA`, the contract wants `YYYY-MM-DD`, and whether the
+ * result is a real calendar day is the schema's call (`isRealArDay`), not
+ * this function's. The description is trimmed to `null`, like every optional
+ * free-text field on this surface.
+ */
+export function buildScheduleReminder(draft: ScheduleReminderDraft): ScheduleReminderResult {
+  const parsed = vaccineReminderCommandInputSchema.safeParse({
+    command: "create_vaccine_reminder",
+    vaccineName: draft.vaccineName,
+    dueAt: dateInputToIso(draft.dueAt),
+    description: draft.description.trim() || null,
+  });
+  if (parsed.success) return { ok: true, input: parsed.data };
+  const code = firstVaccineReminderCommandInputCode(parsed.error);
+  return { ok: false, code, message: scheduleReminderInputCodeMessage(code) };
+}
+
+/** ELIMINAR, by the row id the face already holds. */
+export function buildCancelReminder(reminderId: string): VaccineReminderCommandInput {
+  return { command: "cancel_vaccine_reminder", reminderId };
+}
+
+/** What the screen says once the reminder is on the books. */
+export function reminderScheduledMessage(vaccineName: string): string {
+  return `Listo. Te vamos a avisar cuando se acerque la fecha de ${vaccineName.trim()}.`;
+}
+
+/**
+ * What the screen says after a cancel — and BOTH arms are a success.
+ *
+ * `changed: false` is the server saying the row was already gone: a second
+ * tap, or a retry after a lost response. The web's own delete answers that
+ * replay identically to the first, and a screen that rendered it as "no hay
+ * recordatorio que eliminar" would tell somebody their cancel failed when it
+ * is precisely what they asked for that already happened.
+ */
+export function reminderCancelledMessage(
+  ack: Extract<VaccineReminderCommandAckV1, { command: "cancel_vaccine_reminder" }>,
+): string {
+  return ack.changed
+    ? "Listo. El recordatorio quedó eliminado."
+    : "Ese recordatorio ya estaba eliminado.";
 }
 
 /**
