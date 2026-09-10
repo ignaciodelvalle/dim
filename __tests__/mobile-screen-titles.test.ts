@@ -32,7 +32,27 @@ const LAYOUT = join(APP_DIR, "_layout.tsx");
  * with the reasoning transcribed. The table stays because the RULE stays: the
  * next route whose surfaces disagree gets an entry here, not an invented
  * header. */
-const TITLE_PENDING: ReadonlyArray<{ route: string; question: string }> = [];
+const TITLE_PENDING: ReadonlyArray<{ route: string; question: string }> = [
+  {
+    route: "mascotas/[publicToken]/vacunas",
+    question:
+      "Three surfaces, and the disagreement was introduced by the commit that " +
+      "added this route, so it is a copy question and not a merge decision. " +
+      'The WEB section this screen mirrors is titled "Próximas vacunas" ' +
+      "(app/(app)/mis-mascotas/[publicToken]/_components/PetReminders.tsx, twice). " +
+      'The screen\'s own <Title> reads "Próximas vacunas de {nombre}" ' +
+      "(apps/mobile/src/pets/VacunasScreen.tsx). But the CARD that opens it is " +
+      'titled "Recordatorios" (apps/mobile/src/pets/OwnerFace.tsx), whose own ' +
+      'comment cites the web card as "Próximas vacunas" — so the app renamed, in ' +
+      "one place, the thing it was mirroring. " +
+      'Two readings: (a) header "Próximas vacunas", transcribed from the web ' +
+      "section and the screen's own title, and then the card should be renamed to " +
+      'match; or (b) header "Recordatorios", if the card\'s wider noun is the one ' +
+      "the project wants for the whole feature — the screen also cancels " +
+      "reminders, not only vaccines, so the narrow noun may be the wrong one. " +
+      "PO decides; nothing is invented here.",
+  },
+];
 
 /**
  * NOTHING IS EXCLUDED ANY MORE, and `+not-found` is why the list is gone
