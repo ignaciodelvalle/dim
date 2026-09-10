@@ -312,12 +312,94 @@ export type OwnerPetBannersSection = {
 // ---------------------------------------------------------------------------
 
 /**
- * A COUNT, not a list.
+ * The case kinds an owner-facing list may name.
  *
- * The web surface renders the cases through their own component, which fetches
- * them itself; what the owner face carries is the fact that there are some. A
- * list here would be data this endpoint's own web twin does not show, which is
- * the one thing a parity endpoint must not invent.
+ * This is `CASE_KINDS` (src/modules/cases/domain/case-kinds.ts) MINUS the two
+ * the owner-facing projection never returns, and the omission is the security
+ * statement rather than an oversight:
+ *   · `welfare_denuncia` — the owner is the SUBJECT of that investigation and
+ *     must not learn it exists (`can_read_case` refuses it to the subject owner
+ *     by name; `HIDDEN_FROM_SUBJECT_CASE_KINDS` is the same rule in TypeScript).
+ *   · `lost_pet_episode` — not a privacy matter: lost has its own single
+ *     rendering path on both surfaces, and listing it here would double-draw it.
+ * Both exclusions already live in `GENERIC_CASE_LIST_EXCLUDED_KINDS`, which is
+ * the predicate the reader applies; this union is that predicate's shape on the
+ * wire, so a client cannot render a kind the server would never send.
+ *
+ * `other` is the fallback for a row whose `case_kind` is outside the union —
+ * the column is unconstrained text and staging carries legacy strings. The web
+ * prints the raw key in that case; a phone printing `rabies_observation` at a
+ * person is worse than saying "Otro trámite", and leaking a raw internal string
+ * is worse than both.
+ */
+export const OWNER_PET_CASE_KINDS = [
+  "bite_incident",
+  "adoption_listing",
+  "adoption_application",
+  "custody_dispute",
+  "foster_placement",
+  "custody_episode",
+  "custody_transfer_handshake",
+  "foster_proposal",
+  "outbreak_investigation",
+  "microchip_remediation",
+  "rehome_request",
+  "other",
+] as const;
+export type OwnerPetCaseKind = (typeof OWNER_PET_CASE_KINDS)[number];
+
+/**
+ * Only the two OPEN states, because only open cases are listed.
+ *
+ * `escalated` is not withheld: the web's own badge prints "Escalado" to the
+ * same viewer this endpoint serves, so hiding it here would be the app knowing
+ * less than the browser about the person's own animal, not a privacy gain.
+ */
+export const OWNER_PET_CASE_STATUSES = ["open", "escalated"] as const;
+export type OwnerPetCaseStatus = (typeof OWNER_PET_CASE_STATUSES)[number];
+
+/**
+ * One open case, in the three fields the web's own badge prints.
+ *
+ * WHY `casePublicCode` AND NOT `publicCode`. Two identifiers travel in this
+ * payload and both are "public codes": `publicToken` names the ANIMAL and
+ * `casePublicCode` names an EXPEDIENTE (`CAS-XXXX-XXXX`). The qualified name is
+ * what stops a client from pasting one where the other belongs, and it is the
+ * name the rest of the codebase already uses for this exact string.
+ *
+ * NO CASE ID. The file header's rule holds here without an exception: a client
+ * reaches a case by its public code, which is also what a person quotes on the
+ * phone to a sanitary authority. The internal uuid buys a client nothing and is
+ * the kind of thing a stolen access token should not carry away.
+ */
+export type OwnerPetCaseV1 = {
+  /** `CAS-XXXX-XXXX` — the code the reporter quotes later. */
+  casePublicCode: string;
+  kind: OwnerPetCaseKind;
+  status: OwnerPetCaseStatus;
+};
+
+/**
+ * A count AND the open cases behind it.
+ *
+ * IT WAS A COUNT ALONE UNTIL 2026-09-10, and the docblock here said a list
+ * would be "data this endpoint's own web twin does not show". That was wrong on
+ * the facts: `components/PetOpenCasesSection.tsx` renders exactly
+ * `publicCode + caseKind + status` per open case on the web pet page, behind
+ * `requirePetAccess` — the SAME guard and the SAME viewer set as this endpoint.
+ * The count-only shape is what made the mordedura case code unreachable on the
+ * phone (`read:reportBiteAction.casePublicCode` in the owner-surface parity
+ * fence): a person reports a bite, the web hands them a `CAS-` code on a
+ * receipt, and the app had nowhere to read it back.
+ *
+ * IT IS A READ AND NOT A WRITE RESPONSE, deliberately. Putting the code on the
+ * `POST …/events` answer would put it in the one place a person loses it: a
+ * single HTTP response they see once and never again. `appendBite`'s header
+ * states the same decision from the writer's side.
+ *
+ * `items` and `openCount` describe the same set — both are computed over the
+ * one capped window — so `items.length === openCount` always holds and neither
+ * is derivable from a different query than the other.
  */
 export type OwnerPetCasesSection = {
   /** Cases in `open` or `escalated`, excluding kinds hidden from the subject. */
@@ -327,6 +409,11 @@ export type OwnerPetCasesSection = {
    * than a total. The page's query is capped at 50 most-recent cases.
    */
   truncated: boolean;
+  /**
+   * The open cases themselves, most recently opened first — the same set
+   * `openCount` counts and the same order the web draws them in.
+   */
+  items: OwnerPetCaseV1[];
 };
 
 // ---------------------------------------------------------------------------

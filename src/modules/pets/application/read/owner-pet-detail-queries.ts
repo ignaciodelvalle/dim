@@ -120,9 +120,38 @@ export async function readServiceDog(petId: string): Promise<OwnerPetServiceDogR
 // Cases
 // ---------------------------------------------------------------------------
 
+/**
+ * One open case, in the three fields an owner surface prints.
+ *
+ * `caseKind` stays a RAW string — `case_kind` is unconstrained TEXT in the DB —
+ * and is narrowed to the wire vocabulary in the payload builder, where every
+ * other narrowing in this read already lives.
+ *
+ * `status` does NOT, and the asymmetry is deliberate. This type is "an OPEN
+ * case", so its status is one of two words by definition, and saying that in
+ * the type is what lets the payload builder project the list with a plain
+ * `.map` — no second filter, no cast. A `string` here would force the projection
+ * to re-decide what "open" means, which is how `openCount` and `items` start
+ * describing different sets.
+ */
+export type OwnerPetOpenCaseRead = {
+  publicCode: string;
+  caseKind: string;
+  status: "open" | "escalated";
+};
+
 export type OwnerPetCasesRead = {
-  /** Cases in `open` or `escalated`, among the capped window. */
+  /**
+   * How many cases are in `open` or `escalated`, among the capped window.
+   *
+   * Literally `openCases.length` — see the return below. It is not a separately
+   * computed number that happens to agree; a reader that counted one way and
+   * listed another is exactly the drift the contract's
+   * `items.length === openCount` sentence would then be lying about.
+   */
   openCount: number;
+  /** Those same cases, most recently opened first. */
+  openCases: OwnerPetOpenCaseRead[];
   /** True when the window hit its cap, so `openCount` is a floor. */
   truncated: boolean;
   /** An open `custody_episode` opened by a sanitary authority. */
@@ -148,6 +177,7 @@ export async function readCases(petId: string): Promise<OwnerPetCasesRead> {
   const [rows, custodyRows] = await Promise.all([
     db
       .select({
+        publicCode: cases.publicCode,
         status: cases.status,
         caseKind: cases.caseKind,
         openedReasonCode: cases.openedReasonCode,
@@ -185,7 +215,10 @@ export async function readCases(petId: string): Promise<OwnerPetCasesRead> {
       .limit(1),
   ]);
 
-  const isOpen = (s: string) => s === "open" || s === "escalated";
+  // A TYPE PREDICATE and not merely a boolean, so the narrowing below is the
+  // compiler's and not a cast: inside the `flatMap` guard, `c.status` IS one of
+  // the two open words, and `OwnerPetOpenCaseRead` can say so.
+  const isOpen = (s: string): s is "open" | "escalated" => s === "open" || s === "escalated";
   const orgBiteCase = rows.find(
     (c) =>
       c.caseKind === "bite_incident" &&
@@ -194,8 +227,26 @@ export async function readCases(petId: string): Promise<OwnerPetCasesRead> {
   );
   const params = orgBiteCase?.openedReasonParams as { orgDisplayName?: unknown } | null | undefined;
 
+  // ONE array, built once. Already ordered by `openedAt` desc from the query
+  // above — the same order the web's own open-cases strip draws — and the
+  // `notInArray` in that query is what keeps `welfare_denuncia` out of it. That
+  // exclusion is now the SOLE mechanism between the subject of a denuncia and
+  // the code of the case against them, and it is pinned by a database test
+  // (`__tests__/case-queries-hidden-kinds.test.ts`) rather than by inspection:
+  // drop the clause and the row arrives labelled `other`, because
+  // `welfare_denuncia` is not in `OWNER_PET_CASE_KINDS` and the payload clamps
+  // what it does not recognise. A leak wearing a generic label is one no
+  // reviewer reading output would catch.
+  const openCases: OwnerPetOpenCaseRead[] = rows.flatMap((c) =>
+    isOpen(c.status) ? [{ publicCode: c.publicCode, caseKind: c.caseKind, status: c.status }] : [],
+  );
+
   return {
-    openCount: rows.filter((c) => isOpen(c.status)).length,
+    // The COUNT IS THE LIST'S LENGTH, not a second pass over `rows` that agrees
+    // with it by coincidence. This is the invariant the contract states
+    // (`items.length === openCount`) made true by construction.
+    openCount: openCases.length,
+    openCases,
     truncated: rows.length === CASE_READ_CAP,
     underOfficialCustody: custodyRows.length > 0,
     observationOpenedByOrgName:

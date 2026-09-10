@@ -14,6 +14,9 @@ import {
   buildCancelReminder,
   buildScheduleReminder,
   caretakerBannerLines,
+  caseKindLabel,
+  caseLine,
+  caseStatusLabel,
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
@@ -145,6 +148,7 @@ describe("casesLine — a capped count is a floor, and says so", () => {
   const cases = (over: Partial<OwnerPetCasesSection>): OwnerPetCasesSection => ({
     openCount: 0,
     truncated: false,
+    items: [],
     ...over,
   });
 
@@ -161,6 +165,35 @@ describe("casesLine — a capped count is a floor, and says so", () => {
     expect(casesLine(cases({ openCount: 50, truncated: true }))).toBe(
       "Al menos 50 trámites abiertos.",
     );
+  });
+});
+
+describe("caseLine — the CAS- code the reporter has to quote", () => {
+  it("prints code, kind and status, in the web badge's order", () => {
+    expect(
+      caseLine({ casePublicCode: "CAS-1234-5678", kind: "bite_incident", status: "open" }),
+    ).toBe("CAS-1234-5678 · Mordedura / observación rábica · Abierto");
+  });
+
+  it("says Escalado when an authority moved the case up", () => {
+    expect(
+      caseLine({ casePublicCode: "CAS-1111-2222", kind: "custody_dispute", status: "escalated" }),
+    ).toBe("CAS-1111-2222 · Disputa de custodia · Escalado");
+  });
+
+  it("labels every kind the contract can send, and never a raw key", () => {
+    // Pinned against LITERALS, not against the function that produced them:
+    // these are the web's own `caseKindLabel` strings, so one expediente reads
+    // the same way in a browser and on a phone.
+    expect(caseKindLabel("adoption_listing")).toBe("Publicación en adopción");
+    expect(caseKindLabel("rehome_request")).toBe("Solicitud de nuevo hogar");
+    expect(caseKindLabel("microchip_remediation")).toBe("Remediación de microchip");
+    expect(caseKindLabel("other")).toBe("Otro trámite");
+  });
+
+  it("has a word for both open states", () => {
+    expect(caseStatusLabel("open")).toBe("Abierto");
+    expect(caseStatusLabel("escalated")).toBe("Escalado");
   });
 });
 

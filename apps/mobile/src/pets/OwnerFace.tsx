@@ -61,6 +61,7 @@ import {
   alertHeadline,
   alertTone,
   caretakerBannerLines,
+  caseLine,
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
@@ -921,8 +922,30 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
       </Section>
 
       {/* OPEN CASES ------------------------------------------------------- */}
+      {/* The count is the headline; the CODES are why this section exists.
+          A person who reports a mordedura is handed a `CAS-XXXX-XXXX` on the
+          web's receipt and then has to quote it — to a sanitary authority, on a
+          form, over the phone. Until 2026-09-10 the payload carried the count
+          alone, so the app could say "1 trámite abierto" and not WHICH one:
+          a receipt you can only see once is not a receipt, which is why the
+          code arrives on this READ and not on the write's answer.
+
+          `selectable` is the whole affordance. There is no case screen in this
+          build and no clipboard button (expo-clipboard is a native dep on the
+          D2 batch), so long-press-to-copy is what a code is FOR here, and the
+          same idiom TurnoDetailScreen already set for its token. A row styled
+          like a link that navigated nowhere would be the worse answer. */}
       <Section view={view.cases} title="Trámites" isEmpty={(cases) => cases.openCount === 0}>
-        {(cases) => <Body>{casesLine(cases)}</Body>}
+        {(cases) => (
+          <>
+            <Body>{casesLine(cases)}</Body>
+            {cases.items.map((item) => (
+              <Body key={item.casePublicCode} selectable>
+                {caseLine(item)}
+              </Body>
+            ))}
+          </>
+        )}
       </Section>
 
       {/* PREGNANCY -------------------------------------------------------- */}

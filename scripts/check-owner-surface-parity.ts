@@ -147,12 +147,19 @@ export type DeclaredDivergence = {
  */
 export const DECLARED_DIVERGENCES: Record<string, DeclaredDivergence> = {
   // --- Receipt facts the web shows and no v1 read carries -------------------
-  "read:reportBiteAction.casePublicCode": {
-    reason:
-      "The web's mordedura receipt shows the case code (CAS-XXXX-XXXX) the reporter quotes later; EventRecordedV1 carries only eventId + wasDuplicate and OwnerPetCasesSection carries only a count, so no v1 read hands the code back (append-special-kinds.ts names this gap in appendBite's header).",
-    closes:
-      "A per-case entry (publicCode, kind, status) on OwnerPetCasesSection in packages/contract/src/api/owner-pet-detail.ts, read by the app after the write — never a field on the write response, which is the one place a person loses it.",
-  },
+  // EMPTY SINCE 2026-09-10. `read:reportBiteAction.casePublicCode` — the
+  // mordedura case code, the last entry on this list that was a real missing
+  // capability rather than a shape difference — closed the way its own `closes`
+  // sentence said it would: `OwnerPetCasesSection` now carries an `items` array
+  // of `{ casePublicCode, kind, status }` per open case, the reader fills it
+  // from the SAME capped window `openCount` already counted, and the phone
+  // prints one selectable line per case under "Trámites". It did NOT close by
+  // growing `EventRecordedV1`, and that was the whole point: a code that arrives
+  // only on the write's answer is a receipt a person sees once and loses.
+  //
+  // Left as a heading with no entries on purpose. The next receipt divergence
+  // belongs here, and a section that vanished would make the next one look like
+  // it had nowhere to go.
 
   // --- Web writers with no v1 door ---------------------------------------
   // TATUAJE SALIO DE ESTA LISTA EL 2026-09-10, cerrado y no despriorizado: el

@@ -34,6 +34,7 @@ import type {
   OwnerPetAlertsSection,
   OwnerPetBannersSection,
   OwnerPetCarouselSection,
+  OwnerPetCaseKind,
   OwnerPetCasesSection,
   OwnerPetComplianceSection,
   OwnerPetDetailV1,
@@ -49,6 +50,7 @@ import type {
 } from "@dim/contract/api";
 import type { CredentialSection } from "@dim/contract/api";
 import {
+  OWNER_PET_CASE_KINDS,
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
   OWNER_PET_DETAIL_STALE_AFTER_MS,
   PUBLIC_PET_STATUSES,
@@ -65,6 +67,27 @@ function toPublicPetStatus(status: string): PublicPetStatus {
   return (PUBLIC_PET_STATUSES as readonly string[]).includes(status)
     ? (status as PublicPetStatus)
     : "active";
+}
+
+/**
+ * A case kind, clamped to the words this contract has.
+ *
+ * Same shape and same reason as `toPublicPetStatus` above: `cases.case_kind` is
+ * TEXT with no enum behind it, so a row can carry a string outside `CASE_KINDS`
+ * (the panorama seed's `rabies_observation` is the live example). It reports
+ * `other` instead of the raw key — a client that branches on an unknown string
+ * branches wrong, and printing an internal identifier at a person is not a
+ * fallback, it is a leak of vocabulary nobody outside the codebase shares.
+ *
+ * It is NOT where the hidden kinds are excluded. `welfare_denuncia` and
+ * `lost_pet_episode` never reach here — the reader's query filters them with
+ * `GENERIC_CASE_LIST_EXCLUDED_KINDS` — and a second, weaker copy of that rule
+ * here would invite someone to delete the first one.
+ */
+function toOwnerPetCaseKind(caseKind: string): OwnerPetCaseKind {
+  return (OWNER_PET_CASE_KINDS as readonly string[]).includes(caseKind)
+    ? (caseKind as OwnerPetCaseKind)
+    : "other";
 }
 
 /**
@@ -241,6 +264,25 @@ export function buildOwnerPetDetailV1(input: {
   const cases: OwnerPetCasesSection = {
     openCount: detail.cases.openCount,
     truncated: detail.cases.truncated,
+    // A `.map` AND NOT A `.flatMap`, because this projection does not get to
+    // decide which cases are open. The reader decided that once, and
+    // `openCount` above is the length of the very array being mapped here —
+    // that is what makes the contract's `items.length === openCount` true by
+    // construction rather than by two filters happening to agree. It WAS a
+    // flatMap re-filtering on status until a fresh-context review pointed out
+    // that a second copy of the predicate is how the two fields start
+    // describing different sets, with nothing raising an error when they do.
+    //
+    // `caseKind` is still narrowed here: it is unconstrained TEXT in the DB and
+    // staging carries legacy strings, so a kind outside the union becomes
+    // `other` rather than travelling as itself. The web prints the raw key; a
+    // raw internal string is not a thing to show a person, and dropping the row
+    // would lose a case the owner is entitled to see.
+    items: detail.cases.openCases.map((c) => ({
+      casePublicCode: c.publicCode,
+      kind: toOwnerPetCaseKind(c.caseKind),
+      status: c.status,
+    })),
   };
 
   const pregnancy: OwnerPetPregnancySection = detail.pregnancy

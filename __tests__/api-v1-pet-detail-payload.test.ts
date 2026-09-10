@@ -44,11 +44,14 @@ function carouselItem(token: string) {
   return { token, name: `pet-${token}`, photoUrl: null, status: "active" };
 }
 
-function detailStub(carousel: {
-  items: Array<{ token: string; name: string; photoUrl: string | null; status: string }>;
-  total: number;
-  truncated: boolean;
-}): OwnerPetDetail {
+function detailStub(
+  carousel: {
+    items: Array<{ token: string; name: string; photoUrl: string | null; status: string }>;
+    total: number;
+    truncated: boolean;
+  },
+  openCases: Array<{ publicCode: string; caseKind: string; status: string }> = [],
+): OwnerPetDetail {
   return {
     ownershipRole: "owner",
     isTransit: false,
@@ -72,7 +75,7 @@ function detailStub(carousel: {
     alerts: [],
     reminders: [],
     pregnancy: null,
-    cases: { openCount: 0, truncated: false },
+    cases: { openCount: openCases.length, openCases, truncated: false },
     carousel,
     caretakerState: null,
     caretakerConsentName: null,
@@ -88,18 +91,63 @@ function build(input: {
   /** The sections the ROUTE resolves; this file's subject is the carousel. */
   pppRegistries?: CredentialSection<OwnerPetPppRegistriesSection>;
   postAdoptionCheckin?: CredentialSection<OwnerPetPostAdoptionCheckinSection>;
+  openCases?: Array<{ publicCode: string; caseKind: string; status: string }>;
 }) {
   return buildOwnerPetDetailV1({
     publicToken: SELF,
     petStatus: input.petStatus ?? "active",
     pregnancyStatus: null,
     accessPath: input.accessPath ?? "owner",
-    detail: detailStub(input.carousel),
+    detail: detailStub(input.carousel, input.openCases),
     pppRegistries: input.pppRegistries ?? { status: "ok", data: null },
     postAdoptionCheckin: input.postAdoptionCheckin ?? { status: "ok", data: { pending: false } },
     now: NOW,
   });
 }
+
+// ---------------------------------------------------------------------------
+// The cases section
+// ---------------------------------------------------------------------------
+
+const NO_CAROUSEL = { items: [], total: 0, truncated: false };
+
+describe("buildOwnerPetDetailV1 — the open cases carry their CODES", () => {
+  it("hands back the CAS- code, the kind and the status of every open case", () => {
+    // The reason this section stopped being a bare count: a person who reports
+    // a mordedura has to quote `CAS-XXXX-XXXX` afterwards, and before this the
+    // app could say "1 tramite abierto" without saying which one.
+    const payload = build({
+      carousel: NO_CAROUSEL,
+      openCases: [
+        { publicCode: "CAS-1111-2222", caseKind: "bite_incident", status: "open" },
+        { publicCode: "CAS-3333-4444", caseKind: "custody_dispute", status: "escalated" },
+      ],
+    });
+    const section = payload.cases;
+    if (section.status !== "ok") throw new Error("cases section must be ok");
+    expect(section.data.items).toEqual([
+      { casePublicCode: "CAS-1111-2222", kind: "bite_incident", status: "open" },
+      { casePublicCode: "CAS-3333-4444", kind: "custody_dispute", status: "escalated" },
+    ]);
+    // The list and the count describe the same set; they come from one window.
+    expect(section.data.openCount).toBe(2);
+  });
+
+  it("clamps a kind outside the contract's vocabulary to `other`", () => {
+    // `cases.case_kind` is TEXT with no enum behind it and staging carries
+    // `rabies_observation` rows that no code path can close. The row still
+    // belongs to this owner, so it is reported — under a word a client has.
+    const payload = build({
+      carousel: NO_CAROUSEL,
+      openCases: [{ publicCode: "CAS-9999-0000", caseKind: "rabies_observation", status: "open" }],
+    });
+    const section = payload.cases;
+    if (section.status !== "ok") throw new Error("cases section must be ok");
+    expect(section.data.items).toEqual([
+      { casePublicCode: "CAS-9999-0000", kind: "other", status: "open" },
+    ]);
+  });
+});
 
 describe("buildOwnerPetDetailV1 — the carousel is the owner's OTHER pets", () => {
   it("drops the animal being read from the list", () => {

@@ -18,6 +18,7 @@ import {
   derivePregnancyCard,
   loadOwnerPetDetail,
 } from "@/src/modules/pets/application/read/load-owner-pet-detail";
+import type { OwnerPetOpenCaseRead } from "@/src/modules/pets/application/read/owner-pet-detail-queries";
 import type { RehomeState } from "@/src/modules/rehome/application/get-rehome-state-for-pet";
 import { describe, expect, it, vi } from "vitest";
 
@@ -71,6 +72,7 @@ function depsStub(overrides: Partial<OwnerPetDetailDeps> = {}): OwnerPetDetailDe
     readServiceDog: vi.fn(async () => null),
     readCases: vi.fn(async () => ({
       openCount: 0,
+      openCases: [],
       truncated: false,
       underOfficialCustody: false,
       observationOpenedByOrgName: null,
@@ -456,6 +458,15 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
       depsStub({
         readCases: vi.fn(async () => ({
           openCount: 3,
+          // `satisfies` and not a bare literal: `OwnerPetOpenCaseRead.status`
+          // is the two OPEN words, so a stub that said "closed" would be a stub
+          // for a value production cannot produce. `satisfies` pins that
+          // without freezing the array readonly, which `as const` would.
+          openCases: [
+            { publicCode: "CAS-1111-2222", caseKind: "bite_incident", status: "open" },
+            { publicCode: "CAS-3333-4444", caseKind: "custody_episode", status: "open" },
+            { publicCode: "CAS-5555-6666", caseKind: "rehome_request", status: "escalated" },
+          ] satisfies OwnerPetOpenCaseRead[],
           truncated: true,
           underOfficialCustody: true,
           observationOpenedByOrgName: "Zoonosis La Plata",
@@ -463,6 +474,14 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
       }),
     );
     expect(detail.cases.openCount).toBe(3);
+    // The reader carries the cases THEMSELVES through, not only their count:
+    // the mordedura's CAS- code is the fact a reporter has to quote later, and
+    // it reaches a client through this read and not through a write response.
+    expect(detail.cases.openCases.map((c) => c.publicCode)).toEqual([
+      "CAS-1111-2222",
+      "CAS-3333-4444",
+      "CAS-5555-6666",
+    ]);
     // `truncated` is what keeps the count honest when the 50-case cap bites.
     expect(detail.cases.truncated).toBe(true);
     expect(detail.observationOpenedByOrgName).toBe("Zoonosis La Plata");

@@ -16,6 +16,7 @@ import type {
   OwnerPetAlertV1,
   OwnerPetBannersSection,
   OwnerPetCarouselSection,
+  OwnerPetCaseV1,
   OwnerPetCasesSection,
   OwnerPetComplianceSection,
   OwnerPetDetailV1,
@@ -396,6 +397,66 @@ export function casesLine(cases: OwnerPetCasesSection): string {
   // "al menos" is the difference between a number and a guess wearing a number's
   // clothes.
   return cases.truncated ? `Al menos ${cases.openCount} ${noun}.` : `${cases.openCount} ${noun}.`;
+}
+
+/**
+ * The es-AR label for a case kind.
+ *
+ * A TRANSLATION of the wire vocabulary and nothing more — the server already
+ * decided WHICH cases this person may see, and the phone does not get to add or
+ * subtract from that list. The strings are `caseKindLabel`'s
+ * (src/modules/cases/domain/case-kinds.ts), so the same expediente reads the
+ * same way in a browser and on a phone; a person quoting a case to a sanitary
+ * authority should not have to translate between two of our own surfaces.
+ *
+ * `other` is the contract's own fallback for a kind outside the union. It says
+ * "Otro trámite" rather than printing a raw key, which is the same choice the
+ * payload made when it clamped the string.
+ */
+export function caseKindLabel(kind: OwnerPetCaseV1["kind"]): string {
+  switch (kind) {
+    case "bite_incident":
+      return "Mordedura / observación rábica";
+    case "adoption_listing":
+      return "Publicación en adopción";
+    case "adoption_application":
+      return "Postulación de adopción";
+    case "custody_dispute":
+      return "Disputa de custodia";
+    case "foster_placement":
+      return "Tránsito asignado";
+    case "custody_episode":
+      return "Custodia temporal";
+    case "custody_transfer_handshake":
+      return "Transferencia de custodia";
+    case "foster_proposal":
+      return "Propuesta de tránsito";
+    case "outbreak_investigation":
+      return "Investigación de brote";
+    case "microchip_remediation":
+      return "Remediación de microchip";
+    case "rehome_request":
+      return "Solicitud de nuevo hogar";
+    default:
+      return "Otro trámite";
+  }
+}
+
+/** The es-AR label for a case status. `CASE_STATUS_CONFIG`'s words, verbatim. */
+export function caseStatusLabel(status: OwnerPetCaseV1["status"]): string {
+  return status === "escalated" ? "Escalado" : "Abierto";
+}
+
+/**
+ * One open case as the phone prints it: `CAS-XXXX-XXXX · Mordedura · Abierto`.
+ *
+ * The SAME three fields in the SAME order as the web's `CaseBadge`, because
+ * this line exists so a person can read the code back to whoever asks for it.
+ * It is not a link: this app has no case screen yet, and a row that looks
+ * tappable and is not would be a worse answer than a line of text.
+ */
+export function caseLine(item: OwnerPetCaseV1): string {
+  return `${item.casePublicCode} · ${caseKindLabel(item.kind)} · ${caseStatusLabel(item.status)}`;
 }
 
 // ---------------------------------------------------------------------------

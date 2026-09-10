@@ -30,6 +30,8 @@ import {
   collectInputs,
   evaluate,
   kindsFromMobile,
+  ownerActionsIn,
+  ownerGuardNames,
   resolveUseCaseModule,
 } from "@/scripts/check-owner-surface-parity";
 
@@ -92,16 +94,23 @@ describe("check-owner-surface-parity — the fence is not vacuous", () => {
     expect(c.kinds.router).toBe(c.kinds.contract);
   });
 
-  it("the known divergence is among the findings — the case code the app cannot show", () => {
-    // If the receipt dimension ever stops seeing this, the derivation has
-    // narrowed back to event kinds and the fence is no longer the one the PO
-    // asked for.
-    const keys = evaluate(live).divergences.map((d) => d.key);
-    expect(keys).toContain("read:reportBiteAction.casePublicCode");
-    // `write:createTattooAction→createTattooForUser` USED TO BE ASSERTED HERE
-    // and was removed the day the kind crossed (2026-09-10). It is not a
-    // weakened test: the fence's own stale-declaration check is what guards a
-    // closed divergence now, and it runs against the live tree.
+  it("the receipt dimension still reads fields off use-case results", () => {
+    // `read:reportBiteAction.casePublicCode` WAS ASSERTED HERE and is gone
+    // (2026-09-10), for the same reason `write:createTattooAction→
+    // createTattooForUser` went before it: the divergence CLOSED.
+    // `OwnerPetCasesSection` carries `casePublicCode` per open case now, so the
+    // scan can no longer find it and an assertion that it is among the findings
+    // would be an assertion that the gap is still open.
+    //
+    // What this test protected was NOT that one key: it was that the receipt
+    // dimension exists at all — that the derivation still reads FIELDS off
+    // use-case results and has not narrowed back to event kinds. So it asserts
+    // that directly, on the live tree, against a literal the scan produces
+    // rather than against the scan's own output shape.
+    const receipts = live.webActionFiles.flatMap((f) =>
+      ownerActionsIn(f, ownerGuardNames(live.guardSources)).flatMap((a) => [...a.receipt.values()]),
+    );
+    expect(receipts.flat().length).toBeGreaterThan(0);
   });
 });
 
@@ -208,7 +217,15 @@ describe("the declarations — explicit, reasoned, live", () => {
   it("refuses an entry without a reason or without what would close it", () => {
     const hollow: Record<string, DeclaredDivergence> = {
       ...DECLARED_DIVERGENCES,
-      "read:reportBiteAction.casePublicCode": { reason: "  ", closes: "" },
+      // Any LIVE key does; this one asserts the hollow-entry refusal, not the
+      // key. It used to be `read:reportBiteAction.casePublicCode`, which closed
+      // on 2026-09-10 — a key the scan no longer finds would have made this
+      // test pass for the wrong reason (a stale-declaration failure alongside
+      // the one it counts).
+      "write:togglePhysicalTagInterestAction→togglePhysicalTagInterest": {
+        reason: "  ",
+        closes: "",
+      },
     };
     const failures = evaluate(live, hollow).failures;
     expect(failuresMatching(failures, "declared without a reason")).toHaveLength(1);
@@ -226,11 +243,15 @@ describe("the declarations — explicit, reasoned, live", () => {
   });
 
   it("refuses an undeclared divergence, naming the remedy", () => {
-    const { "read:reportBiteAction.casePublicCode": _dropped, ...rest } = DECLARED_DIVERGENCES;
+    // Same substitution as above, and for the same reason: this needs a
+    // divergence the scan STILL finds, so that dropping its declaration is what
+    // produces the failure.
+    const { "write:togglePhysicalTagInterestAction→togglePhysicalTagInterest": _dropped, ...rest } =
+      DECLARED_DIVERGENCES;
     const failures = evaluate(live, rest).failures;
     const named = failuresMatching(
       failures,
-      "divergence not declared: read:reportBiteAction.casePublicCode",
+      "divergence not declared: write:togglePhysicalTagInterestAction→togglePhysicalTagInterest",
     );
     expect(named).toHaveLength(1);
     expect(named[0]).toContain("DECLARED_DIVERGENCES");

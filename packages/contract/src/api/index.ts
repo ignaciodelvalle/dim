@@ -34,6 +34,8 @@ export {
 export { API_V1_ERROR_CODES, type ApiV1Error, type ApiV1ErrorCode } from "./errors.ts";
 export {
   OWNER_PET_ALERT_IDS,
+  OWNER_PET_CASE_KINDS,
+  OWNER_PET_CASE_STATUSES,
   OWNER_PET_DETAIL_PAYLOAD_VERSION,
   OWNER_PET_DETAIL_STALE_AFTER_MS,
   OWNER_PET_DETAIL_VIEWER_ROLES,
@@ -45,6 +47,9 @@ export {
   type OwnerPetCarouselItemV1,
   type OwnerPetCarouselSection,
   type OwnerPetCaretakerBannerV1,
+  type OwnerPetCaseKind,
+  type OwnerPetCaseStatus,
+  type OwnerPetCaseV1,
   type OwnerPetCasesSection,
   type OwnerPetComplianceSection,
   type OwnerPetComplianceTone,

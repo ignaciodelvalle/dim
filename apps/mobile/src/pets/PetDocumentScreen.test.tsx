@@ -205,7 +205,7 @@ function payload(overrides: Partial<Record<string, unknown>> = {}): OwnerPetDeta
       truncated: false,
     }),
     banners: OK({ caretaker: null, rehome: null, transit: null }),
-    cases: OK({ openCount: 0, truncated: false }),
+    cases: OK({ openCount: 0, truncated: false, items: [] }),
     pregnancy: OK(null),
     carousel: OK({ items: [], total: 0 }),
     ...overrides,
@@ -578,7 +578,7 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
       outcome: "ok",
       payload: payload({
         reminders: OK({ items: [], total: 0, truncated: false }),
-        cases: OK({ openCount: 0, truncated: false }),
+        cases: OK({ openCount: 0, truncated: false, items: [] }),
         pregnancy: OK(null),
         banners: UNAVAILABLE,
       }),
@@ -603,6 +603,36 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     // answer is not an animal with nothing to report.
     expect(screen.getByText("Arreglos")).toBeOnTheScreen();
     expect(screen.getByText("No se pudo leer esta sección.")).toBeOnTheScreen();
+  });
+
+  it("prints the CAS- code of every open case, not only how many there are", async () => {
+    // THE REACHABILITY PROOF for the mordedura receipt. The payload carrying
+    // `casePublicCode` is not the capability; a person being able to READ the
+    // code off the screen is. Until 2026-09-10 this section could only say
+    // "1 tramite abierto", so somebody who reported a bite and closed the app
+    // had no way back to the code a sanitary authority would ask them for.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        cases: OK({
+          openCount: 2,
+          truncated: false,
+          items: [
+            { casePublicCode: "CAS-7788-9900", kind: "bite_incident", status: "open" },
+            { casePublicCode: "CAS-1122-3344", kind: "custody_episode", status: "escalated" },
+          ],
+        }),
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("Trámites")).toBeOnTheScreen();
+    expect(screen.getByText("2 trámites abiertos.")).toBeOnTheScreen();
+    expect(
+      screen.getByText("CAS-7788-9900 · Mordedura / observación rábica · Abierto"),
+    ).toBeOnTheScreen();
+    expect(screen.getByText("CAS-1122-3344 · Custodia temporal · Escalado")).toBeOnTheScreen();
   });
 
   it("says the whole read failed inside the card, and keeps the turn usable", async () => {
