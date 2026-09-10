@@ -1014,6 +1014,22 @@
  *                         does not become true by retrying, and a client should
  *                         say so instead of offering the button again.
  * - `return_failed`     — the writer refused for any other reason. 500.
+ *
+ * THE REMINDER CODE. `POST /api/v1/pets/{publicToken}/reminders` runs the two
+ * commands that were `write:createVaccineReminderAction→createVaccineReminder`
+ * and `write:deleteVaccineReminderAction→deleteVaccineReminder` in
+ * `scripts/check-owner-surface-parity.ts`'s `DECLARED_DIVERGENCES` until this
+ * door closed them. No forbidden code exists here: the web's own guard
+ * (`requireOwnedPetByToken`) admits every current holder with no capability
+ * probe, so the only refusal this surface has beyond the shared vocabulary
+ * (`not_found`, `invalid_request`, `temporarily_unavailable`) is the write
+ * itself failing.
+ *
+ * - `reminder_failed`   — `create_vaccine_reminder`'s transaction failed. 500.
+ *                         `cancel_vaccine_reminder` has no failure arm of its
+ *                         own: deleting a row that is already gone is a
+ *                         SUCCESS (`changed: false`), not a refusal — see
+ *                         `VaccineReminderCommandAckV1`.
  */
 export const API_V1_ERROR_CODES = [
   "rate_limited",
@@ -1107,6 +1123,7 @@ export const API_V1_ERROR_CODES = [
   "return_already_pending",
   "return_no_source_org",
   "return_failed",
+  "reminder_failed",
 ] as const;
 
 export type ApiV1ErrorCode = (typeof API_V1_ERROR_CODES)[number];

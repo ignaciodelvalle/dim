@@ -780,7 +780,29 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     //                                     14.004
     //
     // and 13.884 + 120 = 14.004 agrees.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(14_004);
+    //
+    // 14.124 WITH THE VACCINE-REMINDER DOOR (`pets/{token}/reminders`), which
+    // is POST-only and so contributes exactly ONE `authenticated-write` bucket
+    // (120) — the same shape `move` and `me/identity` each added. Hand-summed
+    // per family over the map as this lane leaves it, and NOT read off the
+    // `reduce` this assertion compares against — a computed value agreeing
+    // with itself is not evidence:
+    //
+    //   authenticated-read     18 × 600 = 10.800
+    //   authenticated-write    12 × 120 =  1.440
+    //   account-security        2 ×  60 =    120
+    //   public-reference        1 × 600 =    600
+    //   inbox-state             1 × 240 =    240
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 40 buckets ─────────
+    //                                     14.124
+    //
+    // and 14.004 + 120 = 14.124 agrees.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(14_124);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {

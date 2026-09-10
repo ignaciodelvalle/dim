@@ -315,7 +315,9 @@ describe("createVaccineReminder — idempotency guard", () => {
     );
     // Nav contract N3 (2026-08-05): success RETURNS the destination instead of
     // calling redirect(), which the App Router can drop.
-    expect(first).toEqual({ error: null, redirectTo: `/mis-mascotas/${pet.publicToken}` });
+    expect(first.error).toBeNull();
+    expect(first.redirectTo).toBe(`/mis-mascotas/${pet.publicToken}`);
+    expect(first.reminderId).toEqual(expect.any(String));
 
     const second = await createVaccineReminder(
       ownerUserId,
@@ -324,7 +326,12 @@ describe("createVaccineReminder — idempotency guard", () => {
       { error: null },
       fd,
     );
-    expect(second).toEqual({ error: null, redirectTo: `/mis-mascotas/${pet.publicToken}` });
+    expect(second.error).toBeNull();
+    expect(second.redirectTo).toBe(`/mis-mascotas/${pet.publicToken}`);
+    // THE REPLAY RETURNS THE SAME ROW, not a second one — a caller that asked
+    // for this reminder to exist gets back the reminder it asked for, whether
+    // this call created it or recognised it.
+    expect(second.reminderId).toBe(first.reminderId);
 
     const rows = await db
       .select({ id: reminders.id })

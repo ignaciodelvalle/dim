@@ -2,16 +2,64 @@
 //   - fetchActiveReminders (lib/owner-dashboard.ts)
 //   - fetchActiveRemindersForPet (lib/owner-dashboard.ts)
 //
+// EXTENDED (owner-surface parity WU) to cover the two capabilities that
+// closed `write:createVaccineReminderAction→createVaccineReminder` and
+// `write:deleteVaccineReminderAction→deleteVaccineReminder` in
+// `scripts/check-owner-surface-parity.ts`: `deleteVaccineReminder`'s own
+// `changed` flag (T10-T12) and `POST /api/v1/pets/{token}/reminders` end to
+// end (T13+) — real DB, real access resolution, only the bearer/liveness
+// layer mocked, the same reason this file already provisions real Supabase
+// users rather than a fake session.
+//
 // Runs against the local Postgres directly. Each describe block provisions
 // its own fixtures and tears them down in afterAll.
 
 import { createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db, ownerships, pets, reminders } from "@/db";
 import { fetchActiveReminders, fetchActiveRemindersForPet } from "@/lib/analytics/owner-dashboard";
+import { deleteVaccineReminder } from "@/src/modules/pets/application/reminders/delete-vaccine-reminder";
 import { withMutationOverride } from "./_helpers/db-overrides";
+
+// ---------------------------------------------------------------------------
+// Route-level mocks (T13+ only). Real DB, real `resolvePetHolderAccess`, real
+// use-cases — only the bearer parse and the liveness round-trip are stubbed,
+// so a real fixture user id can stand in for a real session without a real
+// GoTrue token.
+// ---------------------------------------------------------------------------
+
+const routeControl = vi.hoisted(() => ({
+  userId: null as string | null,
+}));
+
+vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/bearer")>();
+  return {
+    ...actual,
+    createClientFromBearer: (header: string | null) =>
+      header ? { ok: true, supabase: {}, token: "tok" } : { ok: false, reason: "MISSING" },
+  };
+});
+
+vi.mock("@/lib/infra/live-user", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/live-user")>();
+  return {
+    ...actual,
+    requireLiveUser: async () => ({
+      ok: true,
+      supabase: {},
+      user: { id: routeControl.userId },
+      profile: null,
+    }),
+  };
+});
+
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return { ...actual, enforceRateLimit: async () => {} };
+});
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -517,5 +565,256 @@ describe("fetchActiveRemindersForPet — returns [] for non-owner user", () => {
   it("other user sees nothing (userId filter)", async () => {
     const results = await fetchActiveRemindersForPet(otherId, petId);
     expect(results.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T10-T12: deleteVaccineReminder — the use-case behind
+// write:deleteVaccineReminderAction→deleteVaccineReminder
+// ---------------------------------------------------------------------------
+
+describe("deleteVaccineReminder — cancels a reminder and reports what happened", () => {
+  const EMAIL = "ar-delete@dim-test.local";
+  const PASS = "ArDelete_2026!";
+  let userId: string;
+  let petId: string;
+  let otherPetId: string;
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    userId = await createUser(EMAIL, PASS);
+    const pet = await createPetForUser(userId, `DEL-${userId.slice(0, 4)}`);
+    const otherPet = await createPetForUser(userId, `DEO-${userId.slice(0, 4)}`);
+    petId = pet.id;
+    otherPetId = otherPet.id;
+  });
+
+  afterAll(() => cleanupUser(userId));
+
+  it("deletes a matching reminder and reports changed: true", async () => {
+    const rem = await insertReminder({
+      petId,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Antirrábica",
+    });
+
+    const result = await deleteVaccineReminder(petId, rem.id);
+    expect(result).toEqual({ changed: true });
+
+    const rows = await db.select().from(reminders).where(eq(reminders.id, rem.id));
+    expect(rows.length).toBe(0);
+  });
+
+  it("a REPLAYED cancel (already gone) reports changed: false — never an error", async () => {
+    const rem = await insertReminder({
+      petId,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Sextuple",
+    });
+
+    const first = await deleteVaccineReminder(petId, rem.id);
+    expect(first).toEqual({ changed: true });
+
+    // MUTATION APPLIED: throw instead of returning `{ changed: false }` when
+    // nothing matched. Red. A replayed cancel — a retried request, or a
+    // second tap after the first landed — must answer the SAME way as the
+    // first: a success, never "there is no reminder to cancel".
+    const second = await deleteVaccineReminder(petId, rem.id);
+    expect(second).toEqual({ changed: false });
+  });
+
+  it("a reminder id that never matched this pet reports changed: false and deletes nothing", async () => {
+    const rem = await insertReminder({
+      petId: otherPetId,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Bordetella",
+    });
+
+    // MUTATION APPLIED: drop the `petId` clause from the delete's WHERE. Red —
+    // and the failure it prevents is one pet's cancel button deleting a
+    // reminder that belongs to a DIFFERENT one of the same owner's animals.
+    const result = await deleteVaccineReminder(petId, rem.id);
+    expect(result).toEqual({ changed: false });
+
+    const rows = await db.select().from(reminders).where(eq(reminders.id, rem.id));
+    expect(rows.length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T13+: POST /api/v1/pets/{publicToken}/reminders — the bearer door
+// ---------------------------------------------------------------------------
+
+describe("POST /pets/{token}/reminders — create_vaccine_reminder", () => {
+  const EMAIL = "ar-route-create@dim-test.local";
+  const PASS = "ArRouteCreate_2026!";
+  let userId: string;
+  let pet: { id: string; publicToken: string };
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    userId = await createUser(EMAIL, PASS);
+    pet = await createPetForUser(userId, `RTC-${userId.slice(0, 4)}`);
+    routeControl.userId = userId;
+  });
+
+  afterAll(() => cleanupUser(userId));
+
+  async function post(publicToken: string, body: unknown) {
+    const { POST } = await import("@/app/api/v1/pets/[publicToken]/reminders/route");
+    return POST(
+      new Request(`https://x.test/api/v1/pets/${publicToken}/reminders`, {
+        method: "POST",
+        headers: { authorization: "Bearer t", "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ publicToken }) },
+    );
+  }
+
+  it("creates a reminder and answers 200 with its reminderId", async () => {
+    const res = await post(pet.publicToken, {
+      command: "create_vaccine_reminder",
+      vaccineName: "Antirrábica",
+      dueAt: "2026-11-01",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { command: string; reminderId: string };
+    expect(body.command).toBe("create_vaccine_reminder");
+    expect(typeof body.reminderId).toBe("string");
+
+    const rows = await db.select().from(reminders).where(eq(reminders.id, body.reminderId));
+    expect(rows.length).toBe(1);
+    expect(rows[0].title).toBe("Antirrábica");
+  });
+
+  it("a replayed create (same vaccine + due date) answers with the SAME reminderId", async () => {
+    const input = {
+      command: "create_vaccine_reminder" as const,
+      vaccineName: "Polivalente",
+      dueAt: "2026-12-01",
+    };
+    const first = (await (await post(pet.publicToken, input)).json()) as { reminderId: string };
+    const second = (await (await post(pet.publicToken, input)).json()) as { reminderId: string };
+    expect(second.reminderId).toBe(first.reminderId);
+
+    const rows = await db.select().from(reminders).where(eq(reminders.title, "Polivalente"));
+    expect(rows.length).toBe(1);
+  });
+
+  it("answers 400 invalid_request for a missing vaccineName", async () => {
+    const res = await post(pet.publicToken, {
+      command: "create_vaccine_reminder",
+      dueAt: "2026-11-01",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_request" });
+  });
+
+  it("answers 400 invalid_request for a calendar day that does not exist", async () => {
+    // 2026-02-31 rolls over to 3 March instead of throwing — isRealArDay is
+    // the backstop this contract adds over a plain regex.
+    const res = await post(pet.publicToken, {
+      command: "create_vaccine_reminder",
+      vaccineName: "Antirrábica",
+      dueAt: "2026-02-31",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_request" });
+  });
+});
+
+describe("POST /pets/{token}/reminders — cancel_vaccine_reminder", () => {
+  const EMAIL = "ar-route-cancel@dim-test.local";
+  const PASS = "ArRouteCancel_2026!";
+  let userId: string;
+  let otherUserId: string;
+  let pet: { id: string; publicToken: string };
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL);
+    await ensureUserDeleted("ar-route-cancel-other@dim-test.local");
+    userId = await createUser(EMAIL, PASS);
+    otherUserId = await createUser("ar-route-cancel-other@dim-test.local", PASS);
+    pet = await createPetForUser(userId, `RTX-${userId.slice(0, 4)}`);
+  });
+
+  afterAll(async () => {
+    await cleanupUser(userId);
+    await cleanupUser(otherUserId);
+  });
+
+  async function post(publicToken: string, body: unknown) {
+    const { POST } = await import("@/app/api/v1/pets/[publicToken]/reminders/route");
+    return POST(
+      new Request(`https://x.test/api/v1/pets/${publicToken}/reminders`, {
+        method: "POST",
+        headers: { authorization: "Bearer t", "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ publicToken }) },
+    );
+  }
+
+  it("cancels a reminder and answers changed: true", async () => {
+    routeControl.userId = userId;
+    const rem = await insertReminder({
+      petId: pet.id,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Sextuple",
+    });
+
+    const res = await post(pet.publicToken, {
+      command: "cancel_vaccine_reminder",
+      reminderId: rem.id,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      command: "cancel_vaccine_reminder",
+      reminderId: rem.id,
+      changed: true,
+    });
+  });
+
+  it("a REPLAYED cancel answers 200 changed: false — not a 404", async () => {
+    routeControl.userId = userId;
+    const rem = await insertReminder({
+      petId: pet.id,
+      userId,
+      dueAt: new Date(Date.now() + 5 * MS_PER_DAY),
+      title: "Bordetella",
+    });
+
+    const body = { command: "cancel_vaccine_reminder" as const, reminderId: rem.id };
+    const first = await post(pet.publicToken, body);
+    expect(first.status).toBe(200);
+
+    // THE ASSERTION THIS TEST EXISTS FOR: a retried cancel of a reminder that
+    // was already cancelled must answer the SAME way as the first attempt —
+    // 200, changed: false — and never "there is no reminder to cancel".
+    const second = await post(pet.publicToken, body);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual({
+      command: "cancel_vaccine_reminder",
+      reminderId: rem.id,
+      changed: false,
+    });
+  });
+
+  it("answers 404 not_found for a token this caller may not see", async () => {
+    // A stranger's pet — resolvePetHolderAccess answers `{ kind: "none" }` for
+    // this caller, and this door must not be an oracle for which tokens exist.
+    const strangerPet = await createPetForUser(otherUserId, `RTS-${otherUserId.slice(0, 4)}`);
+    routeControl.userId = userId;
+    const res = await post(strangerPet.publicToken, {
+      command: "cancel_vaccine_reminder",
+      reminderId: "00000000-0000-4000-8000-000000000000",
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
   });
 });

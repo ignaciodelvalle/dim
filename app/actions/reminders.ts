@@ -20,6 +20,7 @@ import type {
   ReminderFormState,
   SnoozeReminderResult,
 } from "@/src/modules/pets/application/reminders/types";
+import { redirect } from "next/navigation";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -46,7 +47,8 @@ export async function deleteVaccineReminderAction(publicToken: string, reminderI
   if (!session) {
     throw new Error("No autorizado.");
   }
-  return _delete(session.pet.id, publicToken, reminderId);
+  await _delete(session.pet.id, reminderId);
+  redirect(`/mis-mascotas/${publicToken}`);
 }
 
 export async function snoozeReminderAction(reminderId: string): Promise<SnoozeReminderResult> {

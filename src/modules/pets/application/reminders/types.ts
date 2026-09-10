@@ -9,6 +9,15 @@ export type ReminderFormState = {
    * user watches nothing happen. See lib/ui/use-action-redirect.ts.
    */
   redirectTo?: string;
+  /**
+   * The row's id on success — new, or the existing row the idempotency guard
+   * recognised. Absent on failure. Added for `POST /api/v1/pets/{token}/reminders`
+   * (`app/api/v1/pets/[publicToken]/reminders/commands.ts`), which has no
+   * `redirectTo` to navigate and needs the id instead — the web form ignores
+   * this field, the same way `enableTier2Public`'s FormData caller ignores
+   * fields it did not ask for.
+   */
+  reminderId?: string;
 };
 
 // ---------------------------------------------------------------------------

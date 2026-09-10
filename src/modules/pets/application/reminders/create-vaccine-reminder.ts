@@ -27,11 +27,14 @@ export async function createVaccineReminder(
   const dueAt = parseDateInput(dueAtRaw);
   if (!dueAt) return { error: "Fecha inválida." };
 
+  let reminderId: string;
   try {
     // Idempotency guard (projection-writes audit §6): a double-submit posts
     // the identical reminder twice. If an open (not completed) reminder with
     // the same vaccine + due date already exists for this pet and user, the
-    // second submit is a no-op — redirect to the same success surface.
+    // second submit is a no-op — redirect to the same success surface, and
+    // hand back the SAME id rather than a fresh one, so a caller that asked
+    // for this reminder to exist gets back the reminder it asked for.
     const [existing] = await db
       .select({ id: reminders.id })
       .from(reminders)
@@ -47,15 +50,21 @@ export async function createVaccineReminder(
       )
       .limit(1);
 
-    if (!existing) {
-      await db.insert(reminders).values({
-        petId,
-        userId,
-        reminderType: "vaccine",
-        dueAt,
-        title: vaccineName,
-        description,
-      });
+    if (existing) {
+      reminderId = existing.id;
+    } else {
+      const [inserted] = await db
+        .insert(reminders)
+        .values({
+          petId,
+          userId,
+          reminderType: "vaccine",
+          dueAt,
+          title: vaccineName,
+          description,
+        })
+        .returning({ id: reminders.id });
+      reminderId = inserted.id;
     }
   } catch (err) {
     return {
@@ -66,5 +75,5 @@ export async function createVaccineReminder(
   }
 
   // Nav contract N3: RETURN the destination; the form navigates (useActionRedirect).
-  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}`, reminderId };
 }

@@ -164,16 +164,6 @@ export const DECLARED_DIVERGENCES: Record<string, DeclaredDivergence> = {
     closes:
       "A `tattoo` variant in packages/contract/src/input/record-event.ts (tattooCode, location, occurredAt, notes), a branch in the v1 events router calling createTattooForUser, and a form in the phone's Asentar picker.",
   },
-  "write:createVaccineReminderAction→createVaccineReminder": {
-    reason:
-      "The web owner schedules a vaccine reminder (/vacunas/programar); the app reads reminders (OwnerPetRemindersSection) but no v1 route creates one.",
-    closes:
-      "A POST /api/v1/pets/{token}/reminders route calling createVaccineReminder, and a 'Programar vacuna' affordance on the phone's Libreta.",
-  },
-  "write:deleteVaccineReminderAction→deleteVaccineReminder": {
-    reason: "The other half of the reminder pair: the web owner can cancel one; the app cannot.",
-    closes: "A DELETE on the same reminders route calling deleteVaccineReminder.",
-  },
   "write:dismissFirstStepAction→dismissFirstStep": {
     reason:
       "'Primeros pasos' is a web-only onboarding checklist on the pet page; the app has no such checklist, so there is nothing for it to dismiss. Not a capability an owner loses — a surface the app does not have.",

@@ -517,5 +517,7 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "No encontramos una organización a la que devolver esta mascota. Si la recibiste de un refugio fuera de miMAR, contactalo directamente.";
     case "return_failed":
       return "No pudimos completar la devolución. Volvé a abrir la pantalla antes de intentar de nuevo.";
+    case "reminder_failed":
+      return "No pudimos guardar el recordatorio. Volvé a intentar en unos segundos.";
   }
 }

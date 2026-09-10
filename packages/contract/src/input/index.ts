@@ -293,6 +293,14 @@ export {
   registerPetInputSchema,
 } from "./register-pet.ts";
 export {
+  VACCINE_REMINDER_COMMAND_INPUT_CODES,
+  type VaccineReminderCommand,
+  type VaccineReminderCommandInput,
+  type VaccineReminderCommandInputCode,
+  firstVaccineReminderCommandInputCode,
+  vaccineReminderCommandInputSchema,
+} from "./vaccine-reminder.ts";
+export {
   WELFARE_ADDRESS_MAX_LENGTH,
   WELFARE_DESCRIPTION_MAX_LENGTH,
   WELFARE_DESCRIPTION_MIN_LENGTH,

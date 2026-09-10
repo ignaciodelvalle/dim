@@ -1208,6 +1208,18 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   // moves custody between two parties.
   api_v1_return_read_ip: "authenticated-read",
   api_v1_return_write_ip: "authenticated-write",
+
+  // Landed with the vaccine-reminder door (`pets/{token}/reminders`), closing
+  // the two `write:*` entries `check-owner-surface-parity.ts` carried for
+  // `createVaccineReminderAction` / `deleteVaccineReminderAction`. No read
+  // bucket: the list already exists on `GET /pets/{token}` (`pet-move.ts`'s
+  // own argument for why IT has no GET). `authenticated-write` and not
+  // `pet-disclosure-write`: scheduling or cancelling a personal reminder
+  // publishes nothing new to anybody else, and it is not `pet-record-write`
+  // either — a reminder is not a row on the append-only spine. What this is,
+  // exactly, is one person in a form acting on their own record — the
+  // authenticated-write anchor.
+  api_v1_reminders_write_ip: "authenticated-write",
 };
 
 /**
