@@ -3,7 +3,7 @@
 // catch UPSERT race semantics that a mock wouldn't.
 
 import { like } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { db, rateLimitBuckets } from "@/db";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -13,7 +13,51 @@ async function clearBucketsByPrefix(prefix: string): Promise<void> {
 }
 
 describe("enforceRateLimit (persistent)", () => {
+  // The clock is frozen for the whole file, for the reason this suite exists to
+  // test: `enforceRateLimit` is a FIXED-window limiter whose bucket key embeds
+  // `Math.floor(Date.now() / 60_000) * 60_000` (and the hour and day analogues).
+  // Every test here reaches a ceiling with a SEQUENCE of calls and then asserts
+  // the next one throws. If a window boundary falls inside that sequence, the
+  // later calls land on a new key, the counter never reaches the ceiling, and
+  // the assertion fails on correct code.
+  //
+  // "combines minute and hour windows" is the sharpest case: `maxPerMinute: 1`,
+  // two calls back to back. A minute boundary between them puts the second on a
+  // fresh minute key while the hour key sits at 2 of 5 — no throw, red suite.
+  // The hour-window tests are the same defect with a 3600× smaller target.
+  //
+  // This is the same guard, at the same mid-minute `:30`, that
+  // localities-search-action, tag-actions-rate-limit and scan-log-rate-limit
+  // have carried since 2026-08-08, and that adoption-registered-adopter-finalize
+  // gained on 2026-09-10 after going red under a 1218-second full-suite run.
+  // This file was the last real-bucket suite without it.
+  //
+  // ONLY Date is faked. This suite drives the real rate_limit_buckets table
+  // through postgres.js, which needs live setTimeout/setInterval for its
+  // connection timeouts — faking the whole timer family would hang the driver.
+  //
+  // AND THE INSTANT IS DERIVED FROM THE REAL CLOCK, NOT HARDCODED. This suite
+  // writes real rows, and `enforceRateLimit` stamps `expires_at` from whatever
+  // clock it reads. A literal calendar date would be in the past from the day
+  // after it was written, and an already-expired bucket is fair game for
+  // `cleanupExpiredBuckets` — which __tests__/cron-data-lifecycle.test.ts drains
+  // in a loop, `DELETE FROM rate_limit_buckets WHERE expires_at < now()`,
+  // against this same database from a parallel worker. That would delete a
+  // counter mid-test and hand back the exact flake this guard exists to remove.
+  // Mid-minute of the CURRENT minute keeps both properties: no boundary inside
+  // any sequence, and an `expires_at` that is still in the future.
+  beforeEach(() => {
+    const midMinute = Math.floor(Date.now() / 60_000) * 60_000 + 30_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(midMinute));
+  });
+
   afterEach(async () => {
+    // Restoring the real clock first is defensive, not required: only `Date` is
+    // faked, so postgres.js's connection timers were never touched and the
+    // cleanup below reads no clock at all. It runs first so nothing after this
+    // point can inherit a frozen clock by accident.
+    vi.useRealTimers();
     await clearBucketsByPrefix("test_rl_");
   });
 

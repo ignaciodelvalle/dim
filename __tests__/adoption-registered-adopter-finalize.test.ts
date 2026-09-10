@@ -339,26 +339,71 @@ describe("registered-adopter finalization contract (auth.users EXISTS gate)", ()
     expect(JSON.stringify(payloads)).not.toContain(ABSENT_DNI);
   });
 
+  // The clock is FROZEN for this test, and the freeze is the test, not a
+  // convenience. `enforceRateLimit` is a FIXED-window limiter: the bucket key
+  // embeds `Math.floor(Date.now() / 60_000) * 60_000` (lib/infra/rate-limit.ts).
+  // Nine sequential consultations, each of them several round trips to Postgres
+  // plus an awaited audit_log insert, take long enough under full-suite load to
+  // straddle a wall-clock minute boundary. When they do, the later calls land on
+  // a NEW key, the counter never reaches eight, and the ninth is ALLOWED — the
+  // assertion below then fails on code that is completely correct.
+  //
+  // Not hypothetical: this file went red exactly that way on 2026-09-10 under a
+  // 1218-second full-suite run, having passed for weeks in isolation. The other
+  // explanation was ruled out first — `checkAdopterAccountAction` calls the
+  // limiter unconditionally once auth and the DNI shape pass, and all eight loop
+  // calls returned without error, so all eight incremented. A different key is
+  // the only way the ninth survives.
+  //
+  // Three sibling suites already carry this guard for the same reason and the
+  // same limiter (localities-search-action, tag-actions-rate-limit,
+  // scan-log-rate-limit, all since 2026-08-08); this file had missed it. The
+  // `:30` mid-minute timestamp is theirs too — half a minute of headroom on
+  // either side means no arrangement of the calls can cross a boundary.
+  //
+  // ONLY Date is faked. This suite drives the real limiter through postgres.js,
+  // which needs live setTimeout/setInterval for its connection timeouts, so
+  // faking the timer family would hang the driver rather than steady the clock.
+  //
+  // AND THE INSTANT IS DERIVED FROM THE REAL CLOCK, NOT HARDCODED. A literal
+  // calendar date would be in the PAST from the day after it was written, and
+  // `enforceRateLimit` writes `expires_at` from whatever clock it reads
+  // (lib/infra/rate-limit.ts). A bucket stamped as already-expired is fair game
+  // for `cleanupExpiredBuckets`, which __tests__/cron-data-lifecycle.test.ts
+  // drains in a loop — `DELETE FROM rate_limit_buckets WHERE expires_at < now()`
+  // — against this same local database, from a parallel worker. Land that drain
+  // between two of the nine consultations below and the counter is wiped, the
+  // ninth is allowed, and this test fails on correct code: the very failure it
+  // was written to remove, re-entering through a different door.
   it("D4: the N+1-th consultation from one organization is refused", async () => {
     mockSessionAs(coordUserId);
-    // Start from a clean minute bucket — earlier tests in this file consulted
-    // under the same org.
-    await db
-      .delete(rateLimitBuckets)
-      .where(like(rateLimitBuckets.bucketKey, "adopter_dni_check:%"));
+    const midMinute = Math.floor(Date.now() / 60_000) * 60_000 + 30_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(midMinute));
+    try {
+      // Start from a clean minute bucket — earlier tests in this file consulted
+      // under the same org.
+      await db
+        .delete(rateLimitBuckets)
+        .where(like(rateLimitBuckets.bucketKey, "adopter_dni_check:%"));
 
-    for (let i = 0; i < ADOPTER_DNI_CHECK_LIMITS.maxPerMinute; i++) {
-      const r = await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
-      expect("error" in r).toBe(false);
+      for (let i = 0; i < ADOPTER_DNI_CHECK_LIMITS.maxPerMinute; i++) {
+        const r = await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
+        expect("error" in r).toBe(false);
+      }
+
+      const overTheLine = await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
+      expect("error" in overTheLine).toBe(true);
+      expect((overTheLine as { error: string }).error).toMatch(/consultas/i);
+
+      await db
+        .delete(rateLimitBuckets)
+        .where(like(rateLimitBuckets.bucketKey, "adopter_dni_check:%"));
+    } finally {
+      // Restore in a finally: a failed assertion above must not leave a frozen
+      // clock behind for the tests that follow in this file.
+      vi.useRealTimers();
     }
-
-    const overTheLine = await checkAdopterAccountAction(ORG_TOKEN, ABSENT_DNI);
-    expect("error" in overTheLine).toBe(true);
-    expect((overTheLine as { error: string }).error).toMatch(/consultas/i);
-
-    await db
-      .delete(rateLimitBuckets)
-      .where(like(rateLimitBuckets.bucketKey, "adopter_dni_check:%"));
   });
 
   it("legacy stub (profiles row, NO auth.users row) → finalize REFUSES with no writes", async () => {
