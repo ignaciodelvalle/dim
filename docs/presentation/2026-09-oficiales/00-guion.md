@@ -325,7 +325,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - `docs/architecture/rls-coverage.md` — qué cubre y qué no cubre el cerrojo de base.
 - **Lo que NO se dice en esta lámina.**
   - **No se dice que el cerrojo de base sea universal.** Hay
-    <!-- fact:service_role_call_sites -->34<!-- /fact --> lugares donde el servidor
+    <!-- fact:service_role_call_sites -->36<!-- /fact --> lugares donde el servidor
     usa una llave que lo saltea, y es por diseño: el servidor ya resolvió el permiso.
     Decirlo en la misma lámina donde se muestra el cerrojo es lo que hace creíble al
     cerrojo.
