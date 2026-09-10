@@ -487,6 +487,26 @@ export function vaccineRemindersRoute(publicToken: string): `/mascotas/${string}
 }
 
 /**
+ * ACOMPAÑAMIENTO DE ADOPCIÓN — pedirle a una organización verificada que
+ * acompañe la adopción, cancelar el pedido, o dar de baja el acompañamiento.
+ *
+ * ANIDADA BAJO LA MASCOTA por la razón de `cuidado`: las tres acciones se
+ * autorizan contra el ANIMAL (el titular legal, y nadie más — spec REQ-14), así
+ * que la mascota está de verdad en la dirección, y "atrás" cae en el animal
+ * del que se vino.
+ *
+ * EL PATH COINCIDE CON EL DE LA WEB (`/mis-mascotas/{token}/buscar-hogar`),
+ * aunque el encabezado diga "Acompañamiento de adopción": la web pone las dos
+ * preguntas — la del foster ("Buscar hogar") y la del titular — en una misma
+ * ruta y decide adentro a quién le habla. Acá sólo entra el titular (la fila de
+ * "Más" del foster sigue diciendo "Disponible en la web"), pero el día que
+ * entre un deep link las dos formas ya van a estar de acuerdo en la palabra.
+ */
+export function rehomeRoute(publicToken: string): `/mascotas/${string}/buscar-hogar` {
+  return `/mascotas/${encodeURIComponent(publicToken)}/buscar-hogar`;
+}
+
+/**
  * DEVOLUCIÓN — responder a quien quiere devolverte el animal, o proponer
  * devolvérselo a la organización de origen.
  *
@@ -549,6 +569,7 @@ export type AppRoute =
   | ReturnType<typeof petPhotoRoute>
   | ReturnType<typeof movePetRoute>
   | ReturnType<typeof vaccineRemindersRoute>
+  | ReturnType<typeof rehomeRoute>
   | ReturnType<typeof returnPetRoute>
   | ReturnType<typeof transferRoute>
   | ReturnType<typeof transferPetRoute>

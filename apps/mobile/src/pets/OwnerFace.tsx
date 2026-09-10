@@ -44,6 +44,7 @@ import {
   petPhotoRoute,
   publicCredentialRoute,
   recordEventRoute,
+  rehomeRoute,
   returnPetRoute,
   sharesRoute,
   transferPetRoute,
@@ -652,8 +653,17 @@ function MoreList({
       {gates.canSeeFindHome ? (
         <MoreRow label="Buscar hogar" caption="Disponible en la web" />
       ) : null}
+      {/* LIVE SINCE 2026-09-10: `GET|POST /pets/{token}/rehome` reaches the
+            three use-cases the web's buscar-hogar page reaches, and
+            `RehomeScreen` is the titular's surface. The FOSTER's row above
+            stays web-only — its ask is a different action in a different
+            module (`foster`'s `sendRehomeRequest`), not this door. */}
       {gates.canSeeAdoptionSupport ? (
-        <MoreRow label="Acompañamiento de adopción" caption="Disponible en la web" />
+        <MoreRow
+          label="Acompañamiento de adopción"
+          accessibilityHint="Pedirle a una organización verificada que acompañe la adopción, cancelar el pedido, o dar de baja el acompañamiento."
+          onPress={() => router.push(rehomeRoute(view.publicToken))}
+        />
       ) : null}
       {/* THE SAME DESTINATION AS "Editar datos" above, and that is the
             web's two `?sheet=` rows meeting a stack navigator: both

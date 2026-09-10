@@ -688,13 +688,18 @@ describe("PetDocumentScreen — controls with no native destination are drawn ho
     expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/editar`);
 
     mockPush.mockClear();
-    expect(screen.getAllByText("Disponible en la web").length).toBeGreaterThanOrEqual(2);
+    // ONE web-only row left for a titular (Chapa física): the acompañamiento
+    // row went live on 2026-09-10 and navigates below.
+    expect(screen.getAllByText("Disponible en la web").length).toBeGreaterThanOrEqual(1);
     // Viaje is disabled on the WEB too, with the web's own badge.
     expect(screen.getByText("Viaje y movilidad")).toBeOnTheScreen();
     expect(screen.getByText("Próximamente")).toBeOnTheScreen();
     // The ones still marked web-only do not navigate.
     fireEvent.press(screen.getByText("Chapa física"));
     expect(mockPush).not.toHaveBeenCalled();
+    // And the one that stopped being web-only does — to the titular's screen.
+    fireEvent.press(screen.getByText("Acompañamiento de adopción"));
+    expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/buscar-hogar`);
   });
 
   it("reaches the photo screen from Más", async () => {

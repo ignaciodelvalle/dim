@@ -91,6 +91,7 @@ import {
   PET_LIBRETA_PAYLOAD_VERSION,
   PET_LOST_PAYLOAD_VERSION,
   PET_PROFILE_EDIT_PAYLOAD_VERSION,
+  PET_REHOME_PAYLOAD_VERSION,
   PET_RETURN_PAYLOAD_VERSION,
   PET_SHARES_PAYLOAD_VERSION,
   type PasswordResetRequestedV1,
@@ -104,9 +105,11 @@ import {
   type PetProfileEditAckV1,
   type PetProfileEditV1,
   type PetRegisteredV1,
+  type PetRehomeV1,
   type PetReturnCommandAckV1,
   type PetReturnV1,
   type PetSharesV1,
+  type RehomeCommandAckV1,
   type ShareCommandAckV1,
   type SignupV1,
   type SubjectDataErasedV1,
@@ -130,6 +133,7 @@ import type {
   PetReturnCommandInput,
   RecordEventInput,
   RegisterPetInput,
+  RehomeCommandInput,
   ShareCommandInput,
   SubjectRightsCommandInput,
   TransferCommandInput,
@@ -1593,6 +1597,70 @@ export function sendVaccineReminderCommand(
       path: `/api/v1/pets/${encodeURIComponent(publicToken)}/reminders`,
       method: "POST",
       body: input,
+    },
+    session,
+  );
+}
+
+/**
+ * `GET /pets/{publicToken}/rehome` — ACOMPAÑAMIENTO DE ADOPCIÓN: where the
+ * titular's arrangement stands, the orgs they may ask, and what they may do.
+ *
+ * THE OTHER HALF OF A BANNER THIS APP COULD ONLY READ. The face has said "hay
+ * una propuesta pendiente con X" / "X está buscándole un nuevo hogar" since it
+ * was built; this read is what a screen that can ACT on it needs — the same
+ * three states the web's `buscar-hogar` page derives from the spine, plus the
+ * picker's list and the server's three capability flags.
+ *
+ * A 403 `rehome_forbidden` IS THE ORDINARY ANSWER FOR ANYBODY BUT THE LEGAL
+ * OWNER — a co-owner included, which is narrower than every other pet-scoped
+ * read here. The face's `canSeeAdoptionSupport` gate never sends them, so a
+ * refusal reaching a screen means a stale gate, and the sentence says whose the
+ * decision is.
+ */
+export function fetchPetRehome(
+  session: SessionPort,
+  publicToken: string,
+): Promise<ApiResult<PetRehomeV1>> {
+  return apiRequest<PetRehomeV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/rehome`,
+      expectedPayloadVersion: PET_REHOME_PAYLOAD_VERSION,
+    },
+    session,
+  );
+}
+
+/**
+ * `POST /pets/{publicToken}/rehome` — pedir un acompañamiento, cancelar el
+ * pedido, o dar de baja el acompañamiento.
+ *
+ * THE THIRD WRITE ON THIS SURFACE THAT CAN CHANGE WHO HOLDS AN ANIMAL:
+ * `withdraw_sponsorship` ENDS the org's custody row, clears the public listing
+ * and closes every application on it — one transaction, signed by the titular.
+ * `request_sponsorship` puts a consent case in a shelter's inbox; `withdraw_request`
+ * closes it. All three reach the web's own use-cases.
+ *
+ * `idempotencyKey` IS NULLABLE, AND THE SPLIT IS THE CONTRACT'S. The two
+ * withdraws REQUIRE it and honour it: each one's success invalidates its own
+ * precondition, so the server keeps the key on the closing fact and a retry
+ * that lost its response answers `replayed: true` — a success a caller renders
+ * as done, never as "no hay nada que dar de baja". The ask takes none; its
+ * replay answers `rehome_already_open`, and the move is to re-read. See
+ * `@dim/contract/input`'s `rehome.ts`.
+ */
+export function sendRehomeCommand(
+  session: SessionPort,
+  publicToken: string,
+  input: RehomeCommandInput,
+  idempotencyKey: string | null,
+): Promise<ApiResult<RehomeCommandAckV1>> {
+  return apiRequest<RehomeCommandAckV1>(
+    {
+      path: `/api/v1/pets/${encodeURIComponent(publicToken)}/rehome`,
+      method: "POST",
+      body: input,
+      headers: idempotencyKey === null ? undefined : { "idempotency-key": idempotencyKey },
     },
     session,
   );

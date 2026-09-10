@@ -273,6 +273,23 @@ function RootLayout() {
             que la pantalla cambió abajo del lector — y acá el nombre además
             aparece en el propio título de la pantalla. */}
         <Stack.Screen name="mascotas/[publicToken]/devolucion" options={{ title: "Devolución" }} />
+        {/* ACOMPAÑAMIENTO DE ADOPCIÓN. Sin registrar, el encabezado saldría de
+            la ruta — "buscar-hogar", en minúscula y con guion, sobre una
+            pantalla cuyo propio título va capitalizado.
+
+            EL TÍTULO SE TRANSCRIBE, NO SE INVENTA: "Acompañamiento de adopción"
+            es la etiqueta de la fila de "Más" que la abre (`OwnerFace.tsx`,
+            `gates.canSeeAdoptionSupport`), la de la fila del "⋯ Más" de la web
+            (`_more/MasSheet.helpers.ts`), el `<Title>` de `RehomeScreen` y el
+            `<h1>` de la web en `/mis-mascotas/{token}/buscar-hogar` para el
+            titular ("Acompañamiento de adopción para {nombre}"). Va SIN el nombre por
+            la razón que fijó Mudanza: el encabezado se dibuja antes de que
+            resuelva el fetch. No es "Buscar hogar", que es la pregunta del
+            FOSTER en esa misma ruta de la web y sigue siendo web-only acá. */}
+        <Stack.Screen
+          name="mascotas/[publicToken]/buscar-hogar"
+          options={{ title: "Acompañamiento de adopción" }}
+        />
         {/* Registered BY THE INTEGRATOR at the 2026-08-30 merge, not by the lane
             that shipped the screen: this file was a parallel lane's territory in
             that window, and the lane that owned it did not land. The gap is the
