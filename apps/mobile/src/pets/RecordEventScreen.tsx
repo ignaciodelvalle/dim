@@ -78,7 +78,7 @@ import type { ApiResult } from "../api/client";
 import { fetchOwnerPetDetail, recordPetEvent } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
-import { getImagePickerPort } from "../native/image-picker-port";
+import { getImagePickerPort, pickImageSafely } from "../native/image-picker-port";
 import { Body, Card } from "../ui/components";
 import {
   Callout,
@@ -496,7 +496,11 @@ function EventForm({
   // cualquiera en terminar este formulario. Ver `tattoo-photo-flow.ts`.
   async function pickTattooPhoto() {
     setPhoto({ phase: "picking" });
-    const picked = acceptPickedImage(await getImagePickerPort().pickImage());
+    // `pickImageSafely` y no `getImagePickerPort().pickImage()`: este await es
+    // pelado, y un puerto que tirara una excepcion dejaria el formulario en
+    // `picking` para siempre — sin frase y sin salida que no sea el boton fisico
+    // de atras. La misma razon que en `PetPhotoScreen`.
+    const picked = acceptPickedImage(await pickImageSafely());
     if (!picked.ok) {
       // `message: null` es cancelar: volver al principio sin nada que decir.
       setPhoto(

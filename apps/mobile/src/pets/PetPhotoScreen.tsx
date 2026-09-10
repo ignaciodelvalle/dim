@@ -29,7 +29,7 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import type { PetPhotoUpdatedV1 } from "@dim/contract/api";
 
 import { sessionPort } from "../auth/session-store";
-import { getImagePickerPort } from "../native/image-picker-port";
+import { getImagePickerPort, pickImageSafely } from "../native/image-picker-port";
 import { Body } from "../ui/components";
 import { Callout, PrimaryButton, Screen, SecondaryButton, Subtitle, Title } from "../ui/kit";
 import { COLORS, RADIUS, SPACE, TYPE } from "../ui/theme";
@@ -57,7 +57,12 @@ export function PetPhotoScreen({ publicToken }: { publicToken: string }) {
 
   const pick = useCallback(async () => {
     setState({ phase: "picking" });
-    const result = await getImagePickerPort().pickImage();
+    // `pickImageSafely` AND NOT `getImagePickerPort().pickImage()`: this await
+    // is bare, and a port that threw would leave the screen on `picking`
+    // forever — a spinner with no sentence and no way out but hardware back.
+    // The port's own header calls that the one answer a tap may not get, so the
+    // enforcement lives at the seam and every caller goes through it.
+    const result = await pickImageSafely();
     const outcome = acceptPickedImage(result);
     if (outcome.ok) {
       setState({ phase: "review", image: outcome.image, error: null });

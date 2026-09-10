@@ -238,7 +238,81 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // symlinks the same entry — it exists so the path Gradle guesses is a path
   // that is there. Removing it puts the upload task back on that dead branch
   // and the store build fails again. See `docs/mobile/eas-build-profiles.md`.
-  plugins: [...(config.plugins ?? []), "@sentry/react-native/expo"],
+  //
+  // ===========================================================================
+  // THE THIRD DECLARATION THAT NEEDS PARAGRAPHS: expo-image-picker
+  // ===========================================================================
+  // It is HERE and not in `app.json` — where the other three plugins live and
+  // where this file's header sends anything without commentary — because two of
+  // its three options are BLOCKS rather than settings, and a block is exactly
+  // the kind of key whose meaning is entirely in what it forbids. The same
+  // reason `updates` is not in app.json, and the arrangement
+  // `docs/mobile/camera-modules-handback.md` already specified.
+  //
+  // `photosPermission` — the iOS `NSPhotoLibraryUsageDescription`, in es-AR,
+  // because the UI-language invariant covers the dialogs the OS draws too. It
+  // answers the question the dialog actually raises ("why does an app about
+  // pets want my photos?") with the use and not with a policy: the photo is the
+  // credential's face. It is written as a reason, not as a request, which is
+  // the tone the rest of this app's copy uses.
+  //
+  // WHY `cameraPermission: false` AND `microphonePermission: false`, WHICH ARE
+  // NOT "we did not need to set them"
+  // ---------------------------------------------------------------------------
+  // Read in `expo-image-picker/plugin/build/withImagePicker.js` (57.0.16): with
+  // no options at all this plugin ADDS `android.permission.RECORD_AUDIO` to the
+  // manifest, and writes `NSCameraUsageDescription` and
+  // `NSMicrophoneUsageDescription` into Info.plist with its own ENGLISH default
+  // strings. It does that because the same module can also drive
+  // `launchCameraAsync`, which records video.
+  //
+  // This app calls `launchImageLibraryAsync` and nothing else — the adapter's
+  // `IMAGE_LIBRARY_OPTIONS` is the whole surface. So the defaults would put a
+  // microphone permission in the Play listing of a pet app that records no
+  // audio, and two English purpose strings in an es-AR binary, for capabilities
+  // that are never invoked. `false` on each is the plugin's own way of saying
+  // "and make sure nothing else adds it either": it maps to
+  // `withBlockedPermissions`.
+  //
+  // THAT BLOCK IS A TRIPWIRE FOR THE NEXT COMMIT, and it is deliberate. The
+  // handback doc's step 3 installs `expo-camera` for the chip scan, whose own
+  // plugin needs `android.permission.CAMERA`. Whoever lands expo-camera must
+  // REMOVE `cameraPermission: false` from this block in the same commit and give
+  // the key the es-AR camera string instead. `microphonePermission: false`
+  // stays: a barcode scan records no audio either.
+  //
+  // BOTH HALVES OF WHY, read in @expo/config-plugins 57.0.9, because the
+  // first draft of this comment got the shape of the danger wrong twice.
+  //
+  //   · ANDROID — AND PLUGIN ORDER CANNOT SAVE YOU. `withBlockedPermissions`
+  //     does not merely decline to add the permission; it writes
+  //     `<uses-permission android:name="android.permission.CAMERA"
+  //     tools:node="remove"/>` into OUR manifest, and the manifest merger reads
+  //     `tools:node="remove"` as an instruction to delete that element wherever
+  //     any library contributed it. expo-camera cannot put it back by running
+  //     later. `withPermissions`' own `isPermissionAlreadyRequested` sees the
+  //     blocked entry and does not even try. The result is an APK whose camera
+  //     is denied at runtime with no build error anywhere.
+  //   · iOS — WHICH THE FIRST DRAFT MISSED ENTIRELY, and where the failure is
+  //     harder. `applyPermissions` DELETES `NSCameraUsageDescription` from
+  //     Info.plist when the value is `false`. Today this plugin is last in the
+  //     array so a later-appended expo-camera would win the key back; insert
+  //     expo-camera BEFORE this entry and it does not. An iOS app that touches
+  //     the camera without that key is TERMINATED by the OS — not denied, not
+  //     degraded. Killed, on the tap.
+  plugins: [
+    ...(config.plugins ?? []),
+    "@sentry/react-native/expo",
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "miMAR usa tus fotos para ponerle imagen a la credencial de tu mascota. Elegís vos cuál y cuándo.",
+        cameraPermission: false,
+        microphonePermission: false,
+      },
+    ],
+  ],
   // See "THE SECOND DECLARATION THAT NEEDS PARAGRAPHS" at the top of this file
   // for why each of these keys is the value it is, and for the one thing this
   // block does NOT declare (the channel — that is per build profile).

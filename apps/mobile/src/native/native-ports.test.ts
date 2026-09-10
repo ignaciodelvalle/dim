@@ -31,6 +31,7 @@ import {
   type ImagePickerPort,
   getImagePickerPort,
   moduleMissingImagePicker,
+  pickImageSafely,
   resetImagePickerPort,
   setImagePickerPort,
 } from "./image-picker-port";
@@ -67,6 +68,57 @@ describe("the image-picker seam", () => {
 
     resetImagePickerPort();
     expect(getImagePickerPort()).toBe(moduleMissingImagePicker);
+  });
+});
+
+describe("`pickImageSafely` — the never-throws half, enforced", () => {
+  it("passes a well-behaved port's answer through untouched", async () => {
+    setImagePickerPort({
+      name: "fake",
+      available: true,
+      pickImage: async () => ({ outcome: "cancelled" }),
+    });
+
+    await expect(pickImageSafely()).resolves.toEqual({ outcome: "cancelled" });
+  });
+
+  it("turns a port that THROWS into `failed`, naming which port broke", async () => {
+    // Until this function the "never throws" promise was a sentence in a
+    // header and enforced nowhere. Both screens bare-await the pick after
+    // setting a "picking" phase, so a rejection stranded them on a spinner
+    // with no sentence and no retry — the one answer a tap may not get.
+    setImagePickerPort({
+      name: "throwing-adapter",
+      available: true,
+      pickImage: async () => {
+        throw new Error("null is not an object");
+      },
+    });
+
+    await expect(pickImageSafely()).resolves.toEqual({
+      outcome: "failed",
+      detail: "throwing-adapter threw: null is not an object",
+    });
+  });
+
+  it("survives a port that throws something that was never an Error", async () => {
+    setImagePickerPort({
+      name: "rude-adapter",
+      available: true,
+      pickImage: async () => {
+        // A non-Error throw, on purpose: `failureDetail` has to survive one.
+        throw "just a string";
+      },
+    });
+
+    await expect(pickImageSafely()).resolves.toEqual({
+      outcome: "failed",
+      detail: "rude-adapter threw: just a string",
+    });
+  });
+
+  it("reads the port at CALL time, so the default's `unavailable` still arrives", async () => {
+    await expect(pickImageSafely()).resolves.toEqual({ outcome: "unavailable" });
   });
 });
 

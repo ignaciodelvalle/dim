@@ -11,14 +11,20 @@
 // So the module sits behind this port, the same arrangement
 // `lib/observability/sink.ts` uses for the telemetry transport: an interface,
 // a DEFAULT that says honestly that the module is not in this build, and one
-// `setImagePickerPort()` call at app start the day the adapter exists. Every
-// screen, state machine, error sentence and upload call is written and tested
-// TODAY against this port; the only untestable-without-a-build code is the
-// adapter itself, which is why it does not live in this repo yet — a static
-// `import "expo-image-picker"` of a package that is not installed fails
-// typecheck and Metro alike, so it CANNOT be committed ahead of the install.
-// The adapter's full source, the install command and the build order are in
-// `docs/mobile/camera-modules-handback.md`.
+// `setImagePickerPort()` call at app start. Every screen, state machine, error
+// sentence and upload call was written and tested against this port BEFORE the
+// module existed.
+//
+// THE ADAPTER IS NOW IN THE TREE (`expo-image-picker-adapter.ts`), and this
+// paragraph used to say the opposite — that it "does not live in this repo yet"
+// because a static import of an uninstalled package fails typecheck and Metro
+// alike. That was true of the tree it was written in and is not true of this
+// one: `expo-image-picker` and `expo-image-manipulator` are installed, the
+// adapter imports them, and `app/_layout.tsx` installs it at module scope. What
+// survives from that paragraph is the RULE it was protecting — the adapter is
+// the only file allowed to touch those imports, because they evaluate native
+// modules at import time and throw in a process that has none. The install
+// command and the build order are in `docs/mobile/camera-modules-handback.md`.
 //
 // WHAT AN ADAPTER MUST PROMISE (the contract the doc restates)
 // ---------------------------------------------------------------------------
@@ -99,6 +105,38 @@ export function setImagePickerPort(port: ImagePickerPort): ImagePickerPort {
 /** The currently installed port. */
 export function getImagePickerPort(): ImagePickerPort {
   return activePort;
+}
+
+/**
+ * One pick, from the installed port, with the "never throws" half of the
+ * contract ACTUALLY ENFORCED.
+ *
+ * WHY THIS EXISTS AND WHY EVERY SCREEN GOES THROUGH IT. `pickImage` promises a
+ * member of `ImagePickResult` and no other outcome — but until this function,
+ * that promise was enforced nowhere. It was a sentence in a header, and an
+ * adapter that let one TypeError escape (the real one found in review: a
+ * `canceled: false` result carrying `assets: null`, indexed outside the
+ * adapter's own try) turned it into a REJECTED PROMISE. Both callers await it
+ * bare after setting a "picking" phase, so a rejection strands the screen on a
+ * spinner: no sentence, no retry, only hardware back. That is precisely the
+ * silence this port's header calls the one answer a tap may not get.
+ *
+ * Fixing the adapter closes that instance. This closes the CLASS — including
+ * for the next adapter, and for a fake a test installs. `failed` is the honest
+ * member for it: something broke, nothing was uploaded, trying again is safe.
+ */
+export async function pickImageSafely(): Promise<ImagePickResult> {
+  try {
+    return await activePort.pickImage();
+  } catch (error) {
+    return {
+      outcome: "failed",
+      // Diagnostic, never shown — `acceptPickedImage` answers the person. The
+      // prefix names the port so a breadcrumb says WHICH implementation broke
+      // its promise, which is the only thing that makes this debuggable.
+      detail: `${activePort.name} threw: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 /** Restores the honest default. Primarily for tests. */

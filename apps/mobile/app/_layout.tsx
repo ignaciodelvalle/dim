@@ -42,6 +42,12 @@ import {
   useLaunchUpdateGate,
 } from "../src/account/launch-update-gate";
 import { useSessionBootstrap } from "../src/auth/useSession";
+// THE ONE MODULE IN THIS FILE THAT MAY NOT BE IMPORTED ANYWHERE ELSE. Its own
+// header explains why: `expo-image-manipulator` evaluates a native module at
+// import time and throws in a process that has none. This file already runs in
+// exactly one process — the app's — so the opt-in is safe here and nowhere else.
+import { expoImagePicker } from "../src/native/expo-image-picker-adapter";
+import { setImagePickerPort } from "../src/native/image-picker-port";
 import { initSentry } from "../src/observability/sentry";
 import { useNavigationBreadcrumb } from "../src/observability/use-navigation-breadcrumb";
 import { OfflineBanner } from "../src/ui/OfflineBanner";
@@ -54,6 +60,23 @@ import { COLORS, TYPE } from "../src/ui/theme";
 // no DSN — local dev and the emulator stay silent by design; see
 // src/observability/sentry.ts for everything that is deliberately off.
 initSentry();
+
+// THE SEAM IS FLIPPED HERE, AND ONLY HERE (docs/mobile/camera-modules-handback.md,
+// "The wiring — two lines at bootstrap"). At module scope for the same reason
+// `initSentry` is: it must have happened before the first render, because
+// `PetPhotoScreen` and the tatuaje branch of `RecordEventScreen` read
+// `available` DURING render to decide whether to draw a control at all. An
+// install inside an effect would let both screens paint their "todavía no se
+// puede" callout once, on a build that can.
+//
+// No test imports this file, so every existing test still runs against the
+// honest default (`moduleMissingImagePicker`) — which is what keeps the callout
+// states meaningful in the suite.
+//
+// THE CHIP SCANNER'S SEAM IS STILL UNFLIPPED. `expo-camera` is not installed;
+// `setChipScannerPort` has no adapter to be handed and the claim screen keeps
+// its "el número va a mano" callout. Same wall, separate commit.
+setImagePickerPort(expoImagePicker);
 
 /**
  * THE ANCHOR: where hardware BACK goes when there is nothing behind (NAV-1).

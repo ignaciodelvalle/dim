@@ -181,6 +181,30 @@ describe("the pick", () => {
     expect(screen.getByText("Sin vista previa")).toBeTruthy();
     expect(screen.getByText("Usar esta foto")).toBeTruthy();
   });
+
+  it("gets OFF the spinner when the port throws instead of answering", async () => {
+    // THE HANG, held down at the screen. `pick()` sets `phase: "picking"` and
+    // bare-awaits; before `pickImageSafely` an adapter that threw left this
+    // screen on "Abriendo tus fotos…" forever — no sentence, no retry, and
+    // hardware back the only exit. The assertions are PRESENCE, in this order:
+    // a sentence is shown, and the control is offered again.
+    setImagePickerPort({
+      name: "throwing-adapter",
+      available: true,
+      pickImage: async () => {
+        throw new TypeError("null is not an object (evaluating 'assets[0]')");
+      },
+    });
+    render(<PetPhotoScreen publicToken={TOKEN} />);
+    fireEvent.press(screen.getByText("Elegir una foto"));
+
+    await waitFor(() => {
+      expect(screen.getByText("No pudimos abrir tus fotos. Volvé a intentar.")).toBeTruthy();
+    });
+    // Back on the entry control, not stuck on the picking label.
+    expect(screen.getByText("Elegir una foto")).toBeTruthy();
+    expect(screen.queryByText("Abriendo tus fotos…")).toBeNull();
+  });
 });
 
 describe("the upload", () => {

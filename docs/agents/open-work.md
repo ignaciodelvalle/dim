@@ -2897,3 +2897,24 @@ must contain, derived rather than borrowed; the 5000 was borrowed from
 mobile suite run on its own NEVER reproduces this — it only appears inside
 `verify`, where the build and the lint chain compete for the same cores. Running
 `pnpm --filter mimar test` proves nothing about this failure mode.
+
+## Android `getPendingResultAsync` — the picker gap that HANGS the screen
+
+`apps/mobile/src/native/expo-image-picker-adapter.ts` does not call
+`ImagePicker.getPendingResultAsync()`. When Android destroys `MainActivity`
+while the system photo picker is up (reproducible with **Developer options →
+Don't keep activities**, and real on low-memory phones), the promise from
+`launchImageLibraryAsync` is **never settled** — the module hands the result to
+`getPendingResultAsync` instead, and nobody asks for it.
+
+**The symptom is not a lost photo, it is a hung screen.** `PetPhotoScreen` and
+the tatuaje branch of `RecordEventScreen` both set a `picking` phase and then
+await that promise. A promise that never settles produces no outcome, so
+`pickImageSafely()` cannot help either — it catches throws, and this never
+throws. The person is left on "Abriendo tus fotos…" with no sentence, no retry
+and no exit but the hardware back button.
+
+Fixing it means a bootstrap-time recovery read rather than anything inside
+`pickImage()`, which is a different shape from the port's current
+`pickImage(): Promise<ImagePickResult>` — so it is a design decision, not a
+patch. Unverified on hardware: found by reading the module, not by reproducing.
