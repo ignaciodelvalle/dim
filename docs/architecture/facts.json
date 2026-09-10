@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-09-10",
-  "sha": "0ab294099",
+  "sha": "d0d2b6b00",
   "facts": {
     "event_types": {
       "value": 55,
@@ -153,7 +153,7 @@
       "method": "non-test `.ts` files under `lib/projections/`, excluding the shared `types.ts`. A FILE count, and the only key here that is not backed by either an import or a declaration site: there is no projection registry to import — `scripts/rebuild-projections.ts` names each replay function individually — so adding a projection module without wiring it into the rebuilder would still move this number."
     },
     "service_role_call_sites": {
-      "value": 36,
+      "value": 37,
       "source": "app/**, src/**, lib/**, scripts/** (excluding lib/supabase/admin.ts)",
       "method": "literal occurrences of the service-role factory's name followed by `(` in `.ts`/`.tsx` files under those four trees, excluding the factory's own module. The trailing paren is what makes this a CALL count and not an import count — an `import { … } from` line has no paren. The needle is concatenated at runtime so this generator does not match itself. Every one of these bypasses RLS by design."
     },

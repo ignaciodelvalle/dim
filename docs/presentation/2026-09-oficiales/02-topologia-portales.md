@@ -138,7 +138,7 @@ graph TB
   exacto que ese documento existe para evitar.
 - **No decir "el cerrojo de base de datos nos protege".** La conexión propia del
   servidor pasa por encima del cerrojo por diseño, y hay
-  <!-- fact:service_role_call_sites -->36<!-- /fact --> lugares del código que
+  <!-- fact:service_role_call_sites -->37<!-- /fact --> lugares del código que
   usan la llave de servicio, cada uno saltando el cerrojo a propósito
   (`docs/architecture/rls-coverage.md`).
 - **No afirmar que una baja de cuenta cierra todas las puertas.** El rechazo por
