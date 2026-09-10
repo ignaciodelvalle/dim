@@ -454,7 +454,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - Trabajos diarios hacia los que reparte:
     <!-- fact:cron_jobs -->23<!-- /fact -->.
   - Puntos de entrada de la interfaz de programación:
-    <!-- fact:route_handlers -->83<!-- /fact -->.
+    <!-- fact:route_handlers -->84<!-- /fact -->.
 - **Respaldo.**
   - `vercel.json` — las tareas programadas declaradas.
   - `lib/infra/cron-dispatcher.ts` — el repartidor de tareas: cada trabajo corre aislado y el
