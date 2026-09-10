@@ -134,7 +134,6 @@
         "src/modules/pets/application/physical-tag-interest/toggle-physical-tag-interest.ts",
         "src/modules/pets/application/public-lookup/lookup-pet-for-denuncia.ts",
         "src/modules/pets/application/public/notify-owner-of-found-pet.ts",
-        "src/modules/pets/application/reminders/delete-vaccine-reminder.ts",
         "src/modules/pets/application/scans/log-scan.ts",
         "src/modules/pets/application/service-dog/retire-service-dog.ts",
         "src/modules/pets/application/service-dog/revoke-service-dog-credential.ts",
