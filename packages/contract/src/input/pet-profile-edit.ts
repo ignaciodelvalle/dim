@@ -70,7 +70,11 @@
 
 import { z } from "zod";
 
-import { PET_SPECIES } from "./register-pet.ts";
+// From the leaf, NOT from `register-pet.ts`: that file imports this one's length
+// caps, so importing it back from here closes a cycle — and both files build zod
+// schemas at module-evaluation time, where a cycle turns the other side's
+// constants into `undefined`. See `pet-species.ts`.
+import { PET_SPECIES } from "./pet-species.ts";
 import { isWritableName } from "./writable-name.ts";
 
 /**

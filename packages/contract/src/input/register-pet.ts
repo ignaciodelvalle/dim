@@ -68,6 +68,9 @@ import { PET_SEXES } from "./intake.ts";
 // refused to re-save (A2-alta-asentar-11): two doors onto one column disagreeing
 // about what fits in it. Imported rather than re-declared, for the reason above.
 import { PET_COLOR_MAX, PET_NAME_MAX } from "./pet-profile-edit.ts";
+// Imported, not just re-exported: this file's own `registerPetInputSchema` names
+// PET_SPECIES at module-evaluation time, so it needs the local binding too.
+import { PET_SPECIES, type PetSpecies } from "./pet-species.ts";
 import { isWritableName } from "./writable-name.ts";
 
 // ---------------------------------------------------------------------------
@@ -75,16 +78,15 @@ import { isWritableName } from "./writable-name.ts";
 // ---------------------------------------------------------------------------
 
 /**
- * The species the credential accepts.
+ * The species the credential accepts — DEFINED in `pet-species.ts` and
+ * re-exported here so every existing import path keeps working.
  *
- * Enumerated HERE and enforced, unlike `intake.ts`'s free-text `species`. The
- * web alta is a picker offering exactly these six, so an enum is parity with
- * what the form can actually produce — and a free-text species is the same class
- * of defect as the free-text breed QA A4 closed: `breedsForSpecies` keys off
- * these strings, so a species outside the list silently gets an empty catalog.
+ * It moved out on 2026-09-10 because `pet-profile-edit.ts` needed it for the
+ * species-correction command, and this file already imports that file's length
+ * caps: the two together closed an import cycle that silently broke every
+ * registration. See `pet-species.ts` for the full account.
  */
-export const PET_SPECIES = ["dog", "cat", "rabbit", "guinea_pig", "ferret", "other"] as const;
-export type PetSpecies = (typeof PET_SPECIES)[number];
+export { PET_SPECIES, type PetSpecies };
 
 /**
  * How the animal came to live with this person. Optional everywhere — an owner
