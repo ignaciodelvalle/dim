@@ -1,5 +1,57 @@
 -- Migration 0215 — an erased profile is not a platform administrator.
 --
+-- ORDER MATTERS: 0215 AND 0216 ARE NOT COMMUTATIVE. READ THIS FIRST.
+-- ---------------------------------------------------------------------------
+-- FIVE objects redefined below are ALSO redefined by migration 0216, which
+-- amends their `govt` branches:
+--
+--   custody_disputes         "custody_disputes select by parties and authorities"
+--   custody_dispute_parties  "custody_dispute_parties select by parties and authorities"
+--   pet_service_dog          "service_dog select by owner or authority"
+--   approval_requests        "approval requests visible to applicant or authority"
+--   public.can_read_case(uuid, uuid)
+--
+-- The policy statements here use `ALTER POLICY ... USING (...)`, and that form
+-- replaces the ENTIRE using clause — including the govt branch 0216 later
+-- rewrites. `can_read_case` is a whole-body `CREATE OR REPLACE`, same effect.
+-- So:
+--
+--   * On every environment these two must run strictly 0215, then 0216.
+--   * Re-applying 0215 after 0216 has run SILENTLY REVERTS 0216. Nothing
+--     errors; the govt branches simply lose their `deleted_at IS NULL` test
+--     and an erased govt operator regains read authority.
+--   * If 0215 is ever re-applied for any reason, 0216 MUST be re-applied
+--     IN FULL immediately afterwards, in the same maintenance window.
+--
+-- This is not hypothetical. It happened on the local database on 2026-09-10
+-- while amending the statement noted further down.
+--
+-- AND HERE IS THE PART THAT MATTERS MOST, because the first version of this
+-- comment got it wrong and the mistake was the dangerous kind — it would have
+-- sent the next person away believing they had cleaned up.
+--
+-- THE FENCE CANNOT SEE ALL FIVE. IT SEES THREE.
+-- `scripts/check-rls-coverage.ts` check 5 matches `role = 'admin'` / `role =
+-- 'govt'` tests against `profiles` and demands both lifecycle markers in the
+-- same AND-group. On 2026-09-10 it named exactly three policies — and that was
+-- read as "three reverted". It was not. It was "three are the ones this
+-- instrument can express".
+--
+--   * `approval_requests`: 0215's govt branch authorises through
+--     `govt_assignments`, never through `role = 'govt'` on `profiles`. There is
+--     no pattern for check 5 to match, so its reversion is INVISIBLE — and that
+--     reversion is precisely the hole 0216 §3 was written to close.
+--   * `can_read_case`: check 5's live half does read function bodies, and
+--     `scripts/check-function-parity.ts` compares `prosrc` against the last
+--     defining migration, so this one is likelier to be caught — but nothing
+--     guarantees it, and 0215's own DO block only asserts the admin branch.
+--
+-- So the recovery procedure is NOT "run the fence and fix what it names".
+-- It is: RE-APPLY 0216 IN FULL, then run the fence as a confirmation that
+-- cannot, on its own, prove absence. Widening check 5 to cover authorisation
+-- through `govt_assignments` is open work, recorded here rather than done in
+-- a migration.
+--
 -- THE DEFECT
 -- ---------------------------------------------------------------------------
 -- `profiles` carries two lifecycle markers that mean different things
@@ -21,9 +73,12 @@
 -- INVENTORY (LOCAL catalog, taken before this migration was written)
 -- ---------------------------------------------------------------------------
 -- pg_policies (public + storage) and pg_proc (every app schema) were read for
--- every predicate testing `role = 'admin'` against `profiles`. Eighteen sites;
+-- every predicate testing `role = 'admin'` against `profiles`. Nineteen sites;
 -- one already correct (`revocations_admin_govt_upload`, migration 0188 — it
--- checks both markers). The seventeen below are redefined here. Every live
+-- checks both markers). The eighteen below — sixteen policies and two
+-- functions — are redefined here. (The earlier wording said "eighteen sites,
+-- seventeen redefined"; both numbers were off by one against the inventory
+-- that follows, which lists 11 + 5 policies and 2 functions.) Every live
 -- policy body already carried the `(select auth.uid())` initplan form from
 -- migration 0137 — the db/*.sql bootstrap files still say bare `auth.uid()`,
 -- and `can_read_case` live carries `SET search_path = ''` and the 0034
@@ -240,7 +295,40 @@ ALTER POLICY "Platform admins read all org messages" ON public.org_contact_messa
     )
   );
 
-ALTER POLICY "pet_identifications read by admin" ON public.pet_identifications
+-- DROP + CREATE, not ALTER, and this is the one statement in the file that
+-- needs it (amended 2026-09-10, before this migration had run anywhere but a
+-- local database).
+--
+-- WHY. Every other policy here is ALTERed, which changes only the USING clause
+-- and preserves cmd/roles/permissive — the right tool when the object is known
+-- to exist. This one is NOT known to exist. Migration 0105 created it, and
+-- staging's ledger says 0105 was applied; the catalog says otherwise. Measured
+-- 2026-09-10 against staging: four policies that live only in migrations are
+-- absent there — this one, "pet_identifications read by active owner", and the
+-- two owner-write policies on `attachments` — while all 1284 structural objects
+-- match. That environment was baselined at some point: the migrations were
+-- marked applied without being run, and its schema came from the bootstrap
+-- replay, which never carried these.
+--
+-- `pnpm db:drift` does not see this class of difference at all: it compares
+-- columns, CHECK constraints, indexes and uniques, not policies. The drift that
+-- mattered sat exactly where the detector does not look.
+--
+-- So the lesson is not "staging is broken", it is that A MIGRATION MUST NOT
+-- BARE-ALTER AN OBJECT IT DID NOT CREATE. Restated as DROP + CREATE, this
+-- statement carries the whole intended definition — the same idiom 0105 itself
+-- uses — and lands the same result whether the policy is there or not. The
+-- clause list (FOR SELECT, TO authenticated) is transcribed from 0105:79-91,
+-- not invented, so an environment that DOES have the policy keeps its shape.
+--
+-- The other three absent policies are NOT repaired here: they are unrelated to
+-- platform-admin erasure, and folding an incidental schema repair into a
+-- security migration hides both. They get their own forward-only migration.
+DROP POLICY IF EXISTS "pet_identifications read by admin" ON public.pet_identifications;
+CREATE POLICY "pet_identifications read by admin"
+  ON public.pet_identifications
+  FOR SELECT
+  TO authenticated
   USING (
     EXISTS (
       SELECT 1 FROM public.profiles p
