@@ -21,6 +21,7 @@ import type { PetProfileEditV1 } from "@dim/contract/api";
 import type {
   PetProfileCommandInput,
   PetProfileCommandInputCode,
+  PetSpecies,
   StoredPetIdentityText,
 } from "@dim/contract/input";
 import {
@@ -28,6 +29,7 @@ import {
   EMERGENCY_CONTACT_PHONE_MAX,
   PET_COLOR_MAX,
   PET_NAME_MAX,
+  PET_SPECIES,
   firstPetProfileCommandInputCode,
   petIdentityFieldCap,
   petProfileCommandInputSchema,
@@ -131,6 +133,27 @@ export function identityBlockedReason(payload: PetProfileEditV1): string | null 
   return "Sos cuidador/a de esta mascota. Editar sus datos es solo del titular.";
 }
 
+/**
+ * The species chip the correction card starts on: the animal's own, when this
+ * build knows it — `null` for a species the contract's list does not carry, so
+ * the picker shows nothing selected rather than a chip that is not the animal.
+ */
+export function speciesDraftFrom(payload: PetProfileEditV1): PetSpecies | null {
+  const stored = payload.species.trim();
+  return (PET_SPECIES as readonly string[]).includes(stored) ? (stored as PetSpecies) : null;
+}
+
+/** Why the species correction is not offered, or `null` when it is. */
+export function speciesBlockedReason(payload: PetProfileEditV1): string | null {
+  if (payload.capabilities.canCorrectSpecies) return null;
+  // The same refusal as the identity form — a caretaker — said about THIS act,
+  // because the web's own `NotTitularNotice` names what was asked for. NOT the
+  // identity sentence's "es solo del titular" wording: the two cards can be
+  // blocked on one screen at once, and two sentences a test cannot tell apart
+  // are two sentences a person reads as one.
+  return "Sos cuidador/a de esta mascota. La especie la corrige el titular.";
+}
+
 /** Why the contacts form is not offered, or `null` when it is. */
 export function contactsBlockedReason(payload: PetProfileEditV1): string | null {
   if (payload.capabilities.canEditEmergencyContacts) return null;
@@ -205,6 +228,14 @@ export function buildIdentityEdit(
   });
 }
 
+/**
+ * CORREGIR LA ESPECIE. Validated against the contract's own `PET_SPECIES`, so a
+ * chip this build drew can never post a value the registry refuses.
+ */
+export function buildCorrectSpecies(species: PetSpecies | null): CommandResult {
+  return validated({ command: "correct_species", species });
+}
+
 /** GUARDAR LOS CONTACTOS. All four fields travel every time; empty clears. */
 export function buildEmergencyContacts(draft: EmergencyDraft): CommandResult {
   return validated({
@@ -242,6 +273,9 @@ export function petProfileInputCodeMessage(code: PetProfileCommandInputCode | nu
       return `Ese nombre es demasiado largo (máximo ${EMERGENCY_CONTACT_NAME_MAX} caracteres).`;
     case "CONTACT_PHONE_TOO_LONG":
       return `Ese teléfono es demasiado largo (máximo ${EMERGENCY_CONTACT_PHONE_MAX} caracteres).`;
+    case "SPECIES_INVALID":
+      // The web form's own sentence for the same refusal.
+      return "Elegí una especie válida.";
   }
 }
 
@@ -252,14 +286,22 @@ export function petProfileInputCodeMessage(code: PetProfileCommandInputCode | nu
  * measures `changed` against the values it already held, so a person who opened
  * the form, changed their mind and pressed Guardar gets told that nothing
  * needed saving rather than being congratulated on a write that did not happen.
+ * The species no-op is the web form's own sentence — there, a refusal; here,
+ * the same fact reported as the outcome of a tap.
  */
 export function savedLabel(command: PetProfileCommandInput["command"], changed: boolean): string {
-  if (!changed) {
-    return command === "edit_identity"
-      ? "No había nada que cambiar: ya estaba así."
-      : "No había nada que cambiar: los contactos ya estaban así.";
+  switch (command) {
+    case "edit_identity":
+      return changed
+        ? "Listo. El cambio queda registrado en la libreta."
+        : "No había nada que cambiar: ya estaba así.";
+    case "set_emergency_contacts":
+      return changed
+        ? "Listo. Guardamos los contactos de esta mascota."
+        : "No había nada que cambiar: los contactos ya estaban así.";
+    case "correct_species":
+      return changed
+        ? "Listo. La corrección queda registrada en la libreta."
+        : "La especie es la misma; no hay nada que corregir.";
   }
-  return command === "edit_identity"
-    ? "Listo. El cambio queda registrado en la libreta."
-    : "Listo. Guardamos los contactos de esta mascota.";
 }

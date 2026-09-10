@@ -41,6 +41,8 @@ const control = vi.hoisted(() => ({
   contactsResult: { ok: true } as Record<string, unknown>,
   /** What `updatePet` answers. */
   updateResult: { ok: true, notifications: [] } as Record<string, unknown>,
+  /** What `correctPetSpecies` answers. */
+  speciesResult: { ok: true, changed: true } as Record<string, unknown>,
   /** Every writer call. Empty means nothing was written. */
   writes: [] as Array<{ command: string; input: Record<string, unknown> }>,
   /** Every row handed to the canonical notification service. */
@@ -93,6 +95,17 @@ vi.mock("@/src/modules/pets/application/update-pet", () => ({
   updatePet: async (input: Record<string, unknown>) => {
     control.writes.push({ command: "edit_identity", input });
     return control.updateResult;
+  },
+}));
+
+// THE SPECIES USE-CASE, mocked at the module the web action ALSO imports —
+// which is the whole claim this door makes: one module, two doors. What this
+// file asserts about it is what reaches it (the persisted row, the posted
+// species, the authorship) and how its answers map to codes.
+vi.mock("@/src/modules/pets/application/profile/correct-species", () => ({
+  correctPetSpecies: async (input: Record<string, unknown>) => {
+    control.writes.push({ command: "correct_species", input });
+    return control.speciesResult;
   },
 }));
 
@@ -212,6 +225,7 @@ beforeEach(() => {
   control.accountContacts = null;
   control.contactsResult = { ok: true };
   control.updateResult = { ok: true, notifications: [] };
+  control.speciesResult = { ok: true, changed: true };
   control.writes = [];
   control.notified = [];
   control.notifyThrows = false;
@@ -272,6 +286,7 @@ describe("GET — what the form pre-fills with", () => {
     expect(body.capabilities).toEqual({
       canEditIdentity: true,
       canEditEmergencyContacts: false,
+      canCorrectSpecies: true,
     });
     // NULL, not an empty draft: these are the titular's own numbers.
     expect(body.emergencyContacts).toBeNull();
@@ -292,6 +307,8 @@ describe("GET — what the form pre-fills with", () => {
     expect(body.capabilities).toEqual({
       canEditIdentity: false,
       canEditEmergencyContacts: false,
+      // The web's `CorrectSpeciesPage` guards with `requireTitularAccess` too.
+      canCorrectSpecies: false,
     });
   });
 
@@ -477,6 +494,91 @@ describe("POST — a cap invented after the data does not lock the owner out", (
     });
     expect(response.status).toBe(400);
     expect(control.writes).toHaveLength(0);
+  });
+});
+
+describe("POST — corregir especie, the FULL-LOCK command", () => {
+  // Closes `unjoined:correctPetSpeciesAction` in check-owner-surface-parity.ts:
+  // the door reaches `correctPetSpecies`, the module the web action reaches.
+  const SPECIES = { command: "correct_species", species: "cat" };
+
+  it("hands the persisted row, the posted species and the owner authorship to the use-case", async () => {
+    const response = await send(SPECIES);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ command: "correct_species", changed: true });
+    expect(control.writes).toHaveLength(1);
+    expect(control.writes[0].command).toBe("correct_species");
+    const input = control.writes[0].input;
+    expect(input.newSpecies).toBe("cat");
+    expect((input.pet as Record<string, unknown>).id).toBe(PET_ID);
+    expect((input.pet as Record<string, unknown>).species).toBe("dog");
+    expect(input.actor).toEqual({
+      userId: OWNER_ID,
+      eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
+    });
+  });
+
+  it("stamps the org path with the authorship the resolver computed", async () => {
+    control.access = asOrg();
+    expect((await send(SPECIES)).status).toBe(200);
+    expect((control.writes[0].input.actor as Record<string, unknown>).eventAuthorship).toEqual({
+      authorRole: "shelter",
+      authorOrganizationId: "org-1",
+      authorVerified: false,
+    });
+  });
+
+  it("reports changed:false for the species the animal already has — a replay, not a refusal", async () => {
+    // MUTATION APPLIED: map the use-case's `changed: false` to a 409. Red — a
+    // retried correction whose first attempt landed would read as a failure.
+    control.speciesResult = { ok: true, changed: false, species: "dog" };
+    const response = await send({ command: "correct_species", species: "dog" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ command: "correct_species", changed: false });
+  });
+
+  it("refuses a species outside the contract's list at the schema, writing nothing", async () => {
+    const response = await send({ command: "correct_species", species: "dragon" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("never lets the identity edit carry a species — the command is the only door", async () => {
+    await send({ ...IDENTITY, species: "cat" });
+    expect(control.writes[0].command).toBe("edit_identity");
+    expect((control.writes[0].input.parsed as Record<string, unknown>).species).toBe("dog");
+  });
+
+  it("refuses a CARETAKER with the caller's code, and writes nothing", async () => {
+    control.access = asRole("caretaker");
+    const response = await send(SPECIES);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "profile_forbidden" });
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("admits a co-owner and a foster, as the web's corregir-especie page does", async () => {
+    for (const role of ["co_owner", "foster"]) {
+      control.writes = [];
+      control.access = asRole(role);
+      expect((await send(SPECIES)).status).toBe(200);
+      expect(control.writes).toHaveLength(1);
+    }
+  });
+
+  it("answers 400 to the use-case's own vocabulary refusal, never 500", async () => {
+    control.speciesResult = { ok: false, code: "species_invalid" };
+    const response = await send(SPECIES);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+  });
+
+  it("answers 500 without echoing the writer's own sentence", async () => {
+    control.speciesResult = { ok: false, code: "write_failed", error: "detalle interno" };
+    const response = await send(SPECIES);
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "profile_failed" });
   });
 });
 

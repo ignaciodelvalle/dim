@@ -149,14 +149,6 @@ export const DECLARED_DIVERGENCES: Record<string, DeclaredDivergence> = {
       "A per-case entry (publicCode, kind, status) on OwnerPetCasesSection in packages/contract/src/api/owner-pet-detail.ts, read by the app after the write — never a field on the write response, which is the one place a person loses it.",
   },
 
-  // --- Owner actions the join cannot see (inline writers) -----------------
-  "unjoined:correctPetSpeciesAction": {
-    reason:
-      "Species correction (corregir-especie, titular-only) runs its transaction inline in src/modules/pets/actions.ts with no application use-case, and no v1 route corrects a species at all — the app cannot do it and the fence cannot even join on it.",
-    closes:
-      "Extract the transaction into src/modules/pets/application/profile/correct-species.ts, call it from the action, and add a `correct_species` command to POST /api/v1/pets/{token}/profile.",
-  },
-
   // --- Web writers with no v1 door ---------------------------------------
   "write:createTattooAction→createTattooForUser": {
     reason:

@@ -69,16 +69,18 @@ export type ResolvedProfileAccess = Exclude<PetHolderAccess, { kind: "none" }>;
 export function petProfileCapabilities(
   access: ResolvedProfileAccess,
 ): PetProfileEditCapabilitiesV1 {
+  // `kind` and `accessPath` are the same discriminator under two names — the
+  // holder resolver calls it `kind`, the cookie guard `accessPath` — and
+  // `holderRole` exists only on the owner arm, which is exactly the arm the
+  // predicate reads.
+  const titular = isTitularHolder(access.kind, access.kind === "owner" ? access.holderRole : null);
   return {
-    // `kind` and `accessPath` are the same discriminator under two names — the
-    // holder resolver calls it `kind`, the cookie guard `accessPath` — and
-    // `holderRole` exists only on the owner arm, which is exactly the arm the
-    // predicate reads.
-    canEditIdentity: isTitularHolder(
-      access.kind,
-      access.kind === "owner" ? access.holderRole : null,
-    ),
+    canEditIdentity: titular,
     canEditEmergencyContacts: access.kind === "owner" && access.holderRole === "owner",
+    // The web's `corregir-especie` page guards with `requireTitularAccess` too
+    // (`CorrectSpeciesPage`), so today this IS `canEditIdentity` — reported on
+    // its own so the two can part ways without a client noticing the wrong one.
+    canCorrectSpecies: titular,
   };
 }
 

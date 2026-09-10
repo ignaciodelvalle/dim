@@ -1,14 +1,15 @@
 // Client-input contract for EDITAR —
 // `POST /api/v1/pets/{publicToken}/profile`.
 //
-// TWO COMMANDS, ONE ENDPOINT, TWO DIFFERENT GUARDS. The read's contract
+// THREE COMMANDS, ONE ENDPOINT, TWO DIFFERENT GUARDS. The read's contract
 // (`@dim/contract/api`'s `pet-profile-edit.ts`) states the guards at length and
 // this file does not restate them, because two copies of a rule is how the
-// copies disagree. What matters here is that the split into two COMMANDS is not
-// cosmetic: one appends a `pet_profile_updated` event to the spine, the other
-// moves four preference columns and appends nothing, and they are authorized by
-// different rules. A single "save everything" command would have had to pick
-// one guard for both.
+// copies disagree. What matters here is that the split into COMMANDS is not
+// cosmetic: one appends a bundled `pet_profile_updated` event to the spine, one
+// moves four preference columns and appends nothing, and one — the species
+// correction — appends its OWN `pet_profile_updated` on the FULL-LOCK path the
+// identity edit refuses to touch. A single "save everything" command would have
+// had to pick one guard and one event for all three.
 //
 // THE REFERENCE POINTS, named by SYMBOL and not by line: a line number in a
 // comment is a fact about a file's length, and it rots on the next edit to
@@ -17,6 +18,8 @@
 //   editar identidad     `updatePetAction`                 src/modules/pets/actions.ts
 //   contactos            `updateEmergencyContactsAction`   app/actions/profile.ts
 //                        + `updateEmergencyContactsForPet` …/profile/update-emergency-contacts.ts
+//   corregir especie     `correctPetSpeciesAction`         src/modules/pets/actions.ts
+//                        + `correctPetSpecies`             …/profile/correct-species.ts
 //
 // WHAT THE SERVER STILL DECIDES AFTER THIS SCHEMA PASSES
 // ---------------------------------------------------------------------------
@@ -67,6 +70,7 @@
 
 import { z } from "zod";
 
+import { PET_SPECIES } from "./register-pet.ts";
 import { isWritableName } from "./writable-name.ts";
 
 /**
@@ -113,6 +117,7 @@ export const PET_PROFILE_COMMAND_INPUT_CODES = [
   "COLOR_TOO_LONG",
   "CONTACT_NAME_TOO_LONG",
   "CONTACT_PHONE_TOO_LONG",
+  "SPECIES_INVALID",
 ] as const;
 export type PetProfileCommandInputCode = (typeof PET_PROFILE_COMMAND_INPUT_CODES)[number];
 
@@ -250,9 +255,34 @@ const setEmergencyContacts = z.object({
   emergencyContactPhone: contactPhone,
 });
 
+/**
+ * Correct the animal's SPECIES — the FULL-LOCK path (PO decision #40).
+ *
+ * NOT A FIELD OF `edit_identity`, deliberately, and the read's contract says why
+ * at length: species drives PPP/compliance, so the profile-edit writer omits the
+ * column from its `SET` and a genuine correction goes through its own use-case
+ * (`correctPetSpecies`), which appends its own `pet_profile_updated`, clears a
+ * breed the new species' catalog does not carry, and re-resolves the PPP flag.
+ * That is the web's `corregir-especie` sheet, and this command is the same
+ * door.
+ *
+ * THE VOCABULARY IS THE CONTRACT'S OWN `PET_SPECIES`, so a client cannot post a
+ * species this registry does not know; the use-case checks the same list again
+ * behind the schema, for the web form that has no schema in front of it.
+ *
+ * POSTING THE SPECIES THE ANIMAL ALREADY HAS IS A SUCCESS WITH `changed: false`,
+ * never a refusal — a correction's success invalidates its own precondition, so
+ * a retry that lost its response must answer the way the first attempt did.
+ */
+const correctSpecies = z.object({
+  command: z.literal("correct_species"),
+  species: z.enum(PET_SPECIES, { error: "SPECIES_INVALID" }),
+});
+
 export const petProfileCommandInputSchema = z.discriminatedUnion("command", [
   editIdentity,
   setEmergencyContacts,
+  correctSpecies,
 ]);
 
 export type PetProfileCommandInput = z.infer<typeof petProfileCommandInputSchema>;

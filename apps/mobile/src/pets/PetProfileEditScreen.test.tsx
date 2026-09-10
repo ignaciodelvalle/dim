@@ -69,7 +69,11 @@ function payload(over: Partial<PetProfileEditV1> = {}): PetProfileEditV1 {
       emergencyContactName: "Mamá",
       emergencyContactPhone: "1199887766",
     },
-    capabilities: { canEditIdentity: true, canEditEmergencyContacts: true },
+    capabilities: {
+      canEditIdentity: true,
+      canEditEmergencyContacts: true,
+      canCorrectSpecies: true,
+    },
     ...over,
   } as PetProfileEditV1;
 }
@@ -99,7 +103,11 @@ describe("PetProfileEditScreen — the two halves are gated separately", () => {
     mockFetch.mockResolvedValue({
       outcome: "ok",
       payload: payload({
-        capabilities: { canEditIdentity: true, canEditEmergencyContacts: false },
+        capabilities: {
+          canEditIdentity: true,
+          canEditEmergencyContacts: false,
+          canCorrectSpecies: true,
+        },
         emergencyContacts: null,
         emergencyAccountDefault: null,
       }),
@@ -117,7 +125,11 @@ describe("PetProfileEditScreen — the two halves are gated separately", () => {
     mockFetch.mockResolvedValue({
       outcome: "ok",
       payload: payload({
-        capabilities: { canEditIdentity: false, canEditEmergencyContacts: true },
+        capabilities: {
+          canEditIdentity: false,
+          canEditEmergencyContacts: true,
+          canCorrectSpecies: false,
+        },
       }),
     });
     render(<PetProfileEditScreen publicToken={TOKEN} />);
@@ -229,6 +241,49 @@ describe("PetProfileEditScreen — saving", () => {
     fireEvent.press(screen.getByText("Guardar datos"));
     expect(await screen.findByText(/El nombre no puede quedar vacío/)).toBeOnTheScreen();
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("posts the species correction as its OWN command, never as a field of the identity edit", async () => {
+    // FULL-LOCK (PO decision #40): `edit_identity` refuses the species, so the
+    // card has its own chips and its own button, and what leaves the phone is
+    // `correct_species` and nothing else.
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    await screen.findByDisplayValue("Pampa");
+    fireEvent.press(screen.getByRole("radio", { name: "Gato" }));
+    fireEvent.press(screen.getByRole("button", { name: "Corregir especie" }));
+    await waitFor(() => expect(mockSend).toHaveBeenCalled());
+    expect(mockSend).toHaveBeenCalledWith({}, TOKEN, {
+      command: "correct_species",
+      species: "cat",
+    });
+  });
+
+  it("says the species was already that when the server reports no change", async () => {
+    mockSend.mockResolvedValue({
+      outcome: "ok",
+      payload: { command: "correct_species", changed: false },
+    });
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    await screen.findByDisplayValue("Pampa");
+    fireEvent.press(screen.getByRole("button", { name: "Corregir especie" }));
+    expect(await screen.findByText(/no hay nada que corregir/)).toBeOnTheScreen();
+  });
+
+  it("renders the reason and no chips when the caller may not correct the species", async () => {
+    mockFetch.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        capabilities: {
+          canEditIdentity: false,
+          canEditEmergencyContacts: false,
+          canCorrectSpecies: false,
+        },
+      }),
+    });
+    render(<PetProfileEditScreen publicToken={TOKEN} />);
+    expect(await screen.findByText(/La especie la corrige el titular/)).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Corregir especie" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Gato" })).toBeNull();
   });
 
   it("posts all four contact fields, so an emptied one clears the override", async () => {

@@ -31,12 +31,17 @@
 //
 // WHAT IS NOT HERE, AND WHY EACH ONE IS ABSENT RATHER THAN FORGOTTEN
 // ---------------------------------------------------------------------------
-//   · SPECIES and JURISDICTION. FULL-LOCK (PO decision #40): the profile-edit
-//     path on the web writes neither — `PetsRepository.updatePetProfile` omits
-//     all three columns from its `SET` on purpose, and each has its own
-//     event-governed correction path (`correctPetSpeciesAction`,
-//     `recordMoveAction`). An "editar" endpoint that accepted them would be a
-//     second, ungoverned door onto legally load-bearing state.
+//   · SPECIES and JURISDICTION, as FIELDS OF THE IDENTITY EDIT. FULL-LOCK (PO
+//     decision #40): the profile-edit path on the web writes neither —
+//     `PetsRepository.updatePetProfile` omits all three columns from its `SET`
+//     on purpose, and each has its own event-governed correction path
+//     (`correctPetSpeciesAction`, `recordMoveAction`). An "editar" identity
+//     edit that accepted them would be a second, ungoverned door onto legally
+//     load-bearing state. The species DOES have a door on this URL since
+//     2026-09-10 — the `correct_species` COMMAND, which reaches the web's own
+//     `correctPetSpecies` use-case and its own event — and the jurisdiction has
+//     `POST /pets/{token}/move`. Same rule, one governed door each, none of
+//     them a field on the identity form.
 //   · SEÑAS PARTICULARES (`pets.distinguishing_features`). The column exists
 //     and NO profile-edit writer anywhere touches it: it is written by lost-mode
 //     enrichment (`set-pet-lost-use-case.ts`), by intake and by decomiso, and it
@@ -115,6 +120,15 @@ export type PetProfileEditCapabilitiesV1 = {
   canEditIdentity: boolean;
   /** The legal owner alone — `ownerships.role = 'owner'` on the person path. */
   canEditEmergencyContacts: boolean;
+  /**
+   * `requireTitularAccess` again — the web's `corregir-especie` page and
+   * `correctPetSpeciesAction` both guard with it, so this is the SAME rule as
+   * `canEditIdentity` and is reported as its own flag anyway: a client renders
+   * the species card from this one, and the day the web narrows the correction
+   * (it is a rewrite of what the animal IS) the flag moves without the identity
+   * form moving with it.
+   */
+  canCorrectSpecies: boolean;
 };
 
 export type PetProfileEditV1 = {
@@ -154,9 +168,11 @@ export type PetProfileEditV1 = {
  * the same name twice writes nothing and appends no `pet_profile_updated` — the
  * append-only spine must not fill with events that record nothing. The contacts
  * writer is a plain column update, and this endpoint compares before and after
- * rather than reporting `true` because an UPDATE ran.
+ * rather than reporting `true` because an UPDATE ran. The species correction
+ * reports `false` when the animal already IS the species posted — the replay
+ * rule its use-case states — and appends nothing in that case.
  */
 export type PetProfileEditAckV1 = {
-  command: "edit_identity" | "set_emergency_contacts";
+  command: "edit_identity" | "set_emergency_contacts" | "correct_species";
   changed: boolean;
 };

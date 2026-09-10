@@ -61,15 +61,12 @@ import { recordPostAdoptionCheckin } from "./application/checkin/record-post-ado
 import type { CheckinFormState } from "./application/checkin/types";
 import { recordChipDisputeAgainstActivePet } from "./application/chip-match/record-chip-dispute";
 import { recordMovementWriter } from "./application/movement/record-movement";
+import { correctPetSpecies } from "./application/profile/correct-species";
 import { registerPet } from "./application/register-pet";
 import { updatePet } from "./application/update-pet";
 import { parsePetForm } from "./domain/pet-form";
 import type { NewNotification, NewPetFormState } from "./domain/types";
 import { PetsRepository } from "./infrastructure/pets-repository";
-
-// Species accepted by the credential (must match parsePetForm / the register
-// forms). Used by the FULL-LOCK species-correction path to reject junk.
-const ALLOWED_SPECIES = ["dog", "cat", "rabbit", "guinea_pig", "ferret", "other"] as const;
 
 // Duplicate-chip gate (data-quality gate P3). A microchip is a globally-unique
 // identity: if it already exists in miMAR, the pet exists — the owner must
@@ -659,9 +656,11 @@ export async function recordMoveAction(
 // ---------------------------------------------------------------------------
 //
 // Species is locked on the profile-edit path (it drives PPP/compliance). A
-// genuine correction flows here and emits a pet_profile_updated event carrying
-// the single species change (audit trail) before updating the column. PPP is
-// recomputed for the corrected species — a non-dog clears the flag.
+// genuine correction flows here, through `correctPetSpecies` — the SAME
+// use-case `POST /api/v1/pets/{token}/profile` reaches with `correct_species`
+// (the join scripts/check-owner-surface-parity.ts makes). The event, the breed
+// clearing and the PPP recomputation all live there; this door parses the form,
+// guards, and puts the use-case's answer into this form's own sentences.
 
 export async function correctPetSpeciesAction(
   publicToken: string,
@@ -672,59 +671,33 @@ export async function correctPetSpeciesAction(
   if (!access.ok) return { error: access.error };
   const { user, pet, eventAuthorship } = access;
 
-  const newSpecies = String(formData.get("species") ?? "").trim();
-  if (!(ALLOWED_SPECIES as readonly string[]).includes(newSpecies)) {
-    return { error: "Elegí una especie válida." };
-  }
-  if (newSpecies === pet.species) {
-    return { error: "La especie es la misma; no hay nada que corregir." };
-  }
-
-  // A stored breed that does not resolve within the NEW species' catalog is
-  // cleared in the same write. Without this, the correction left a
-  // cross-species breed behind and the grandfather rule (breed-validation.ts,
-  // QA A5) then preserved it through every later edit — forever. The special
-  // options ("Mixto / Cruza", "Pura raza no listada") resolve in every
-  // species' catalog, so they survive the correction.
-  const breedResolution = resolveBreedForWrite(newSpecies, pet.breed);
-  const correctedBreed: string | null = breedResolution.ok ? pet.breed : null;
-
-  // Recompute PPP for the corrected species AND the possibly-cleared breed
-  // (a cat/rabbit/etc. clears it).
-  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
-    newSpecies,
-    correctedBreed,
-    parseEstimatedWeightKg(pet.estimatedWeightKg),
+  const result = await correctPetSpecies(
     {
-      country: "AR",
-      province: pet.jurisdictionProvince,
-      locality: pet.jurisdictionLocality,
+      pet,
+      newSpecies: String(formData.get("species") ?? ""),
+      actor: { userId: user.id, eventAuthorship },
+    },
+    {
+      repo: PetsRepository,
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+      resolvePpp: resolvePppClassificationForJurisdiction,
     },
   );
 
-  try {
-    await db.transaction(async (tx) => {
-      await PetsRepository.correctSpecies(
-        {
-          petId: pet.id,
-          oldSpecies: pet.species,
-          newSpecies,
-          oldBreed: pet.breed,
-          newBreed: correctedBreed,
-          potentiallyDangerousBreed,
-          userId: user.id,
-          eventAuthorship,
-          now: new Date(),
-        },
-        tx as Parameters<typeof PetsRepository.correctSpecies>[1],
-      );
-    });
-  } catch (err) {
+  if (!result.ok) {
     return {
-      error: `No se pudo corregir la especie: ${
-        err instanceof Error ? err.message : "error desconocido"
-      }`,
+      error:
+        result.code === "species_invalid"
+          ? "Elegí una especie válida."
+          : `No se pudo corregir la especie: ${result.error}`,
     };
+  }
+  // The use-case reports a same-species correction as a success that wrote
+  // nothing (the replay rule — see its header); THIS form still tells the
+  // person there was nothing to correct, exactly as it always has.
+  if (!result.changed) {
+    return { error: "La especie es la misma; no hay nada que corregir." };
   }
 
   // N3: return the destination; the form navigates (useActionRedirect).

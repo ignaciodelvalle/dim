@@ -43,7 +43,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { PetProfileEditV1 } from "@dim/contract/api";
-import type { PetProfileCommandInput } from "@dim/contract/input";
+import { PET_SPECIES, type PetProfileCommandInput, type PetSpecies } from "@dim/contract/input";
 
 import type { ApiResult } from "../api/client";
 import { fetchPetProfileEdit, sendPetProfileCommand } from "../api/endpoints";
@@ -51,7 +51,15 @@ import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { Body, Card, Loading } from "../ui/components";
 import { FONTS } from "../ui/fonts";
-import { Callout, PrimaryButton, Screen, SecondaryButton, TextField, Title } from "../ui/kit";
+import {
+  Callout,
+  Choice,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+  TextField,
+  Title,
+} from "../ui/kit";
 import { movePetRoute } from "../ui/routes";
 import { COLORS, SPACE, TOUCH_TARGET, TYPE } from "../ui/theme";
 import { sameDraft } from "../ui/use-draft-dirty";
@@ -64,6 +72,7 @@ import {
   type IdentityDraft,
   accountFallbackLabel,
   breedChoicesFor,
+  buildCorrectSpecies,
   buildEmergencyContacts,
   buildIdentityEdit,
   contactsBlockedReason,
@@ -72,7 +81,10 @@ import {
   identityDraftFrom,
   identityFieldCaps,
   savedLabel,
+  speciesBlockedReason,
+  speciesDraftFrom,
 } from "./pet-profile-edit-view-model";
+import { speciesLabel } from "./species";
 
 /**
  * One sentence per failure arm. No arm falls through to a generic shrug, and
@@ -108,6 +120,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
   const [busy, setBusy] = useState(false);
   const [identity, setIdentity] = useState<IdentityDraft | null>(null);
   const [contacts, setContacts] = useState<EmergencyDraft | null>(null);
+  const [species, setSpecies] = useState<PetSpecies | null>(null);
   const [breedQuery, setBreedQuery] = useState("");
   // One return-key chain per SAVE GROUP; the BreedPicker between the two
   // identity fields is deliberately outside both (see use-return-key-chain).
@@ -131,7 +144,9 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
     ((identity !== null && !sameDraft(identityDraftFrom(state.view), identity)) ||
       // `emergencyDraftFrom` is nullable: a viewer this payload does not carry
       // contacts for has no baseline, and no form to have typed into either.
-      (contacts !== null && storedContacts !== null && !sameDraft(storedContacts, contacts)));
+      (contacts !== null && storedContacts !== null && !sameDraft(storedContacts, contacts)) ||
+      // A species chip moved off the animal's own is a correction not yet sent.
+      species !== speciesDraftFrom(state.view));
   useDraftDiscardGuard(dirty);
 
   const load = useCallback(async () => {
@@ -146,6 +161,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
       // Terrier", and the field has to end up saying what was actually stored.
       setIdentity(identityDraftFrom(result.payload));
       setContacts(emergencyDraftFrom(result.payload));
+      setSpecies(speciesDraftFrom(result.payload));
       return;
     }
     setState({ phase: "failed", message: failureMessage(result) });
@@ -193,6 +209,7 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
   const view = state.view;
   const identityBlocked = identityBlockedReason(view);
   const contactsBlocked = contactsBlockedReason(view);
+  const speciesBlocked = speciesBlockedReason(view);
   // GRANDFATHERED against what is stored, never the bare constant: a `TextInput`
   // truncates the value it is handed, so a fixed cap under an already-longer
   // name would shorten it on screen and the next save would write the shortened
@@ -251,6 +268,56 @@ export function PetProfileEditScreen({ publicToken }: { publicToken: string }) {
               disabled={busy}
               onPress={() => {
                 const built = buildIdentityEdit(identity, view.identity);
+                if (!built.ok) {
+                  setNotice({ tone: "err", message: built.message });
+                  return;
+                }
+                void run(built.input);
+              }}
+            />
+          </View>
+        )}
+      </Card>
+
+      {/* CORREGIR ESPECIE — the FULL-LOCK path, on this screen rather than on
+          a route of its own. The web puts it one link away from its edit form
+          (`corregir-especie/page.tsx`, "← Volver a editar") because a
+          `?sheet=`-shaped page is what its router has; a stack navigator has no
+          such thing, and a card here is where a person who came to fix "Perro"
+          into "Gato" is already looking. The copy is the web sheet's,
+          transcribed: its title, its "solo si se cargó mal" sentence, the field
+          label and the button.
+
+          IT IS NOT A FIELD OF THE DATOS FORM ABOVE, and that split is the
+          server's (PO decision #40): `edit_identity` refuses the species and
+          `correct_species` is its own command with its own event, its own breed
+          clearing and its own PPP recomputation. Two buttons because they are
+          two acts. */}
+      <Card title="Corregir especie">
+        {speciesBlocked !== null ? (
+          <Callout tone="neutral">
+            <Body>{speciesBlocked}</Body>
+          </Callout>
+        ) : (
+          <View style={styles.stack}>
+            <Body>
+              Corregí la especie solo si se cargó mal. El cambio queda registrado en la libreta y
+              vuelve a evaluar las reglas PPP.
+            </Body>
+            <Choice
+              label="Especie correcta"
+              required
+              options={PET_SPECIES}
+              selected={species}
+              optionLabel={speciesLabel}
+              onSelect={setSpecies}
+              disabled={busy}
+            />
+            <PrimaryButton
+              label="Corregir especie"
+              disabled={busy}
+              onPress={() => {
+                const built = buildCorrectSpecies(species);
                 if (!built.ok) {
                   setNotice({ tone: "err", message: built.message });
                   return;

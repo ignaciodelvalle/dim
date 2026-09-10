@@ -1,4 +1,4 @@
-// The two commands behind `POST /api/v1/pets/{publicToken}/profile`.
+// The three commands behind `POST /api/v1/pets/{publicToken}/profile`.
 //
 // Split out of `route.ts` the way lost mode and compartir split theirs: that
 // file asks "is this request well formed", this one asks "may this command run,
@@ -6,7 +6,7 @@
 //
 // WHO MAY RUN EACH ONE — VERIFIED AGAINST THE WEB, AND NOT ONE RULE
 // ---------------------------------------------------------------------------
-// The two booleans are derived in `./payload.ts` and used by BOTH the read and
+// The three booleans are derived in `./payload.ts` and used by BOTH the read and
 // this file, so a screen can never be offered a control this file refuses. The
 // rules themselves are cited by SYMBOL and not by line — a line number in a
 // comment is a fact about a file's length and rots on the next edit above it:
@@ -14,6 +14,15 @@
 //   editar identidad   `updatePetAction`                src/modules/pets/actions.ts
 //                      `EditPetPage`                    …/[publicToken]/editar/page.tsx
 //   contactos          `updateEmergencyContactsForPet`  …/profile/update-emergency-contacts.ts
+//   corregir especie   `correctPetSpeciesAction`        src/modules/pets/actions.ts
+//                      `CorrectSpeciesPage`             …/[publicToken]/corregir-especie/page.tsx
+//
+// THE SPECIES CORRECTION CLOSES `unjoined:correctPetSpeciesAction` in
+// `scripts/check-owner-surface-parity.ts`: the web action used to run its
+// transaction inline, with no application module for a second door to reach,
+// so the fence could not even join on it. `correctPetSpecies` is that module
+// now, and this file calls the IDENTICAL use-case the web action calls — the
+// join the fence makes — rather than a parallel implementation.
 //
 // and the second is NOT a narrowing this endpoint invented: the writer's own
 // `ownerships` join says `role = 'owner'`, so it refuses a co-owner, a foster
@@ -25,13 +34,14 @@
 //
 // WHAT THE SERVER DECIDES AND THE CLIENT MAY NOT
 // ---------------------------------------------------------------------------
-//   · THE SPECIES AND THE JURISDICTION. Neither is a field of this request, and
-//     `updatePetProfile` omits both columns from its `SET` (FULL-LOCK, PO
-//     decision #40). The 2026-08-14 adversarial finding on `updatePetAction` was
-//     that a crafted `species=cat` POST passed the BREED GATE against the wrong
-//     catalog while the column itself stayed locked; here there is no species
-//     field to craft — every gate below is fed `access.pet.species`, the
-//     persisted value.
+//   · THE SPECIES AND THE JURISDICTION, on the IDENTITY edit. Neither is a
+//     field of that request, and `updatePetProfile` omits both columns from its
+//     `SET` (FULL-LOCK, PO decision #40). The 2026-08-14 adversarial finding on
+//     `updatePetAction` was that a crafted `species=cat` POST passed the BREED
+//     GATE against the wrong catalog while the column itself stayed locked;
+//     here there is no species field on that command to craft — every gate in
+//     `editIdentity` is fed `access.pet.species`, the persisted value. The
+//     species moves ONLY through `correct_species`, its own governed command.
 //   · THE BREED, canonically. `resolveBreedForWrite` folds and aliases against
 //     the persisted species' catalog and refuses anything else, with one
 //     exception it grants on purpose: the animal's CURRENT stored breed passes
@@ -43,12 +53,15 @@
 //     field reaches it.
 //   · WHETHER ANYTHING CHANGED, and therefore whether the spine gets an event.
 //
-// NO `Idempotency-Key`, AND THAT IS A CONTRACT RATHER THAN AN OMISSION. Both
-// commands are idempotent on the STATE: an identity edit is a value, so sending
-// it twice is sending it once, the second one short-circuits before the
-// transaction opens (`updatePet`'s `isNoOp`) and appends nothing. Requiring a
-// header neither writer honours would be this endpoint promising a guarantee it
-// does not have — the refusal `events/writers.ts` makes for atestación PPP.
+// NO `Idempotency-Key`, AND THAT IS A CONTRACT RATHER THAN AN OMISSION. All
+// three commands are idempotent on the STATE: an identity edit is a value, so
+// sending it twice is sending it once, the second one short-circuits before the
+// transaction opens (`updatePet`'s `isNoOp`) and appends nothing; a species
+// correction whose success invalidates its own precondition (the animal now IS
+// the species asked for) answers the replay as `changed: false` before any I/O
+// (`correctPetSpecies`' own rule). Requiring a header no writer honours would be
+// this endpoint promising a guarantee it does not have — the refusal
+// `events/writers.ts` makes for atestación PPP.
 
 import { db } from "@/db";
 import { resolveBreedForWrite } from "@/lib/domain/breed-validation";
@@ -63,6 +76,7 @@ import {
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { reportError } from "@/lib/infra/report-error";
+import { correctPetSpecies } from "@/src/modules/pets/application/profile/correct-species";
 import { updateEmergencyContactsForPet } from "@/src/modules/pets/application/profile/update-emergency-contacts";
 import { updatePet } from "@/src/modules/pets/application/update-pet";
 import { diffPet } from "@/src/modules/pets/domain/pet-diff";
@@ -125,8 +139,58 @@ export async function runPetProfileCommand(ctx: CommandContext) {
     return editIdentity(ctx, access, ctx.input);
   }
 
+  if (ctx.input.command === "correct_species") {
+    if (!capabilities.canCorrectSpecies) return apiV1Error("profile_forbidden", 403);
+    return correctSpecies(ctx, access, ctx.input);
+  }
+
   if (!capabilities.canEditEmergencyContacts) return apiV1Error("profile_forbidden", 403);
   return setEmergencyContacts(ctx, access, ctx.input);
+}
+
+/**
+ * CORREGIR ESPECIE — the FULL-LOCK path, through the web's own use-case.
+ *
+ * Everything a correction drags along — the `pet_profile_updated` it appends,
+ * the breed it clears when the new species' catalog does not carry it, the PPP
+ * flag it re-resolves — is decided inside `correctPetSpecies`, and this door
+ * hands it the same PPP resolver the cookie door hands it. `changed: false` is
+ * the use-case's own replay answer: the animal already IS this species, nothing
+ * was written, and a retry that lost its response reads the same as the first.
+ */
+async function correctSpecies(
+  ctx: CommandContext,
+  access: ResolvedProfileAccess,
+  input: Extract<PetProfileCommandInput, { command: "correct_species" }>,
+) {
+  const result = await correctPetSpecies(
+    {
+      pet: access.pet,
+      newSpecies: input.species,
+      actor: {
+        userId: ctx.userId,
+        // The bearer door stamps what the cookie door stamps — see `editIdentity`.
+        eventAuthorship: access.kind === "owner" ? OWNER_AUTHORSHIP : access.eventAuthorship,
+      },
+    },
+    {
+      repo: PetsRepository,
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+      resolvePpp: resolvePppClassificationForJurisdiction,
+    },
+  );
+
+  if (!result.ok) {
+    // `species_invalid` cannot reach here through the schema (`z.enum` over the
+    // same list); it is answered anyway, as the request's fault, because a
+    // use-case rule the wire cannot see must not fall through to a 500.
+    if (result.code === "species_invalid") return apiV1Error("invalid_request", 400);
+    reportError("api-v1-profile/correct_species", result.error);
+    return apiV1Error("profile_failed", 500);
+  }
+
+  return ack({ command: "correct_species", changed: result.changed });
 }
 
 /**

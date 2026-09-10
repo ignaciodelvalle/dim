@@ -1,10 +1,11 @@
-// `/api/v1/pets/{publicToken}/profile` — EDITAR: the two things about an animal
-// an owner changes that are not events.
+// `/api/v1/pets/{publicToken}/profile` — EDITAR: the things about an animal an
+// owner changes that are not asientos.
 //
 // GET reads what a form needs to pre-fill itself — the three identity fields,
 // the pet-level emergency-contact override, the account defaults each of those
-// falls back to when cleared, and which of the two commands this caller may
-// send. POST runs one of the two: editar los datos, or guardar los contactos.
+// falls back to when cleared, and which of the commands this caller may send.
+// POST runs one of three: editar los datos, guardar los contactos, or corregir
+// la especie (the FULL-LOCK correction, added 2026-09-10 — `./commands.ts`).
 //
 // WHY THIS IS NOT ON THE EVENTS ENDPOINT, and why it is not two endpoints
 // ---------------------------------------------------------------------------
@@ -30,10 +31,12 @@
 // numbers or refuse a co-owner a name correction the web allows.
 //
 // WHAT THIS ENDPOINT DELIBERATELY DOES NOT EDIT — each absent for its own reason,
-// all four written out in `@dim/contract/api`'s `pet-profile-edit.ts`: species
-// and jurisdiction (FULL-LOCK, each with its own event-governed correction
-// path), `distinguishing_features` (no profile-edit writer exists anywhere, and
-// it is not a field of `diffPet`, so a value written here would never reach the
+// all written out in `@dim/contract/api`'s `pet-profile-edit.ts`: species and
+// jurisdiction AS FIELDS OF THE IDENTITY EDIT (FULL-LOCK, each with its own
+// event-governed correction path — the species' is the `correct_species`
+// command on this same URL, the jurisdiction's is `/move`),
+// `distinguishing_features` (no profile-edit writer exists anywhere, and it is
+// not a field of `diffPet`, so a value written here would never reach the
 // spine), and the photo (its own ticket-and-confirm door).
 
 import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";

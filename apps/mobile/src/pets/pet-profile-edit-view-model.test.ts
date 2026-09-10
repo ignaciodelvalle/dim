@@ -22,6 +22,7 @@ import { PET_NAME_MAX } from "@dim/contract/input";
 import {
   accountFallbackLabel,
   breedChoicesFor,
+  buildCorrectSpecies,
   buildEmergencyContacts,
   buildIdentityEdit,
   contactsBlockedReason,
@@ -31,6 +32,8 @@ import {
   identityFieldCaps,
   petProfileInputCodeMessage,
   savedLabel,
+  speciesBlockedReason,
+  speciesDraftFrom,
 } from "./pet-profile-edit-view-model";
 
 function view(over: Partial<PetProfileEditV1> = {}): PetProfileEditV1 {
@@ -53,7 +56,11 @@ function view(over: Partial<PetProfileEditV1> = {}): PetProfileEditV1 {
       emergencyContactName: "Mamá",
       emergencyContactPhone: "1199887766",
     },
-    capabilities: { canEditIdentity: true, canEditEmergencyContacts: true },
+    capabilities: {
+      canEditIdentity: true,
+      canEditEmergencyContacts: true,
+      canCorrectSpecies: true,
+    },
     ...over,
   } as PetProfileEditV1;
 }
@@ -80,7 +87,11 @@ describe("the two capabilities are two different refusals", () => {
 
   it("names the ARRANGEMENT for identity and the PERSON for the contacts", () => {
     const blocked = view({
-      capabilities: { canEditIdentity: false, canEditEmergencyContacts: false },
+      capabilities: {
+        canEditIdentity: false,
+        canEditEmergencyContacts: false,
+        canCorrectSpecies: false,
+      },
     });
     const identity = identityBlockedReason(blocked);
     const contacts = contactsBlockedReason(blocked);
@@ -93,12 +104,56 @@ describe("the two capabilities are two different refusals", () => {
 
   it("blocks the contacts alone for a holder who is not the legal owner", () => {
     const foster = view({
-      capabilities: { canEditIdentity: true, canEditEmergencyContacts: false },
+      capabilities: {
+        canEditIdentity: true,
+        canEditEmergencyContacts: false,
+        canCorrectSpecies: true,
+      },
       emergencyContacts: null,
       emergencyAccountDefault: null,
     });
     expect(identityBlockedReason(foster)).toBeNull();
     expect(contactsBlockedReason(foster)).not.toBeNull();
+  });
+
+  it("blocks the species correction from its OWN flag, naming the act", () => {
+    // MUTATION APPLIED: read `canEditIdentity` instead of `canCorrectSpecies`.
+    // Red — the day the web narrows the correction the identity form would go
+    // on offering a control the server refuses.
+    const caretaker = view({
+      capabilities: {
+        canEditIdentity: true,
+        canEditEmergencyContacts: false,
+        canCorrectSpecies: false,
+      },
+    });
+    expect(speciesBlockedReason(view())).toBeNull();
+    expect(speciesBlockedReason(caretaker)).toContain("especie");
+  });
+});
+
+describe("the species chips start on the animal's own", () => {
+  it("selects the stored species when this build knows it", () => {
+    expect(speciesDraftFrom(view({ species: "cat" }))).toBe("cat");
+  });
+
+  it("selects nothing for a species the contract does not list — never a wrong chip", () => {
+    expect(speciesDraftFrom(view({ species: "chinchilla" }))).toBeNull();
+  });
+
+  it("posts the chosen species as the correction command", () => {
+    const built = buildCorrectSpecies("cat");
+    expect(built.ok).toBe(true);
+    if (built.ok) expect(built.input).toEqual({ command: "correct_species", species: "cat" });
+  });
+
+  it("refuses to post with no chip chosen, with the web form's own sentence", () => {
+    const built = buildCorrectSpecies(null);
+    expect(built.ok).toBe(false);
+    if (!built.ok) {
+      expect(built.code).toBe("SPECIES_INVALID");
+      expect(built.message).toBe("Elegí una especie válida.");
+    }
   });
 });
 
@@ -275,5 +330,12 @@ describe("every input code has a sentence, and a no-op is not a lie", () => {
 
   it("says where a real identity change went — the libreta, not nowhere", () => {
     expect(savedLabel("edit_identity", true)).toContain("libreta");
+  });
+
+  it("reports a species correction the way the web does — recorded, or nothing to correct", () => {
+    expect(savedLabel("correct_species", true)).toContain("libreta");
+    expect(savedLabel("correct_species", false)).toBe(
+      "La especie es la misma; no hay nada que corregir.",
+    );
   });
 });
