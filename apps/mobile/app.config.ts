@@ -104,9 +104,13 @@
 //
 // The alternatives were considered and are worse HERE:
 //
-//   `appVersion` — ties the runtime version to `version` in app.json (0.0.1).
-//       Two builds of 0.0.1 with different native modules share a runtime
-//       version, so the crash above is fully available. It only works if a
+//   `appVersion` — ties the runtime version to `version` in app.json. Two
+//       builds carrying THE SAME `version` but different native modules would
+//       share a runtime version, so the crash above is fully available. (The
+//       example used to name the literal `0.0.1`, which stopped being this
+//       app's version the day the first store build was cut; a rationale that
+//       cites a moving value ages into a lie. The argument never depended on
+//       which string it was.) It only works if a
 //       human remembers to bump `version` on every native change, which is the
 //       same "a rule enforced by nobody" shape `appVersionSource: remote`
 //       exists to get rid of (see docs/mobile/eas-build-profiles.md).
