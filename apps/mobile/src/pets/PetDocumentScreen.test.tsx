@@ -1543,3 +1543,74 @@ describe("PetDocumentScreen — the two contextual doors", () => {
     expect(screen.queryByText("Registrar atestación")).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// The compliance card's secondary line
+// ---------------------------------------------------------------------------
+
+describe("the compliance card prints its datum, not just its verdict", () => {
+  /**
+   * `detail` is the contract's "es-AR secondary line — date, provider, chip
+   * number", and this face rendered NEITHER it nor the web's enriched pill.
+   *
+   * The web suppresses `detail` for exactly two cards — a current rabies stamp
+   * and a verified microchip — because its `StatusBadge` has already appended
+   * the datum to the pill ("VIGENTE · HASTA 14/01/2027", the chip number
+   * itself). This row's value is the bare `card.state` and does no such thing,
+   * so on the phone the fact that SATISFIES the obligation was nowhere on the
+   * screen: "Microchip · Registrado" with no number, "Vacuna antirrábica ·
+   * Vigente" with no until-when.
+   *
+   * A compliance card that names an obligation and hides the fact behind it is
+   * worse than quiet — it looks complete.
+   */
+  function withDetails() {
+    return {
+      compliance: OK({
+        cards: [
+          {
+            key: "rabies",
+            label: "Vacuna antirrábica",
+            state: "Vigente",
+            tone: "ok",
+            detail: "Próxima 14/01/2027 · Vet. San Justo",
+          },
+          {
+            key: "microchip",
+            label: "Microchip",
+            state: "Registrado",
+            tone: "ok",
+            detail: "982000123456789",
+          },
+        ],
+        summary: { total: 2, ok: 2, label: "2 de 2 al día" },
+        worstTone: "ok",
+        worstIsUnknown: false,
+      }),
+    };
+  }
+
+  it("shows the vaccine's next-due date and the chip number", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload(withDetails()),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("Próxima 14/01/2027 · Vet. San Justo")).toBeOnTheScreen();
+    expect(screen.getByText("982000123456789")).toBeOnTheScreen();
+  });
+
+  it("renders nothing extra when a card carries no detail", async () => {
+    // The default fixture's one card has no `detail`. Nothing may appear
+    // between the row and the next card — a null datum is not "—", and an empty
+    // muted line under every obligation is noise the web does not draw either.
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("Vacuna antirrábica")).toBeOnTheScreen();
+    expect(screen.queryByText("—")).not.toBeOnTheScreen();
+    expect(screen.queryByText("null")).not.toBeOnTheScreen();
+  });
+});

@@ -217,6 +217,28 @@ function ComplianceCardRow({
   return (
     <>
       <Row label={card.label} value={card.state} />
+      {/* THE DATUM, which this face used to drop on the floor.
+
+          `detail` is the contract's own "es-AR secondary line — date, provider,
+          chip number", and until now nothing on the phone rendered it. That is
+          not the same omission as the web's: over there the PILL carries the
+          datum for the two cards that have one (`StatusBadge` appends
+          "· HASTA 14/01/2027" to a current rabies stamp and shows the chip
+          number itself on a verified microchip), which is exactly why the web
+          suppresses `detail` for those two and prints it for everything else.
+
+          This row's value is the BARE `card.state`. It does no such
+          enrichment. So on the phone the date, the provider and the chip number
+          appeared in NEITHER place — the owner read "Microchip · Registrado"
+          with the number nowhere on the screen, and "Vacuna antirrábica ·
+          Vigente" with no until-when. A compliance card that names an
+          obligation and hides the fact that satisfies it is worse than quiet:
+          it looks complete.
+
+          Printed unconditionally, and that is correct HERE precisely because
+          the value beside it never repeats it. The day this row starts
+          enriching its value, this needs the web's suppression rule with it. */}
+      {card.detail ? <Text style={styles.complianceDetail}>{card.detail}</Text> : null}
       {isAttestationDoorCard(card, gates) ? (
         <SecondaryButton
           label="Registrar atestación"
@@ -1365,6 +1387,12 @@ const styles = StyleSheet.create({
   actionDanger: { borderColor: COLORS.dangerBorder },
   actionLabel: { fontFamily: FONTS.sansSemibold, fontSize: TYPE.md },
   actionCaption: { fontFamily: FONTS.sans, fontSize: TYPE.xs, color: COLORS.inkMuted },
+  complianceDetail: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.sm,
+    color: COLORS.inkMuted,
+    marginTop: -2,
+  },
 
   moreList: { gap: SPACE.xs },
 });
