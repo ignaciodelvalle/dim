@@ -82,8 +82,14 @@ Con tu mascota ya registrada, probá estas 8 cosas y contanos cómo te fue:
 
 Para que no pienses que es un error tuyo:
 
-- Todavía no se puede cargar una foto de tu mascota desde la app.
-- No hay notificaciones. Si alguien te transfiere una mascota o te responde algo, tenés que abrir la app para verlo.
+- La foto de tu mascota **sí** se puede cargar, pero no durante el alta: primero registrás la
+  mascota y después entrás a **Más** → **Foto de la mascota**.
+- **Sí** hay una bandeja de notificaciones dentro de la app, en el ícono de la campana. Lo que
+  todavía no hay es aviso en la pantalla del teléfono: si alguien te transfiere una mascota o te
+  responde algo, te enterás cuando abrís la app.
+- El cartel para imprimir de una mascota perdida se arma desde la web, no desde la app.
+- Todavía no se puede escanear el código de barras de la etiqueta del microchip: el número se
+  escribe a mano.
 - Por ahora es solo Android — todavía no hay versión para iPhone.
 
 ## Contanos qué pasó
