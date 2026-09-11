@@ -2,7 +2,8 @@
 //
 // See docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md.
 //
-// The ONLY database-touching part of the SENASA export. Gathers sanitary-
+// The ONLY database-touching part of the SENASA export — the scoped gather and
+// (since the route landed, 2026-09-11) the mandatory audit row. Gathers sanitary-
 // aligned pet_events (tipo_evento_code IS NOT NULL) within a ProjectionContext
 // (jurisdiction scope + period), joined to their pets, and returns plain
 // SenasaEventRow[] for the pure transform in senasa-export.ts. Scoping mirrors
@@ -13,7 +14,7 @@
 
 import { type SQL, and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 
-import { db, petEvents, pets } from "@/db";
+import { auditLog, db, petEvents, pets } from "@/db";
 import type { SenasaEventRow } from "@/lib/analytics/senasa-export";
 import { type ProjectionContext, jurisdictionPairClause } from "@/lib/metrics";
 
@@ -146,4 +147,84 @@ export async function* streamSenasaBatch(
     cursor = { occurredAt: last.occurredAt, id: last.id };
     if (rows.length < pageSize) return;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Audit — the mandatory row for a RAW-ROW export (R4.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * One `senasa_export_generated` row per SENASA batch download.
+ *
+ * WHY ITS OWN ACTION, AND NOT `gob_dashboard_export_generated`.
+ * That action's catalog entry (db/schema.ts) says what it means in as many
+ * words: "aggregate/scoped rows only, no raw PII pet lists". This export is the
+ * opposite — ONE ROW PER ANIMAL PER SANITARY EVENT, carrying the animal's
+ * public token and the exact clinical date. Filing it under an action that
+ * declares itself aggregate would make the trail say something untrue about
+ * what was downloaded, and would put it in the same filter bucket as the four
+ * dashboard CSVs on /admin/auditoria — so an auditor asking "who pulled raw
+ * sanitary rows for my province" could not ask it. Migration 0220 declares the
+ * action; `AUDIT_LOG_ACTIONS` is the same single source of truth it projects.
+ *
+ * WHY BEFORE THE FIRST BYTE, AND WHY NO ROW COUNT.
+ * The response is STREAMED, so the count is not knowable when the row is
+ * written, and a row written after the stream drains is absent in exactly the
+ * case that matters most: a download that was interrupted AFTER the sensitive
+ * rows had already crossed the wire (client disconnect, pod recycle, a crash in
+ * the middle of a 200k-row pull). The audited fact here is the authorized
+ * DISCLOSURE OF A SCOPE — actor, jurisdiction, period, format — and that is
+ * fully known before any data moves. R4.1 asks for a row count; it was written
+ * against a buffered export where the count was free. Recording a scope that
+ * cannot be lost serves the requirement's intent better than a count that can.
+ *
+ * THE JURISDICTIONS ARE RECORDED AS PAIRS, NOT AS A COUNT, and the first draft
+ * of this function got that wrong in a way that defeated its own stated purpose.
+ * That draft wrote `province`/`locality` from `ctx.adminProvince`/`adminLocality`
+ * — but `resolveJurisdictionScope` gates both of those on `role === "admin"`
+ * ("Govt callers get null", its own docblock). So for EVERY govt operator the
+ * payload read `{ jurisdiction_count: 3, province: null, locality: null }`, and
+ * an operator assigned three localities who pulled `?province=AR-B` produced a
+ * row byte-identical to the same operator pulling all three.
+ *
+ * The whole argument for minting a separate action, three paragraphs up, is
+ * that an auditor must be able to ask "who pulled raw sanitary rows FOR MY
+ * PROVINCE". For the actors who are not admins — which is most of them — the
+ * province was not in the row. It is now: the effective pairs the query was
+ * actually scoped to. Bounded and small; an operator holds a handful of
+ * assignments, not a country.
+ */
+export async function logSenasaExport(
+  actorUserId: string,
+  ctx: ProjectionContext,
+  formatterId: string,
+): Promise<void> {
+  await db.insert(auditLog).values({
+    actorUserId,
+    action: "senasa_export_generated",
+    payload: {
+      format: formatterId,
+      scope: {
+        kind: ctx.scope.kind,
+        jurisdiction_count: ctx.scope.kind === "jurisdictions" ? ctx.scope.jurisdictions.length : 0,
+        // The EFFECTIVE pairs, whatever narrowed them — an admin's drill-down
+        // and a govt operator's mandate both land here, so the row answers the
+        // province question for either actor. Empty for a global scope, which
+        // `kind` already says.
+        jurisdictions:
+          ctx.scope.kind === "jurisdictions"
+            ? ctx.scope.jurisdictions.map((j) => ({
+                province: j.province ?? null,
+                locality: j.locality ?? null,
+              }))
+            : [],
+        province: ctx.adminProvince ?? null,
+        locality: ctx.adminLocality ?? null,
+      },
+      period: {
+        since: ctx.period.since.toISOString(),
+        until: ctx.period.until.toISOString(),
+      },
+    },
+  });
 }

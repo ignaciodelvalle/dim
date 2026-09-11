@@ -126,6 +126,28 @@ export function toSenasaCanonicalRows(rows: SenasaEventRow[]): SenasaCanonicalRo
 // Pluggable formatter
 // ---------------------------------------------------------------------------
 
+/**
+ * Incremental serializer — the half of a formatter a STREAMED download needs.
+ *
+ * `open()` and `close()` run exactly once, around any number of `write()`
+ * calls, so a document with a preamble (a CSV header, an XML root element) or
+ * a trailer can still be produced without ever holding every row at once.
+ *
+ * Concatenating `open() + write(a) + write(b) + close()` MUST equal
+ * `format([...a, ...b])` byte for byte. That is not an aspiration: it is
+ * asserted in __tests__/senasa-export-route.test.ts, and `format()` below is
+ * IMPLEMENTED in terms of these three so the two paths cannot drift by
+ * construction.
+ */
+export type SenasaChunkWriter = {
+  /** Bytes emitted once, before any row chunk. */
+  open(): string;
+  /** Serialize one chunk of rows. MUST NOT repeat the preamble. */
+  write(rows: SenasaCanonicalRow[]): string;
+  /** Bytes emitted once, after the last chunk. */
+  close(): string;
+};
+
 export interface SenasaFormatter {
   /** Stable id used in the ?format= query param and audit log. */
   id: string;
@@ -137,6 +159,17 @@ export interface SenasaFormatter {
   fileExtension: string;
   /** Serialize canonical rows to the target byte layout. */
   format(rows: SenasaCanonicalRow[]): string;
+  /**
+   * REQUIRED, not optional, and that is the point (2026-09-11, when the route
+   * was wired). `streamSenasaBatch` is a generator precisely so nobody
+   * materializes the whole batch; a formatter that could only accept an array
+   * would force the route to undo that at the last step, which is the exact
+   * trap that docblock exists to prevent. Making the incremental path part of
+   * the INTERFACE means the real SENASA formatter cannot land without deciding
+   * how it chunks — a decision, visible in its own code, rather than an
+   * accidental `[...rows]` in a route nobody re-audits.
+   */
+  openChunked(): SenasaChunkWriter;
 }
 
 /**
@@ -174,18 +207,37 @@ export const csvSenasaFormatter: SenasaFormatter = {
   label: "CSV (planilla — compatible con Excel)",
   contentType: "text/csv; charset=utf-8",
   fileExtension: "csv",
+  openChunked(): SenasaChunkWriter {
+    return {
+      // BOM for Excel + the header line, exactly once. No trailing break: the
+      // first write() supplies the separator, so an empty batch ends as a
+      // header-only document with no dangling blank row.
+      open: () => `﻿${SENASA_CSV_COLUMNS.join(",")}`,
+      write(rows: SenasaCanonicalRow[]): string {
+        if (rows.length === 0) return "";
+        // Project each row into the fixed column order so the header + cells
+        // are stable even if SenasaCanonicalRow's field order ever changes.
+        const ordered = rows.map((r) => {
+          const out: Record<string, unknown> = {};
+          for (const col of SENASA_CSV_COLUMNS) out[col] = r[col];
+          return out;
+        });
+        // rowsToCsv re-emits the header from the first row's keys; drop that
+        // line and keep its leading CRLF, which is the separator this chunk
+        // needs after whatever came before. Reusing it (rather than a second
+        // escaping routine here) is what keeps RFC-4180 quoting identical
+        // between the batch and streamed paths.
+        const csv = rowsToCsv(ordered);
+        const firstBreak = csv.indexOf("\r\n");
+        return firstBreak === -1 ? "" : csv.slice(firstBreak);
+      },
+      close: () => "",
+    };
+  },
   format(rows: SenasaCanonicalRow[]): string {
-    // Project each row into the fixed column order so the header + cells are
-    // stable even if SenasaCanonicalRow's field order ever changes.
-    const ordered = rows.map((r) => {
-      const out: Record<string, unknown> = {};
-      for (const col of SENASA_CSV_COLUMNS) out[col] = r[col];
-      return out;
-    });
-    const body = rowsToCsv(ordered);
-    // Empty batch → header-only line so the downloaded file is still valid.
-    const content = body === "" ? SENASA_CSV_COLUMNS.join(",") : body;
-    return `﻿${content}`;
+    // One implementation, two entry points — see SenasaChunkWriter's docblock.
+    const w = csvSenasaFormatter.openChunked();
+    return `${w.open()}${w.write(rows)}${w.close()}`;
   },
 };
 
@@ -202,4 +254,47 @@ export const SENASA_FORMATTERS: Record<string, SenasaFormatter> = {
 export function resolveSenasaFormatter(id: string | null | undefined): SenasaFormatter {
   if (id && id in SENASA_FORMATTERS) return SENASA_FORMATTERS[id];
   return csvSenasaFormatter;
+}
+
+// ---------------------------------------------------------------------------
+// Streamed document — the only sanctioned way to turn the query stage's
+// generator into a downloadable body.
+// ---------------------------------------------------------------------------
+
+/** Rows transformed and serialized per chunk. Bounds memory, not the export. */
+const SENASA_DOCUMENT_CHUNK_ROWS = 500;
+
+/**
+ * Serialize an async stream of gathered events into document chunks.
+ *
+ * The peak memory held here is `chunkRows` canonical rows, NOT the batch —
+ * which is the whole reason `streamSenasaBatch` is a generator. Consumers
+ * (app/gob/senasa/export/route.ts) pipe these strings straight into the
+ * response body, so a 200k-row export never exists as one object.
+ *
+ * Pure: takes an AsyncIterable, imports no database.
+ */
+export async function* senasaDocumentChunks(
+  source: AsyncIterable<SenasaEventRow>,
+  formatter: SenasaFormatter,
+  // `chunkRows` exists so a test can cross the chunk boundary with few rows,
+  // same discipline as streamSenasaBatch's `pageSize`.
+  opts: { chunkRows?: number } = {},
+): AsyncGenerator<string, void, undefined> {
+  const chunkRows = opts.chunkRows ?? SENASA_DOCUMENT_CHUNK_ROWS;
+  const writer = formatter.openChunked();
+
+  yield writer.open();
+
+  let buffer: SenasaCanonicalRow[] = [];
+  for await (const row of source) {
+    buffer.push(toSenasaCanonicalRow(row));
+    if (buffer.length >= chunkRows) {
+      yield writer.write(buffer);
+      buffer = [];
+    }
+  }
+  if (buffer.length > 0) yield writer.write(buffer);
+
+  yield writer.close();
 }

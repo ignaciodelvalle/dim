@@ -154,6 +154,10 @@ export const AUDIT_ACTION_LABELS = {
   // Exports
   analytics_export_generated: "Exportación analytics generada",
   gob_dashboard_export_generated: "Exportación CSV de dashboard",
+  // Named for the DATA CLASS, not the destination: this is the one govt export
+  // in the list that ships one row per animal, and the filter dropdown is where
+  // an auditor has to be able to tell it apart from the aggregate ones.
+  senasa_export_generated: "Exportación SENASA (lote de eventos sanitarios)",
   ppp_export_generated: "Exportación PPP generada",
   travel_export_generated: "Exportación de viaje generada",
   // Pet events override
