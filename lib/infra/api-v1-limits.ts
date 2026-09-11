@@ -933,6 +933,20 @@ export const API_V1_IP_BUCKET_FAMILIES: Readonly<Record<string, ApiV1IpFamily>> 
   api_v1_me_notifications_read_ip: "authenticated-read",
   api_v1_me_notifications_write_ip: "inbox-state",
 
+  // Push target registration, landed with the native push channel. It BORROWS
+  // `authenticated-write` rather than getting a family of its own, and that is
+  // a deliberate choice in the conservative direction: the family's ceiling was
+  // derived from what it costs to hand over an animal, which is far more than
+  // one upsert on the caller's own row. A family of its own would be two more
+  // numbers to keep in agreement with nothing forcing them to, for an act whose
+  // real rate is a handful a day — sign-in, a token rotation, a sign-out.
+  //
+  // It did NOT take `inbox-state` alongside the notification write above, even
+  // though both are small writes a phone makes on its own. That family's
+  // ceiling is sized for somebody scrolling an inbox marking rows read, which
+  // is a burst; this is not.
+  api_v1_me_push_targets_ip: "authenticated-write",
+
   // The ten under `pets/**`, landed 2026-08-27. They carried `pre-cgnat` until
   // then; the header derives each one. The five reads were the authenticated-read
   // family's own numbers all along and only ever needed to be told the family

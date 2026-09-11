@@ -119,6 +119,14 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // policies (user_id = auth.uid()); no DELETE (revocation is a soft
   // revoked_at update; rows go via profiles CASCADE only).
   "push_subscriptions",
+  // Native push targets (migration 0222): the phone's sibling of the row above,
+  // and the same posture for the same reasons — owner-only SELECT/INSERT/UPDATE
+  // (user_id = auth.uid()), NO DELETE policy, because revocation is a soft
+  // revoked_at update and the only hard delete is the art. 16 erasure running
+  // as SECURITY DEFINER. Carries the Expo delivery token, which is a
+  // credential: anybody holding it can push to that device, so a row reachable
+  // by the wrong reader is not a privacy footnote.
+  "push_targets",
   // Physical tags (migration 0169): SELECT-own policy only (activator or
   // current owner of the linked pet, TO authenticated); zero write policies —
   // issuance/activation/revocation go through server actions (BYPASSRLS).
