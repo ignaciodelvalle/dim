@@ -65,6 +65,17 @@ export type CaptureOption = {
   routeOverride?: string;
 };
 
+/**
+ * Where "Registrar embarazo" points, as ONE string nobody restates.
+ *
+ * It is also the row's identity: the entry rides `clinical_info_logged`, which
+ * the catalog already uses for "Información clínica / estudios", so the gate in
+ * `CaptureOptionsList` cannot pick it out by event type. `phase=started` is
+ * written out even though the page defaults to it — a default is a thing that
+ * can be flipped, and this link means the START of a pregnancy specifically.
+ */
+export const PREGNANCY_START_ROUTE = "/eventos/nuevo/embarazo?phase=started";
+
 export const ALL_CAPTURE_OPTIONS: CaptureOption[] = [
   // Eventos de salud
   { eventType: "vaccination_administered", label: "Registrar vacuna", category: "Salud" },
@@ -76,6 +87,24 @@ export const ALL_CAPTURE_OPTIONS: CaptureOption[] = [
   { eventType: "medication_started", label: "Inicio de medicación", category: "Salud" },
   { eventType: "medication_stopped", label: "Fin de medicación", category: "Salud" },
   { eventType: "clinical_info_logged", label: "Información clínica / estudios", category: "Salud" },
+  // "Declarar un embarazo" had NO entry point on the web at all until this row:
+  // the route and the form both shipped, and the only ways in were free text the
+  // capture matcher happened to recognise, or typing the URL. Its sibling — the
+  // CLOSE of a pregnancy — has had a real link since it shipped
+  // (`PregnancyInProgressCard`), because an open pregnancy is a state the
+  // profile can announce. "Not pregnant" is not a state, so the start belongs in
+  // the catalog and not in a card that would sit on every female dog's profile
+  // asking a question nobody posed. Same place the phone puts it
+  // (`conditionalKinds`, apps/mobile/src/pets/record-event-view-model.ts).
+  //
+  // CONDITIONAL — gated in `CaptureOptionsList` on `canStartPregnancy`, the same
+  // predicate the destination page enforces. See `PREGNANCY_START_ROUTE`.
+  {
+    eventType: "clinical_info_logged",
+    label: "Registrar embarazo",
+    category: "Salud",
+    routeOverride: PREGNANCY_START_ROUTE,
+  },
   // Identificación
   {
     eventType: "microchip_implanted",

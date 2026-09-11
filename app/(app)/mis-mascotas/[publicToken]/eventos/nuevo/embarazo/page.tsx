@@ -5,20 +5,27 @@
 //   - ?phase=ended   → close with outcome (only when pet.pregnancyStatus='in_progress')
 //
 // Server-side gates:
-//   - pet.sex must be 'female' and species in {dog, cat, other} (PR2)
+//   - pet.sex must be 'female' and the species must have a known gestation
 //   - phase=started requires pet.pregnancyStatus != 'in_progress'
 //   - phase=ended requires pet.pregnancyStatus == 'in_progress'
+//
+// THE SPECIES SET USED TO BE A LITERAL HERE — `{dog, cat, other}`, from PR2 —
+// and it went stale. The writer's `PREGNANCY_DURATION_DAYS` was widened on
+// 2026-09-07 (PO decision) to cover every species in `PET_SPECIES`, because a
+// rabbit, a guinea pig and a ferret all gestate and all were being refused. The
+// phone's picker tracked that change; this page did not, so it kept refusing a
+// pregnant rabbit the writer would have accepted. It now asks
+// `speciesCanCarryPregnancy`, which reads the writer's own table.
 
 import Link from "next/link";
 
 import { recordPregnancyEndedAction, recordPregnancyStartedAction } from "@/app/actions/pregnancy";
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
+import { speciesCanCarryPregnancy } from "@/src/modules/pets/application/pregnancy/pregnancy-eligibility";
 
 import { PregnancyEndedForm } from "./PregnancyEndedForm";
 import { PregnancyStartedForm } from "./PregnancyStartedForm";
-
-const ALLOWED_SPECIES = new Set(["dog", "cat", "other"]);
 
 export default async function NewPregnancyPage({
   params,
@@ -42,7 +49,7 @@ export default async function NewPregnancyPage({
       />
     );
   }
-  if (!ALLOWED_SPECIES.has(pet.species)) {
+  if (!speciesCanCarryPregnancy(pet.species)) {
     return (
       <BlockedShell
         publicToken={publicToken}

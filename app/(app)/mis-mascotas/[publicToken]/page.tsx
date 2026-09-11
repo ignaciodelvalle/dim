@@ -47,6 +47,7 @@ import {
   hasReviewedDisclosurePrefs,
 } from "@/lib/projections/first-steps-checklist";
 import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { canStartPregnancy } from "@/src/modules/pets/application/pregnancy/pregnancy-eligibility";
 import {
   type OwnerPetAlertId,
   loadOwnerPetDetail,
@@ -310,6 +311,13 @@ export default async function PetDetailPage({
   // (SheetMounter → CaptureOptionsList). Same predicate the check-in page
   // 404s on; false for org viewers (anotar is owner-only anyway).
   let showCheckinOption = false;
+
+  // Gates the "Registrar embarazo" entry in the same anotar catalog. Unlike the
+  // check-in above this is a pure read of the `pets` row already in hand — no
+  // query, so no reason to compute it inside the owner branch. See
+  // canStartPregnancy for why the null arms are strict here and permissive on
+  // the phone.
+  const showPregnancyStartOption = canStartPregnancy(pet);
 
   if (accessPath === "owner") {
     // "Confirmar devolución": only the legal owner, only when a pending return
@@ -757,6 +765,7 @@ export default async function PetDetailPage({
         chapitaData={chapitaData}
         alertsOriginShelter={alertsOriginShelter}
         showCheckinOption={showCheckinOption}
+        showPregnancyStartOption={showPregnancyStartOption}
         physicalCredentialChannels={physicalCredentialChannels}
         emergencyContacts={
           // The edit sheet writes the PET-LEVEL override (owner-ia-redesign P2),

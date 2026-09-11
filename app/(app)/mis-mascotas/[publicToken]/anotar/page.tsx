@@ -11,6 +11,7 @@ import Link from "next/link";
 
 import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
+import { canStartPregnancy } from "@/src/modules/pets/application/pregnancy/pregnancy-eligibility";
 import { CaptureBox } from "./CaptureBox";
 import { CaptureOptionsList } from "./CaptureOptionsList";
 
@@ -31,6 +32,11 @@ export default async function CapturePage({
   // QA A9: the "Check-in post-adopción" catalog entry only renders for the
   // registered adopter — the target page 404s for anyone else.
   const showCheckinOption = await isPetAdoptedByUser(pet.id, user.id);
+
+  // The "Registrar embarazo" entry renders only for an animal that can open one
+  // — the same predicate the destination page enforces, read off the `pets` row
+  // this page already loaded. No extra query.
+  const showPregnancyStartOption = canStartPregnancy(pet);
 
   return (
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
@@ -73,7 +79,11 @@ export default async function CapturePage({
           <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
         </div>
 
-        <CaptureOptionsList petPublicToken={token} showCheckinOption={showCheckinOption} />
+        <CaptureOptionsList
+          petPublicToken={token}
+          showCheckinOption={showCheckinOption}
+          showPregnancyStartOption={showPregnancyStartOption}
+        />
       </div>
     </div>
   );

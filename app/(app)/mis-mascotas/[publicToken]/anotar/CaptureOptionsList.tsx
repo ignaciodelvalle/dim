@@ -13,11 +13,12 @@ import Link from "next/link";
 
 import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { todayIsoInAr } from "@/lib/utils/format";
-import { ALL_CAPTURE_OPTIONS } from "./handoff";
+import { ALL_CAPTURE_OPTIONS, PREGNANCY_START_ROUTE } from "./handoff";
 
 export function CaptureOptionsList({
   petPublicToken,
   showCheckinOption,
+  showPregnancyStartOption,
 }: {
   petPublicToken: string;
   /**
@@ -27,12 +28,28 @@ export function CaptureOptionsList({
    * fallback page and SheetMounter's ?sheet=anotar) must thread this.
    */
   showCheckinOption: boolean;
+  /**
+   * The second conditional row, and the same shape as the first: "Registrar
+   * embarazo" renders only when `canStartPregnancy` says this animal can open
+   * one — female, of a species with a known gestation, with none already in
+   * progress. Resolved server-side by the host from the `pets` row it already
+   * holds (no extra query), because this component is bundled into a client
+   * component (SheetMounter) and the predicate reads the writer's table.
+   *
+   * Withheld rather than shown-and-refused: the destination enforces the same
+   * three clauses and would answer with a blocked shell.
+   */
+  showPregnancyStartOption: boolean;
 }) {
   const today = todayIsoInAr();
 
-  const visibleOptions = ALL_CAPTURE_OPTIONS.filter(
-    (opt) => opt.eventType !== "post_adoption_checkin" || showCheckinOption,
-  );
+  const visibleOptions = ALL_CAPTURE_OPTIONS.filter((opt) => {
+    if (opt.eventType === "post_adoption_checkin") return showCheckinOption;
+    // By ROUTE and not by event type: the pregnancy row rides
+    // `clinical_info_logged`, which another row already uses.
+    if (opt.routeOverride === PREGNANCY_START_ROUTE) return showPregnancyStartOption;
+    return true;
+  });
 
   const optionsWithHref = visibleOptions.map((opt) => {
     let href: string;

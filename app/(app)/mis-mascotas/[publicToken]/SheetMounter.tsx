@@ -175,6 +175,12 @@ type Props = {
    * predicate the check-in page 404-gates on).
    */
   showCheckinOption: boolean;
+  /**
+   * Whether the anotar catalog shows the "Registrar embarazo" entry. Resolved
+   * server-side by page.tsx via canStartPregnancy, off the `pets` row it
+   * already holds — the same predicate the destination page enforces.
+   */
+  showPregnancyStartOption: boolean;
 };
 
 export function SheetMounter({
@@ -197,6 +203,7 @@ export function SheetMounter({
   ownerFirstName,
   alertsOriginShelter,
   showCheckinOption,
+  showPregnancyStartOption,
   caretakerConsentName = null,
 }: Props) {
   const pathname = usePathname();
@@ -259,11 +266,17 @@ export function SheetMounter({
           <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
             <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
             {/* Ver S2-F09 en CaptureBox: este bloque es el CATÁLOGO COMPLETO
-                (23 opciones agrupadas), no una repetición de los atajos. */}
+                agrupado por categoría, no una repetición de los atajos. El
+                conteo que decía acá se sacó al agregar una opción: un número en
+                un comentario no falla cuando deja de ser cierto. */}
             <span>Todos los tipos de registro</span>
             <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
           </div>
-          <CaptureOptionsList petPublicToken={petToken} showCheckinOption={showCheckinOption} />
+          <CaptureOptionsList
+            petPublicToken={petToken}
+            showCheckinOption={showCheckinOption}
+            showPregnancyStartOption={showPregnancyStartOption}
+          />
         </div>
       </Sheet>
     );
