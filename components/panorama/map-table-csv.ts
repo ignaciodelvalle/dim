@@ -25,6 +25,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { type ViewScopeDescriptor, viewScopeCsvHeaderLines } from "@/lib/ui/view-scope-descriptor";
+import { neutralizeCsvFormula } from "@/lib/utils/csv-formula";
 
 /** One per-unit cell of an active layer, as the table (and CSV) render it. */
 export type MapTableRow = {
@@ -85,9 +86,14 @@ export function mapTableValueHeader(metrics: ValueMetric[]): string {
 const CSV_HEADER = ["Capa", "Unidad", "Valor", "Brecha vs meta"] as const;
 
 /** Escape one CSV field: wrap in quotes and double any embedded quote when the
- * field contains a comma, quote, or newline (RFC 4180). */
+ * field contains a comma, quote, or newline (RFC 4180), after neutralising
+ * anything a spreadsheet would evaluate as a formula. Locality names are the
+ * free text on this path — see `lib/utils/csv-formula.ts`. */
 function csvField(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  // Every value here is already a display string, so the numeric exemption in
+  // csv-formula.ts does not apply — hence `value` twice.
+  const cell = neutralizeCsvFormula(value, value);
+  return /[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
 }
 
 /**

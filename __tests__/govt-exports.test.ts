@@ -301,6 +301,50 @@ describe("rowsToCsv", () => {
     // values — nulls and undefined become empty
     expect(lines[1]).toBe("A,,");
   });
+
+  // -------------------------------------------------------------------------
+  // CSV formula injection
+  //
+  // Every government and open-data CSV in the product funnels through this one
+  // function, so this is where the class is closed rather than at six call
+  // sites. The reachable path that made it urgent: a vet types a formula into a
+  // free-text clinical field (`laboratorio`, `lote_biologico`), and a SENASA
+  // operator opens the export on their desktop. RFC 4180 quoting does not help
+  // — the spreadsheet strips the quotes and evaluates what is inside.
+  // -------------------------------------------------------------------------
+
+  it.each([
+    ["equals", '=HYPERLINK("http://x/","ok")'],
+    ["plus", "+1+1"],
+    ["at", "@SUM(A1:A9)"],
+    ["tab", "\tcmd"],
+    ["carriage return", "\rcmd"],
+  ])("neutralizes a string cell starting with %s", (_label, payload) => {
+    const csv = rowsToCsv([{ laboratorio: payload }]);
+    const cell = csv.split("\r\n")[1];
+    // The leading apostrophe is what makes a spreadsheet treat the rest as
+    // literal text. It survives RFC 4180 quoting when quoting also applies.
+    expect(cell.replace(/^"|"$/g, "").startsWith("'")).toBe(true);
+  });
+
+  it("neutralizes the minus vector that a naive 'minus then digit' exemption would miss", () => {
+    // `-2+3+cmd|' /C calc'!A0` is the canonical DDE payload and it begins with
+    // a minus followed by a DIGIT — which is exactly the shape an exemption
+    // written to protect negative numbers would wave through.
+    const csv = rowsToCsv([{ lote: "-2+3+cmd|' /C calc'!A0" }]);
+    expect(csv.split("\r\n")[1].startsWith("'-2")).toBe(true);
+  });
+
+  it("leaves a NEGATIVE NUMBER alone — the exemption is by type, not by pattern", () => {
+    // A real negative quantity in a column somebody sums must stay summable.
+    const csv = rowsToCsv([{ delta: -5, total: 12 }]);
+    expect(csv.split("\r\n")[1]).toBe("-5,12");
+  });
+
+  it("leaves ordinary text untouched, so the guard is not a blanket prefix", () => {
+    const csv = rowsToCsv([{ laboratorio: "Biogénesis Bagó", lote: "A1234" }]);
+    expect(csv.split("\r\n")[1]).toBe("Biogénesis Bagó,A1234");
+  });
 });
 
 // ---------------------------------------------------------------------------

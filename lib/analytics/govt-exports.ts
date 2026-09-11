@@ -10,6 +10,7 @@
 // explicit and auditable. The schema_version is stamped in every audit log row
 // so any exported dataset is reproducible.
 
+import { neutralizeCsvFormula } from "@/lib/utils/csv-formula";
 import { z } from "zod";
 
 /** Schema version stamped on every export's audit log payload. */
@@ -113,7 +114,8 @@ export function anonymizeRows<S extends ExportSlice>(
  * Format rows as CSV. First row is headers (keys from the first object, in
  * insertion order). String cells containing commas, double quotes, or
  * newlines are enclosed in double quotes per RFC 4180; internal quotes are
- * doubled.
+ * doubled. Cells a spreadsheet would evaluate as a formula are prefixed with
+ * `'` — see `lib/utils/csv-formula.ts`.
  *
  * Returns an empty string when `rows` is empty.
  */
@@ -123,7 +125,10 @@ export function rowsToCsv(rows: Record<string, unknown>[]): string {
   const headers = Object.keys(rows[0]);
 
   function escapeCell(value: unknown): string {
-    const str = value === null || value === undefined ? "" : String(value);
+    const raw = value === null || value === undefined ? "" : String(value);
+    // Formula neutralisation runs BEFORE the quoting decision, so a payload
+    // that gains a leading `'` is still quoted when it also contains a comma.
+    const str = neutralizeCsvFormula(value, raw);
     // Enclose in quotes if the cell contains a comma, newline, or double quote.
     if (str.includes(",") || str.includes("\n") || str.includes('"')) {
       return `"${str.replace(/"/g, '""')}"`;

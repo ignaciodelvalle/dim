@@ -8,6 +8,7 @@
 
 import type { BuiltDataset } from "@/lib/open-data/datasets";
 import { SUPPRESSED_MARKER } from "@/lib/open-data/province-suppression";
+import { neutralizeCsvFormula } from "@/lib/utils/csv-formula";
 
 export type DatasetFormat = "csv" | "json";
 
@@ -26,7 +27,10 @@ export function parseFormat(value: string | null | undefined): DatasetFormat {
  *  never changes behavior for the unrelated authenticated exports that reuse
  *  rowsToCsv. */
 function csvCell(value: unknown): string {
-  const str = value === null || value === undefined ? "" : String(value);
+  const raw = value === null || value === undefined ? "" : String(value);
+  // Neutralise BEFORE the quoting decision. This dataset is PUBLIC — the file
+  // is downloadable by anyone and opened in a spreadsheet by most of them.
+  const str = neutralizeCsvFormula(value, raw);
   if (str === SUPPRESSED_MARKER || str.includes(",") || str.includes("\n") || str.includes('"')) {
     return `"${str.replace(/"/g, '""')}"`;
   }

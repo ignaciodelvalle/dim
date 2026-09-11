@@ -31,12 +31,25 @@
 //
 // English identifiers, es-AR user copy in the callers (project invariant #4).
 
+import { neutralizeCsvFormula } from "@/lib/utils/csv-formula";
+
 /** Escape one CSV field: wrap in quotes and double any embedded quote when the
  * field contains a comma, quote, or newline (RFC 4180 — same rule
  * buildMapTableCsv applies; duplicated 3 lines rather than importing from
  * components/panorama/**, which is read-only reference territory). */
 export function csvField(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  // Formula neutralisation FIRST, then the RFC 4180 decision — a payload that
+  // gains a leading `'` must still be quoted if it also contains a comma.
+  //
+  // Everything reaching here is already a display string (the contract above:
+  // "values EXACTLY as the screen displays them"), so there is no JS number to
+  // exempt by type. That is why `value` is passed as both arguments: the
+  // numeric exemption in `lib/utils/csv-formula.ts` is correct and simply does
+  // not apply on this path. These seven operator queues carry free-text case
+  // and observation descriptions straight to a funcionario's spreadsheet, which
+  // is the reachable half of that file's threat model.
+  const cell = neutralizeCsvFormula(value, value);
+  return /[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
 }
 
 export type OperatorCsvInput = {

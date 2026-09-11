@@ -225,11 +225,42 @@ Lower than 🔴 because the designed flow is showing a phone screen, not paper �
 
 ### 🟠-8 · CSV formula injection is unmitigated across every builder
 
-**VERIFIED.** Relayed from the export sweep.
+**CERRADO el 2026-09-11.** Se deja el hallazgo entero y se le agrega el cierre
+abajo, porque lo que lo mantuvo abierto cinco semanas es la parte instructiva.
 
-No CSV builder in the repo neutralises a leading `=`, `+`, `-` or `@`. All five do RFC-4180 quote/comma/newline escaping only: `lib/open-data/serialize.ts:28-34`, `lib/analytics/govt-exports.ts:125-132`, `app/gob/outreach/export/route.ts:28-35`, `lib/ui/csv-export.ts:38-40`, `components/panorama/MapDataTable.tsx:82-84`.
+**El hallazgo original (VERIFICADO).** Ningún constructor de CSV del repositorio
+neutralizaba un `=`, `+`, `-` o `@` inicial. Los cinco hacían sólo el entrecomillado
+RFC 4180. Exposición real: `outreach/export` emite `petName`, `vetLabel` y `clinic`
+de texto libre; `CsvExportLink` alimenta siete colas de operador con descripciones
+libres de casos y observaciones. Un nombre de mascota tipeado como fórmula se
+ejecuta cuando un funcionario abre el archivo.
 
-Real exposure: `outreach/export` emits free-text `petName`, `vetLabel`, `clinic` (`route.ts:111-136`); `CsvExportLink` is wired to seven operator queues carrying free-text case and observation descriptions (`app/gob/maltrato/MaltratoQueueScreen.tsx`, `app/gob/casos/CasosScreen.tsx`, `app/gob/moderacion/ModeracionQueueScreen.tsx`, `app/gob/perdidas/page.tsx`, `app/gob/vigilancia/page.tsx`, `app/admin/casos/page.tsx`, `app/admin/observaciones/page.tsx`). A pet name typed as a formula executes when a funcionario opens the file.
+**Por qué siguió abierto.** No por dificultad — el arreglo es una línea — sino
+porque había **cinco** funciones de escapado duplicadas a propósito, cada una con
+su comentario explicando por qué no se compartía. Esas razones eran buenas y
+seguían siendo sobre el ENTRECOMILLADO, que sí difiere por superficie. La
+neutralización de fórmulas no difiere en ninguna: es la misma decisión, por la
+misma razón, con la misma consecuencia en las cinco. Duplicarla es exactamente
+cómo cinco de seis terminaron sin ella.
+
+**Qué se hizo.** `lib/utils/csv-formula.ts` — una función, con su argumento
+escrito — y los cinco constructores la importan:
+
+- `lib/analytics/govt-exports.ts` (`rowsToCsv`) — cubre de una vez la exportación
+  de análisis, los cuatro tableros de gobierno y la ruta SENASA nueva.
+- `lib/open-data/serialize.ts` — **datos abiertos, o sea público**.
+- `app/gob/outreach/export/route.ts`.
+- `lib/ui/csv-export.ts` — las siete colas de operador.
+- `components/panorama/map-table-csv.ts` — el informe lo citaba en
+  `components/panorama/MapDataTable.tsx:82-84`; se mudó de archivo desde entonces.
+  Vale anotarlo: una cita a línea envejece peor que una a concepto.
+
+**La única sutileza, y es la que hay que leer antes de tocar esto.** Los números
+se exceptuúan **por tipo, no por patrón**. Un `-5` real tiene que seguir siendo
+`-5` en una columna que alguien suma. El atajo tentador es exceptuar "menos
+seguido de dígito" — y `-2+3+cmd|' /C calc'!A0`, que es la carga DDE canónica,
+empieza con menos seguido de dígito. Una excepción por patrón deja pasar el
+ataque. Hay un test que lo fija.
 
 ### 🟠-9 · Two live CSV builders omit the UTF-8 BOM, so Excel mangles es-AR text
 

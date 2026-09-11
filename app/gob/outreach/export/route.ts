@@ -22,11 +22,14 @@ import {
 } from "@/lib/infra/outreach-pipelines";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { neutralizeCsvFormula } from "@/lib/utils/csv-formula";
 
 type Pipeline = "overdue_rabies" | "stray_density" | "sterilization_ranking";
 
 function escapeCell(value: string | number | null | undefined): string {
-  const s = String(value ?? "");
+  // Free-text petName / vetLabel / clinic reach this and land in a
+  // funcionario's spreadsheet. Neutralise before the RFC 4180 decision.
+  const s = neutralizeCsvFormula(value, String(value ?? ""));
   // RFC 4180: fields containing commas, double-quotes, or newlines must be quoted.
   if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
     return `"${s.replace(/"/g, '""')}"`;
