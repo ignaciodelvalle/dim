@@ -35,10 +35,20 @@ import {
   resetImagePickerPort,
   setImagePickerPort,
 } from "./image-picker-port";
+import {
+  type PushPort,
+  getExpoPushTokenSafely,
+  getPushPort,
+  moduleMissingPush,
+  requestPushPermissionSafely,
+  resetPushPort,
+  setPushPort,
+} from "./push-port";
 
 afterEach(() => {
   resetImagePickerPort();
   resetChipScannerPort();
+  resetPushPort();
 });
 
 describe("the image-picker seam", () => {
@@ -138,5 +148,111 @@ describe("the chip-scanner seam", () => {
 
     resetChipScannerPort();
     expect(getChipScannerPort()).toBe(moduleMissingChipScanner);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The PUSH seam (2026-09-11).
+//
+// The same honest-default contract as the two above, and it matters MORE here
+// than for either of them: the build on Play today was cut WITHOUT
+// `expo-notifications`, so `moduleMissingPush` is the only answer every
+// installed phone can give. A default that returned a fake token would register
+// a row that can never receive anything, and the person would see push as "on"
+// in an app that cannot deliver.
+//
+// MUTATIONS THAT MUST GO RED HERE (applied while writing, then reverted):
+//   · `moduleMissingPush.available: false → true` — the first test.
+//   · its `requestPermission` returning `{ outcome: "granted" }` — the second.
+//   · its `getExpoPushToken` returning a token string — the third.
+//   · dropping the try/catch in `requestPushPermissionSafely` — the throws test.
+// ---------------------------------------------------------------------------
+
+describe("the push seam", () => {
+  it("defaults to a port that declares itself unavailable", () => {
+    expect(getPushPort()).toBe(moduleMissingPush);
+    // Read BEFORE anything is offered: iOS gives one permission prompt per
+    // install, and spending it on a build that cannot receive is unrecoverable.
+    expect(getPushPort().available).toBe(false);
+  });
+
+  it("answers `unavailable` to BOTH operations even when called anyway", async () => {
+    await expect(requestPushPermissionSafely()).resolves.toEqual({ outcome: "unavailable" });
+    await expect(getExpoPushTokenSafely()).resolves.toEqual({ outcome: "unavailable" });
+  });
+
+  it("never answers `granted` or a token by default", async () => {
+    // Stated as its own assertion because these are the two answers that would
+    // make the app write a row for a device that cannot be delivered to.
+    const permission = await requestPushPermissionSafely();
+    const token = await getExpoPushTokenSafely();
+    expect(permission.outcome).not.toBe("granted");
+    expect(token.outcome).not.toBe("token");
+  });
+
+  it("set returns the replaced port, and reset restores the default", async () => {
+    const fake: PushPort = {
+      name: "fake",
+      available: true,
+      requestPermission: async () => ({ outcome: "granted" }),
+      getExpoPushToken: async () => ({ outcome: "token", expoPushToken: "ExponentPushToken[x]" }),
+    };
+    const previous = setPushPort(fake);
+    expect(previous).toBe(moduleMissingPush);
+    await expect(requestPushPermissionSafely()).resolves.toEqual({ outcome: "granted" });
+
+    resetPushPort();
+    expect(getPushPort()).toBe(moduleMissingPush);
+  });
+
+  it("turns a port that THROWS into `failed`, naming which port broke", async () => {
+    setPushPort({
+      name: "exploding",
+      available: true,
+      requestPermission: async () => {
+        throw new Error("native module gone");
+      },
+      getExpoPushToken: async () => {
+        throw new Error("no project id");
+      },
+    });
+
+    const permission = await requestPushPermissionSafely();
+    expect(permission.outcome).toBe("failed");
+    expect(permission.outcome === "failed" && permission.detail).toContain("exploding");
+    expect(permission.outcome === "failed" && permission.detail).toContain("native module gone");
+
+    const token = await getExpoPushTokenSafely();
+    expect(token.outcome).toBe("failed");
+    expect(token.outcome === "failed" && token.detail).toContain("no project id");
+  });
+
+  it("survives a port that throws something that was never an Error", async () => {
+    setPushPort({
+      name: "rude",
+      available: true,
+      requestPermission: async () => {
+        throw "just a string";
+      },
+      getExpoPushToken: async () => ({ outcome: "unavailable" }),
+    });
+
+    const result = await requestPushPermissionSafely();
+    expect(result.outcome).toBe("failed");
+    expect(result.outcome === "failed" && result.detail).toContain("just a string");
+  });
+
+  it("distinguishes `denied` from `unavailable`, because they are different facts", async () => {
+    // A person who said no is not the same as a build that cannot ask. The
+    // first must stop the app from asking again; the second must stop it from
+    // asking at all. Collapsing them would make the app retry a refusal.
+    setPushPort({
+      name: "declined",
+      available: true,
+      requestPermission: async () => ({ outcome: "denied" }),
+      getExpoPushToken: async () => ({ outcome: "denied" }),
+    });
+    await expect(requestPushPermissionSafely()).resolves.toEqual({ outcome: "denied" });
+    await expect(getExpoPushTokenSafely()).resolves.toEqual({ outcome: "denied" });
   });
 });
