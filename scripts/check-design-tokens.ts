@@ -58,6 +58,8 @@ import { globSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { sep } from "node:path";
 
+import { stripComments } from "./lib/strip-comments.mjs";
+
 import {
   CSS_CATEGORIES,
   CSS_CATEGORY_HINTS,
@@ -579,7 +581,17 @@ function runChecks(): void {
 
   for (const file of FILES) {
     const relPath = file.replaceAll("\\", "/");
-    const src = readFileSync(file, "utf8");
+    // COMMENTS ARE STRIPPED FIRST, and this fence was one of the last holdouts.
+    // Without it, a comment that accurately names a forbidden value IS a
+    // violation: on 2026-09-11 a card whose comment explained why its button had
+    // been migrated away from an off-scale spacing literal tripped this rule on
+    // the explanation, after the value itself was already gone. That is the
+    // fail-CLOSED direction scripts/lib/strip-comments.mjs documents in its own
+    // header, and the cure it was written for. It substitutes whitespace 1:1 and
+    // keeps newlines, so the line numbers reported below still point at the
+    // original file, and it deliberately KEEPS string contents so a real class
+    // string in a literal stays visible.
+    const src = stripComments(readFileSync(file, "utf8"));
     const lines = src.split(/\r?\n/);
     // A file absent from the baseline is strict on every category. A file
     // PRESENT in the baseline but missing a category key would otherwise
