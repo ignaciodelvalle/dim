@@ -2597,6 +2597,14 @@ export const AUDIT_LOG_ACTIONS = [
   // Item 14.1: personal account self-deactivation (owner/vet). No coverage
   // check needed (govt-only concern). Payload: { reason, role }.
   "personal_self_deactivated",
+  // The way back from the line above (migration 0221). requireLiveUser refuses
+  // every write from a deactivated account, personal ones included, so the
+  // deactivation is now a real state and needs a real exit that is not a
+  // support ticket. Personal accounts ONLY: an institutional deactivation is an
+  // operator's act on somebody else's account and is undone by an operator.
+  // Payload: { role } — no reason, deliberately; see the migration's header for
+  // why undoing your own decision is not charged prose.
+  "personal_self_reactivated",
   // Wave 2 Item 15 — correction by amendment (principle #2, 2026-06-19).
   // D5: admin/govt amendments are sensitive — emits this audit row with
   // full amendment details (pet_id, target_event_id, amendment_event_id,

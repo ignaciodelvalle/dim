@@ -12,6 +12,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { govtSelfDeactivateForUser } from "@/src/modules/pets/application/profile/govt-self-deactivate";
+import { selfDeactivatePersonalAccountForUser } from "@/src/modules/pets/application/profile/self-deactivate-personal-account";
+import { selfReactivatePersonalAccountForUser } from "@/src/modules/pets/application/profile/self-reactivate-personal-account";
 import { vetSelfResignForUser } from "@/src/modules/pets/application/profile/vet-self-resign";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
@@ -30,12 +32,18 @@ const OWNER_EMAIL = "self-service-owner@dim-test.local";
 const GOVT_EMAIL = "self-service-govt@dim-test.local";
 const GOVT2_EMAIL = "self-service-govt2@dim-test.local";
 const ADMIN_EMAIL = "self-service-admin@dim-test.local";
+// A DEDICATED personal account for the deactivate → reactivate round trip, and
+// dedicated on purpose: OWNER_EMAIL is the "already owner / wrong role" negative
+// fixture for two earlier describes, and leaving it deactivated behind them
+// would make this file's result depend on describe ordering.
+const PERSONAL_DEACT_EMAIL = "self-service-personal-deact@dim-test.local";
 
 let vetUserId: string;
 let ownerUserId: string;
 let govtUserId: string;
 let govt2UserId: string;
 let adminUserId: string;
+let personalDeactUserId: string;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,7 +83,14 @@ async function createUserOrThrow(email: string): Promise<string> {
 
 beforeAll(async () => {
   // Clean up any leftover state from a previous interrupted run
-  for (const email of [VET_EMAIL, OWNER_EMAIL, GOVT_EMAIL, GOVT2_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [
+    VET_EMAIL,
+    OWNER_EMAIL,
+    GOVT_EMAIL,
+    GOVT2_EMAIL,
+    ADMIN_EMAIL,
+    PERSONAL_DEACT_EMAIL,
+  ]) {
     await deleteTestUser(email);
   }
 
@@ -84,6 +99,7 @@ beforeAll(async () => {
   govtUserId = await createUserOrThrow(GOVT_EMAIL);
   govt2UserId = await createUserOrThrow(GOVT2_EMAIL);
   adminUserId = await createUserOrThrow(ADMIN_EMAIL);
+  personalDeactUserId = await createUserOrThrow(PERSONAL_DEACT_EMAIL);
 
   // Elevate roles as needed (handle_new_user trigger creates role='owner')
   await db
@@ -162,7 +178,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const email of [VET_EMAIL, OWNER_EMAIL, GOVT_EMAIL, GOVT2_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [
+    VET_EMAIL,
+    OWNER_EMAIL,
+    GOVT_EMAIL,
+    GOVT2_EMAIL,
+    ADMIN_EMAIL,
+    PERSONAL_DEACT_EMAIL,
+  ]) {
     await deleteTestUser(email);
   }
 });
@@ -407,5 +430,93 @@ describe("govtSelfDeactivateForUser — happy path", () => {
     if ("error" in result) return;
     expect(result.ok).toBe(true);
     expect(result.noOp).toBe(true);
+  });
+});
+
+// ============================================================================
+// selfReactivatePersonalAccountForUser — the way BACK
+// ============================================================================
+//
+// WHY THIS EXISTS AT ALL. `requireLiveUser` used to read `deactivated_at` for
+// INSTITUTIONAL accounts only, so a person who self-deactivated from /cuenta was
+// told the action was "irreversible desde el panel" and then charged nothing:
+// the column was written and no write boundary ever read it. Enforcing the
+// column for every account type closes that, and closing it ALONE would replace
+// a lie with a dead end — every write refused, and a support ticket as the only
+// route back from a decision the person made themselves.
+//
+// These tests are DB-backed rather than mocked on purpose: the properties that
+// matter here are exactly-once (the anti-race WHERE) and the audit row, and
+// neither survives a mocked drizzle chain.
+
+describe("selfReactivatePersonalAccountForUser", () => {
+  it("is a no-op on an account that is already active", async () => {
+    const result = await selfReactivatePersonalAccountForUser(personalDeactUserId);
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) return;
+    expect(result.ok).toBe(true);
+    expect(result.noOp).toBe(true);
+  });
+
+  it("clears deactivated_at and writes an audit row after a self-deactivation", async () => {
+    const down = await selfDeactivatePersonalAccountForUser(
+      personalDeactUserId,
+      "Me tomo unas vacaciones",
+    );
+    expect(down).not.toHaveProperty("error");
+
+    // THE PRECONDITION THIS TEST RESTS ON — without it the reactivation below
+    // would pass vacuously against an account that was never off.
+    const [afterDown] = await db
+      .select({ deactivatedAt: profiles.deactivatedAt })
+      .from(profiles)
+      .where(eq(profiles.id, personalDeactUserId))
+      .limit(1);
+    expect(afterDown.deactivatedAt).not.toBeNull();
+
+    const up = await selfReactivatePersonalAccountForUser(personalDeactUserId);
+    expect(up).not.toHaveProperty("error");
+    if ("error" in up) return;
+    expect(up.ok).toBe(true);
+    expect(up.noOp).toBeUndefined();
+
+    const [afterUp] = await db
+      .select({ deactivatedAt: profiles.deactivatedAt })
+      .from(profiles)
+      .where(eq(profiles.id, personalDeactUserId))
+      .limit(1);
+    expect(afterUp.deactivatedAt).toBeNull();
+
+    const [audit] = await db
+      .select({ action: auditLog.action })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.actorUserId, personalDeactUserId),
+          eq(auditLog.action, "personal_self_reactivated"),
+        ),
+      )
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+    expect(audit).toBeDefined();
+  });
+
+  it("returns noOp on a second call — the anti-race WHERE fires exactly once", async () => {
+    const result = await selfReactivatePersonalAccountForUser(personalDeactUserId);
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) return;
+    expect(result.noOp).toBe(true);
+  });
+
+  // THE ESCALATION THIS BLOCKS. An institutional deactivation is an operator's
+  // act on somebody else's account; letting its subject undo it through the
+  // self-service path would be a privilege escalation wearing a self-service
+  // affordance. The check is in the DATABASE-read use-case, not in the UI that
+  // declines to render the button.
+  it("refuses an INSTITUTIONAL account — that deactivation is not the subject's to undo", async () => {
+    const result = await selfReactivatePersonalAccountForUser(govtUserId);
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/ROLE_MISMATCH/);
   });
 });

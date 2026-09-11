@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { govtSelfDeactivateForUser as _govtSelfDeactivate } from "@/src/modules/pets/application/profile/govt-self-deactivate";
 import { selfDeactivatePersonalAccountForUser as _selfDeactivatePersonal } from "@/src/modules/pets/application/profile/self-deactivate-personal-account";
+import { selfReactivatePersonalAccountForUser as _selfReactivatePersonal } from "@/src/modules/pets/application/profile/self-reactivate-personal-account";
 import { vetSelfResignForUser as _vetSelfResign } from "@/src/modules/pets/application/profile/vet-self-resign";
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ import { vetSelfResignForUser as _vetSelfResign } from "@/src/modules/pets/appli
 export type {
   GovtSelfDeactivateResult,
   PersonalSelfDeactivateResult,
+  PersonalSelfReactivateResult,
   VetSelfResignResult,
 } from "@/src/modules/pets/application/profile/types";
 
@@ -62,4 +64,31 @@ export async function govtSelfDeactivateAction(input?: {
 export async function selfDeactivatePersonalAccountAction(reason: string) {
   const { user } = await requireUserOrRedirect();
   return _selfDeactivatePersonal(user.id, reason);
+}
+
+/**
+ * The way back from selfDeactivatePersonalAccountAction.
+ *
+ * GATED ON requireUserOrRedirect AND NOT ON requireLiveUser, and unlike its
+ * siblings that is not incidental — it is the whole reason this action can
+ * work. `requireLiveUser` refuses a DEACTIVATED caller by design, and this
+ * action's ONLY caller is a deactivated one; gating it there would make the
+ * reactivation button refuse itself and rebuild the dead end it exists to
+ * remove. `requireUserOrRedirect` tolerates exactly this refusal, for exactly
+ * this reason (lib/infra/auth-guards.ts: "Reads stay open so the user can see
+ * why; writes stop" — plus the one write that undoes the state).
+ *
+ * That tolerance is safe here because the write's blast radius is a single
+ * column on the CALLER'S OWN row, resolved from the session and never from an
+ * argument: this action takes no parameters at all. The use-case re-checks
+ * personal-account-ness and non-erasure in the database, so the exemption
+ * cannot be widened by a UI mistake.
+ */
+export async function selfReactivatePersonalAccountAction() {
+  const { user } = await requireUserOrRedirect();
+  const result = await _selfReactivatePersonal(user.id);
+  if ("ok" in result && !result.noOp) {
+    revalidatePath("/cuenta");
+  }
+  return result;
 }

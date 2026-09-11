@@ -4,6 +4,12 @@ export type VetSelfResignResult = { error: string } | { ok: true; noOp?: boolean
 
 export type PersonalSelfDeactivateResult = { error: string } | { ok: true; noOp?: boolean };
 
+/**
+ * The inverse of PersonalSelfDeactivateResult. Same shape on purpose: the two
+ * use-cases are mirror images and the UI treats their outcomes identically.
+ */
+export type PersonalSelfReactivateResult = { error: string } | { ok: true; noOp?: boolean };
+
 export type GovtSelfDeactivateResult =
   | { error: string; uncoveredLocalities?: { province: string; locality: string }[] }
   | { ok: true; noOp?: boolean };

@@ -44,6 +44,8 @@ vi.mock("@/lib/infra/request-cache", () => ({
 }));
 
 import {
+  DEACTIVATED_MESSAGE_INSTITUTIONAL,
+  DEACTIVATED_MESSAGE_PERSONAL,
   type LiveUserFailureReason,
   liveUserMessage,
   requireLiveUser,
@@ -169,13 +171,19 @@ describe("requireLiveUser() — session and account state", () => {
     expect(result.reason).toBe("DEACTIVATED");
   });
 
-  // Documented, deliberate scope line: `deactivated_at` on a PERSONAL account is
-  // today a bookkeeping flag with no access consequence anywhere in the codebase
-  // (nothing reads it outside isDeactivatedInstitutional). Making it a lockout is
-  // a product change with no "cuenta desactivada" landing to bounce to, so this
-  // guard reproduces today's semantics exactly and the gap is reported instead of
-  // silently closed.
-  it("admits a deactivated PERSONAL account (matches isDeactivatedInstitutional)", async () => {
+  // THE DEFECT THIS CLOSES, and the test that used to assert it.
+  //
+  // This case previously read "admits a deactivated PERSONAL account (matches
+  // isDeactivatedInstitutional)" and passed, because the predicate was
+  // institutional-only. That made DeactivateAccountDialog a lie: it told a
+  // person "esta acción es irreversible desde el panel" and then charged them
+  // nothing — `deactivated_at` was written and no boundary ever read it.
+  //
+  // Refusing is only half the fix; the other half is that /cuenta now carries a
+  // reactivation card and the citizen shell carries a standing banner, so the
+  // refusal has somewhere to point WITHOUT a redirect (see the guard's comment
+  // on why a redirect is the one thing DEACTIVATED must never do).
+  it("refuses with DEACTIVATED for a deactivated PERSONAL account", async () => {
     mockGetUser.mockResolvedValue(session());
     mockGetProfileCached.mockResolvedValue(
       profile({ accountType: "personal", deactivatedAt: new Date() }),
@@ -183,7 +191,49 @@ describe("requireLiveUser() — session and account state", () => {
 
     const result = await requireLiveUser();
 
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("DEACTIVATED");
+  });
+
+  // NON-VACUITY for the widening: an ACTIVE personal account is still live. A
+  // predicate mutated to `true` would pass every test above this one.
+  it("admits a personal account whose deactivated_at is null", async () => {
+    mockGetUser.mockResolvedValue(session());
+    mockGetProfileCached.mockResolvedValue(
+      profile({ accountType: "personal", deactivatedAt: null }),
+    );
+
+    const result = await requireLiveUser();
+
     expect(result.ok).toBe(true);
+  });
+
+  // The two refusals carry DIFFERENT copy, because the two remedies are
+  // different acts by different people. One reason, one wire code, two strings.
+  it("tells a personal account it can come back, and an institutional one who to ask", async () => {
+    mockGetUser.mockResolvedValue(session());
+
+    mockGetProfileCached.mockResolvedValue(
+      profile({ accountType: "personal", deactivatedAt: new Date() }),
+    );
+    const personal = await requireLiveUser();
+
+    mockGetProfileCached.mockResolvedValue(
+      profile({ accountType: "institutional", role: "govt", deactivatedAt: new Date() }),
+    );
+    const institutional = await requireLiveUser();
+
+    if (personal.ok || institutional.ok) throw new Error("unreachable");
+    expect(personal.error).toBe(DEACTIVATED_MESSAGE_PERSONAL);
+    expect(institutional.error).toBe(DEACTIVATED_MESSAGE_INSTITUTIONAL);
+    expect(personal.error).not.toBe(institutional.error);
+    // The personal copy must not send somebody to ask a stranger for permission
+    // to undo their own decision — that was the dead end the widening would
+    // have created on its own.
+    expect(personal.error).not.toMatch(/contact/i);
+    // And the reason-only copy must not name an account type it never looked at.
+    expect(liveUserMessage("DEACTIVATED")).not.toMatch(/institucional/i);
   });
 
   it("erasure outranks deactivation when both are set", async () => {

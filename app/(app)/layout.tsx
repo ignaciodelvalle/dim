@@ -23,6 +23,7 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { AppShell } from "@/components/layout/AppShell";
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
+import { DeactivatedAccountBanner } from "@/components/ui/DeactivatedAccountBanner";
 import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import { IdentityPendingBanner } from "@/components/ui/IdentityPendingBanner";
 import { LnMaintenanceScreen } from "@/components/ui/MaintenanceScreen";
@@ -135,6 +136,15 @@ export default async function AuthenticatedLayout({
       banner={
         <>
           <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
+          {/* The standing explanation for a self-deactivated account. It has to
+              live in the LAYOUT and not on /cuenta alone: requireLiveUser now
+              refuses every write from this account, and the refusal happens
+              wherever the person happens to be. DEACTIVATED is the one liveness
+              refusal requireUserOrRedirect deliberately passes (auth-guards.ts),
+              so this layout renders for them — which is exactly why the banner
+              can be the surface instead of a route to be redirected to.
+              `deactivatedAt` comes free with the already-cached profile. */}
+          <DeactivatedAccountBanner deactivated={profile?.deactivatedAt != null} />
           <IdentityPendingBanner pending={identityPending} returnTo={pathname} />
           <LnOfflineBanner />
         </>

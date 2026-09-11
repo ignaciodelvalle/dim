@@ -69,14 +69,34 @@ export type AuthenticatedSession = {
 //                    returnTo: after an 8-hour shift the half-finished URL is
 //                    not where anyone wants to be returned, and carrying it
 //                    through a global sign-out invites the same loop back.
-//   DEACTIVATED    → PASSES. A deactivated institutional account must keep a
-//                    surface it can read the explanation on (/cuenta) and log
-//                    out from; bouncing it off everything is how the
-//                    2026-07-04 ERR_TOO_MANY_REDIRECTS incident happened. The
-//                    operator portals still reject it in
+//   DEACTIVATED    → PASSES. A deactivated account must keep a surface it can
+//                    read the explanation on and log out from; bouncing it off
+//                    everything is how the 2026-07-04 ERR_TOO_MANY_REDIRECTS
+//                    incident happened. The operator portals still reject it in
 //                    loadActiveInstitutionalProfile, and every WRITE boundary
 //                    refuses it via requireLiveUser directly. Reads stay open
 //                    so the user can see why; writes stop.
+//
+//                    THIS TOLERANCE IS NOW LOAD-BEARING FOR A SECOND
+//                    POPULATION. requireLiveUser used to raise DEACTIVATED only
+//                    for INSTITUTIONAL accounts; it now raises it for a PERSONAL
+//                    account that self-deactivated from /cuenta as well. For
+//                    that person the tolerated read is not a courtesy — it is
+//                    the entire product: the citizen shell renders a standing
+//                    banner and /cuenta renders the card that switches the
+//                    account back on. Adding a redirect for DEACTIVATED here
+//                    would not merely risk the old loop, it would strand them
+//                    outside the only control that can undo their own decision.
+//
+//                    The institutional half of that promise is WEAKER than this
+//                    comment has always implied, and saying so is cheaper than
+//                    letting the next reader assume it: /cuenta lives under the
+//                    citizen layout, which redirects an `admin` role to /admin
+//                    and a `govt` role to /gob, and those portals bounce a
+//                    deactivated account to `/`. So a deactivated operator does
+//                    keep a readable surface (the public landing) but NOT
+//                    /cuenta. Their refusal copy says "contactá al equipo de
+//                    miMAR" rather than naming a screen they cannot reach.
 export async function requireUserOrRedirect(returnTo?: string): Promise<AuthenticatedSession> {
   const live = await requireLiveUser();
 

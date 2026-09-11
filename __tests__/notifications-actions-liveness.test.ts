@@ -33,7 +33,11 @@ const useCases = vi.hoisted(() => ({
 }));
 vi.mock("@/src/modules/notifications/application/notification-actions", () => useCases);
 
-import { liveUserMessage } from "@/lib/infra/live-user";
+import {
+  DEACTIVATED_MESSAGE_INSTITUTIONAL,
+  DEACTIVATED_MESSAGE_PERSONAL,
+  liveUserMessage,
+} from "@/lib/infra/live-user";
 
 import {
   archiveNotificationAction,
@@ -119,7 +123,28 @@ describe("notification marks refuse a non-live caller", () => {
       profile({ accountType: "institutional", deactivatedAt: new Date("2026-08-01") }),
     );
 
-    await expect(archiveNotificationAction("n-1")).rejects.toThrow(liveUserMessage("DEACTIVATED"));
+    // Asserts the INSTITUTIONAL constant, not liveUserMessage("DEACTIVATED").
+    // The guard now refuses both account types on this reason and hands each
+    // one its own copy; `liveUserMessage` is the reason-only string, which is
+    // deliberately true for both and therefore names neither. The action throws
+    // `live.error`, i.e. the specific one.
+    await expect(archiveNotificationAction("n-1")).rejects.toThrow(
+      DEACTIVATED_MESSAGE_INSTITUTIONAL,
+    );
+    expectNoUseCaseReached();
+  });
+
+  it("refuses a DEACTIVATED PERSONAL account too — the defect this closes", async () => {
+    // Self-deactivation from /cuenta used to cost the user nothing: the column
+    // was written and no write boundary read it, while the dialog promised the
+    // action was irreversible. Same policy as above now applies — reads stay
+    // open, writes stop — with copy that points at the reactivation card
+    // instead of at support.
+    mockGetProfileCached.mockResolvedValue(
+      profile({ accountType: "personal", deactivatedAt: new Date("2026-08-01") }),
+    );
+
+    await expect(archiveNotificationAction("n-1")).rejects.toThrow(DEACTIVATED_MESSAGE_PERSONAL);
     expectNoUseCaseReached();
   });
 

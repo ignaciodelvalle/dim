@@ -89,7 +89,7 @@ the union; the ordering rationale is at `:245-261`):
 | 1 | `MAINTENANCE` | env kill-switch, evaluated before any client or query | `lib/infra/live-user.ts:263` |
 | 2 | `NO_SESSION` | `supabase.auth.getUser(accessToken)` returned no user | `lib/infra/live-user.ts:292` |
 | 3 | `ACCOUNT_ERASED` | `profile?.deletedAt != null` | `lib/infra/live-user.ts:309` |
-| 4 | `DEACTIVATED` | `accountType === "institutional" && deactivatedAt != null` | `lib/infra/live-user.ts:324` |
+| 4 | `DEACTIVATED` | `deactivatedAt != null` — **any** account type (institutional deactivation by an operator, or a personal self-deactivation from /cuenta) | `lib/infra/live-user.ts` |
 | 5 | `SHIFT_EXPIRED` | institutional principal outside its shift window | `lib/infra/live-user.ts:342` |
 
 Three properties are worth stating exactly, because each has bitten:

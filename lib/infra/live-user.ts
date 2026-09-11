@@ -6,7 +6,9 @@
 //   1. the platform is accepting traffic  (maintenance kill-switch off)
 //   2. a Supabase session resolves        (NO_SESSION otherwise)
 //   3. the account was not erased         (profiles.deleted_at, Ley 25.326 art. 16)
-//   4. the account was not deactivated    (institutional deactivation)
+//   4. the account was not deactivated    (either an operator switching an
+//      institutional account off, or a person self-deactivating a personal one
+//      from /cuenta — both are `profiles.deactivated_at`, both refuse writes)
 //   5. an INSTITUTIONAL principal is still inside its 8-hour shift (B9)
 //
 // WHY IT EXISTS — this is a live web bug, not native prep
@@ -179,15 +181,59 @@ const MESSAGES: Record<LiveUserFailureReason, string> = {
   ACCOUNT_ERASED: "Tu cuenta fue eliminada.",
   MAINTENANCE:
     "miMAR está en mantenimiento. Tu cambio no se registró — probá de nuevo en unos minutos.",
-  // Same wording the login form already shows for this case (login.ts).
-  DEACTIVATED: "Tu cuenta institucional está desactivada. Contactá al equipo de miMAR.",
+  // TRUE FOR BOTH ACCOUNT TYPES, and that is a correction rather than a
+  // rewording. This string used to say "institucional" to everybody, which was
+  // accurate only because the predicate below refused nobody else. Now that a
+  // deactivated PERSONAL account is refused too, a caller that knows only the
+  // REASON must not name an account type it has not looked at.
+  //
+  // The two account types get different, specific copy at the refusal site
+  // (DEACTIVATED_MESSAGE_*) because the remedies genuinely differ: an
+  // institutional deactivation was done TO the account by an operator, a
+  // personal one was done BY the person and they can undo it themselves.
+  DEACTIVATED: "Tu cuenta está desactivada. Mientras esté así no podemos registrar cambios.",
   // Says what happened AND what to do. "Sesión expirada." would be a lie by
   // omission here: the token has not expired, the workday has, and an operator
   // told the former will refresh and be refused again.
   SHIFT_EXPIRED: OPERATOR_SHIFT_EXPIRED_MESSAGE,
 };
 
-/** es-AR refusal copy for a liveness failure. */
+/**
+ * The DEACTIVATED copy an INSTITUTIONAL account gets. Byte-identical to the
+ * string login.ts already shows for the same case, and to what this guard said
+ * to everybody before personal accounts were brought inside the refusal.
+ *
+ * It ends in "contactá al equipo" and NOT in a link to a self-service screen,
+ * because for this account type there is no self-service screen to link to:
+ * an operator switched the account off and only an operator switches it back
+ * on. It also must not say "entrá a Mi cuenta" — /cuenta is under the citizen
+ * layout, which bounces an `admin`/`govt` role to its own portal, and that
+ * portal's guard bounces a deactivated one to `/`. The surface is genuinely not
+ * reachable for them, so the copy does not pretend it is.
+ */
+export const DEACTIVATED_MESSAGE_INSTITUTIONAL =
+  "Tu cuenta institucional está desactivada. Contactá al equipo de miMAR.";
+
+/**
+ * The DEACTIVATED copy a PERSONAL account gets.
+ *
+ * Says what happened, WHO did it, and where the way back is — in that order,
+ * and without a word that reads like a system error. This account state is not
+ * a failure: the person chose it in "Zona de riesgo" on /cuenta, and /cuenta is
+ * where they undo it (ReactivateAccountCard). Telling them to "contactar al
+ * soporte" — which is what they were told before this existed — would be
+ * sending somebody to ask a stranger for permission to undo their own decision.
+ */
+export const DEACTIVATED_MESSAGE_PERSONAL =
+  "Desactivaste tu cuenta, así que por ahora no podemos registrar cambios. Podés volver a activarla vos desde Mi cuenta.";
+
+/**
+ * es-AR refusal copy for a liveness failure.
+ *
+ * Reason-only, so the DEACTIVATED string it returns is the one that is true for
+ * BOTH account types. A caller holding the profile should prefer the `error`
+ * field of the refusal itself, which carries the account-type-specific copy.
+ */
 export function liveUserMessage(reason: LiveUserFailureReason): string {
   return MESSAGES[reason];
 }
@@ -321,12 +367,33 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
     };
   }
 
-  // Institutional-only, matching isDeactivatedInstitutional. `deactivated_at` on
-  // a PERSONAL account is today a bookkeeping flag that nothing reads for access
-  // — see the T1.2 report: self-deactivating a personal account currently costs
-  // the user nothing, and closing that needs a landing screen to bounce to, not
-  // a one-line predicate widening here.
-  if (profile?.accountType === "institutional" && profile.deactivatedAt != null) {
+  // EVERY ACCOUNT TYPE, as of this change. The predicate used to be
+  // institutional-only, matching isDeactivatedInstitutional, and the comment
+  // that stood here refused the one-line widening on the correct grounds:
+  //
+  //   "`deactivated_at` on a PERSONAL account is today a bookkeeping flag that
+  //    nothing reads for access — self-deactivating a personal account
+  //    currently costs the user nothing, and closing that needs a landing
+  //    screen to bounce to, not a one-line predicate widening here."
+  //
+  // That was right, and the condition it set is what this change satisfies
+  // rather than skips. `DeactivateAccountDialog` promised a person "esta acción
+  // es irreversible desde el panel" and then cost them nothing at all: the
+  // column was written and no boundary ever read it. Widening the predicate
+  // ALONE would have converted that lie into a dead end — every write refused,
+  // with copy telling the user to contact support about a decision they made
+  // themselves and can perfectly well reverse.
+  //
+  // So the surface came with it, and it is NOT a landing screen to bounce to.
+  // A bounce is exactly the shape DEACTIVATED must never take: requireUserOrRedirect
+  // tolerates this refusal on purpose (auth-guards.ts) because bouncing a
+  // deactivated account off every surface is the 2026-07-04
+  // ERR_TOO_MANY_REDIRECTS incident. The surface is therefore IN PLACE —
+  // a persistent banner in the citizen shell and a reactivation card on /cuenta
+  // — and it needs no redirect to be reached, which is the property that keeps
+  // this safe. Reads stay open; writes stop; the way back is one click.
+  if (profile?.deactivatedAt != null) {
+    const institutional = profile.accountType === "institutional";
     return {
       ok: false,
       supabase,
@@ -335,7 +402,11 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
       // requireUserOrRedirect. An erased account has no identity left to hand back.
       user: { id: user.id, email: user.email },
       reason: "DEACTIVATED",
-      error: MESSAGES.DEACTIVATED,
+      // Account-type-specific, because the two remedies are different acts by
+      // different people. The REASON stays one value: the wire contract
+      // (`account_deactivated`, 403) and every consumer of it are unchanged,
+      // and a native client still has exactly one code to handle.
+      error: institutional ? DEACTIVATED_MESSAGE_INSTITUTIONAL : DEACTIVATED_MESSAGE_PERSONAL,
     };
   }
 

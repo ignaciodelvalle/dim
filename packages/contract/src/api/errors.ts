@@ -63,7 +63,16 @@
  *                           responses must stay byte-identical, or this
  *                           endpoint becomes the account-enumeration oracle
  *                           that audit 28-#3 closed on the signup form.
- * - `account_deactivated` — an institutional account an operator switched off.
+ * - `account_deactivated` — an account that is switched off: either an
+ *                           institutional one an operator disabled, or a
+ *                           personal one the person self-deactivated from
+ *                           /cuenta. ONE code for both, on purpose — a client
+ *                           does the same thing in either case, and splitting
+ *                           it would put the account's type on the wire for a
+ *                           caller that has no use for it. The es-AR sentence
+ *                           the WEB shows does differ by type (the remedies
+ *                           differ: ask an operator vs. switch it back on
+ *                           yourself); see lib/infra/live-user.ts.
  *                           Reached only AFTER correct credentials, so it
  *                           discloses nothing to someone who does not already
  *                           hold them.

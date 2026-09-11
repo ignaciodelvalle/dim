@@ -176,6 +176,7 @@ export const AUDIT_ACTION_LABELS = {
   outreach_reminder_sent: "Recordatorios de alcance enviados",
   // Account lifecycle
   personal_self_deactivated: "Baja voluntaria de cuenta personal",
+  personal_self_reactivated: "Reactivación voluntaria de cuenta personal",
   // Subject rights
   subject_data_exported: "Datos del titular exportados",
   subject_erasure: "Datos del titular eliminados",

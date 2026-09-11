@@ -72,7 +72,11 @@ vi.mock("@/db", () => ({
 // Import AFTER mocks are hoisted
 // ---------------------------------------------------------------------------
 
-import { liveUserMessage } from "@/lib/infra/live-user";
+import {
+  DEACTIVATED_MESSAGE_INSTITUTIONAL,
+  DEACTIVATED_MESSAGE_PERSONAL,
+  liveUserMessage,
+} from "@/lib/infra/live-user";
 import {
   requireCapability,
   requireCapabilityForOrgToken,
@@ -165,7 +169,14 @@ describe("requireCapability — institutional deactivation", () => {
 
     const result = await requireCapability(CAP, "org-1");
 
-    expect(result.error).toBe(liveUserMessage("DEACTIVATED"));
+    // The INSTITUTIONAL constant, not liveUserMessage("DEACTIVATED"). Since
+    // 2026-09-11 those are different strings: the reason is one wire code with
+    // TWO messages behind it, because the refusal now reaches personal accounts
+    // too and "Tu cuenta institucional esta desactivada" was being said to
+    // people who have no institution. liveUserMessage() is the reason-only
+    // fallback and names neither type; this path only ever serves an
+    // institutional caller, so it earns the specific sentence.
+    expect(result.error).toBe(DEACTIVATED_MESSAGE_INSTITUTIONAL);
     expect(result.user).toEqual({ id: "user-001" });
     expect(result.membership).toBeNull();
     // Short-circuits before the membership query.
@@ -177,7 +188,7 @@ describe("requireCapability — institutional deactivation", () => {
 
     const result = await requireCapabilityForOrgToken(CAP, "ORG-TOKEN");
 
-    expect(result.error).toBe(liveUserMessage("DEACTIVATED"));
+    expect(result.error).toBe(DEACTIVATED_MESSAGE_INSTITUTIONAL);
     expect(result.membership).toBeNull();
   });
 
@@ -195,18 +206,35 @@ describe("requireCapability — institutional deactivation", () => {
     expect(mockSelect).toHaveBeenCalled();
   });
 
-  it("does NOT refuse a deactivated PERSONAL account — same predicate as requireLiveUser", async () => {
-    // `deactivated_at` on a personal account is a bookkeeping flag nothing
-    // reads for access today (live-user.ts says why). Widening it here would
-    // be a silent policy change, not a fix.
+  it("REFUSES a deactivated personal account too — the predicate widened on 2026-09-11", async () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the inversion is the change
+    // rather than a slip. Its old comment read: "`deactivated_at` on a personal
+    // account is a bookkeeping flag nothing reads for access today (live-user.ts
+    // says why). Widening it here would be a silent policy change, not a fix."
+    //
+    // That was an accurate description of the code and a bad description of the
+    // product. `/cuenta` offered "Desactivar mi cuenta" and told the person the
+    // act was irreversible from the panel — while the mark it wrote was read by
+    // nothing, so the account kept working. The dialog promised a guarantee that
+    // did not exist.
+    //
+    // The predicate in `requireLiveUser` no longer asks for `accountType ===
+    // "institutional"`, and this resolver follows it deliberately: somebody who
+    // switched their own account off must not keep acting through an org
+    // capability either. The message is the PERSONAL one, because this person
+    // has somewhere to go — they can turn it back on themselves — and the
+    // institutional sentence would send them to ask a stranger for permission to
+    // reverse their own decision.
     mockGetProfileCached.mockResolvedValue(
       profile({ accountType: "personal", deactivatedAt: new Date("2026-08-01") }),
     );
 
     const result = await requireCapability(CAP, "org-1");
 
-    expect(result.error).toBe("No pertenecés a ninguna organización activa.");
-    expect(mockSelect).toHaveBeenCalled();
+    expect(result.error).toBe(DEACTIVATED_MESSAGE_PERSONAL);
+    // Short-circuits before the membership query, exactly like the
+    // institutional case — the refusal does not depend on what they belong to.
+    expect(mockSelect).not.toHaveBeenCalled();
   });
 
   it("an ERASED account outranks deactivation", async () => {

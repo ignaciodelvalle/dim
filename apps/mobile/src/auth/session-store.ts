@@ -1299,7 +1299,7 @@ export function sessionEndMessage(reason: SessionEndReason | null): string | nul
     case "auth_required":
       return "Tu sesión ya no es válida en el servidor. Iniciá sesión de nuevo.";
     case "account_deactivated":
-      return "Esta cuenta está desactivada. Contactate con tu organización.";
+      return "Esta cuenta está desactivada. Si la desactivaste vos, podés volver a activarla desde Mi cuenta en la web; si la desactivó tu organización, hablá con ella.";
     case "account_erased":
       return "Esta cuenta ya no existe.";
     case "revoked_all":

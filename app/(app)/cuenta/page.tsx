@@ -36,6 +36,7 @@ import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
 import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
 import { PushNotificationsCard } from "./_components/PushNotificationsCard";
+import { ReactivateAccountCard } from "./_components/ReactivateAccountCard";
 import { RevokeSessionsDialog } from "./_components/RevokeSessionsDialog";
 
 // Role display labels
@@ -76,6 +77,10 @@ async function loadCuentaData(userId: string) {
         displayName: profiles.displayName,
         avatarStoragePath: profiles.avatarStoragePath,
         accountType: profiles.accountType,
+        // Drives the reactivation card below, and it is the SAME column
+        // requireLiveUser refuses writes on — so the page cannot show an
+        // "activa" account that the write boundary is quietly refusing.
+        deactivatedAt: profiles.deactivatedAt,
         // Wave 5 Item 25a: no plaintext DNI. Display uses dniLast4 only.
         dniLast4: profiles.dniLast4,
         dniVerified: profiles.dniVerified,
@@ -194,6 +199,10 @@ export default async function CuentaPage() {
   const accountTypeLabel = ACCOUNT_TYPE_LABELS[profile.accountType] ?? profile.accountType;
 
   const isPersonal = profile.accountType === "personal";
+  // Since requireLiveUser reads `deactivated_at` for EVERY account type, this
+  // is no longer a bookkeeping flag: it is the reason every write on this
+  // account is being refused, and /cuenta is the surface that has to say so.
+  const isDeactivated = profile.deactivatedAt != null;
 
   return (
     <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
@@ -208,6 +217,19 @@ export default async function CuentaPage() {
           Perfil, verificaciones y configuración.
         </p>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Deactivated state — ABOVE the identity card on purpose               */}
+      {/* ------------------------------------------------------------------ */}
+      {/* The person is here because the shell banner sent them, or because a
+          write was refused. Putting the explanation and the way back under the
+          fold, in the "Zona de riesgo" slot at the bottom, would make them scroll
+          past every control that is currently inert to reach the only one that
+          works. Personal accounts only: an institutional deactivation is an
+          operator's act on somebody else's account, and its subject cannot undo
+          it here (nor can they reach this page — the citizen layout routes an
+          admin/govt role to its own portal). */}
+      {isPersonal && isDeactivated && <ReactivateAccountCard />}
 
       {/* ------------------------------------------------------------------ */}
       {/* Identity card                                                        */}
@@ -498,7 +520,10 @@ export default async function CuentaPage() {
       {/* motivo (≥ 5 chars) gates irreversible deactivation.                 */}
       {/* Govt deactivation lives at /cuenta/desactivar (coverage check).     */}
       {/* ------------------------------------------------------------------ */}
-      {isPersonal && (
+      {/* `!isDeactivated`: offering "Desactivar mi cuenta" to an account that is
+          already deactivated is a control that can only refuse. The card at the
+          top of the page is what stands in its place while the state holds. */}
+      {isPersonal && !isDeactivated && (
         <section aria-labelledby="zona-riesgo-heading" className="mb-8">
           {/* Custom error-tone section heading — not using LnSectionHead      */}
           {/* because we need the error color variant.                          */}

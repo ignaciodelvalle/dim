@@ -9,6 +9,22 @@
 // The server action returns an error string or ok:true. On success the page
 // is reloaded so the user sees the deactivated state (or is redirected by
 // the layout guard).
+//
+// THE COPY CHANGED WHEN THE BEHAVIOUR BECAME REAL.
+// ---------------------------------------------------------------------------
+// This dialog used to say "Esta acción es irreversible desde el panel. Para
+// reactivar tu cuenta contactá al soporte." Both sentences were false, in
+// opposite directions and at the same time: `requireLiveUser` read
+// `deactivated_at` on INSTITUTIONAL accounts only, so deactivating a personal
+// one cost the user nothing at all — every write kept working — while the
+// dialog warned them they were doing something permanent.
+//
+// Now the flag is enforced for every account type, AND a personal account can
+// turn itself back on from /cuenta (ReactivateAccountCard). So the honest copy
+// is neither "irreversible" nor "contactá al soporte": it is what actually
+// stops (writes), what does not (reads, and the data itself), and that the way
+// back needs nobody's permission. A warning that overstates the stakes is not
+// the safe side of the trade — it teaches people that our warnings are theatre.
 
 import { useRef, useState, useTransition } from "react";
 
@@ -42,8 +58,15 @@ export function DeactivateAccountDialog() {
         return;
       }
       setOpen(false);
-      // Reload so the layout guard redirects to /login or shows the deactivated state.
-      window.location.replace("/");
+      // Hard reload back onto /cuenta, and the destination is deliberate: it is
+      // where the new state is explained and where the way back lives
+      // (ReactivateAccountCard). The old target was "/", which for a deactivated
+      // PERSONAL owner just redirects on to /inicio — leaving the person on a
+      // dashboard whose every control had silently stopped working, with the
+      // shell banner as their only clue. A reload rather than a router refresh
+      // because the state is also read in the LAYOUT, whose profile read is
+      // request-cached.
+      window.location.replace("/cuenta");
     });
   }
 
@@ -62,7 +85,7 @@ export function DeactivateAccountDialog() {
             Desactivar mi cuenta
           </p>
           <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
-            Desactiva tu cuenta de miMAR — acción irreversible desde este panel
+            Dejás de registrar cambios en miMAR — podés volver a activarla cuando quieras
           </p>
         </div>
         <span aria-hidden="true" className="flex-shrink-0 text-[var(--color-ln-err)] text-base">
@@ -75,7 +98,7 @@ export function DeactivateAccountDialog() {
         onClose={handleClose}
         onConfirm={handleConfirm}
         title="Desactivar mi cuenta"
-        description="Esta acción es irreversible desde el panel. Para reactivar tu cuenta contactá al soporte."
+        description="Mientras esté desactivada no vamos a registrar cambios: ni eventos nuevos, ni traspasos, ni turnos. Tus mascotas y tu historial siguen guardados, y podés volver a activarla cuando quieras desde Mi cuenta."
         confirmLabel="Desactivar cuenta"
         cancelLabel="Cancelar"
         tone="danger"
