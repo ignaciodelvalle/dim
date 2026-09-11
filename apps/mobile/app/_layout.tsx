@@ -47,7 +47,12 @@ import { useSessionBootstrap } from "../src/auth/useSession";
 // import time and throws in a process that has none. This file already runs in
 // exactly one process — the app's — so the opt-in is safe here and nowhere else.
 import { expoImagePicker } from "../src/native/expo-image-picker-adapter";
+// THE SECOND SUCH MODULE, and the same rule applies to it for the same reason:
+// `expo-notifications` touches the native runtime at import time.
+import { expoPush } from "../src/native/expo-push-adapter";
 import { setImagePickerPort } from "../src/native/image-picker-port";
+import { setPushPort } from "../src/native/push-port";
+import { startPushRegistration } from "../src/notifications/push-session-binding";
 import { initSentry } from "../src/observability/sentry";
 import { useNavigationBreadcrumb } from "../src/observability/use-navigation-breadcrumb";
 import { OfflineBanner } from "../src/ui/OfflineBanner";
@@ -77,6 +82,20 @@ initSentry();
 // `setChipScannerPort` has no adapter to be handed and the claim screen keeps
 // its "el número va a mano" callout. Same wall, separate commit.
 setImagePickerPort(expoImagePicker);
+
+// THE PUSH SEAM, FLIPPED THE SAME WAY AND IN THE SAME PLACE — but note what is
+// NOT true of it. Nothing reads `available` during render, because this unit
+// ships no push screen and no toggle; the port is installed at module scope
+// because that is where the seam convention puts it, not because a paint
+// depends on it.
+setPushPort(expoPush);
+
+// AND THE BINDING THAT ACTUALLY REGISTERS. It subscribes to the session and
+// fires once against whatever state already exists, which matters: a launch
+// that restores a stored session is the ordinary case, and `bootstrapSession`
+// may have resolved before this line runs. It never unsubscribes — the app has
+// one session for its whole life.
+startPushRegistration();
 
 /**
  * THE ANCHOR: where hardware BACK goes when there is nothing behind (NAV-1).
