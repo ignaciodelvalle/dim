@@ -1,6 +1,19 @@
 # Guía para testers de miMAR
 
-miMAR es la app donde vas a tener la libreta sanitaria de tu mascota, su credencial digital y el modo perdida, todo desde el celular. Estás probando una versión piloto, del lunes 7 de septiembre al domingo 4 de octubre de 2026, para encontrar qué funciona y qué no antes de abrirla a todo el mundo.
+> **ANTES DE MANDAR ESTA GUÍA — dos cosas que sólo puede completar el dueño del producto.**
+>
+> 1. **El enlace de abajo es el de *pruebas internas*.** La prueba cerrada tiene su
+>    propio enlace de aceptación, distinto, que emite Play Console al publicar en esa
+>    pista. Reemplazalo antes de enviar: si mandás el de pruebas internas, la persona
+>    acepta una pista que no es la que estás contando.
+> 2. **Las fechas.** La ventana que figura abajo es la del piloto de septiembre.
+>    Google exige 12 testers aceptados sostenidos durante 14 días corridos para poder
+>    promover a producción, y ese reloj arranca el día de la publicación — no el día
+>    que se envía esta guía.
+>
+> Este bloque se borra al mandarla.
+
+miMAR es la app donde vas a tener la libreta sanitaria de tu mascota, su credencial digital y el modo perdida, todo desde el celular. Estás probando una versión previa al lanzamiento, para encontrar qué funciona y qué no antes de abrirla a todo el mundo.
 
 Si algo no anda, no es que lo hiciste mal — es exactamente lo que estamos buscando. Cuanto más nos cuentes, mejor.
 
@@ -78,19 +91,47 @@ Con tu mascota ya registrada, probá estas 8 cosas y contanos cómo te fue:
 7. **Cambiar un dato de tu mascota.** Tocá **Más** → **Editar datos**, cambiá el color o la raza, y tocá **Guardar datos**.
 8. **Exportar tus datos.** Andá a **Ajustes** → **Ver mis datos o eliminar mi cuenta** → **Pedir mis datos** → **Compartir el archivo**.
 
+## Lo que la app ya resuelve entera
+
+Todo esto se hace desde el celular, sin pasar por la web:
+
+- **La credencial y la libreta**, de los dos lados de la misma tarjeta.
+- **Asentar en la libreta**: peso, vacunas, desparasitaciones, notas, tatuaje, mordedura
+  y el resto de los tipos de asiento.
+- **Modo perdida**, con los datos de contacto que vos elegís mostrar.
+- **Turnos**: buscar, reservar y ver los tuyos.
+- **Los contactos de emergencia** y la edición de datos de la mascota.
+- **Transferir la titularidad** y **cuidador temporal**.
+- **La foto de la mascota** — se carga desde **Más** → **Foto de la mascota**, no durante
+  el alta.
+
+Y las tres cosas de cumplimiento, que son las que más nos importa que pruebes porque
+son la razón por la que el proyecto existe:
+
+- **Reportar un fallecimiento.** Está al final de **Más**, separada del resto, porque
+  cierra el registro del animal. Si tenés una mascota de prueba que ya no vas a usar,
+  probala ahí y contanos si el camino se entiende.
+- **Perro potencialmente peligroso.** Si tu mascota está marcada como tal, en la tarjeta
+  de Cumplimiento aparece **Registrar atestación**.
+- **Reemplazo de microchip.** Cuando un chip falla o migra, el reemplazo se asienta con
+  el número viejo y el nuevo. Hasta esta versión el formulario existía y no había forma
+  de llegar a él.
+
 ## Lo que todavía no está
 
 Para que no pienses que es un error tuyo:
 
-- La foto de tu mascota **sí** se puede cargar, pero no durante el alta: primero registrás la
-  mascota y después entrás a **Más** → **Foto de la mascota**.
-- **Sí** hay una bandeja de notificaciones dentro de la app, en el ícono de la campana. Lo que
-  todavía no hay es aviso en la pantalla del teléfono: si alguien te transfiere una mascota o te
+- **No hay aviso en la pantalla del teléfono.** Adentro de la app sí hay una bandeja de
+  notificaciones, en el ícono de la campana: si alguien te transfiere una mascota o te
   responde algo, te enterás cuando abrís la app.
-- El cartel para imprimir de una mascota perdida se arma desde la web, no desde la app.
-- Todavía no se puede escanear el código de barras de la etiqueta del microchip: el número se
+- **El cartel para imprimir** de una mascota perdida se arma desde la web, no desde la app.
+- **No se puede escanear el código de barras** de la etiqueta del microchip: el número se
   escribe a mano.
-- Por ahora es solo Android — todavía no hay versión para iPhone.
+- **Cuatro cosas abren el navegador** en lugar de resolverse adentro: la chapa física,
+  buscar hogar, el acompañamiento de adopción, y viaje y movilidad. Hasta esta versión
+  dos de ellas no hacían absolutamente nada al tocarlas; ahora al menos te llevan al
+  lugar correcto. Si alguna te manda a una página que no corresponde, contanos.
+- **Por ahora es solo Android** — todavía no hay versión para iPhone.
 
 ## Contanos qué pasó
 

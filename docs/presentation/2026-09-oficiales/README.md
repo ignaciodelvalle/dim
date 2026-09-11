@@ -76,7 +76,12 @@ En este orden, sin saltear:
    `13-vigilancia-zoonosis.md` (vigilancia epidemiológica y zoonosis — se muestra en
    la sala después de la Lámina 5, ver `00-guion.md`), todos bajo
    `docs/presentation/2026-09-oficiales`.
-5. Solo si necesitás profundidad sobre un mecanismo: `docs/architecture` — la
+5. `14-lo-que-necesitamos.md` — **y este no es un spec, es el pedido.** Los trece
+   anteriores explican qué construimos; este enumera las siete cosas concretas que
+   necesitamos del Estado, y por cada una qué queda sin funcionar hasta que llegue.
+   No lleva diagrama y no se dibuja: se lee y, si hace falta, se imprime y se deja
+   sobre la mesa. Es el único documento del pack que le pide algo a alguien.
+6. Solo si necesitás profundidad sobre un mecanismo: `docs/architecture` — la
    referencia de ingeniería, en inglés, enlazada al código.
 
 **Trece specs, no doce, desde el 2026-09-09.** Las secciones 3 a 6 de abajo —conteo

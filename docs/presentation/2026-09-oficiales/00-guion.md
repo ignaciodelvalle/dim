@@ -325,7 +325,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - `docs/architecture/rls-coverage.md` — qué cubre y qué no cubre el cerrojo de base.
 - **Lo que NO se dice en esta lámina.**
   - **No se dice que el cerrojo de base sea universal.** Hay
-    <!-- fact:service_role_call_sites -->37<!-- /fact --> lugares donde el servidor
+    <!-- fact:service_role_call_sites -->39<!-- /fact --> lugares donde el servidor
     usa una llave que lo saltea, y es por diseño: el servidor ya resolvió el permiso.
     Decirlo en la misma lámina donde se muestra el cerrojo es lo que hace creíble al
     cerrojo.
@@ -412,7 +412,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->69<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1517<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1519<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->106<!-- /fact -->.
@@ -454,7 +454,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - Trabajos diarios hacia los que reparte:
     <!-- fact:cron_jobs -->23<!-- /fact -->.
   - Puntos de entrada de la interfaz de programación:
-    <!-- fact:route_handlers -->85<!-- /fact -->.
+    <!-- fact:route_handlers -->86<!-- /fact -->.
 - **Respaldo.**
   - `vercel.json` — las tareas programadas declaradas.
   - `lib/infra/cron-dispatcher.ts` — el repartidor de tareas: cada trabajo corre aislado y el
@@ -485,7 +485,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Pantallas: <!-- fact:pages -->262<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->217<!-- /fact -->.
+    <!-- fact:migrations -->219<!-- /fact -->.
   - Tablas: <!-- fact:tables -->53<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que
@@ -554,6 +554,14 @@ funciona si las dos láminas incómodas están donde se ven.
   - No se dice que el plazo legal de notificación ENO sea configurable por
     jurisdicción: es un número fijo por enfermedad, a diferencia de la ventana de
     observación antirrábica, que sí lo es.
-  - No se afirma la existencia de un preset "ENO" en la bandeja de salida ni de un
-    rol de autoridad nacional de solo lectura: están en curso el 2026-09-09 y no
-    están en este snapshot del código.
+  - ~~No se afirma la existencia de un preset "ENO" en la bandeja de salida ni de un
+    rol de autoridad nacional de solo lectura.~~ **Corregido el 2026-09-11: los dos
+    existen y se pueden mostrar.** Estaban "en curso" cuando se escribió esta lámina
+    y se terminaron después; el límite quedó escrito y la lámina siguió negando algo
+    que el código ya hace. `/gob/outbox` tiene su vista de notificación legal, y el
+    rol `national` (migración 0214 — el literal del enum va en inglés, como todo
+    identificador del código) entra a la compuerta de lectura de `/gob` con
+    alcance universal — ve el país entero y no escribe nada.
+
+    Se deja tachado y no borrado a propósito: un límite que se levanta es una noticia
+    en la sala, y una lista de límites que sólo crece enseña a no confiar en ella.

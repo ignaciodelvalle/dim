@@ -224,7 +224,7 @@ nombre, y hay que nombrarlos igual en las cuatro láminas que los tocan.
 | PostgREST | Puerta pública de datos | La superficie que habla directo con la base. El celular **no** la usa | acuñada |
 | cliente PostgREST | Cliente que habla directo con la base | Quien entra por esa puerta. Lo único que lo frena es el cerrojo de base de datos | acuñada |
 | RLS (`db/rls.sql`) | Cerrojo de base de datos (fila por fila) | <!-- fact:rls_enabled_tables -->55<!-- /fact --> tablas lo declaran (`docs/architecture/rls-coverage.md`). **Fija la fila, no la columna** | acuñada |
-| `lib/supabase/admin.ts` | Llave de servicio (salta el cerrojo) | <!-- fact:service_role_call_sites -->37<!-- /fact --> lugares la usan **por diseño**. Va en la misma lámina que el cerrojo | acuñada |
+| `lib/supabase/admin.ts` | Llave de servicio (salta el cerrojo) | <!-- fact:service_role_call_sites -->39<!-- /fact --> lugares la usan **por diseño**. Va en la misma lámina que el cerrojo | acuñada |
 | `scripts/check-authz-guards.ts` | Control automático de cobertura de guardias | Falla la compilación si una ruta institucional pierde su guardia | acuñada |
 | `OPERATOR_SHIFT_MS` | Turno del operador | <!-- fact:operator_shift_hours -->8<!-- /fact --> horas antes de exigir reingreso | acuñada |
 | documento autodeclarado | Documento que declara la persona | **El documento es declarado, no validado contra ningún registro estatal** | acuñada |
