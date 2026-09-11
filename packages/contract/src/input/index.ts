@@ -275,6 +275,17 @@ export {
   petProfileCommandInputSchema,
   resolvePetIdentityLengths,
 } from "./pet-profile-edit.ts";
+export {
+  PUSH_APP_VERSION_MAX_LENGTH,
+  PUSH_PLATFORMS,
+  PUSH_REGISTRATION_INPUT_CODES,
+  type PushPlatform,
+  type PushRegistrationCommand,
+  type PushRegistrationInput,
+  type PushRegistrationInputCode,
+  firstPushRegistrationInputCode,
+  pushRegistrationInputSchema,
+} from "./push-registration.ts";
 // EXPORTED ON ITS OWN, like `isRealArDay` above and for the same reason: the
 // rule has doors that are not zod schemas. `update-profile.ts` validates a
 // display name with a hand-rolled server schema, and a name rule that only the
