@@ -473,7 +473,7 @@ export function movePetRoute(publicToken: string): `/mascotas/${string}/mudanza`
  *
  * ONE SCREEN FOR WHAT THE WEB SPLITS IN TWO. The web schedules on a page of its
  * own (`/mis-mascotas/{token}/vacunas/programar`) and deletes inline on the
- * pet page's "Próximas vacunas" card. A stack navigator has no inline form
+ * pet page's "Recordatorios" card. A stack navigator has no inline form
  * post, and the face here never writes (every write in this app is a route of
  * its own — `asentar`, `mudanza`, `editar`); so both operations live on this
  * one screen, and the face's reminders card is the door to it.

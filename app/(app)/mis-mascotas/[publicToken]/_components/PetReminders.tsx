@@ -63,7 +63,7 @@ export function PetReminders({
     return (
       <LnCard aria-labelledby="pet-reminders-heading">
         <LnCardHead
-          title={<span id="pet-reminders-heading">Próximas vacunas</span>}
+          title={<span id="pet-reminders-heading">Recordatorios</span>}
           actions={
             <Link
               href={`/mis-mascotas/${petToken}/vacunas/programar`}
@@ -94,7 +94,7 @@ export function PetReminders({
   return (
     <LnCard aria-labelledby="pet-reminders-heading">
       <LnCardHead
-        title={<span id="pet-reminders-heading">Próximas vacunas</span>}
+        title={<span id="pet-reminders-heading">Recordatorios</span>}
         actions={
           <div className="flex items-center gap-3 text-sm">
             <Link

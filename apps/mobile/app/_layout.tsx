@@ -428,6 +428,18 @@ function RootLayout() {
         <Stack.Screen name="mascotas/[publicToken]/perdida" options={{ title: "Modo perdida" }} />
         <Stack.Screen name="turnos/[appointmentToken]" options={{ title: "Turno" }} />
         <Stack.Screen name="cuidado/[grantToken]" options={{ title: "Cuidado temporal" }} />
+        {/* LA CUARTA, decidida por el PO el 11/09 — la pregunta tambien vivio en
+            TITLE_PENDING y se respondio por la lectura (b):
+            «Recordatorios» — el sustantivo ANCHO, y gana por lo que la pantalla
+            hace y no por lo que se llama el dato. Ahi adentro tambien se
+            CANCELAN recordatorios, no solo se programan vacunas, asi que
+            «Proximas vacunas» nombraba una parte del contenido como si fuera el
+            todo. La tarjeta que la abre ya decia «Recordatorios»: la app habia
+            renombrado en un solo lugar la cosa que estaba espejando, y esta
+            decision resuelve la asimetria hacia el nombre mas honesto en vez de
+            hacia el original. La seccion de la web se renombro con ella, asi
+            que las tres superficies vuelven a decir lo mismo. */}
+        <Stack.Screen name="mascotas/[publicToken]/vacunas" options={{ title: "Recordatorios" }} />
         {/* LA RUTA NO RECONOCIDA (NAV-M1). Sin registrar, el encabezado sale del
             nombre del archivo: "+not-found", en inglés y con un signo más, sobre
             la única pantalla que por definición ve alguien que llegó desde

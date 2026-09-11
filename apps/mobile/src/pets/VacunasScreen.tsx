@@ -3,7 +3,7 @@
 // THE OTHER HALF OF A CAPABILITY THE FACE COULD ONLY READ. `OwnerExtraSections`
 // has drawn this pet's reminders since the face was built; until this screen
 // nothing in the app could schedule one or cancel one. Both operations reach
-// the IDENTICAL use-cases the web's "Próximas vacunas" card reaches
+// the IDENTICAL use-cases the web's "Recordatorios" card reaches
 // (`createVaccineReminder`, `deleteVaccineReminder`), through
 // `POST /pets/{token}/reminders`.
 //
@@ -203,7 +203,7 @@ export function VacunasScreen({ publicToken }: { publicToken: string }) {
 
   return (
     <Screen keyboardAvoiding scrollRef={scrollRef}>
-      <Title>Próximas vacunas de {subject}</Title>
+      <Title>Recordatorios de {subject}</Title>
       <Body>
         Programá un recordatorio y te avisamos cuando se acerque la fecha. Un recordatorio no es un
         asiento: la vacuna aplicada se anota en la libreta.

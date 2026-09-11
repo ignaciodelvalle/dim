@@ -948,7 +948,7 @@ function Section<T>({
  * THE REMINDERS CARD — the one section below the document that is a DOOR and
  * not only a list, and therefore the one that renders in all three states.
  *
- * The web's "Próximas vacunas" card offers "+ Programar" whether or not it has
+ * The web's "Recordatorios" card offers "+ Programar" whether or not it has
  * rows, and "Eliminar" on each row. This app's writes each live on a route of
  * their own (`asentar`, `mudanza`, `editar`), so both operations live on
  * `/vacunas` and this card is how somebody gets there. That is what breaks the
