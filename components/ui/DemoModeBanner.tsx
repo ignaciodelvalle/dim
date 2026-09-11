@@ -21,6 +21,10 @@
 
 "use client";
 
+import { usePathname } from "next/navigation";
+
+import { demoBannerAppliesTo } from "@/lib/domain/demo-mode";
+
 // shouldShowDemoBanner is defined in the server-safe lib/demo-mode module so the
 // server admin layout can import it too. Re-exported here for backward compat
 // with existing consumers/tests that import it from this component.
@@ -32,7 +36,21 @@ interface DemoModeBannerProps {
 }
 
 export function DemoModeBanner({ enabled }: DemoModeBannerProps) {
-  if (!enabled) return null;
+  // TWO GATES, AND THEY ANSWER DIFFERENT QUESTIONS. `enabled` is the
+  // environment — is this deployment serving synthetic data at all — and it is
+  // decided by the layout that mounts this. `demoBannerAppliesTo` is the page:
+  // does the sentence have anything to be about here. The reasoning for the
+  // second, and the list of pages that are deliberately NOT exempt, lives with
+  // the function in lib/domain/demo-mode.ts.
+  //
+  // The path is read HERE rather than threaded through six layouts on purpose:
+  // this component is already a client component, every mount would otherwise
+  // have to repeat the decision, and a rule repeated six times is a rule that
+  // will disagree with itself. `usePathname` resolves during SSR too, so the
+  // server renders the same thing the client does and no banner flashes in and
+  // back out.
+  const pathname = usePathname();
+  if (!enabled || !demoBannerAppliesTo(pathname)) return null;
 
   return (
     // <output> carries the implicit ARIA role "status" (a polite live
