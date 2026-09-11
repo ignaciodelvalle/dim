@@ -6531,13 +6531,13 @@
       ],
       "enforcer": [
         "lib/open-data/__tests__/datasets.test.ts:219-460",
-        "lib/open-data/datasets.ts:434 (declared containment lattice)"
+        "lib/open-data/datasets.ts:440 (declared containment lattice)"
       ],
       "enforcementKind": "vitest",
       "wired": "test:verified",
       "status": "ENFORCED",
       "clause": "R1",
-      "statusBasis": "datasets.test.ts:282-320 fails if a province suppressed only in microchip keeps its shared mascotas_activas base in esterilizacion; :390-408 fails when pets-minus-dogs = 4 does not suppress BOTH the superset and the subset base; :452-479 covers the two-link transitive case (perros_ppp in mascotas_activas); :410-450 are the negative controls. Lattice at datasets.ts:434-464.",
+      "statusBasis": "datasets.test.ts:282-320 fails if a province suppressed only in microchip keeps its shared mascotas_activas base in esterilizacion; :390-408 fails when pets-minus-dogs = 4 does not suppress BOTH the superset and the subset base; :452-479 covers the two-link transitive case (perros_ppp in mascotas_activas); :410-450 are the negative controls. Lattice at datasets.ts:440-470.",
       "notes": "The 1-4 difference clause is fixture 9004-9000=4 at datasets.test.ts:370/384. Basis agrees.",
       "confidence": 0.9,
       "verifiedAt": "d7dbf25f7"
@@ -9682,6 +9682,12 @@
       "id": "__tests__/public-hostname-fence.test.ts",
       "path": "__tests__/public-hostname-fence.test.ts",
       "note": "Postdates the d7dbf25f7 snapshot (added 2026-09-07 alongside __tests__/contact-email-domain-fence.test.tsx); no canon row can cite it without describing prose that did not exist when the canon was taken. Hostname half of the same class its sibling covers for mailboxes: RULE A holds every domain the product declares as its own (PUBLIC_BRAND_DOMAIN, the resolveSiteUrl fallback, the credential-QR host) against OWNED_WEB_DOMAINS in lib/infra/site-url.ts, read through the public API rather than off the constant; RULE B bans any hardcoded absolute URL into a route this app serves, with the route table derived from the app/ tree at scan time so it cannot rot."
+    },
+    {
+      "kind": "fence-test",
+      "id": "__tests__/state-endorsement-fence.test.ts",
+      "path": "__tests__/state-endorsement-fence.test.ts",
+      "note": "Added 2026-09-11, long after the d7dbf25f7 snapshot, and the rule it guards was never written in prose so extraction had nothing to harvest: no citizen-facing file may name an Argentine state body in a way that implies it backs, operates or issues miMAR. It came out of a live finding — the landing hero carried 'República Argentina · Ministerio de Salud' above the H1, the footer repeated it over argentina.gob.ar/salud, and worst of all the phone credential printed 'República Argentina' in a slot whose style key is literally `footAuthority`, on the screen its own header calls 'the thing a funcionario is asked to accept as identification'. No convenio exists; the Mi Argentina one is still an unstarted prerequisite. It bans the SUBJECT rather than spellings — `Ministerio de <X>` matches a ministry nobody has typed yet — over 253 files, with two structural exemptions: a norm citation in the same sentence, and an explicit pending marker. Full https:// URLs are stripped before the name scan, so linking out to argentina.gob.ar stays legal; what is banned is a bare-text .gob.ar host or one carrying our own name. Floors at 180 files / 4 namings so a broken regex cannot go quietly green, and it was mutation-tested against the real tree, not a synthetic fixture."
     }
   ]
 }

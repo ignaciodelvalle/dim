@@ -70,7 +70,18 @@ const canon: Canon = loadCanon(REPO_ROOT);
 // did not exist yet. A ceiling would let the list grow up to it in silence; a
 // floor would let it be emptied. Both directions are a hand edit, and both are
 // reviewable.
-const UNMAPPED_COUNT = 5;
+//
+// 5 -> 6 on 2026-09-11, and this is the hand edit the paragraph above asks for.
+// The sixth is `__tests__/state-endorsement-fence.test.ts`: no citizen-facing
+// file may name an Argentine state body as if it backed, operated or issued
+// miMAR. It joins the list for the same reason as the others - the rule was
+// never written in prose, so no row can cite a source for it without inventing
+// one. It came out of a live finding, not a hypothetical: the landing hero
+// carried "Republica Argentina - Ministerio de Salud" above the H1, and the
+// phone credential printed it in a slot whose style key is `footAuthority`, on
+// the screen its own header calls the thing a funcionario is asked to accept as
+// identification. No convenio exists.
+const UNMAPPED_COUNT = 6;
 
 /**
  * Enforcement the filename glob below cannot see.
