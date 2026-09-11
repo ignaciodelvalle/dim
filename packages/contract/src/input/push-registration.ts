@@ -1,0 +1,152 @@
+// What a client may SEND to `POST /api/v1/me/push-targets`.
+//
+// TWO COMMANDS, AND THE SECOND IS NOT A DELETE
+// ---------------------------------------------------------------------------
+// `register` and `revoke`. There is no third, and `revoke` is deliberately not
+// spelled `delete`: the row is soft-revoked and the table carries no DELETE
+// policy at all (migration 0222), so a command named for deletion would name an
+// operation the database refuses. A person signing out stops receiving pushes;
+// the row stays until the nightly purge or an art. 16 erasure removes it.
+//
+// THIS IS NOT A TRANSCRIPTION OF A WEB CONTRACT, because there is no web
+// equivalent to transcribe. Web push registers a browser PushSubscription
+// through `app/actions/`, whose shape (endpoint + two Web Crypto keys) has
+// nothing in common with a device token. The two channels are siblings, not a
+// migration path, and this file describes only the native one.
+//
+// NO `Idempotency-Key`, AND THE ENDPOINT ASKS FOR NONE. Both commands are
+// idempotent on the STATE: `register` upserts on `device_id`, so sending it
+// twice leaves one row with the last token; `revoke` sets a timestamp that is
+// already set. This matches `/api/v1/me/notifications`, whose commands carry no
+// key for the same reason, and NOT `/api/v1/pets/{token}/events`, which requires
+// one because it appends to an immutable log. Making a phone manufacture a key
+// for an operation whose repeat is harmless would be a client believing it holds
+// a promise nobody made.
+
+import { z } from "zod";
+
+/**
+ * The per-field codes a client can act on locally.
+ *
+ * SCREAMING_SNAKE, like every other input module here, and deliberately NOT the
+ * `lowercase_snake` of `@dim/contract/api`'s error vocabulary: these are refusals
+ * a client computes for ITSELF before any round trip, and the two casings are how
+ * a reader tells "the server said no" from "the form did".
+ */
+export const PUSH_REGISTRATION_INPUT_CODES = [
+  "COMMAND_REQUIRED",
+  "DEVICE_ID_REQUIRED",
+  "EXPO_PUSH_TOKEN_REQUIRED",
+  "EXPO_PUSH_TOKEN_MALFORMED",
+  "PLATFORM_REQUIRED",
+  "APP_VERSION_TOO_LONG",
+] as const;
+
+export type PushRegistrationInputCode = (typeof PUSH_REGISTRATION_INPUT_CODES)[number];
+
+/**
+ * The two stores Expo brokers to. Frozen here rather than inlined so the schema,
+ * the database CHECK (migration 0222) and any client that renders a device list
+ * are describing one set.
+ */
+export const PUSH_PLATFORMS = ["ios", "android"] as const;
+
+export type PushPlatform = (typeof PUSH_PLATFORMS)[number];
+
+/**
+ * A cap on `app_version`, which is triage metadata and nothing else.
+ *
+ * It exists because the column is free text the client fills, and an unbounded
+ * string a client controls is a row a client controls the size of. Sixty-four
+ * characters is far above any real version string (`1.0.0`, `1.0.0-beta.3+ci`)
+ * and far below anything worth storing by accident.
+ */
+export const PUSH_APP_VERSION_MAX_LENGTH = 64;
+
+/**
+ * The install identity, as the endpoint receives it.
+ *
+ * SHAPE ONLY, NEVER EXISTENCE, and never a format assertion either. The app
+ * mints this once and keeps it in `expo-secure-store`; the server's only
+ * interest is that it is a stable non-empty string to conflict on. Demanding a
+ * uuid here would break the first client that changed how it mints one, for no
+ * gain — the column is unique and the write is scoped to the caller, so a
+ * device_id belonging to somebody else flips a row the caller then owns, which
+ * is the documented behaviour rather than an attack.
+ */
+const deviceId = z
+  .string({ error: "DEVICE_ID_REQUIRED" })
+  .trim()
+  .min(1, { error: "DEVICE_ID_REQUIRED" });
+
+/**
+ * The Expo push token.
+ *
+ * THE PREFIX IS CHECKED AND THE REST IS NOT, which is the honest amount of
+ * validation available here. `ExponentPushToken[...]` is the shape Expo's SDK
+ * returns and the shape `expo-server-sdk` will accept; a string without it is a
+ * client bug the phone can catch before spending a round trip, and telling it so
+ * locally is the whole point of this package. What the server CANNOT know is
+ * whether a well-formed token is live — only Expo answers that, and it answers
+ * at send time with `DeviceNotRegistered`, which soft-revokes the row. A regex
+ * that tried to look more thorough would be asserting a liveness it cannot see.
+ */
+const expoPushToken = z
+  .string({ error: "EXPO_PUSH_TOKEN_REQUIRED" })
+  .trim()
+  .min(1, { error: "EXPO_PUSH_TOKEN_REQUIRED" })
+  .refine((value) => value.startsWith("ExponentPushToken["), {
+    error: "EXPO_PUSH_TOKEN_MALFORMED",
+  });
+
+/** REGISTER OR REFRESH this install. Upserts on `device_id`; see the header. */
+const register = z.object({
+  command: z.literal("register"),
+  deviceId,
+  expoPushToken,
+  platform: z.enum(PUSH_PLATFORMS, { error: "PLATFORM_REQUIRED" }),
+  appVersion: z
+    .string()
+    .trim()
+    .max(PUSH_APP_VERSION_MAX_LENGTH, { error: "APP_VERSION_TOO_LONG" })
+    .optional(),
+});
+
+/**
+ * STOP DELIVERING TO THIS INSTALL. Sign-out, or the person turning push off.
+ *
+ * Takes only the device, never the token: a phone signing out may hold a token
+ * that has already rotated, and requiring the current one would make the
+ * unregister fail exactly when it matters most — the row would keep receiving
+ * for somebody who has left.
+ */
+const revoke = z.object({
+  command: z.literal("revoke"),
+  deviceId,
+});
+
+export const pushRegistrationInputSchema = z.discriminatedUnion("command", [register, revoke]);
+
+export type PushRegistrationInput = z.infer<typeof pushRegistrationInputSchema>;
+export type PushRegistrationCommand = PushRegistrationInput["command"];
+
+/**
+ * The FIRST input code in a failed parse, for a client that wants to show one
+ * message. Mirrors `firstNotificationCommandInputCode` — same shape, same reason.
+ */
+export function firstPushRegistrationInputCode(
+  error: z.ZodError<unknown>,
+): PushRegistrationInputCode | null {
+  for (const issue of error.issues) {
+    const code = issue.message;
+    if ((PUSH_REGISTRATION_INPUT_CODES as readonly string[]).includes(code)) {
+      return code as PushRegistrationInputCode;
+    }
+  }
+  for (const issue of error.issues) {
+    if (issue.code === "invalid_union" || issue.path.length === 0 || issue.path[0] === "command") {
+      return "COMMAND_REQUIRED";
+    }
+  }
+  return null;
+}
