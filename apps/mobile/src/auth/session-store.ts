@@ -74,6 +74,7 @@ import {
 } from "../api/endpoints";
 import { planesLookCrossed } from "../config/api";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
+import { revokeThisDeviceForPush } from "../notifications/push-registration";
 import { addAuthBreadcrumb } from "../observability/report";
 import {
   AUTH_STORAGE_KEY,
@@ -278,6 +279,18 @@ function markSessionUnverified(message: string): void {
 let signOutEpoch = 0;
 
 /**
+ * Whether `clearSession` is already inside its push revoke.
+ *
+ * A FLAG AND NOT AN EPOCH, deliberately, because the question is different. The
+ * epoch above orders WRITES ("is this snapshot still the current one"); this one
+ * breaks a CYCLE ("am I already in here"). See the long note at the call site:
+ * the revoke asks `sessionPort.accessToken()` for a bearer, and that function's
+ * refused arm ends the session by calling `clearSession`. Without this the two
+ * call each other until the stack gives out.
+ */
+let pushRevokeInFlight = false;
+
+/**
  * Put a snapshotted session back, if there was one and it is now gone.
  *
  * IT CHECKS TWICE, and both checks are load-bearing:
@@ -462,6 +475,43 @@ async function clearSession(): Promise<void> {
   // erasure — so a trail that shows a refresh refusal and no sign-out means the
   // session ended somewhere else, which is a fact worth being able to read.
   addAuthBreadcrumb("sign-out");
+  // BEFORE THE TOKENS GO, because a revoke needs the credentials this function
+  // is about to destroy. This is the only place it can go: `clearSession` is
+  // the funnel every way of ending a session passes through, and a subscriber
+  // watching for `phase: "signed-out"` would see it one step too late. The row
+  // is soft-revoked rather than deleted, so the next sign-in on this device
+  // brings it back live.
+  //
+  // TWO PATHS REACH HERE WITH A DEAD TOKEN AND THIS CALL IS A NO-OP ON BOTH:
+  // `signOutEverywhere` (GoTrue already rejected it) and `eraseAccount` (the
+  // account is gone, and `erase_subject_data` already deleted the row). The
+  // first leaves a live row behind; see the report.
+  //
+  // THE GUARD IS NOT PARANOIA — WITHOUT IT THIS RECURSES FOREVER. The revoke
+  // goes out through `apiRequest`, which asks `sessionPort.accessToken()` for a
+  // bearer; and `accessToken()`'s REFUSED arm ends the session by calling this
+  // very function. Sign-out → revoke → accessToken → refused → sign-out, with
+  // no floor. One flag closes it: the re-entrant call skips the revoke, drops
+  // the tokens, and the outer request then reads a null token and gives up on
+  // its own.
+  //
+  // IT IS AN ASYNC CYCLE, SO IT EATS THE HEAP AND NOT THE STACK, which is worse
+  // rather than better: there is no `RangeError` to catch and no stack trace
+  // pointing here. Removing this line and running `session-store.test.ts` ends
+  // in `FATAL ERROR: Reached heap limit Allocation failed` and SIGABRT
+  // (measured). On a phone that is the app dying on the way out.
+  if (!pushRevokeInFlight) {
+    pushRevokeInFlight = true;
+    try {
+      await revokeThisDeviceForPush(sessionPort);
+    } catch {
+      // Best-effort, exactly like `forgetAllCachedCredentials`: somebody who
+      // pressed "Cerrar sesión" is leaving, and a push row that could not be
+      // updated must not turn that into an error.
+    } finally {
+      pushRevokeInFlight = false;
+    }
+  }
   const client = authClient();
   if (client !== null) {
     try {

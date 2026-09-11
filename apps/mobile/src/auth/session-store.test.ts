@@ -63,6 +63,16 @@ jest.mock("../credential/credential-cache", () => ({
 }));
 
 /**
+ * The push revoke, mocked for the same reason `forgetAllCachedCredentials` is:
+ * it is a side effect of ending a session, it reaches the network, and what
+ * matters here is WHEN the store calls it — not what it does.
+ */
+const mockRevokeThisDeviceForPush: AsyncMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+jest.mock("../notifications/push-registration", () => ({
+  revokeThisDeviceForPush: () => mockRevokeThisDeviceForPush(),
+}));
+
+/**
  * The breadcrumb trail, captured (OBS-6, finding L2).
  *
  * The SDK, not `observability/report`: mocking the reporter would prove the
@@ -122,6 +132,7 @@ beforeEach(() => {
   mockAuth.signOut.mockResolvedValue({ error: null });
   mockDropLocalSession.mockResolvedValue(undefined);
   mockForgetAllCachedCredentials.mockResolvedValue(undefined);
+  mockRevokeThisDeviceForPush.mockResolvedValue(undefined);
   mockLogin.mockResolvedValue(LOGIN_OK);
   mockFetchMe.mockResolvedValue({ outcome: "ok", payload: { user: LOGIN_OK.payload.user } });
   mockSignup.mockResolvedValue({
@@ -1020,5 +1031,74 @@ describe("completeIdentity — the server says it is already done", () => {
 
     const result = await completeIdentity({ firstName: "Ana", lastName: "Pérez" });
     expect(result.ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// clearSession — the push revoke, and the cycle it would otherwise close
+// ---------------------------------------------------------------------------
+
+describe("clearSession — telling the server to stop delivering", () => {
+  it("revokes the push target BEFORE the tokens are dropped", async () => {
+    const order: string[] = [];
+    mockRevokeThisDeviceForPush.mockImplementation(async () => {
+      order.push("push-revoke");
+    });
+    mockDropLocalSession.mockImplementation(async () => {
+      order.push("drop-tokens");
+    });
+
+    await signOut("/mascotas");
+
+    // THE ORDER IS THE WHOLE POINT. A revoke is an authenticated request, and
+    // the credentials it needs are the ones the line below destroys. Reversed,
+    // this call would 401 on every sign-out and the row would stay live.
+    expect(order).toEqual(["push-revoke", "drop-tokens"]);
+  });
+
+  it("signs out anyway when the revoke fails", async () => {
+    mockRevokeThisDeviceForPush.mockRejectedValue(new Error("offline"));
+
+    await signOut("/mascotas");
+
+    // Somebody who pressed "Cerrar sesión" is leaving. A push row that could
+    // not be updated must not turn that into a session that stayed open.
+    expect(mockDropLocalSession).toHaveBeenCalled();
+    expect(getSessionState()).toMatchObject({ phase: "signed-out" });
+  });
+
+  // -------------------------------------------------------------------------
+  // THE CYCLE, AND WHY A FLAG GUARDS IT
+  //
+  // The revoke goes out through `apiRequest`, which asks `accessToken()` for a
+  // bearer. `accessToken()`'s REFUSED arm ends the session by calling
+  // `clearSession()` — the same function that started the revoke. Sign-out →
+  // revoke → accessToken → refused → sign-out, with no floor. It is an ASYNC
+  // cycle, so it exhausts the HEAP rather than the stack: removing the guard
+  // and running this file ends in `FATAL ERROR: Reached heap limit Allocation
+  // failed` and SIGABRT (measured), with no catchable error anywhere. On a
+  // phone that is the app dying on the way out.
+  //
+  // This test drives exactly that shape: the mocked revoke reaches for a token,
+  // and the auth plane answers with the refusal that ends sessions.
+  // -------------------------------------------------------------------------
+  it("cannot recurse when the revoke's own token read ends the session", async () => {
+    mockAuth.getSession.mockResolvedValue({
+      data: { session: null },
+      error: new AuthApiError(
+        "Invalid Refresh Token: Already Used",
+        400,
+        "refresh_token_already_used",
+      ),
+    });
+    mockRevokeThisDeviceForPush.mockImplementation(async () => {
+      // What `apiRequest` does first, and the step that re-enters the store.
+      await sessionPort.accessToken();
+    });
+
+    await signOut("/mascotas");
+
+    // ONCE. Without the guard this number is bounded only by the stack.
+    expect(mockRevokeThisDeviceForPush).toHaveBeenCalledTimes(1);
   });
 });
