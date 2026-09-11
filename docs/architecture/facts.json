@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-09-11",
-  "sha": "c3d166220",
+  "sha": "c50e75be6",
   "facts": {
     "event_types": {
       "value": 55,
@@ -33,7 +33,7 @@
       "method": "files named exactly `page.tsx` anywhere under `app/`."
     },
     "route_handlers": {
-      "value": 85,
+      "value": 86,
       "source": "app/**/route.ts",
       "method": "files named exactly `route.ts` anywhere under `app/`."
     },
@@ -43,7 +43,7 @@
       "method": "files named exactly `layout.tsx` anywhere under `app/`."
     },
     "migrations": {
-      "value": 217,
+      "value": 219,
       "source": "db/migrations/*.sql",
       "method": "files ending in `.sql` under `db/migrations/`. Migrations are forward-only and immutable, so this only ever grows."
     },
@@ -88,7 +88,7 @@
       "method": "files ending in `.yml` under `.github/workflows/`. There are no `.yaml` files at this snapshot; if one is added it will not be counted until this method changes."
     },
     "vitest_files": {
-      "value": 1517,
+      "value": 1519,
       "source": "vitest.config.ts -> __tests__/db-reachability.ts",
       "method": "discoverTestFiles().length, imported from the SAME module `vitest.config.ts` feeds into its `include` globs via computeTestPartition(). It walks the repo for /\\.test\\.tsx?$/ skipping node_modules, .next, .git, .claude, apps and e2e — so this is exactly the file set Vitest runs, not an independent glob that could drift from it."
     },
@@ -153,7 +153,7 @@
       "method": "non-test `.ts` files under `lib/projections/`, excluding the shared `types.ts`. A FILE count, and the only key here that is not backed by either an import or a declaration site: there is no projection registry to import — `scripts/rebuild-projections.ts` names each replay function individually — so adding a projection module without wiring it into the rebuilder would still move this number."
     },
     "service_role_call_sites": {
-      "value": 37,
+      "value": 39,
       "source": "app/**, src/**, lib/**, scripts/** (excluding lib/supabase/admin.ts)",
       "method": "literal occurrences of the service-role factory's name followed by `(` in `.ts`/`.tsx` files under those four trees, excluding the factory's own module. The trailing paren is what makes this a CALL count and not an import count — an `import { … } from` line has no paren. The needle is concatenated at runtime so this generator does not match itself. Every one of these bypasses RLS by design."
     },
