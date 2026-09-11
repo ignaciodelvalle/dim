@@ -88,6 +88,57 @@ export function canEndMedication(view: EventDetailView): boolean {
 }
 
 /**
+ * May this asiento offer "Reemplazar el microchip"?
+ *
+ * THE KIND HAD A FORM AND NO DOOR. `microchip_replace` is in `WRITABLE_KINDS`
+ * with a complete, tested form, and until 2026-09-11 nothing in this app
+ * navigated to it. `WRITABLE_KINDS`' own docblock names the home it was always
+ * meant to have, verbatim:
+ *
+ *   · `microchip_replace` — from the microchip the animal already has. There is
+ *     nothing to replace otherwise, and the server refuses with 409.
+ *
+ * SO WHERE DOES THIS APP SHOW THE MICROCHIP THE ANIMAL ALREADY HAS? Exactly
+ * one place, and it is this screen. The owner face's compliance card renders
+ * `card.state` and NOT `card.detail` (`OwnerFace.tsx`, `ComplianceCardRow`), so
+ * the chip NUMBER the web prints as that card's pill never reaches the native
+ * card; the public credential deliberately prints "Microchip: Sí/No" and never
+ * the code. The number appears in this app only as a fact on the
+ * `microchip_implanted` asiento — the server labels it "Número" from
+ * `chip_number` (`lib/events/events.ts`, `eventPayloadDetails`). This screen is
+ * where a person is holding the chip, which is what the docblock asked for.
+ *
+ * IT IS THEREFORE THE SAME SHAPE AS `canEndMedication` ABOVE — an act reached
+ * from the asiento that originated it, not from the picker — and for the same
+ * reason: the picker would have to assert that a chip exists before offering
+ * the form, and the only honest source for that is the ledger this screen is
+ * already showing.
+ *
+ * ONLY `microchip_implanted`, AND NOT `microchip_replaced`. Three reasons, in
+ * the order they decided it:
+ *   1. `microchip_replaced` is the umbrella for replacement AND revocation
+ *      (contract `event-types.ts` says so). A pure revocation's whole meaning
+ *      is that the animal now has NO chip, so a door there would 409 BY
+ *      CONSTRUCTION rather than by bad luck.
+ *   2. The server emits no `facts` at all for `microchip_replaced`
+ *      (`eventPayloadDetails` has no case for it; it falls through to `[]`), so
+ *      that screen is not a place a person "already has" the number in hand.
+ *   3. Nothing is lost. The implant asiento never leaves the libreta, and the
+ *      endpoint reads the animal's CANONICAL chip itself rather than anything
+ *      this screen sends — the payload deliberately carries no
+ *      `previousChipNumber`. So the door still works after any number of
+ *      replacements, and it always acts on the current chip.
+ *
+ * A TYPE CHECK AND NOT A PERMISSION ONE, the posture `canEndMedication` states
+ * at length: whether THIS person may write it, and whether there is a chip left
+ * to replace, are the server's answers, and the form renders the refusal in the
+ * person's words.
+ */
+export function canReplaceMicrochip(view: EventDetailView): boolean {
+  return view.eventType === "microchip_implanted";
+}
+
+/**
  * WHO signed the record, as one line.
  *
  * The role and the organization arrive already worded; this composes them and

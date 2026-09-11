@@ -20,6 +20,12 @@ import { vaccineRemindersRoute } from "../ui/routes";
 import { TOUCH_TARGET } from "../ui/theme";
 
 const mockPush = jest.fn();
+// `.mockResolvedValue` AND NOT A BARE `jest.fn()`, the hazard `components.test.tsx`
+// documents: the two "Disponible en la web" rows call `.catch()` on what
+// `openURL` returns, and an unmocked `jest.fn()` resolves that against
+// `undefined` — a TypeError inside the press handler rather than a failed
+// assertion.
+const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>().mockResolvedValue(undefined);
 const mockFetchOwnerPetDetail = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockFetchPetLibreta = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockSendReminder = jest.fn<(...args: unknown[]) => Promise<unknown>>();
@@ -30,6 +36,8 @@ const mockFocusCallbacks: Array<() => void> = [];
 // For `VacunasScreen`'s draft-discard guard (`useNavigation`); the document
 // screen itself never asks for one. See `ui/navigation-fake.ts`.
 const mockNav = createNavigationFake();
+
+jest.mock("expo-linking", () => ({ openURL: (url: string) => mockOpenURL(url) }));
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
@@ -219,6 +227,9 @@ function payload(overrides: Partial<Record<string, unknown>> = {}): OwnerPetDeta
 
 beforeEach(() => {
   mockPush.mockReset();
+  // `mockClear` and not `mockReset`: the resolved-promise behaviour above is
+  // the whole point of the mock and `mockReset` would strip it.
+  mockOpenURL.mockClear();
   mockFetchOwnerPetDetail.mockReset();
   mockFetchPetLibreta.mockReset();
   mockFocusCallbacks.length = 0;
@@ -472,14 +483,18 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     expect(screen.getByLabelText("Ver credencial pública")).toBeOnTheScreen();
   });
 
-  it("names its issuer, its jurisdiction and its date at the foot of the face", async () => {
-    // The four marks that separate a credential from a card. Three are here
-    // (the fourth, a seal, is the situation chip in the band); a funcionario
-    // asked to accept an identification looks for exactly these.
+  it("names itself, its jurisdiction and its date at the foot — and claims no state issuer", async () => {
+    // The marks that separate a credential from a card; a funcionario asked to
+    // accept an identification looks for exactly these.
+    //
+    // The foot used to lead with "República Argentina" in the issuing-authority
+    // slot, and this test asserted it. It was a false attribution — no state
+    // body issues this document — so the assertion is inverted: the line must
+    // be ABSENT, and the two lines that are true must still be present.
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
 
-    expect(screen.getByText("República Argentina")).toBeOnTheScreen();
+    expect(screen.queryByText("República Argentina")).toBeNull();
     expect(screen.getByText("Libreta Sanitaria Nacional · Palermo, CABA")).toBeOnTheScreen();
     expect(screen.getByText("Consultada el 03/09/2026")).toBeOnTheScreen();
     // NOT "Emitida": the envelope stamp is when the server composed THIS READ,
@@ -487,19 +502,19 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     expect(screen.queryByText(/Emitida el/)).toBeNull();
   });
 
-  it("keeps the issuing foot when the identity read failed, minus the jurisdiction", async () => {
-    // `issuedAt` rides the payload ENVELOPE, so the document can still say who
-    // issued it and when even though it cannot say whose animal it is. The
-    // jurisdiction lives in the identity section and correctly disappears with
-    // it — the line degrades, it does not invent a place.
+  it("keeps the foot when the identity read failed, minus the jurisdiction", async () => {
+    // `issuedAt` rides the payload ENVELOPE, so the document can still name
+    // itself and say when it was read even though it cannot say whose animal
+    // it is. The jurisdiction lives in the identity section and correctly
+    // disappears with it — the line degrades, it does not invent a place.
     mockFetchOwnerPetDetail.mockResolvedValue({
       outcome: "ok",
       payload: payload({ identity: UNAVAILABLE }),
     });
     render(<PetDocumentScreen publicToken={TOKEN} />);
-    await screen.findByText("República Argentina");
+    await screen.findByText("Libreta Sanitaria Nacional");
 
-    expect(screen.getByText("Libreta Sanitaria Nacional")).toBeOnTheScreen();
+    expect(screen.queryByText("República Argentina")).toBeNull();
     expect(screen.getByText("Consultada el 03/09/2026")).toBeOnTheScreen();
     // NOT "Emitida": the envelope stamp is when the server composed THIS READ,
     // not when the libreta was issued (A3-documento-credencial-06).
@@ -555,9 +570,9 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
       payload: payload({ identity: UNAVAILABLE }),
     });
     render(<PetDocumentScreen publicToken={TOKEN} />);
-    // "Pampa" never renders in this arm; the issuing foot is the marker its
+    // "Pampa" never renders in this arm; the document's foot is the marker its
     // sibling test above already uses.
-    await screen.findByText("República Argentina");
+    await screen.findByText("Libreta Sanitaria Nacional");
     const frame = screen.getByLabelText("Ver credencial pública");
     // The rise and the stacking belong to the flanking ROW, where the band is
     // above the frame. Below a refusal box there is no band to rise into —
@@ -726,10 +741,15 @@ describe("PetDocumentScreen — controls with no native destination are drawn ho
     // ONE web-only row left for a titular (Chapa física): the acompañamiento
     // row went live on 2026-09-10 and navigates below.
     expect(screen.getAllByText("Disponible en la web").length).toBeGreaterThanOrEqual(1);
-    // Viaje is disabled on the WEB too, with the web's own badge.
+    // Viaje is disabled on the WEB too, with the web's own badge, and it is
+    // the one row in this sheet that is still legitimately inert: "Próximamente"
+    // promises nothing, so there is nowhere to send anybody.
     expect(screen.getByText("Viaje y movilidad")).toBeOnTheScreen();
     expect(screen.getByText("Próximamente")).toBeOnTheScreen();
-    // The ones still marked web-only do not navigate.
+    // The web-only row does not navigate IN THE APP — it hands off to the
+    // browser, which is a different mock. Before 2026-09-11 it did neither:
+    // it had no `onPress` at all and a tap was indistinguishable from a
+    // broken button.
     fireEvent.press(screen.getByText("Chapa física"));
     expect(mockPush).not.toHaveBeenCalled();
     // And the one that stopped being web-only does — to the titular's screen.
@@ -906,6 +926,53 @@ describe("PetDocumentScreen — the face reads petStatus and the role (A3-docume
     fireEvent.press(screen.getByText("Más"));
     expect(screen.getByText("Buscar hogar")).toBeOnTheScreen();
     expect(screen.queryByText("Acompañamiento de adopción")).toBeNull();
+  });
+
+  // THE TWO ROWS THAT ANNOUNCED THEIR OWN UNAVAILABILITY AND THEN DID NOTHING
+  // (2026-09-11). Both rendered with no `onPress` — `ListRow`'s inert arm — in a
+  // sheet where every other row navigates, so a tap produced nothing and the
+  // person could not tell that from a broken button. The caption was already
+  // making a promise ("Disponible en la web"); these tests pin that the promise
+  // is now KEPT.
+  //
+  // THE PATH IS A LITERAL AND THE ORIGIN IS NOT. Composing the whole expected
+  // string out of the same helper under test would assert nothing; the origin is
+  // build configuration (`EXPO_PUBLIC_API_BASE_URL`), so it is matched loosely
+  // and the part this change decides — which page, for which pet — is written
+  // out by hand. `owner-face-view-model.test.ts` pins the builders exactly,
+  // against a fixed origin.
+  it("opens the web chapita page from the titular's inert-looking row", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    fireEvent.press(screen.getByText("Más"));
+
+    fireEvent.press(screen.getByText("Chapa física"));
+    expect(mockOpenURL).toHaveBeenCalledTimes(1);
+    expect(mockOpenURL.mock.calls[0]?.[0]).toContain("/mis-mascotas/DIM-PAMP-0001/chapita");
+    // An absolute url, because a browser cannot resolve a relative one.
+    expect(mockOpenURL.mock.calls[0]?.[0]).toMatch(/^https?:\/\//);
+  });
+
+  it("opens the web buscar-hogar page from the FOSTER's row", async () => {
+    // The foster's ask is `foster`'s `sendRehomeRequest` — a different module
+    // from the titular's `RehomeScreen`, which went native on 2026-09-10. So
+    // this row stays a web handoff, and the test names the role to keep the two
+    // apart: a regression that pointed this at `rehomeRoute` would send a foster
+    // to a screen whose endpoint does not serve them.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ viewer: { role: "foster", isTitular: false } }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+    fireEvent.press(screen.getByText("Más"));
+
+    fireEvent.press(screen.getByText("Buscar hogar"));
+    expect(mockOpenURL).toHaveBeenCalledTimes(1);
+    expect(mockOpenURL.mock.calls[0]?.[0]).toContain("/mis-mascotas/DIM-PAMP-0001/buscar-hogar");
+    // And it does NOT navigate in-app — the distinction the row's own comment
+    // turns on.
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("keeps Modo perdida on a LOST animal while the titular-only rows go inert", async () => {

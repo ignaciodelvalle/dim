@@ -33,7 +33,7 @@
 
 import { describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen } from "@testing-library/react-native";
-import { RefreshControl, StyleSheet, Text } from "react-native";
+import { KeyboardAvoidingView, RefreshControl, StyleSheet, Text } from "react-native";
 
 import {
   DateField,
@@ -43,6 +43,7 @@ import {
   Screen,
   TextField,
   TimeField,
+  keyboardAvoidingBehavior,
   pullToRefresh,
 } from "./kit";
 import { COLORS } from "./theme";
@@ -284,5 +285,76 @@ describe("PasswordField — the eye toggle may not cap the input (B-08)", () => 
     // a second check (nit N2, review 2026-09-07). The value IS the mechanism, so
     // pinning the value is the whole test.
     expect(style.alignItems).toBe("stretch");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The keyboard the long forms type under (open-work row 11, fixed 2026-09-11)
+//
+// `Screen`'s `keyboardAvoiding` prop passed `behavior={Platform.OS === "ios" ?
+// "padding" : undefined}`, and `undefined` is not "a sensible default" — React
+// Native's `KeyboardAvoidingView` switches on `behavior` and its `default:` arm
+// returns a plain `<View>`. Sixteen screens asked for keyboard avoidance on
+// Android and sixteen got nothing, which survived only while Android's own
+// window resize compensated for it. Expo SDK 54+ enforces edge-to-edge, the
+// window stopped resizing, and the compensation left.
+//
+// THE RULE IS TESTED AS A FUNCTION BECAUSE JEST RUNS ON ONE PLATFORM. A render
+// assertion can only ever see the arm this runner takes; the defect was on the
+// other one.
+// ---------------------------------------------------------------------------
+
+describe("keyboardAvoidingBehavior — neither platform may get `undefined`", () => {
+  it("asks Android to shrink", () => {
+    expect(keyboardAvoidingBehavior("android")).toBe("height");
+  });
+
+  it("asks iOS to pad", () => {
+    expect(keyboardAvoidingBehavior("ios")).toBe("padding");
+  });
+
+  it("gives the two platforms DIFFERENT answers", () => {
+    // The assertion that survives a collapse to a constant. Both arms return a
+    // legal `behavior`, so a body rewritten as `return "padding"` would leave
+    // the iOS test green and only this one red.
+    expect(keyboardAvoidingBehavior("android")).not.toBe(keyboardAvoidingBehavior("ios"));
+  });
+
+  it("never answers undefined, on any platform React Native reports", () => {
+    // The DEFECT ITSELF, stated as a property rather than as two literals: the
+    // bug was not "Android got the wrong string", it was "Android got no string
+    // at all", and `KeyboardAvoidingView`'s `default:` arm is a silent no-op.
+    // `windows` and `macos` are real `Platform.OS` values in React Native's own
+    // union, and a future arm added for one of them must not reintroduce a hole.
+    for (const os of ["ios", "android", "windows", "macos", "web"] as const) {
+      expect(["padding", "height"]).toContain(keyboardAvoidingBehavior(os));
+    }
+  });
+});
+
+describe("Screen keyboardAvoiding — the prop reaches a real KeyboardAvoidingView", () => {
+  it("mounts one, with a behavior that is not undefined", () => {
+    render(
+      <Screen keyboardAvoiding>
+        <TextField label="Nombre" value="" onChangeText={() => {}} />
+      </Screen>,
+    );
+    const avoider = screen.UNSAFE_getByType(KeyboardAvoidingView);
+    // NOT compared against `keyboardAvoidingBehavior(Platform.OS)` — that would
+    // derive the expectation from the code under test and pass for any value,
+    // `undefined` included. The membership check is the real contract.
+    expect(["padding", "height"]).toContain(avoider.props.behavior);
+  });
+
+  it("mounts NO avoider when the screen did not ask for one", () => {
+    // The control. Without it the test above would still pass on a `Screen` that
+    // wrapped every child in a KeyboardAvoidingView unconditionally, which is a
+    // different component from the one this kit documents.
+    render(
+      <Screen>
+        <Text>cuerpo</Text>
+      </Screen>,
+    );
+    expect(screen.UNSAFE_queryAllByType(KeyboardAvoidingView)).toHaveLength(0);
   });
 });

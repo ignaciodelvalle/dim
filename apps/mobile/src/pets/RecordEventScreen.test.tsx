@@ -14,7 +14,7 @@
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { Alert, TextInput } from "react-native";
+import { Alert, KeyboardAvoidingView, TextInput } from "react-native";
 
 import { createNavigationFake } from "../ui/navigation-fake";
 
@@ -1444,5 +1444,33 @@ describe("las dos puertas nuevas — el kind del link rinde SU formulario", () =
     // "Fallecimiento" on the way.
     expect(screen.queryByText("Fallecimiento")).toBeNull();
     expect(screen.queryByText("Atestación de raza peligrosa")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The keyboard, on the longest form in the app (open-work row 11)
+//
+// `kit.test.tsx` pins the RULE and the primitive. This pins the thing the row
+// was actually about: `asentar` is ~700 lines of fields, it is one of the two
+// screens the fix exists for, and a keyboard-avoidance regression here is
+// invisible to every test that renders the kit in isolation. A screen that
+// dropped `keyboardAvoiding`, or a `Screen` that stopped honouring it, leaves
+// the field being typed on under the IME on Android and nothing goes red
+// anywhere else.
+// ---------------------------------------------------------------------------
+
+describe("RecordEventScreen — the form types above the keyboard", () => {
+  it("mounts a KeyboardAvoidingView with a real behavior on a multi-field form", () => {
+    // `medication_start` is the longest of the owner kinds — its own
+    // `returnKeyChainLength` is 4 typed fields plus the chip rows.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="medication_start" />);
+    // The form is really here, not a picker or a refusal: without this the
+    // assertion below could be sweeping an empty screen clean.
+    expect(screen.getAllByDisplayValue("").length).toBeGreaterThan(2);
+
+    const avoider = screen.UNSAFE_getByType(KeyboardAvoidingView);
+    // `undefined` is the defect, and it is a legal prop value — so the check is
+    // membership in the two arms that DO something, not "is defined".
+    expect(["padding", "height"]).toContain(avoider.props.behavior);
   });
 });

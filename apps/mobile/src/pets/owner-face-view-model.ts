@@ -681,6 +681,58 @@ export function titularOnlyRowCaption(gates: OwnerFaceGates): string | null {
   return null;
 }
 
+/**
+ * The two web pages the "Más" sheet hands off to, absolute.
+ *
+ * THE ROWS ALREADY SAID "Disponible en la web" AND THEN DID NOTHING. Both were
+ * rendered with no `onPress`, which draws `ListRow`'s inert arm — a row that
+ * announces its own unavailability and is then indistinguishable from a broken
+ * button. Of the three ways out, this is the only one that keeps a promise
+ * already printed on the row: the capability genuinely exists, on the web, at
+ * these two paths. Rendering them as plain text would delete an affordance the
+ * person really has; leaving them inert was the worst of the three.
+ *
+ * THE CALLER'S GATES ARE WHAT MAKE THE LINK SAFE, and they were reasoned out
+ * before this function existed (see the two comments above the rows in
+ * `OwnerFace.tsx`): `showWebOnlyRows` drops both for a deceased animal, whose
+ * destinations the web suppresses too, and `canSeeFindHome` is `foster`-only
+ * because `buscar-hogar/page.tsx` `notFound()`s every other role. A link that
+ * 404s is worse than an inert row, and the gates are why neither of these can.
+ *
+ * NOT IN `deepLinkMap`, and that is the table's own rule rather than an
+ * omission: "A destination belongs here when something OUTSIDE the rendering
+ * surface has to name it" — a QR, a notification, an invitation. These are one
+ * surface handing off to another, which is the case the table's header
+ * explicitly declines ("putting 400 routes in this table would make it a
+ * second, worse copy of the file system router"). `claimDisputeUrl` in
+ * `claims/claim-view-model.ts` is the precedent: same shape, same reason.
+ *
+ * TRAILING SLASHES ARE STRIPPED because `API_BASE_URL` is the one the caller
+ * passes and an origin from the environment may carry one.
+ */
+function webPetPage(origin: string, publicToken: string, page: string): string {
+  return `${origin.replace(/\/+$/, "")}/mis-mascotas/${encodeURIComponent(publicToken)}/${page}`;
+}
+
+/** Ordering a physical tag — the web's `chapita` page. */
+export function petTagWebUrl(origin: string, publicToken: string): string {
+  return webPetPage(origin, publicToken, "chapita");
+}
+
+/**
+ * The FOSTER's rehome ask — the web's `buscar-hogar` page.
+ *
+ * NOT `RehomeScreen`, and the distinction is load-bearing. The titular's
+ * "Acompañamiento de adopción" row below shipped native on 2026-09-10 against
+ * `GET|POST /pets/{token}/rehome`; this row is the foster's, whose ask is a
+ * different action in a different module (`foster`'s `sendRehomeRequest`) with
+ * no native endpoint. Same page on the web, two audiences, and only one of them
+ * has a screen here.
+ */
+export function findHomeWebUrl(origin: string, publicToken: string): string {
+  return webPetPage(origin, publicToken, "buscar-hogar");
+}
+
 export function buildOwnerFaceView(payload: OwnerPetDetailV1): OwnerFaceView {
   return {
     publicToken: payload.publicToken,

@@ -20,6 +20,8 @@ import {
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
+  findHomeWebUrl,
+  petTagWebUrl,
   rehomeBannerLine,
   reminderCancelledMessage,
   reminderDueLabel,
@@ -370,5 +372,54 @@ describe("reminderCancelledMessage — a replayed cancel is a success", () => {
         changed: false,
       }),
     ).toBe("Ese recordatorio ya estaba eliminado.");
+  });
+});
+
+// The two web handoffs behind the "Disponible en la web" rows of the ⋯ Más
+// sheet (2026-09-11). Until that day both rows rendered with no `onPress`: the
+// caption named a destination and the tap went nowhere.
+//
+// A FIXED ORIGIN, NOT `API_BASE_URL`. The origin these run with in production is
+// build configuration and varies per build; passing a literal is what lets the
+// whole expected string be written out by hand instead of composed from the
+// same pieces the function composes it from.
+describe("petTagWebUrl / findHomeWebUrl — the pages the Más sheet hands off to", () => {
+  const ORIGIN = "https://example.test";
+
+  it("builds the chapita page for this pet", () => {
+    expect(petTagWebUrl(ORIGIN, "DIM-PAMP-0001")).toBe(
+      "https://example.test/mis-mascotas/DIM-PAMP-0001/chapita",
+    );
+  });
+
+  it("builds the buscar-hogar page for this pet", () => {
+    expect(findHomeWebUrl(ORIGIN, "DIM-PAMP-0001")).toBe(
+      "https://example.test/mis-mascotas/DIM-PAMP-0001/buscar-hogar",
+    );
+  });
+
+  it("names TWO DIFFERENT pages", () => {
+    // The one assertion that survives a copy-paste between the two builders.
+    // Both take the same two arguments and differ in a single trailing word, so
+    // a body pasted from its neighbour would leave both tests above passing on
+    // whichever literal was edited second.
+    expect(petTagWebUrl(ORIGIN, "DIM-PAMP-0001")).not.toBe(findHomeWebUrl(ORIGIN, "DIM-PAMP-0001"));
+  });
+
+  it("does not double the slash when the origin carries a trailing one", () => {
+    // `EXPO_PUBLIC_API_BASE_URL` is read from the environment, and an origin
+    // typed with a trailing slash is the ordinary way that happens.
+    expect(petTagWebUrl("https://example.test/", "DIM-PAMP-0001")).toBe(
+      "https://example.test/mis-mascotas/DIM-PAMP-0001/chapita",
+    );
+  });
+
+  it("percent-encodes a token that would otherwise change the path", () => {
+    // The token is a server-issued `DIM-XXXX-XXXX`, so this is a guard and not
+    // a live case — but a raw interpolation is how a path becomes a different
+    // path, and the encoding is cheap.
+    expect(findHomeWebUrl(ORIGIN, "a/b")).toBe(
+      "https://example.test/mis-mascotas/a%2Fb/buscar-hogar",
+    );
   });
 });

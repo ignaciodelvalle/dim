@@ -134,6 +134,45 @@ export function pullToRefresh(onRefresh: () => void, refreshing: boolean) {
   );
 }
 
+/**
+ * What `KeyboardAvoidingView` should DO on this platform.
+ *
+ * A PURE FUNCTION AND NOT AN INLINE TERNARY, so the rule is testable on the
+ * platform the test is not running on. Jest runs this app on one `Platform.OS`;
+ * the defect below was Android-only, and a rule that can only be asserted for
+ * the platform the runner happens to be is a rule with half a test.
+ *
+ * THE ANDROID ARM WAS `undefined` UNTIL 2026-09-11, AND THAT IS A NO-OP —
+ * literally. React Native's `KeyboardAvoidingView` switches on `behavior` and
+ * its `default:` arm returns a plain `<View>` with the style and nothing else
+ * (react-native 0.86.3, `Libraries/Components/Keyboard/KeyboardAvoidingView.js`
+ * — the `switch (behavior)` at the foot of `render`). So sixteen screens passed
+ * `keyboardAvoiding` and sixteen screens got a `View`. React Native's own docs
+ * say it plainly: "on both iOS and Android, setting `behavior` is recommended".
+ *
+ * IT SURVIVED BECAUSE ANDROID USED TO COMPENSATE. With `adjustResize` and no
+ * edge-to-edge, the WINDOW shrank for the IME and the ScrollView inside got a
+ * smaller viewport for free. Expo SDK 54+ enforces edge-to-edge on Android, so
+ * the window is no longer resized — the keyboard arrives as an inset and
+ * nothing moves. The compensation left; the no-op stayed. (open-work row 11)
+ *
+ * `"height"` AND NOT `"padding"` ON ANDROID. Both are driven by the same
+ * `keyboardDidShow` metrics, so this is not a correctness fork; `"height"` is
+ * the arm that shrinks the avoiding view itself, which is what a full-screen
+ * flex container wrapping a ScrollView wants — `"padding"` adds a bottom pad
+ * INSIDE a box whose height never changed, which is the shape that double-counts
+ * the moment anything upstream does resize the window again. It is also what
+ * open-work row 11 prescribed after measuring this app under Expo 57.
+ *
+ * THE NATIVE HALF IS NOT TOUCHED AND DOES NOT NEED TO BE. `app.config.ts` sets
+ * no `android.softwareKeyboardLayoutMode`, so it is Expo's default `"resize"`,
+ * which is the value this arm wants. Changing it would move `runtimeVersion`'s
+ * fingerprint and cost a build — there was nothing to change.
+ */
+export function keyboardAvoidingBehavior(os: typeof Platform.OS): "padding" | "height" {
+  return os === "ios" ? "padding" : "height";
+}
+
 export function Screen({
   children,
   edges = ["bottom"],
@@ -171,10 +210,7 @@ export function Screen({
   return (
     <SafeAreaView style={styles.screen} edges={edges}>
       {keyboardAvoiding ? (
-        <KeyboardAvoidingView
-          style={styles.fill}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
+        <KeyboardAvoidingView style={styles.fill} behavior={keyboardAvoidingBehavior(Platform.OS)}>
           {scroll}
         </KeyboardAvoidingView>
       ) : (

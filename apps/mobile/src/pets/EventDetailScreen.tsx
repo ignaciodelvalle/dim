@@ -57,6 +57,7 @@ import {
   buildAmendEventCommand,
   buildEventDetailView,
   canEndMedication,
+  canReplaceMicrochip,
   clearedRequiredFact,
   initialAmendEdits,
   readOnlyFacts,
@@ -245,6 +246,8 @@ function EventDetailBody({
 
       <EndMedicationBlock view={view} publicToken={publicToken} />
 
+      <ReplaceMicrochipBlock view={view} publicToken={publicToken} />
+
       <AmendBlock view={view} publicToken={publicToken} onAmended={onAmended} />
     </>
   );
@@ -286,6 +289,54 @@ function EndMedicationBlock({
             recordEventRoute(publicToken, { kind: "medication_end", sourceEventId: view.eventId }),
           )
         }
+      />
+    </Card>
+  );
+}
+
+/**
+ * "Reemplazar el microchip", offered only on the asiento that recorded one.
+ *
+ * THE SAME DOOR SHAPE AS `EndMedicationBlock` ABOVE, and deliberately: both are
+ * acts reached from the asiento that originated them rather than from the
+ * "Asentar" picker. `WRITABLE_KINDS` (record-event-view-model.ts) names this
+ * home itself — "`microchip_replace` — from the microchip the animal already
+ * has. There is nothing to replace otherwise, and the server refuses with 409."
+ * The chip number is on THIS screen, as the `Número` fact, and nowhere else in
+ * the app. See `canReplaceMicrochip` for why the implant asiento and not the
+ * replacement one.
+ *
+ * NO `sourceEventId`, unlike "Terminar medicación". The contract's
+ * `microchipReplace` carries no reference to the event it supersedes and no
+ * `previousChipNumber` — the endpoint reads the animal's canonical chip
+ * server-side. Passing this event's id would be the client asserting a fact the
+ * server already holds, and a mismatch would have to be adjudicated by
+ * somebody. The route therefore carries the kind alone.
+ *
+ * REPLACEMENT AND REVOCATION ARE ONE FORM, which is why the copy names both:
+ * the kind's own `reason` chips decide which of the two this is, and a person
+ * whose chip was removed rather than swapped must recognise this as their door.
+ */
+function ReplaceMicrochipBlock({
+  view,
+  publicToken,
+}: {
+  view: EventDetailView;
+  publicToken: string;
+}) {
+  const router = useRouter();
+  if (!canReplaceMicrochip(view)) return null;
+
+  return (
+    <Card title="Reemplazo del microchip">
+      <Body>
+        Si este chip dejó de leerse, se salió o quedó anulado, registrá el reemplazo. Este asiento
+        queda igual: el chip nuevo se anota aparte y pasa a ser el de la credencial.
+      </Body>
+      <SecondaryButton
+        label="Reemplazar el microchip"
+        accessibilityHint="Registrar que este microchip se reemplazó por otro, o que quedó anulado."
+        onPress={() => router.push(recordEventRoute(publicToken, { kind: "microchip_replace" }))}
       />
     </Card>
   );

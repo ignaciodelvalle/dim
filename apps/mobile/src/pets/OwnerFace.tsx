@@ -27,13 +27,14 @@
 // `DISABLED_OPACITY`'s header records. A disabled control announces its state
 // (`accessibilityState.disabled`) and its reason (the caption).
 
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { OwnerPetObligationCardV1 } from "@dim/contract/api";
 
-import { publicCredentialPageUrl } from "../config/api";
+import { API_BASE_URL, publicCredentialPageUrl } from "../config/api";
 import { CredentialQr } from "../credential/CredentialQr";
 import { Icon } from "../ui/Icon";
 import { Body, Card, Row, Unavailable } from "../ui/components";
@@ -67,8 +68,10 @@ import {
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
+  findHomeWebUrl,
   isAttestationDoorCard,
   ownerFaceGates,
+  petTagWebUrl,
   registeredBadgeWord,
   rehomeBannerLine,
   reminderDueLabel,
@@ -265,8 +268,15 @@ function IssuingFoot({ view }: { view: OwnerFaceView }) {
   const readOn = formatIsoDate(view.issuedAt);
 
   return (
+    // The foot used to open with "REPÚBLICA ARGENTINA" in the slot a real
+    // credential reserves for its ISSUING AUTHORITY — the style was even named
+    // `footAuthority`. On the screen this file's own header calls "the thing a
+    // funcionario is asked to accept as identification", that line stated the
+    // State had issued this document. No convenio exists with any state body,
+    // so the line was not a design flourish, it was a false attribution — and
+    // the one Play reads as government impersonation. It is gone; the document
+    // names only itself.
     <View style={styles.foot}>
-      <Text style={styles.footAuthority}>República Argentina</Text>
       <Text style={styles.footLine}>Libreta Sanitaria Nacional{place ? ` · ${place}` : ""}</Text>
       {readOn === "—" ? null : <Text style={styles.footLine}>Consultada el {readOn}</Text>}
     </View>
@@ -695,7 +705,14 @@ function MoreList({
             THERE either, which is worse than an inert row: it sends somebody
             to a browser to look for it. */}
       {gates.showWebOnlyRows ? (
-        <MoreRow label="Chapa física" caption="Disponible en la web" />
+        <MoreRow
+          label="Chapa física"
+          caption="Disponible en la web"
+          accessibilityHint="Se abre en el navegador."
+          onPress={() =>
+            void Linking.openURL(petTagWebUrl(API_BASE_URL, view.publicToken)).catch(() => {})
+          }
+        />
       ) : null}
       {/* ONE DESTINATION, TWO LABELS, TWO AUDIENCES — AND NOT AN `else`
             (finding F2, review 2026-09-07). The else arm here covered `owner`
@@ -707,8 +724,27 @@ function MoreList({
             refuses — just on the role axis instead of the status one. Both
             gates now say who, in `ownerFaceGates`, where the audience is
             testable without rendering. */}
+      {/* THE ROW IS NOW A DOOR, not a label that looks like one. Both this row
+            and "Chapa física" above rendered with no `onPress`, which draws
+            `ListRow`'s INERT arm — muted, announcing `disabled` — while the
+            caption told the person the thing exists somewhere else. A person
+            tapping it could not tell that from a broken button. The caption is
+            kept and now KEPT: it says where the capability lives and the tap
+            takes them there. See `findHomeWebUrl` for why the URLs are built in
+            the view model and not through `deepLinkMap`.
+
+            THE FOSTER'S ROW STAYS WEB-ONLY, which the comment below already
+            settled: its ask is `foster`'s `sendRehomeRequest`, a different
+            action in a different module from the titular's `RehomeScreen`. */}
       {gates.canSeeFindHome ? (
-        <MoreRow label="Buscar hogar" caption="Disponible en la web" />
+        <MoreRow
+          label="Buscar hogar"
+          caption="Disponible en la web"
+          accessibilityHint="Se abre en el navegador."
+          onPress={() =>
+            void Linking.openURL(findHomeWebUrl(API_BASE_URL, view.publicToken)).catch(() => {})
+          }
+        />
       ) : null}
       {/* LIVE SINCE 2026-09-10: `GET|POST /pets/{token}/rehome` reaches the
             three use-cases the web's buscar-hogar page reaches, and
@@ -1124,13 +1160,8 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.borderSoft,
     marginHorizontal: 16,
   },
-  footAuthority: {
-    fontFamily: FONTS.monoSemibold,
-    fontSize: TYPE.xs,
-    letterSpacing: TYPE.xs * 0.18,
-    textTransform: "uppercase",
-    color: COLORS.inkSoft,
-  },
+  // `footAuthority` (the uppercase issuing-authority line) was removed with the
+  // "República Argentina" text it styled — see the note at the foot's render.
   footLine: {
     fontFamily: FONTS.mono,
     fontSize: TYPE.xs,

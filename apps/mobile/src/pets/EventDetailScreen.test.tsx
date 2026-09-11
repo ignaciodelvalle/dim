@@ -154,6 +154,80 @@ describe("EventDetailScreen — terminar medicación", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The microchip replacement door (2026-09-11)
+//
+// `microchip_replace` was in `WRITABLE_KINDS` with a complete, tested form and
+// NOTHING IN THE APP NAVIGATED TO IT. Its own docblock named the home it was
+// meant to have — "from the microchip the animal already has" — and this screen
+// is the only place in the app where a person is holding that number: the owner
+// face's compliance card renders `card.state` and not `card.detail`, and the
+// public credential prints "Microchip: Sí/No" and never the code. The server
+// emits the number here, as the `Número` fact.
+// ---------------------------------------------------------------------------
+
+describe("EventDetailScreen — reemplazar el microchip", () => {
+  it("does NOT offer it on an asiento that is not a microchip implant", async () => {
+    render(<EventDetailScreen publicToken={TOKEN} eventId={EVENT_ID} />);
+    await screen.findByText("Antirrábica");
+    expect(screen.queryByText("Reemplazar el microchip")).toBeNull();
+  });
+
+  it("offers it on a microchip_implanted and opens the replacement form", async () => {
+    mockFetchPetEventDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        eventType: "microchip_implanted",
+        kind: "Microchip",
+        title: "Microchip colocado",
+      }),
+    });
+    render(<EventDetailScreen publicToken={TOKEN} eventId={EVENT_ID} />);
+    fireEvent.press(await screen.findByText("Reemplazar el microchip"));
+    // NO `source`, unlike "Terminar medicación" directly above, and the absence
+    // is the assertion. The contract's `microchipReplace` carries no reference
+    // to the event it supersedes and no `previousChipNumber`: the endpoint reads
+    // the animal's canonical chip server-side. A `&source=` here would be this
+    // screen asserting a fact the server already holds.
+    expect(mockPush).toHaveBeenCalledWith(`/mascotas/${TOKEN}/asentar?kind=microchip_replace`);
+  });
+
+  it("matches on the SPINE's type, not on the worded eyebrow", async () => {
+    // Same trap the medication door has: an asiento whose es-AR eyebrow reads
+    // "Microchip" but whose event_type is the REPLACEMENT must not offer the
+    // door again. `microchip_replaced` is also the umbrella for a pure
+    // REVOCATION, whose meaning is that there is no chip left to replace — a
+    // door there would 409 by construction.
+    mockFetchPetEventDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        eventType: "microchip_replaced",
+        kind: "Microchip",
+        title: "Microchip reemplazado",
+      }),
+    });
+    render(<EventDetailScreen publicToken={TOKEN} eventId={EVENT_ID} />);
+    await screen.findByText("Microchip reemplazado");
+    expect(screen.queryByText("Reemplazar el microchip")).toBeNull();
+  });
+
+  it("does not put the medication door on a microchip asiento", async () => {
+    // The two blocks are siblings with the same shape, which is exactly how one
+    // ends up rendering under the other's condition.
+    mockFetchPetEventDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        eventType: "microchip_implanted",
+        kind: "Microchip",
+        title: "Microchip colocado",
+      }),
+    });
+    render(<EventDetailScreen publicToken={TOKEN} eventId={EVENT_ID} />);
+    await screen.findByText("Reemplazar el microchip");
+    expect(screen.queryByText("Terminar medicación")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // A2-alta-asentar-02 — the correction form draws a box only for a row it can
 // post back unchanged
 // ---------------------------------------------------------------------------
