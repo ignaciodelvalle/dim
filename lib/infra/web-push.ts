@@ -27,6 +27,7 @@ import "server-only";
 import webpush from "web-push";
 
 import { db, pushSubscriptions } from "@/db";
+import { isPushEligible } from "@/lib/infra/push-eligibility";
 import { reportError } from "@/lib/infra/report-error";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -167,9 +168,12 @@ export async function sendWebPush(userId: string, payload: WebPushPayload): Prom
 export async function sendPushForNotifications(rows: PushCandidateRow[]): Promise<void> {
   if (!isWebPushEnabled()) return;
 
-  const pushable = rows.filter(
-    (row) => row.severity === "urgent" || row.notificationType === "pet_sighting",
-  );
+  // The predicate moved to `push-eligibility.ts` and is NOT inlined here any
+  // more: a second channel is landing behind this same hook, and two channels
+  // that each carry their own copy of "what is worth a lock screen" drift the
+  // first time somebody widens one. Behaviour is unchanged — the extracted
+  // function is the same expression this line used to hold.
+  const pushable = rows.filter(isPushEligible);
   for (const row of pushable) {
     await sendWebPush(row.userId, {
       title: row.title,

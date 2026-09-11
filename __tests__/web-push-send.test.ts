@@ -66,6 +66,7 @@ vi.mock("@/db", async () => {
   };
 });
 
+import { PUSH_ELIGIBLE_NOTIFICATION_TYPE, isPushEligible } from "@/lib/infra/push-eligibility";
 import { sendPushForNotifications, sendWebPush } from "@/lib/infra/web-push";
 
 // ---------------------------------------------------------------------------
@@ -268,5 +269,73 @@ describe("sendPushForNotifications", () => {
     vi.stubEnv("NEXT_PUBLIC_PUSH_ENABLED", "");
     await sendPushForNotifications([{ userId: USER_ID, severity: "urgent", title: "X" }]);
     expect(sendNotificationMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The predicate itself, tested directly rather than only through the web leg.
+//
+// WHY BOTH. The block above exercises the filter through `sendPushForNotifications`,
+// which is the web channel's path and mocks a transport to observe it. A second
+// channel now asks the same question, so the rule needs a test that survives
+// either sender being rewritten: these assertions touch no database, no
+// transport and no feature flag.
+//
+// The severities are enumerated EXHAUSTIVELY and pinned as literals. The point
+// is not that three of them happen to be false today — it is that a person
+// widening the filter has to walk past four assertions that each name the value
+// they are changing the answer for.
+// ---------------------------------------------------------------------------
+
+describe("isPushEligible", () => {
+  it("qualifies an urgent row", () => {
+    expect(isPushEligible({ severity: "urgent" })).toBe(true);
+  });
+
+  it("rejects every severity that is not urgent", () => {
+    expect(isPushEligible({ severity: "info" })).toBe(false);
+    expect(isPushEligible({ severity: "success" })).toBe(false);
+    expect(isPushEligible({ severity: "warning" })).toBe(false);
+  });
+
+  it("rejects a row with no severity at all", () => {
+    expect(isPushEligible({})).toBe(false);
+    expect(isPushEligible({ severity: null })).toBe(false);
+  });
+
+  it("qualifies pet_sighting despite its warning severity (avistaje ≠ hallazgo)", () => {
+    expect(isPushEligible({ severity: "warning", notificationType: "pet_sighting" })).toBe(true);
+  });
+
+  it("qualifies pet_sighting even with no severity, because the type carries it", () => {
+    expect(isPushEligible({ notificationType: "pet_sighting" })).toBe(true);
+  });
+
+  it("rejects a non-urgent row of any other type — the list is exactly one type long", () => {
+    expect(isPushEligible({ severity: "warning", notificationType: "pet_lost" })).toBe(false);
+    expect(isPushEligible({ severity: "info", notificationType: "vaccine_due" })).toBe(false);
+    expect(isPushEligible({ severity: "warning", notificationType: "transfer_pending" })).toBe(
+      false,
+    );
+  });
+
+  it("names the one non-urgent type as a literal, so widening the list is visible in a diff", () => {
+    expect(PUSH_ELIGIBLE_NOTIFICATION_TYPE).toBe("pet_sighting");
+  });
+
+  it("is the same rule the web leg applies", () => {
+    // Guards the extraction itself: if somebody re-inlines a divergent copy into
+    // `sendPushForNotifications`, the block above keeps passing and this fails.
+    const rows = [
+      { userId: USER_ID, severity: "urgent" as const, title: "a" },
+      {
+        userId: USER_ID,
+        severity: "warning" as const,
+        notificationType: "pet_sighting",
+        title: "b",
+      },
+      { userId: USER_ID, severity: "info" as const, title: "c" },
+    ];
+    expect(rows.filter(isPushEligible).map((r) => r.title)).toEqual(["a", "b"]);
   });
 });
