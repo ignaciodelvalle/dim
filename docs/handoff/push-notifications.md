@@ -222,12 +222,23 @@ This matches `/api/v1/me/notifications`, whose commands deliberately carry no ke
 Requiring a key here would force the app to manufacture one for an operation whose repeat
 is harmless.
 
-### 3.9 Ship in the same native build as the image picker
+### 3.9 Ship in the NEXT native build — the one this section used to name is gone
 
 `expo-notifications` is a native module. `runtimeVersion` is `{ policy: "fingerprint" }`,
-so adding it changes the fingerprint and requires a new store build. The product owner has
-decided that **everything pending ships in one build**. Your work must land before that
-build is cut.
+so adding it changes the fingerprint and requires a new store build.
+
+**AMENDED 2026-09-11, and the amendment is the whole point of reading this section.** It
+used to say that the product owner had decided everything pending ships in one build, and
+that your work had to land before that build was cut. **That build was cut on 2026-09-11
+WITHOUT push.** So:
+
+- Your change **cannot travel over the air**. It needs its own store build. That is no
+  longer a risk to avoid — it is the plan.
+- **You cannot test against the build that is on Play.** Build your own with the
+  `development` or `preview` profile in `apps/mobile/eas.json`; both produce an APK. That
+  is your test environment, and nothing in this document assumed it before.
+- The deadline pressure is off. What replaces it: a **closed test is running**, so nothing
+  you ship may break what is already installed on somebody's phone.
 
 **Do not change the `runtimeVersion` policy to avoid the fingerprint change.** It is
 supposed to change.
@@ -344,10 +355,10 @@ export PATH="/c/Users/ignac/AppData/Roaming/fnm/node-versions/v22.23.2/installat
 ### 6.2 The migration number
 
 Migrations are numbered `NNNN_`. **Write your migration LAST, and recount the free number
-at the moment you write it** — do not fix it now from this document. The highest at the
-time of writing was `0217`, so `0218` is free *today*, but other work is in flight and the
-number may have moved. There are gaps at `0009` and `0057`, so a file count is not the
-number.
+at the moment you write it** — do not fix it now from this document. The highest was `0217`
+when this was written and is **`0220` as of 2026-09-11**; it has moved twice since, which is
+exactly why this paragraph tells you to recount rather than giving you a number to copy.
+There are gaps at `0009` and `0057`, so a file count is not the number.
 
 Two people both picking `0218` does not produce a text conflict. It produces two different
 files with the same number and a broken migration runner.
