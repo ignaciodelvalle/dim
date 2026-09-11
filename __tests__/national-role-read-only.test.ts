@@ -37,38 +37,43 @@ import {
   listActionFiles,
   listRouteHandlerFiles,
 } from "../scripts/check-authz-guards";
+import { stripComments } from "../scripts/lib/strip-comments.mjs";
 
 const READ_GATE = "requireGobReadAccessOrRedirect";
 
 /**
- * Drops `//` and block comments so the rule below can ask whether a file
- * REACHES the read gate rather than whether it says its name.
+ * WHY THE RULE BELOW STRIPS COMMENTS FIRST.
  *
- * WHY THIS EXISTS. The rule used to be a bare `src.includes(READ_GATE)` over
- * the raw file, and on 2026-09-11 it went red on
- * `app/gob/senasa/export/route.ts` — a route that does not call the gate and
- * whose comment explains, at some length, WHY it declines it. The fence read
- * that explanation as the violation.
+ * It used to be a bare `src.includes(READ_GATE)` over the raw file, and on
+ * 2026-09-11 it went red on `app/gob/senasa/export/route.ts` â a route that
+ * does not call the gate and whose comment explains, at some length, WHY it
+ * declines it. The fence read that explanation as the violation.
  *
  * That is not a near-miss, it is the fence testing the wrong thing. A comment
  * recording "we considered the wider gate and refused it" is the strongest
  * evidence the author got this right, and a rule that punishes it teaches the
- * next person to delete the reasoning instead of writing it down. The repo
- * already has this lesson written up as "a fence that enumerates forms instead
- * of the thing"; this is the same error pointed the other way — the form
- * matched where the thing was absent.
+ * next person to delete the reasoning instead of writing it down.
  *
- * Stripping comments only ever makes the rule LOOSER, so the rule now carries
- * a floor that proves it can still fail on the two shapes that genuinely reach
+ * THE STRIPPER IS THE REPO'S, NOT A SIXTH COPY OF IT. The first version of
+ * this fix hand-rolled a two-line regex here. `scripts/lib/strip-comments.mjs`
+ * already existed, already carried this exact lesson in its own header, and
+ * had already absorbed five other fences that each wrote their own â two of
+ * which had DIVERGED toward deleting real code.
+ *
+ * The hand-rolled one was not merely redundant, it was WORSE, and in the
+ * direction a security fence must never fail: a plain `//` regex eats the rest
+ * of any line after a `//` inside a STRING, so a `"https://â¦"` literal blanked
+ * whatever followed it â including, in principle, a real call to the very gate
+ * this rule exists to catch. Failing closed on a comment was the bug that
+ * started this; failing OPEN on a string literal would have been the bug that
+ * replaced it. The shared one keeps string contents, substitutes whitespace
+ * 1:1 so reported line numbers still point at the original file, and states
+ * its own known gap.
+ *
+ * Stripping comments only ever makes the rule LOOSER, so the rule carries a
+ * floor that proves it can still fail on the two shapes that genuinely reach
  * the gate: an import and a call.
- *
- * Deliberately simple. This is not a parser and does not need to be: it runs
- * over the repo's own TypeScript, and the only question is whether an
- * identifier survives outside a comment.
  */
-function stripComments(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-}
 
 // ---------------------------------------------------------------------------
 // 1. Scope — decided by role, never by list emptiness

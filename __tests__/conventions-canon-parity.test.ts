@@ -81,7 +81,21 @@ const canon: Canon = loadCanon(REPO_ROOT);
 // phone credential printed it in a slot whose style key is `footAuthority`, on
 // the screen its own header calls the thing a funcionario is asked to accept as
 // identification. No convenio exists.
-const UNMAPPED_COUNT = 6;
+//
+// 6 -> 7 on 2026-09-11, later the same day, and this one is different from the
+// six above in a way worth stating: its rule IS written in prose. CLAUDE.md's
+// fourth red signature says it in one sentence - no assertion may compare a
+// clock read on the host against a column with `defaultNow()`. What was missing
+// was never the prose, it was the enforcement, and the cure
+// (`__tests__/_helpers/db-now.ts`) had exactly two importers on the day
+// `__tests__/db-clock-window-fence.test.ts` landed.
+//
+// It joins the list anyway, and for the same mechanical reason as the rest: the
+// sentence lives in CLAUDE.md, which the d7dbf25f7 canon snapshot does not
+// harvest, so no row can cite a source for it without claiming a `verifiedAt`
+// for a document the extraction never read. That is a limit of where the canon
+// looks, not a judgement about the rule.
+const UNMAPPED_COUNT = 7;
 
 /**
  * Enforcement the filename glob below cannot see.
