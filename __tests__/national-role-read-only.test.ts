@@ -40,6 +40,36 @@ import {
 
 const READ_GATE = "requireGobReadAccessOrRedirect";
 
+/**
+ * Drops `//` and block comments so the rule below can ask whether a file
+ * REACHES the read gate rather than whether it says its name.
+ *
+ * WHY THIS EXISTS. The rule used to be a bare `src.includes(READ_GATE)` over
+ * the raw file, and on 2026-09-11 it went red on
+ * `app/gob/senasa/export/route.ts` — a route that does not call the gate and
+ * whose comment explains, at some length, WHY it declines it. The fence read
+ * that explanation as the violation.
+ *
+ * That is not a near-miss, it is the fence testing the wrong thing. A comment
+ * recording "we considered the wider gate and refused it" is the strongest
+ * evidence the author got this right, and a rule that punishes it teaches the
+ * next person to delete the reasoning instead of writing it down. The repo
+ * already has this lesson written up as "a fence that enumerates forms instead
+ * of the thing"; this is the same error pointed the other way — the form
+ * matched where the thing was absent.
+ *
+ * Stripping comments only ever makes the rule LOOSER, so the rule now carries
+ * a floor that proves it can still fail on the two shapes that genuinely reach
+ * the gate: an import and a call.
+ *
+ * Deliberately simple. This is not a parser and does not need to be: it runs
+ * over the repo's own TypeScript, and the only question is whether an
+ * identifier survives outside a comment.
+ */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
 // ---------------------------------------------------------------------------
 // 1. Scope — decided by role, never by list emptiness
 // ---------------------------------------------------------------------------
@@ -145,12 +175,33 @@ describe("national role — writes are refused", () => {
     expect(AUTH_GUARDS).not.toContain(READ_GATE);
   });
 
-  it("no server-action module and no route handler mentions the read gate", () => {
+  it("no server-action module and no route handler REACHES the read gate", () => {
     const offenders: string[] = [];
     for (const rel of [...listActionFiles(), ...listRouteHandlerFiles()]) {
-      const src = readFileSync(rel, "utf8");
-      if (src.includes(READ_GATE)) offenders.push(rel);
+      if (stripComments(readFileSync(rel, "utf8")).includes(READ_GATE)) offenders.push(rel);
     }
     expect(offenders, "writers must gate on requireAdminOrGovtOrRedirect").toEqual([]);
+  });
+
+  it("the fence is not vacuous: it still catches an import of the read gate", () => {
+    // The comment-stripping above only ever makes this rule LOOSER, so the
+    // rule needs a floor that proves it can still fail. These are the two
+    // shapes that actually reach the gate.
+    expect(stripComments(`import { ${READ_GATE} } from "@/lib/infra/auth-guards";`)).toContain(
+      READ_GATE,
+    );
+    expect(stripComments(`  const r = await ${READ_GATE}();`)).toContain(READ_GATE);
+  });
+
+  it("the fence does NOT fire on a comment that explains why the gate is refused", () => {
+    // The case that made this necessary, verbatim in shape from
+    // app/gob/senasa/export/route.ts: a raw `src.includes(READ_GATE)`
+    // flagged a route for CORRECTLY documenting that it declines the wider gate.
+    expect(
+      stripComments(
+        `// Deliberately NOT ${READ_GATE} — see the header.\nexport async function GET() {}`,
+      ),
+    ).not.toContain(READ_GATE);
+    expect(stripComments(`/* never ${READ_GATE} here */\nconst x = 1;`)).not.toContain(READ_GATE);
   });
 });
