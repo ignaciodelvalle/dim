@@ -23,6 +23,7 @@ const DRAINED: DataLifecycleResult = {
   rateLimitBucketsDeleted: 7,
   cronRunsDeleted: 1,
   pushSubscriptionsDeleted: 2,
+  pushTargetsDeleted: 1,
   orgContactIpsPurged: 4,
   stagedUploadsDeleted: 6,
   backlogged: {
@@ -30,6 +31,7 @@ const DRAINED: DataLifecycleResult = {
     rateLimitBuckets: false,
     cronRuns: false,
     pushSubscriptions: false,
+    pushTargets: false,
     orgContactIps: false,
     stagedUploads: false,
   },
@@ -104,6 +106,7 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
         rateLimitBuckets: true,
         cronRuns: false,
         pushSubscriptions: false,
+        pushTargets: false,
         orgContactIps: false,
         stagedUploads: false,
       },
@@ -144,6 +147,7 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
         rateLimitBuckets: false,
         cronRuns: false,
         pushSubscriptions: true,
+        pushTargets: true,
         orgContactIps: false,
         stagedUploads: false,
       },
@@ -216,6 +220,7 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
     const { setMock, sendCronAlert } = mockDeps(async () => ({
       ...DRAINED,
       pushSubscriptionsDeleted: 0,
+      pushTargetsDeleted: 0,
       backlogged: { ...DRAINED.backlogged, pushSubscriptions: true },
       failures: [{ target: "pushSubscriptions" as const, reason: "pooler down" }],
     }));
@@ -238,6 +243,7 @@ describe("GET /api/cron/data-lifecycle — backlog reporting", () => {
       orgContactIpsPurged: 4,
       stagedUploadsDeleted: 6,
       pushSubscriptionsDeleted: 0,
+      pushTargetsDeleted: 0,
     });
 
     // The cron_runs row carries the same story: itemsProcessed sums the real

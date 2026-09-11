@@ -1,22 +1,26 @@
 // Data-lifecycle purge helpers — called by /api/cron/data-lifecycle.
 //
-// Six conservative purges, all batched to avoid long table locks, in THIS
+// Seven conservative purges, all batched to avoid long table locks, in THIS
 // order (the order is a priority — see runDataLifecyclePurge):
 //   1. purgeExpiredRateLimitBuckets — delegates to cleanupExpiredBuckets() already
 //      declared in lib/rate-limit.ts; re-exported here for symmetry.
 //   2. purgeExpiredNotifications    — DELETE notifications WHERE expires_at < now()
 //   3. purgeRevokedPushSubscriptions — DELETE push_subscriptions revoked longer ago
 //      than PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS.
-//   4. purgeOldOrgContactIps        — UPDATE org_contact_messages SET submitter_ip
+//   4. purgeRevokedPushTargets      — the native sibling of 3: DELETE push_targets
+//      revoked longer ago than the SAME TTL constant. A separate target and not a
+//      widening of 3, so a failure on one channel cannot abandon the other's
+//      batch mid-drain.
+//   5. purgeOldOrgContactIps        — UPDATE org_contact_messages SET submitter_ip
 //      = NULL past ORG_CONTACT_IP_TTL_DAYS. The only target that does not delete
 //      a row: the message is the organization's record, the raw IP is a personal
 //      datum with no reader that had indefinite retention.
-//   5. purgeOldCronRuns             — DELETE cron_runs older than CRON_RUNS_TTL_DAYS.
-//   6. purgeAbandonedStagedUploads  — the ONLY target that deletes an OBJECT
+//   6. purgeOldCronRuns             — DELETE cron_runs older than CRON_RUNS_TTL_DAYS.
+//   7. purgeAbandonedStagedUploads  — the ONLY target that deletes an OBJECT
 //      rather than a row: `uploads-staging` keys that were ticketed, PUT, and
 //      never confirmed. It is last because every batch is an HTTP round trip to
 //      the Storage API rather than a statement the pooler plans, and a slow
-//      object store must not starve the five targets that hold locks.
+//      object store must not starve the six targets that hold locks.
 //      lib/infra/storage-gc.ts owns the age, the caps, and — the part worth
 //      reading — the reason the other eight buckets are out of scope.
 //
@@ -47,7 +51,7 @@
 // (`x-cron-budget-ms`, lib/infra/cron-dispatcher.ts) and the route passes it in
 // as `maxDurationMs`; the 45 s constant is only the ceiling for a standalone
 // invocation. Inside the job the SAME arithmetic splits the share across the
-// six targets, so a backlog on one table can no longer starve the others.
+// seven targets, so a backlog on one table can no longer starve the others.
 
 import { sql } from "drizzle-orm";
 
@@ -142,7 +146,7 @@ export const MAX_DURATION_MS = 45_000;
  * Vercel's 300 s default; only refresh-cube is raised to 300), and
  * `app/api/cron/daily/route.ts` fans out to ~23 jobs inside a 55 s wall-clock
  * budget, skipping whatever does not fit. data_lifecycle is ONE of those jobs
- * and drains SIX targets, so a fair share here is single-digit seconds, not
+ * and drains SEVEN targets, so a fair share here is single-digit seconds, not
  * 45. 40 batches is ~10× what the old one-batch-per-day pass could clear and
  * still small enough that the deadline — not this cap — is what stops a
  * genuinely slow night. Raising it is cheap; raising it without also raising
@@ -162,6 +166,19 @@ export const NOTIFICATIONS_CLEANUP_MAX_BATCHES = 40;
 
 /** Push registrations are one row per browser; 5,000 revoked rows a run is plenty. */
 export const PUSH_SUBSCRIPTIONS_CLEANUP_MAX_BATCHES = 10;
+
+/**
+ * Native push targets are one row per app INSTALL, a population smaller than the
+ * browser one by construction: a person has several browsers and usually one
+ * phone. The cap matches its sibling rather than being tuned down, because the
+ * two share the TTL and there is no measurement yet that would justify a
+ * different number — a cap invented from a guess reads as evidence and is not.
+ *
+ * It is a separate constant and not a reuse of the line above: that name says
+ * `PUSH_SUBSCRIPTIONS`, and pointing a second table at it would make the name
+ * lie the first time somebody tunes one population without the other.
+ */
+export const PUSH_TARGETS_CLEANUP_MAX_BATCHES = 10;
 
 /** cron_runs grows by ~23 rows a day; the cap is for symmetry, not for volume. */
 export const CRON_RUNS_CLEANUP_MAX_BATCHES = 40;
@@ -232,7 +249,7 @@ export type DrainOutcome = {
  * table and the caller must be able to say which target broke and why. This is
  * the ONLY place the isolation lives: `runDataLifecyclePurge` had no per-target
  * catch, so one target's throw escaped the whole composite, the route caught it,
- * and the run recorded ZERO for all six targets — including the ones that had
+ * and the run recorded ZERO for all seven targets — including the ones that had
  * already deleted their rows. The counts were a lie and the alert named nothing.
  *
  * It does NOT retry. A step that threw once inside a bounded nightly budget is
@@ -338,6 +355,45 @@ export async function purgeRevokedPushSubscriptions(): Promise<number> {
 }
 
 /**
+ * Deletes push_targets rows revoked more than PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS
+ * ago — the native sibling of the purge directly above.
+ *
+ * A SIBLING AND NOT AN EXTENSION OF THAT FUNCTION, deliberately. Widening it to
+ * two tables would put the working web channel's cleanup and a new channel's on
+ * one failure path: a statement that errors on push_targets would abandon the
+ * push_subscriptions batch mid-drain, and the composite would report one number
+ * for two populations. The purges are already enumerated one per target for that
+ * reason.
+ *
+ * THE TTL CONSTANT IS SHARED ON PURPOSE. Both tables hold a soft-revoked
+ * delivery address and neither has a reason to outlive the other; two constants
+ * would be two numbers to keep in agreement with nothing forcing them to.
+ *
+ * Live rows (`revoked_at IS NULL`) are never touched, and `last_used_at` is not
+ * a criterion here either: a device that has simply not received anything in a
+ * month is not a device that should stop receiving.
+ *
+ * Returns the count of deleted rows.
+ */
+export async function purgeRevokedPushTargets(): Promise<number> {
+  const cutoffMs = Date.now() - PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(cutoffMs).toISOString();
+  const result = (await db.execute(
+    sql`
+      DELETE FROM push_targets
+      WHERE id IN (
+        SELECT id FROM push_targets
+        WHERE revoked_at IS NOT NULL
+          AND revoked_at < ${cutoff}::timestamptz
+        LIMIT ${PURGE_BATCH_SIZE}
+      )
+      RETURNING id
+    `,
+  )) as Array<{ id: string }>;
+  return result.length;
+}
+
+/**
  * NULLs `org_contact_messages.submitter_ip` on rows older than
  * ORG_CONTACT_IP_TTL_DAYS. See the constant for why the column has a TTL at all.
  *
@@ -410,13 +466,14 @@ export async function purgeOldCronRuns(): Promise<number> {
 // ---------------------------------------------------------------------------
 
 /**
- * The six targets, by the key they carry through every layer of this job — the
+ * The seven targets, by the key they carry through every layer of this job — the
  * `backlogged` map, the failure list, and the route's table-name lookup.
  */
 export type DataLifecycleTarget =
   | "rateLimitBuckets"
   | "notifications"
   | "pushSubscriptions"
+  | "pushTargets"
   | "orgContactIps"
   | "cronRuns"
   | "stagedUploads";
@@ -432,6 +489,8 @@ export interface DataLifecycleResult {
   rateLimitBucketsDeleted: number;
   cronRunsDeleted: number;
   pushSubscriptionsDeleted: number;
+  /** Native push targets deleted — the sibling count of the line above. */
+  pushTargetsDeleted: number;
   /** Rows whose `submitter_ip` was nulled — an UPDATE, not a DELETE. */
   orgContactIpsPurged: number;
   /**
@@ -455,6 +514,7 @@ export interface DataLifecycleResult {
     rateLimitBuckets: boolean;
     cronRuns: boolean;
     pushSubscriptions: boolean;
+    pushTargets: boolean;
     orgContactIps: boolean;
     stagedUploads: boolean;
   };
@@ -462,16 +522,16 @@ export interface DataLifecycleResult {
    * The targets that THREW, in run order. Empty on a clean run, which is the
    * only thing a caller has to test.
    *
-   * WHY THIS IS A FIELD AND NOT AN EXCEPTION. The six targets are independent —
-   * six tables, six statements, no shared transaction — so one of them being
-   * unable to run says nothing about the other five, and until 2026-09-10 it
+   * WHY THIS IS A FIELD AND NOT AN EXCEPTION. The seven targets are independent —
+   * seven tables, seven statements, no shared transaction — so one of them being
+   * unable to run says nothing about the other six, and until 2026-09-10 it
    * silenced all of them: the throw escaped the composite, the route caught it,
    * and `counts` stayed at the initial all-zeros literal even though the targets
    * ahead of the failure had already deleted their rows. The run then recorded
    * zero, marked itself failed and paged a human — nightly, with the counts
    * wrong about work that really happened.
    *
-   * So the composite no longer throws for a target: it runs all six, reports the
+   * So the composite no longer throws for a target: it runs all seven, reports the
    * TRUE counts of the ones that worked, marks the one that failed as backlogged
    * (its rows are still there), and names it here. The route turns a non-empty
    * list into `status: "failed"`, HTTP 500 and a critical alert — the run is
@@ -489,6 +549,7 @@ export type Purgers = {
   rateLimitBuckets: () => Promise<number>;
   notifications: () => Promise<number>;
   pushSubscriptions: () => Promise<number>;
+  pushTargets: () => Promise<number>;
   orgContactIps: () => Promise<number>;
   cronRuns: () => Promise<number>;
   stagedUploads: () => Promise<number>;
@@ -498,6 +559,7 @@ const DEFAULT_PURGERS: Purgers = {
   rateLimitBuckets: purgeExpiredRateLimitBuckets,
   notifications: purgeExpiredNotifications,
   pushSubscriptions: purgeRevokedPushSubscriptions,
+  pushTargets: purgeRevokedPushTargets,
   orgContactIps: purgeOldOrgContactIps,
   cronRuns: purgeOldCronRuns,
   stagedUploads: purgeAbandonedStagedUploads,
@@ -518,7 +580,7 @@ export type DataLifecycleOptions = {
 };
 
 /**
- * Runs all six purges in sequence. Each is independent — a failure in one does
+ * Runs all seven purges in sequence. Each is independent — a failure in one does
  * not abort the others, and the ones that ran report their TRUE counts next to
  * the name of the one that broke (`failures`). Returns per-section counts for
  * the cron_runs.details payload.
@@ -526,7 +588,7 @@ export type DataLifecycleOptions = {
  * THIS DOCBLOCK USED TO CLAIM THAT INDEPENDENCE AND THE CODE DID NOT HAVE IT
  * ("the route handles per-section error logging" — it did not; there was no per
  * -section anything). A throw escaped the whole composite and the route recorded
- * six zeros over work that had really been done. `drainPurge` now owns the
+ * seven zeros over work that had really been done. `drainPurge` now owns the
  * isolation, `failures` carries the verdict, and the route turns it into a
  * failed run that names the target. See the `failures` field for the full story.
  *
@@ -547,14 +609,18 @@ export type DataLifecycleOptions = {
  *      it. Product-driven volume, so second rather than first.
  *   3. push_subscriptions — revoked rows, an audit trail that has served its
  *      purpose. Tiny table.
- *   4. org_contact_messages.submitter_ip — personal data past its retention.
+ *   4. push_targets — the native sibling of 3, same TTL, same shape of trail.
+ *      Immediately after it because the two tables answer the same question for
+ *      two channels and there is no reason to drain one a night ahead of the
+ *      other.
+ *   5. org_contact_messages.submitter_ip — personal data past its retention.
  *      Ahead of cron_runs because a compliance bound outranks a debugging
  *      convenience on a night with no budget left; behind the three above
  *      because the table grows at human speed and a night's delay is a night,
  *      not a backlog.
- *   5. cron_runs — 90 days of rows is a debugging convenience, not a
+ *   6. cron_runs — 90 days of rows is a debugging convenience, not a
  *      correctness property.
- *   6. uploads-staging objects — LAST, and for a reason none of the five above
+ *   7. uploads-staging objects — LAST, and for a reason none of the six above
  *      have: its batches are HTTP calls to the Storage API, whose latency this
  *      process neither controls nor can predict. A slow object store on a tight
  *      night must cost this target its share and nobody else's. It is also the
@@ -569,7 +635,7 @@ export type DataLifecycleOptions = {
  * handed to drainPurge as a deadline equal to the target's own start, and
  * drainPurge issues nothing (see its header). The zero leftover then flows to
  * the next target unchanged (0 / targets left is still 0), so a spent budget
- * reads as six `backlogged: true` flags and zero DELETEs, never as one free
+ * reads as seven `backlogged: true` flags and zero DELETEs, never as one free
  * batch per table under a budget the dispatcher no longer has.
  */
 export async function runDataLifecyclePurge(
@@ -598,6 +664,12 @@ export async function runDataLifecyclePurge(
       step: purgers.pushSubscriptions,
       batchSize: PURGE_BATCH_SIZE,
       maxBatches: PUSH_SUBSCRIPTIONS_CLEANUP_MAX_BATCHES,
+    },
+    {
+      key: "pushTargets",
+      step: purgers.pushTargets,
+      batchSize: PURGE_BATCH_SIZE,
+      maxBatches: PUSH_TARGETS_CLEANUP_MAX_BATCHES,
     },
     {
       key: "orgContactIps",
@@ -651,6 +723,7 @@ export async function runDataLifecyclePurge(
     rateLimitBucketsDeleted: outcomes.rateLimitBuckets.deleted,
     cronRunsDeleted: outcomes.cronRuns.deleted,
     pushSubscriptionsDeleted: outcomes.pushSubscriptions.deleted,
+    pushTargetsDeleted: outcomes.pushTargets.deleted,
     orgContactIpsPurged: outcomes.orgContactIps.deleted,
     stagedUploadsDeleted: outcomes.stagedUploads.deleted,
     backlogged: {
@@ -658,6 +731,7 @@ export async function runDataLifecyclePurge(
       rateLimitBuckets: outcomes.rateLimitBuckets.backlogged,
       cronRuns: outcomes.cronRuns.backlogged,
       pushSubscriptions: outcomes.pushSubscriptions.backlogged,
+      pushTargets: outcomes.pushTargets.backlogged,
       orgContactIps: outcomes.orgContactIps.backlogged,
       stagedUploads: outcomes.stagedUploads.backlogged,
     },

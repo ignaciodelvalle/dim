@@ -605,6 +605,10 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
           calls.push("push_subscriptions");
           return 0;
         },
+        pushTargets: async () => {
+          calls.push("push_targets");
+          return 0;
+        },
         cronRuns: async () => {
           calls.push("cron_runs");
           return 0;
@@ -622,6 +626,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       "rate_limit_buckets",
       "notifications",
       "push_subscriptions",
+      "push_targets",
       "cron_runs",
       "staged_uploads",
     ]);
@@ -636,6 +641,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         rateLimitBuckets: endless(500, calls, "b"),
         notifications: endless(500, calls, "n"),
         pushSubscriptions: endless(500, calls, "p"),
+        pushTargets: endless(500, calls, "t"),
         orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
         stagedUploads: endless(STORAGE_GC_BATCH_SIZE, calls, "s"),
@@ -660,6 +666,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       rateLimitBuckets: true,
       notifications: true,
       pushSubscriptions: true,
+      pushTargets: true,
       orgContactIps: true,
       cronRuns: true,
       stagedUploads: true,
@@ -700,6 +707,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         rateLimitBuckets: endless(500, calls, "b"),
         notifications: endless(500, calls, "n"),
         pushSubscriptions: endless(500, calls, "p"),
+        pushTargets: endless(500, calls, "t"),
         orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
         stagedUploads: endless(STORAGE_GC_BATCH_SIZE, calls, "s"),
@@ -712,17 +720,30 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
     // scores 3. That would have let a regression starve rate_limit_buckets —
     // the highest-priority, attacker-influenced table — from 7 batches down to
     // 3 with this test still green, and starvation is the only thing this test
-    // exists to catch. The five SQL targets score 5-7 and keep the bound they
-    // have always had to clear.
-    for (const name of ["b", "n", "p", "o", "c"]) {
+    // exists to catch.
+    //
+    // A SEVENTH TARGET (push_targets, 2026-09-11) MOVED TWO OF THESE NUMBERS,
+    // and the lesson above is why they did not all move together. The same fixed
+    // budget now splits seven ways instead of six, so the targets that run LATER
+    // clear fewer batches: measured on this fixture, b=6 n=5 p=5 t=5 o=4 c=4 s=2.
+    // The four that run first keep the >= 5 they have always had to clear —
+    // lowering THEIR floor to accommodate a target added behind them is exactly
+    // the regression the paragraph above describes. org_contact_ips and cron_runs
+    // get their own honest floor, stated as a smaller number rather than hidden
+    // inside a loosened shared one.
+    for (const name of ["b", "n", "p", "t"]) {
       expect(count(name)).toBeGreaterThanOrEqual(5);
       expect(count(name)).toBeLessThanOrEqual(15);
     }
-    // The storage target runs LAST and its share is what is left after five
-    // others have spent theirs, so 3 is the honest floor for it alone — still
-    // several times the one batch `drainPurge` always runs, which is the
-    // distinction that matters.
-    expect(count("s")).toBeGreaterThanOrEqual(3);
+    for (const name of ["o", "c"]) {
+      expect(count(name)).toBeGreaterThanOrEqual(4);
+      expect(count(name)).toBeLessThanOrEqual(15);
+    }
+    // The storage target runs LAST and its share is what is left after six
+    // others have spent theirs, so 2 is the honest floor for it alone — still
+    // twice the one batch `drainPurge` always runs, which is the distinction
+    // that matters. It was 3 under six targets; the seventh took one from it.
+    expect(count("s")).toBeGreaterThanOrEqual(2);
     expect(count("s")).toBeLessThanOrEqual(15);
     expect(result.backlogged.cronRuns).toBe(true);
   });
@@ -730,7 +751,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
   it("issues NOTHING when the budget is already spent — every target reports a backlog, no DELETE runs", async () => {
     // A 0 ms budget: every target's fair share is 0, every deadline is its own
     // entry instant, and drainPurge refuses at entry. Until 2026-08-22 this ran
-    // one batch per target ("b", "n", "p", "o", "c") — a write per table under a
+    // one batch per target ("b", "n", "p", "t", "o", "c") — a write per table under a
     // budget the dispatcher had already spent. The zero leftover is handed
     // forward unchanged (0 / targets left is still 0), so the later targets do
     // not inherit a phantom share either.
@@ -742,6 +763,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         rateLimitBuckets: endless(500, calls, "b"),
         notifications: endless(500, calls, "n"),
         pushSubscriptions: endless(500, calls, "p"),
+        pushTargets: endless(500, calls, "t"),
         orgContactIps: endless(500, calls, "o"),
         cronRuns: endless(500, calls, "c"),
         stagedUploads: endless(STORAGE_GC_BATCH_SIZE, calls, "s"),
@@ -752,6 +774,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       rateLimitBuckets: true,
       notifications: true,
       pushSubscriptions: true,
+      pushTargets: true,
       orgContactIps: true,
       cronRuns: true,
       stagedUploads: true,
@@ -799,9 +822,12 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
       purgers: {
         rateLimitBuckets: drains(calls, "b", 7),
         notifications: drains(calls, "n", 3),
-        // Third of six: two targets have already deleted rows, three have not
+        // Third of seven: two targets have already deleted rows, four have not
         // run yet. Both halves are what the old behaviour destroyed.
         pushSubscriptions: throws(calls, "p", "pooler down"),
+        // Drains normally on purpose. This test asserts that ONE failure is
+        // isolated; a second throwing target would prove a different thing.
+        pushTargets: drains(calls, "t", 2),
         orgContactIps: drains(calls, "o", 4),
         cronRuns: drains(calls, "c", 1),
         stagedUploads: drains(calls, "s", 6),
@@ -810,7 +836,7 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
 
     // (1) THE OTHERS RAN. All six were attempted, in order, and the throw at
     // "p" did not take "o", "c" and "s" down with it.
-    expect(calls).toEqual(["b", "n", "p", "o", "c", "s"]);
+    expect(calls).toEqual(["b", "n", "p", "t", "o", "c", "s"]);
 
     // (2) THE COUNTS ARE TRUE. Every target that worked reports what it really
     // took off — the two before the failure included, which is precisely what
@@ -824,16 +850,17 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
     expect(result.pushSubscriptionsDeleted).toBe(0);
 
     // (3) THE FAILURE IS NAMED, with the target AND the reason. "An error
-    // occurred somewhere in a six-target job" is what this replaces.
+    // occurred somewhere in a seven-target job" is what this replaces.
     expect(result.failures).toEqual([{ target: "pushSubscriptions", reason: "pooler down" }]);
 
     // (4) The failed target is BACKLOGGED — its rows are still on the table —
-    // and the five that drained are not. A blanket true here would be the same
+    // and the six that drained are not. A blanket true here would be the same
     // fabricated measurement in the other direction.
     expect(result.backlogged).toEqual({
       rateLimitBuckets: false,
       notifications: false,
       pushSubscriptions: true,
+      pushTargets: false,
       orgContactIps: false,
       cronRuns: false,
       stagedUploads: false,
@@ -849,13 +876,14 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         rateLimitBuckets: throws(calls, "b", "permission denied for table rate_limit_buckets"),
         notifications: drains(calls, "n", 3),
         pushSubscriptions: drains(calls, "p", 2),
+        pushTargets: drains(calls, "t", 2),
         orgContactIps: drains(calls, "o", 4),
         cronRuns: drains(calls, "c", 1),
         stagedUploads: throws(calls, "s", "storage api 503"),
       },
     });
 
-    expect(calls).toEqual(["b", "n", "p", "o", "c", "s"]);
+    expect(calls).toEqual(["b", "n", "p", "t", "o", "c", "s"]);
     expect(result.failures).toEqual([
       { target: "rateLimitBuckets", reason: "permission denied for table rate_limit_buckets" },
       { target: "stagedUploads", reason: "storage api 503" },
@@ -878,18 +906,20 @@ describe("runDataLifecyclePurge — order, caps and fair share (fake purgers)", 
         rateLimitBuckets: drains(calls, "b", 7),
         notifications: drains(calls, "n", 3),
         pushSubscriptions: drains(calls, "p", 2),
+        pushTargets: drains(calls, "t", 2),
         orgContactIps: drains(calls, "o", 4),
         cronRuns: drains(calls, "c", 1),
         stagedUploads: drains(calls, "s", 6),
       },
     });
 
-    expect(calls).toEqual(["b", "n", "p", "o", "c", "s"]);
+    expect(calls).toEqual(["b", "n", "p", "t", "o", "c", "s"]);
     expect(result.failures).toEqual([]);
     expect(result.backlogged).toEqual({
       rateLimitBuckets: false,
       notifications: false,
       pushSubscriptions: false,
+      pushTargets: false,
       orgContactIps: false,
       cronRuns: false,
       stagedUploads: false,
@@ -1038,6 +1068,7 @@ describe("runDataLifecyclePurge", () => {
       rateLimitBuckets: expect.any(Boolean),
       cronRuns: expect.any(Boolean),
       pushSubscriptions: expect.any(Boolean),
+      pushTargets: expect.any(Boolean),
       orgContactIps: expect.any(Boolean),
       stagedUploads: expect.any(Boolean),
     });

@@ -9,14 +9,16 @@
 //   - If CRON_SECRET is NOT set AND NODE_ENV !== 'production': warn and proceed.
 //   - If CRON_SECRET is NOT set AND NODE_ENV === 'production': 401.
 //
-// Six conservative purges per run (all batched — see lib/infra/data-lifecycle.ts),
+// Seven conservative purges per run (all batched — see lib/infra/data-lifecycle.ts),
 // in this order:
 //   1. rate_limit_buckets WHERE expires_at < now()  (via cleanupExpiredBuckets)
 //   2. notifications WHERE expires_at < now()
 //   3. push_subscriptions WHERE revoked_at < now() - PUSH_SUBSCRIPTION_REVOKED_TTL_DAYS
-//   4. org_contact_messages.submitter_ip nulled past ORG_CONTACT_IP_TTL_DAYS
-//   5. cron_runs WHERE started_at < now() - 90d AND status IN ('ok','failed')
-//   6. uploads-staging OBJECTS older than ABANDONED_STAGED_UPLOAD_MIN_AGE_MS that
+//   4. push_targets WHERE revoked_at < now() - the SAME TTL — the native sibling
+//      of 3, a separate target so one channel's failure cannot abandon the other
+//   5. org_contact_messages.submitter_ip nulled past ORG_CONTACT_IP_TTL_DAYS
+//   6. cron_runs WHERE started_at < now() - 90d AND status IN ('ok','failed')
+//   7. uploads-staging OBJECTS older than ABANDONED_STAGED_UPLOAD_MIN_AGE_MS that
 //      no row references — the repo's first and only storage GC, and the answer
 //      to the open hole migration 0206 documented. It is the only target that
 //      deletes an object rather than a row, and the only one whose batches are
@@ -28,12 +30,12 @@
 // anything is left, and an unfinished purge that reports only a count is
 // indistinguishable from a completed one on a table that keeps growing.
 //
-// ONE TARGET FAILING DOES NOT ERASE THE OTHER FIVE (2026-09-10). The composite
+// ONE TARGET FAILING DOES NOT ERASE THE OTHER SIX (2026-09-10). The composite
 // isolates each target, so a throw comes back as `failures: [{ target, reason }]`
 // alongside the TRUE counts of everything that ran. This route turns a non-empty
 // list into a failed run — 500, a critical alert, an `errors` entry per target —
 // so the isolation buys honesty, never silence. Before it, one throw made the
-// row read six zeros over rows that had really been deleted, and the alert named
+// row read seven zeros over rows that had really been deleted, and the alert named
 // nothing.
 //
 // THAT 500 PROPAGATES, and it is worth meeting on paper rather than at 3am: when
@@ -91,6 +93,7 @@ const TARGET_TABLE: Record<DataLifecycleTarget, string> = {
   rateLimitBuckets: "rate_limit_buckets",
   notifications: "notifications",
   pushSubscriptions: "push_subscriptions",
+  pushTargets: "push_targets",
   orgContactIps: "org_contact_messages.submitter_ip",
   cronRuns: "cron_runs",
   // Not a table. The person reading this log line goes and looks at a BUCKET,
@@ -116,12 +119,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let status: "ok" | "failed" = "ok";
   // The initial value is what a FAILED run reports, so it must be the honest
   // "nothing ran" shape rather than a tidy zero: `backlogged` false everywhere
-  // would claim four drained tables on a run that never touched them.
+  // would claim seven drained tables on a run that never touched them.
   let counts: DataLifecycleResult = {
     notificationsDeleted: 0,
     rateLimitBucketsDeleted: 0,
     cronRunsDeleted: 0,
     pushSubscriptionsDeleted: 0,
+    pushTargetsDeleted: 0,
     orgContactIpsPurged: 0,
     stagedUploadsDeleted: 0,
     backlogged: {
@@ -129,6 +133,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       rateLimitBuckets: true,
       cronRuns: true,
       pushSubscriptions: true,
+      pushTargets: true,
       orgContactIps: true,
       stagedUploads: true,
     },
@@ -138,7 +143,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   /**
    * Did the purge come back at all? A composite that threw leaves `counts` at
    * the literal above, which MEASURES NOTHING; a composite that returned with
-   * failures measured five targets honestly and one not at all. The two are
+   * failures measured six targets honestly and one not at all. The two are
    * different facts and only the second may be read as a backlog report.
    */
   let measured = false;
@@ -151,11 +156,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     measured = true;
 
     // A TARGET THAT FAILED IS STILL A FAILED RUN. The composite no longer
-    // throws for one — it isolates it so the other five report the rows they
+    // throws for one — it isolates it so the other six report the rows they
     // really deleted — but isolation must not become silence: the run goes to
     // "failed", answers 500, and pages, exactly as it did when the throw
     // escaped. What changes is that the report is now TRUE about the rest and
-    // NAMES the one that broke, instead of six zeros and "an error occurred".
+    // NAMES the one that broke, instead of seven zeros and "an error occurred".
     for (const failure of counts.failures) {
       status = "failed";
       errors.push({ section: failure.target, reason: failure.reason });
