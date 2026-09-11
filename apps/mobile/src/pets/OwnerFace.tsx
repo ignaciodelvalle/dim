@@ -31,6 +31,8 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import type { OwnerPetObligationCardV1 } from "@dim/contract/api";
+
 import { publicCredentialPageUrl } from "../config/api";
 import { CredentialQr } from "../credential/CredentialQr";
 import { Icon } from "../ui/Icon";
@@ -65,6 +67,7 @@ import {
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
+  isAttestationDoorCard,
   ownerFaceGates,
   registeredBadgeWord,
   rehomeBannerLine,
@@ -96,6 +99,12 @@ export const QR_SIZE = 76;
 // ---------------------------------------------------------------------------
 
 export function OwnerCredentialFace({ view }: { view: OwnerFaceView }) {
+  // COMPUTED ONCE AND HANDED DOWN, since 2026-09-10. It used to live inside
+  // `ActionFooter`, which was the only consumer; the compliance section now
+  // carries a door of its own (the PPP attestation) and two calls to the same
+  // pure function would be two places for the face to disagree with itself
+  // about what this viewer may do.
+  const gates = ownerFaceGates(view);
   return (
     <>
       <FaceSection>
@@ -124,7 +133,12 @@ export function OwnerCredentialFace({ view }: { view: OwnerFaceView }) {
             <Text style={styles.stamp}>{complianceStampLabel(view.compliance.data)}</Text>
             <Body>{complianceSummaryLabel(view.compliance.data)}</Body>
             {view.compliance.data.cards.map((card) => (
-              <Row key={card.key} label={card.label} value={card.state} />
+              <ComplianceCardRow
+                key={card.key}
+                card={card}
+                gates={gates}
+                publicToken={view.publicToken}
+              />
             ))}
           </View>
         )}
@@ -161,11 +175,54 @@ export function OwnerCredentialFace({ view }: { view: OwnerFaceView }) {
       {/* ACTION FOOTER --------------------------------------------------- */}
       <FaceDivider />
       <FaceSection>
-        <ActionFooter view={view} />
+        <ActionFooter view={view} gates={gates} />
       </FaceSection>
 
       {/* ISSUING FOOT ---------------------------------------------------- */}
       <IssuingFoot view={view} />
+    </>
+  );
+}
+
+/**
+ * One obligation card — its state, and the door out of it when there is one.
+ *
+ * THE ONE DOOR TODAY IS THE PPP ATTESTATION, and this is where the code that
+ * writes it always said it would be: the contract's own `dangerousBreedAttestation`
+ * docblock reads "REACHED FROM THE COMPLIANCE CARD, NOT THE PICKER … the app's
+ * job is to offer the door only where the card reads 'Atestación requerida'",
+ * and `WRITABLE_KINDS` repeats it ("from the compliance card that reads
+ * 'Atestación requerida'"). Until 2026-09-10 the form existed, the contract
+ * accepted it, and nothing in this app navigated to it.
+ *
+ * IT IS ALSO WHERE THE WEB PUTS IT. `ComplianceObligationsPanel.tsx` draws a
+ * "Registrar atestación" link inside the ppp card, under the same condition —
+ * "surfaced HERE (the canonical obligation card) instead of a duplicate row on
+ * the credential face". The two surfaces name the act with the same three words
+ * and reach it from the same place.
+ */
+function ComplianceCardRow({
+  card,
+  gates,
+  publicToken,
+}: {
+  card: OwnerPetObligationCardV1;
+  gates: OwnerFaceGates;
+  publicToken: string;
+}) {
+  const router = useRouter();
+  return (
+    <>
+      <Row label={card.label} value={card.state} />
+      {isAttestationDoorCard(card, gates) ? (
+        <SecondaryButton
+          label="Registrar atestación"
+          accessibilityHint="Declarar la mascota ante el registro de perros potencialmente peligrosos que exige tu jurisdicción."
+          onPress={() =>
+            router.push(recordEventRoute(publicToken, { kind: "dangerous_breed_attestation" }))
+          }
+        />
+      ) : null}
     </>
   );
 }
@@ -436,12 +493,11 @@ function IdentityRow({ view }: { view: OwnerFaceView }) {
  * says the same thing before the typing, and the server refusal stays exactly
  * where it was.
  */
-function ActionFooter({ view }: { view: OwnerFaceView }) {
+function ActionFooter({ view, gates }: { view: OwnerFaceView; gates: OwnerFaceGates }) {
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isOrgViewer = view.viewerRole === "org_member";
-  const gates = ownerFaceGates(view);
   const petName = view.identity.state === "ok" ? view.identity.data.name : null;
   const nameParams = petName === null ? {} : { name: petName };
 
@@ -684,6 +740,46 @@ function MoreList({
         />
       ) : null}
       {gates.showWebOnlyRows ? <MoreRow label="Viaje y movilidad" caption="Próximamente" /> : null}
+      {/* FALLECIMIENTO — LAST, AND THE PLACEMENT IS A CHOICE THIS FILE MADE.
+            Unlike the attestation door above, NO docblock anywhere names a home
+            for `death`: `WRITABLE_KINDS` lists the three kinds "reached from
+            somewhere else" and death is not one of them, and neither the
+            contract's `death` schema nor the form on `RecordEventScreen` says
+            where it is opened from. So this is argued rather than cited.
+
+            NOT IN THE PICKER, which is the one thing that was settled. An owner
+            scrolling `RECORD_KINDS` for "Peso" must not pass "Fallecimiento" on
+            the way, and that list is explicitly ordered "by how often a person
+            reaches for it" — an act that happens once, at the end, has no
+            frequency to be sorted by.
+
+            HERE, BECAUSE THIS IS ALREADY THE LIST OF ONCE-EVER ACTS. Transferir
+            la titularidad, Cuidador temporal and Devolución are all lifecycle
+            changes rather than libreta entries, and all three live behind the
+            same deliberate extra tap. The web agrees on the SEPARATION though
+            not on the furniture: its capture menu files "Reportar fallecimiento"
+            under the "Incidentes" heading, apart from "Salud" — a grouping a
+            flat native picker cannot express, and this sheet is the nearest
+            honest thing to it.
+
+            LAST IN THE LIST, with nothing under it. A terminal act adjacent to
+            "Foto de la mascota" reads as one more option; at the bottom, after
+            a person has passed everything else, it reads as what it is. The
+            caption says what it does BEFORE the tap, the same warning the form's
+            own subtitle and its "Asentar el fallecimiento" button carry after
+            it — three chances to stop, none of them casual.
+
+            THE LABEL IS THE WEB'S OWN ("Reportar fallecimiento",
+            ALL_CAPTURE_OPTIONS): a person who used one surface should recognise
+            the other. */}
+      {gates.canRecordDeath ? (
+        <MoreRow
+          label="Reportar fallecimiento"
+          caption="Cierra el registro del animal"
+          accessibilityHint="Asentar el fallecimiento. Se cierra el registro del animal y después sólo se pueden agregar notas."
+          onPress={() => router.push(recordEventRoute(view.publicToken, { kind: "death" }))}
+        />
+      ) : null}
     </View>
   );
 }

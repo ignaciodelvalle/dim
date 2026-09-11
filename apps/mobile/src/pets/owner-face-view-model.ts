@@ -22,6 +22,8 @@ import type {
   OwnerPetDetailV1,
   OwnerPetDetailViewerRole,
   OwnerPetIdentitySection,
+  OwnerPetObligationCardV1,
+  OwnerPetPppRegistriesSection,
   OwnerPetPregnancySection,
   OwnerPetRemindersSection,
   OwnerPetStatusSection,
@@ -480,6 +482,19 @@ export type OwnerFaceView = {
   pregnancy: SectionView<OwnerPetPregnancySection>;
   carousel: SectionView<OwnerPetCarouselSection>;
   /**
+   * Whether the PPP regime applies to THIS animal, and which registries its
+   * jurisdiction names.
+   *
+   * CARRIED ON THE FACE ONLY SO THE DOOR CAN BE GATED. Nothing on the document
+   * prints a registry — the attestation FORM resolves its own list from the
+   * same section (`RecordEventScreen`'s `useOwnerPetFacts`). What the face
+   * needs is the one fact the contract says to read here: `data: null` means
+   * "not under the regime", and the contract's own docblock asks a client to
+   * gate the attestation door on that field "instead of pattern-matching a
+   * compliance card's label".
+   */
+  pppRegistries: SectionView<OwnerPetPppRegistriesSection>;
+  /**
    * When the server composed this read, from the payload ENVELOPE rather than
    * from any one section — so it survives a section that failed, which is the
    * point: the credential's foot states when the document was issued, and a
@@ -562,12 +577,47 @@ export type OwnerFaceGates = {
    *  deceased animal — its `chapita` row sits AFTER the deceased early-return,
    *  and page.tsx nulls the data behind it. */
   showWebOnlyRows: boolean;
+  /**
+   * "Reportar fallecimiento" — the terminal asiento, from the ⋯ Más list.
+   *
+   * A GATE OF ITS OWN AND NOT `canRecordEvent`, though today the two compute
+   * the same boolean. They answer different questions: `canRecordEvent` opens
+   * the PICKER of routine acts, and this one opens the single form that CLOSES
+   * the record. Folding them into one flag would mean that the day either
+   * audience changes — a caretaker losing the picker, a jurisdiction gating the
+   * death form — the other would move with it silently. `titular-only.ts`
+   * already says these are not the same audience: `death_recorded` is
+   * EXPLICITLY allowed to a caretaker, so no titular gate belongs here.
+   *
+   * DECEASED IS THE ONLY THING THAT TAKES IT AWAY, and the server agrees: a
+   * second death on one animal is a 409 from `checkWriteGuard`.
+   */
+  canRecordDeath: boolean;
+  /**
+   * "Registrar atestación" — the PPP door, from the compliance card.
+   *
+   * GATED ON `pppRegistries`, WHICH IS THE FACT AND NOT A LABEL. The contract's
+   * own docblock asks for exactly this: `data: null` means "this animal is not
+   * under the PPP regime", so "a client can gate the attestation door on this
+   * one field instead of pattern-matching a compliance card's label".
+   *
+   * AND A FAILED READ TAKES THE DOOR AWAY, which is the OPPOSITE of the
+   * three-state rule `conditionalKinds` follows for the pregnancy rows — said
+   * out loud because the two look alike and are not. There, an unknown fact
+   * costs a round trip and a refusal sentence. Here the form exists only for an
+   * animal the regime applies to, and the regime applies to a small minority of
+   * dogs: offering it on an unread section would put "Atestación de raza
+   * peligrosa" in front of almost everybody, which is the "form that refuses
+   * most animals" the same docblock refuses to build.
+   */
+  canAttestDangerousBreed: boolean;
 };
 
 export function ownerFaceGates(view: {
   viewerRole: OwnerPetDetailViewerRole;
   isTitular: boolean;
   status: SectionView<OwnerPetStatusSection>;
+  pppRegistries: SectionView<OwnerPetPppRegistriesSection>;
 }): OwnerFaceGates {
   // `null` = the section did not load. Every gate below reads it as "no fact",
   // never as "not active": the permissive direction is the correct one here
@@ -590,7 +640,32 @@ export function ownerFaceGates(view: {
     canDesignateCaretaker: view.isTitular && !isNotActive,
     canOpenReturn: !isDeceased,
     showWebOnlyRows: !isDeceased,
+    canRecordDeath: !isDeceased,
+    canAttestDangerousBreed:
+      !isDeceased && view.pppRegistries.state === "ok" && view.pppRegistries.data !== null,
   };
+}
+
+/**
+ * Does THIS obligation card carry the attestation door?
+ *
+ * A FUNCTION AND NOT AN INLINE CONDITION IN THE RENDERER, for the reason
+ * finding F6 gave about the "Editar datos" row: a rule read off `gates`
+ * everywhere except in one component that re-derives it is a rule with two
+ * homes. It is also the only way to test the placement without rendering.
+ *
+ * `tone === "ok"` IS "ALREADY ATTESTED". `derivePpp` gives the card
+ * `tone: attested ? "ok" : "due"` alongside its "Atestada" / "Atestación
+ * requerida" label, and the tone is the structured half of that same pair — so
+ * this reads the fact and the docblock's sentence ("only where the card reads
+ * 'Atestación requerida'") stays true, without matching on Spanish copy that a
+ * copy edit could move.
+ */
+export function isAttestationDoorCard(
+  card: OwnerPetObligationCardV1,
+  gates: OwnerFaceGates,
+): boolean {
+  return gates.canAttestDangerousBreed && card.key === "ppp" && card.tone !== "ok";
 }
 
 /**
@@ -622,5 +697,6 @@ export function buildOwnerFaceView(payload: OwnerPetDetailV1): OwnerFaceView {
     cases: sectionView(payload.cases),
     pregnancy: sectionView(payload.pregnancy),
     carousel: sectionView(payload.carousel),
+    pppRegistries: sectionView(payload.pppRegistries),
   };
 }

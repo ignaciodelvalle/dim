@@ -208,6 +208,11 @@ function payload(overrides: Partial<Record<string, unknown>> = {}): OwnerPetDeta
     cases: OK({ openCount: 0, truncated: false, items: [] }),
     pregnancy: OK(null),
     carousel: OK({ items: [], total: 0 }),
+    // `null` = THIS ANIMAL IS NOT UNDER THE PPP REGIME, which is the contract's
+    // own reading of the field and the default a mestiza of 2 años deserves. The
+    // attestation door's tests override it; every other test in this file is
+    // about an animal that never sees it.
+    pppRegistries: OK(null),
     ...overrides,
   } as unknown as OwnerPetDetailV1;
 }
@@ -1300,5 +1305,174 @@ describe("VacunasScreen — programar y eliminar, behind the card", () => {
       await screen.findByText("No pudimos conectarnos. Revisá tu conexión."),
     ).toBeOnTheScreen();
     expect(screen.getByText("Programar vacuna")).toBeOnTheScreen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The two contextual doors: fallecimiento and la atestación PPP
+// ---------------------------------------------------------------------------
+
+/**
+ * THE DEFECT THESE PIN. Both forms have been complete and tested on
+ * `RecordEventScreen` for weeks, both are in `WRITABLE_KINDS`, and until
+ * 2026-09-10 `recordEventRoute` had exactly three call sites in the whole app —
+ * none of which named either kind. A person could not reach them at all.
+ *
+ * EVERY EXPECTED URL IS A STRING LITERAL, not a `recordEventRoute(...)` call.
+ * Asserting the navigation against the very function that builds it would pass
+ * with the route builder dropping the query string entirely, which is precisely
+ * the failure mode here: the picker and the pre-selected form differ ONLY in
+ * that query string.
+ */
+describe("PetDocumentScreen — the two contextual doors", () => {
+  /** A compliance section whose ppp card is in the given state. */
+  function withPppCard(state: string, tone: string) {
+    return {
+      compliance: OK({
+        cards: [
+          { key: "rabies", label: "Vacuna antirrábica", state: "Vigente", tone: "ok" },
+          { key: "ppp", label: "Atestación PPP", state, tone },
+        ],
+        summary: { total: 2, ok: 1, label: "1 de 2 al día" },
+        worstTone: tone,
+        worstIsUnknown: false,
+      }),
+    };
+  }
+
+  /** The registries section for an animal the regime DOES cover. */
+  const PPP_APPLIES = OK([{ id: "caba_ley_4078", label: "CABA · Ley 4078", required: true }]);
+
+  it("reaches the fallecimiento form from Más, carrying the kind", async () => {
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    fireEvent.press(screen.getByText("Más"));
+    fireEvent.press(screen.getByText("Reportar fallecimiento"));
+
+    expect(mockPush).toHaveBeenCalledWith("/mascotas/DIM-PAMP-0001/asentar?kind=death");
+  });
+
+  it("does not fall through to the picker — the death row and Anotar are different doors", async () => {
+    // THE NON-VACUITY GUARD. `recordEventRoute(token)` and
+    // `recordEventRoute(token, { kind: "death" })` differ only in the query
+    // string, so a wiring that forgot the kind would still navigate, still land
+    // on a real screen, and still look right in a screenshot — it would just
+    // drop the person in the routine-acts picker with no "Fallecimiento" row in
+    // it. The two URLs are asserted against each other so the test fails the
+    // moment they stop differing.
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    fireEvent.press(screen.getByText("Anotar"));
+    expect(mockPush).toHaveBeenLastCalledWith("/mascotas/DIM-PAMP-0001/asentar");
+
+    fireEvent.press(screen.getByText("Más"));
+    fireEvent.press(screen.getByText("Reportar fallecimiento"));
+    expect(mockPush).toHaveBeenLastCalledWith("/mascotas/DIM-PAMP-0001/asentar?kind=death");
+    expect(mockPush).not.toHaveBeenLastCalledWith("/mascotas/DIM-PAMP-0001/asentar");
+  });
+
+  it("offers no fallecimiento row on an animal already registered as fallecida", async () => {
+    // A second death on one animal is a 409 from `checkWriteGuard`. The row is
+    // withheld rather than drawn inert: the deceased pill row is already
+    // collapsed to [Compartir][Más] for the same reason.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        status: OK({
+          petStatus: "deceased",
+          ringStatus: "ok",
+          situation: null,
+          memorial: null,
+          pregnancyStatus: null,
+        }),
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    fireEvent.press(screen.getByText("Más"));
+    expect(screen.queryByText("Reportar fallecimiento")).toBeNull();
+    // NON-VACUITY: the sheet really opened, and rows that survive a death ARE
+    // on it — so the assertion above is about the gate and not about an
+    // unexpanded list.
+    expect(screen.getByText("Foto de la mascota")).toBeOnTheScreen();
+  });
+
+  it("puts the atestación door on the PPP card, and it carries the kind", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        ...withPppCard("Atestación requerida", "due"),
+        pppRegistries: PPP_APPLIES,
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    // The door is IN the Cumplimiento section, beside the card it belongs to —
+    // no sheet to open, exactly as the web draws it inside its own ppp card.
+    expect(screen.getByText("Atestación requerida")).toBeOnTheScreen();
+    fireEvent.press(screen.getByText("Registrar atestación"));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/mascotas/DIM-PAMP-0001/asentar?kind=dangerous_breed_attestation",
+    );
+  });
+
+  it("withholds the atestación door from an animal the regime does not cover", async () => {
+    // `pppRegistries: null` is the contract's own "not under the PPP regime".
+    // The compliance card here is the "Faltan datos" variant, which is a nudge
+    // to fill in breed and weight and NOT an attestation that is owed.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        ...withPppCard("Faltan datos", "due"),
+        pppRegistries: OK(null),
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("Faltan datos")).toBeOnTheScreen();
+    expect(screen.queryByText("Registrar atestación")).toBeNull();
+  });
+
+  it("withholds the atestación door when the registries section did not answer", async () => {
+    // DELIBERATELY THE OPPOSITE of the pregnancy rows' three-state rule, where
+    // an unread fact still offers the row. The regime covers a small minority
+    // of dogs, so a door opened on an unread section would put "Atestación de
+    // raza peligrosa" in front of almost every owner — the "form that refuses
+    // most animals" the contract's docblock refuses to build.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        ...withPppCard("Atestación requerida", "due"),
+        pppRegistries: UNAVAILABLE,
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    // NON-VACUITY: the card itself still renders, so this is the door being
+    // withheld and not the whole section failing.
+    expect(screen.getByText("Atestación requerida")).toBeOnTheScreen();
+    expect(screen.queryByText("Registrar atestación")).toBeNull();
+  });
+
+  it("takes the atestación door away once the card says Atestada", async () => {
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({
+        ...withPppCard("Atestada", "ok"),
+        pppRegistries: PPP_APPLIES,
+      }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.getByText("Atestada")).toBeOnTheScreen();
+    expect(screen.queryByText("Registrar atestación")).toBeNull();
   });
 });

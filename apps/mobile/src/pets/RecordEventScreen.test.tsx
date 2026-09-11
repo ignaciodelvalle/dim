@@ -1383,3 +1383,66 @@ describe("tatuaje — el asiento que necesita una foto", () => {
     expect(screen.queryByText("Foto lista")).not.toBeOnTheScreen();
   });
 });
+
+// ---------------------------------------------------------------------------
+// The two kinds the app can now NAVIGATE to
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT THESE ADD over the form tests above. `death` and
+ * `dangerous_breed_attestation` have had working forms on this screen for
+ * weeks; what they did not have was a door. The doors landed on 2026-09-10
+ * (`OwnerFace`'s ⋯ Más row and its compliance card), and these cases pin the
+ * other half of that wiring: a `kind` arriving from the route really renders
+ * THAT form, and not the picker.
+ *
+ * EVERY EXPECTED STRING IS A LITERAL. `kindTitle("death")` as an expectation
+ * would pass against a screen that rendered the wrong form with the right
+ * heading, and would keep passing if both moved together.
+ */
+describe("las dos puertas nuevas — el kind del link rinde SU formulario", () => {
+  beforeEach(() => {
+    mockFetchOwnerPetDetail.mockReset();
+    // No read answers: both forms are correct without one (the death form's
+    // disease list and the attestation's registries degrade to their national
+    // defaults), and a pending promise is the state a person sees first.
+    mockFetchOwnerPetDetail.mockReturnValue(new Promise(() => {}));
+  });
+
+  it("kind=death rinde el formulario de fallecimiento y no el selector", () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="death" />);
+
+    expect(screen.getByText("Fallecimiento")).toBeOnTheScreen();
+    // The subtitle that warns before the form rather than after it.
+    expect(screen.getByText(/Cierra el registro del animal/)).toBeOnTheScreen();
+    // The CTA is the death form's own verb — "Asentar", never "Registrar".
+    expect(screen.getByText("Asentar el fallecimiento")).toBeOnTheScreen();
+    // NON-VACUITY: the PICKER is what a dropped kind renders, and its rows are
+    // absent here. "Peso" is a fixed row of `RECORD_KINDS` and is not a field,
+    // a label or a chip on the death form.
+    expect(screen.queryByText("Peso")).toBeNull();
+  });
+
+  it("kind=dangerous_breed_attestation rinde la atestación y no el selector", () => {
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="dangerous_breed_attestation" />);
+
+    expect(screen.getByText("Atestación de raza peligrosa")).toBeOnTheScreen();
+    expect(screen.getByText("Registrar la atestación")).toBeOnTheScreen();
+    expect(screen.queryByText("Peso")).toBeNull();
+  });
+
+  it("un kind que esta app no conoce cae en el selector, con las dos filas fijas", () => {
+    // THE CONTROL FOR THE TWO ABOVE. It proves "Peso" really is what the picker
+    // shows and the two assertions above are not passing against a screen that
+    // renders nothing at all.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind={null} />);
+
+    expect(screen.getByText("Peso")).toBeOnTheScreen();
+    expect(screen.queryByText("Asentar el fallecimiento")).toBeNull();
+    // AND THE PICKER STILL DOES NOT OFFER EITHER OF THE TWO. They are
+    // contextual acts; a person scrolling for "Peso" must not pass
+    // "Fallecimiento" on the way.
+    expect(screen.queryByText("Fallecimiento")).toBeNull();
+    expect(screen.queryByText("Atestación de raza peligrosa")).toBeNull();
+  });
+});
