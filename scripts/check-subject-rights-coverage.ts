@@ -32,8 +32,8 @@
 // That was the obvious idea and it is not honest. Only SIX tables are under the
 // baseline (profiles, pets, pet_identifications, custody_disputes, pet_tags,
 // pet_caretaker_grants — migrations 0058/0169/0189), while the RPCs already
-// reach twenty-two. Deriving from the baseline would declare sixteen covered
-// tables out of scope and call the result coverage.
+// reach twenty-three. Deriving from the baseline would declare seventeen
+// covered tables out of scope and call the result coverage.
 //
 // EVERY NUMBER IN THIS HEADER IS FENCED, and that is new. It said "eighteen"
 // and "twelve" — the arithmetic was consistent with itself and both halves were
@@ -123,6 +123,14 @@ export const IN_EXPORT: readonly string[] = [
   "physical_tag_interest",
   "profiles",
   "push_subscriptions",
+  // Native (Expo) push destinations (migration 0222). Returned MINUS
+  // `expo_push_token`: unlike the web row above — where dropping p256dh + auth
+  // leaves an endpoint that can no longer deliver anything a browser accepts —
+  // an Expo token has no second factor and IS the deliverable address, so
+  // returning it would put a live delivery credential into a file the subject
+  // may forward. device_id, platform, app_version and the timestamps are what
+  // art. 14 needs here: that a device is registered, and since when.
+  "push_targets",
   "welfare_reports",
 ];
 
@@ -159,6 +167,12 @@ export const IN_ERASE: readonly string[] = [
   "physical_tag_interest",
   "profiles",
   "push_subscriptions",
+  // 0222: DELETED outright, on the push_subscriptions precedent directly above.
+  // Every column is the subject's own — device_id is an install identifier,
+  // expo_push_token a deliverable address for that install, platform and
+  // app_version describe their hardware — and none of it describes an animal or
+  // a third party, so redaction would preserve nothing of residual value.
+  "push_targets",
   "welfare_reports",
 ];
 
