@@ -30,9 +30,12 @@ export function FaqSection() {
               hero/FAQ answer and the footer legal line respectively (PO
               copy-trim decision 2026-07-21) — kept out of this row so the
               same claims aren't repeated a third/second time. */}
+          {/* Was "Operado por la autoridad sanitaria nacional" — no sanitary
+              authority operates miMAR. The slot wants a trust claim the
+              product can back: the event spine is append-only, which is the
+              first invariant of the system. */}
           <span>
-            <Icon name="edificio" size="sm" decorative /> Operado por la autoridad sanitaria
-            nacional
+            <Icon name="candado" size="sm" decorative /> Historial inmutable
           </span>
           <span>
             <Icon name="chart-line" size="sm" decorative /> Datos abiertos

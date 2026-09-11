@@ -105,10 +105,10 @@ export default function TransparenciaPage() {
             </h2>
           </div>
           <p className="text-sm leading-relaxed text-[var(--color-ln-ink-2)]">
-            Cada indicador se calcula con la misma definición que usan los tableros internos del
-            Estado, para que las cifras públicas nunca difieran de las oficiales. Antes de publicar,
-            aplicamos <strong>k-anonimato con k = 5</strong>: ninguna cifra puede describir a un
-            grupo de menos de 5 individuos. Cuando un grupo es más chico, la celda muestra
+            Cada indicador publica su definición y su método de cálculo, para que cualquiera pueda
+            auditar de dónde sale la cifra y reproducirla. Antes de publicar, aplicamos{" "}
+            <strong>k-anonimato con k = 5</strong>: ninguna cifra puede describir a un grupo de
+            menos de 5 individuos. Cuando un grupo es más chico, la celda muestra
             <span className="font-medium"> «suprimido por privacidad»</span> — nunca un 0.
           </p>
           <p className="text-sm leading-relaxed text-[var(--color-ln-ink-2)]">

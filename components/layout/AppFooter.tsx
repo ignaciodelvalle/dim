@@ -7,7 +7,7 @@ import { GobStripe } from "./GobStripe";
  *
  * Estructura:
  *   - Bloque principal blanco con links de producto + institucionales.
- *   - Línea de licencia CC + link a argentina.gob.ar.
+ *   - Línea de licencia CC + aclaración de independencia del Estado.
  *   - Cinta argentina al pie (espejo del header).
  */
 
@@ -60,7 +60,7 @@ type Props = {
   /**
    * PO quick win X1 (2026-07-24): the owner home is pet-first — fold the
    * legal/institutional link cluster (Información + Legales columns + the CC
-   * license/argentina.gob.ar line) under a closed-by-default <details>, so the
+   * license / independence line) under a closed-by-default <details>, so the
    * first screen is the owner's pets, not a wall of legal links. ALL links
    * stay present (legal compliance), just folded. `columns[0]` ("Producto",
    * the real navigation) stays visible either way — only the only caller
@@ -107,16 +107,11 @@ function LegalLine() {
         </a>
         .
       </p>
-      <p>
-        <a
-          href="https://www.argentina.gob.ar/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-ln-azul hover:underline"
-        >
-          argentina.gob.ar
-        </a>
-      </p>
+      {/* A bare link to argentina.gob.ar used to sit here. In the gob.ar
+          footer convention that link is precisely the mark of a state site,
+          and miMAR is not one — it carried no information, only the
+          affiliation. Replaced by the fact itself. */}
+      <p>miMAR es un servicio independiente: no es un sitio oficial del Estado argentino.</p>
     </div>
   );
 }
@@ -143,8 +138,10 @@ export function AppFooter({ columns = DEFAULT_COLUMNS, collapsed = false }: Prop
               <p className="mt-1 text-sm text-ln-mute">
                 {BRANDING.appNameLong} · {BRANDING.tagline}.
               </p>
+              {/* "Una iniciativa pública" reads in es-AR as state-run. It is
+                  not; the claim is replaced by one the product can back. */}
               <p className="mt-4 text-xs text-ln-mute">
-                Una iniciativa pública para que cada animal cuente con su historia clínica portable.
+                Un servicio gratuito para que cada animal cuente con su historia clínica portable.
               </p>
             </div>
 

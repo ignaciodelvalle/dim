@@ -386,7 +386,10 @@ export const LIFE_MOMENTS: LifeMoment[] = [
 export const FAQS: Array<[string, string]> = [
   [
     "¿Cuánto cuesta?",
-    "Nada, nunca. miMAR lo opera la autoridad sanitaria nacional y recuperar a tu mascota no tiene costo. Desconfiá de cualquiera que te pida dinero en su nombre.",
+    // The answer used to open "miMAR lo opera la autoridad sanitaria nacional",
+    // which asserted an operator the product does not have. The rest of the
+    // answer — free, and nobody may charge in miMAR's name — is true and stays.
+    "Nada, nunca. Registrar tu mascota y recuperarla no tiene costo. Desconfiá de cualquiera que te pida dinero en su nombre.",
   ],
   [
     "¿Quién ve los datos de mi mascota?",

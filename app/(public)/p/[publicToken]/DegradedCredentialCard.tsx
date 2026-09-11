@@ -116,9 +116,11 @@ export function DegradedCredentialCard({
           )}
 
           <div className="px-4 py-3 text-center font-ln-mono text-xs leading-[1.7] tracking-[.02em] text-ln-faint">
+            {/* See the note on the same footer in page.tsx: "· República
+                Argentina" named the State as issuing authority and is gone. */}
             CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
             <br />
-            {publicToken.toUpperCase()} · República Argentina
+            {publicToken.toUpperCase()}
           </div>
         </div>
       </div>

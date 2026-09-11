@@ -380,8 +380,16 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
           </div>
 
           <div>
+            {/* Eyebrow: describes the artifact the hero card is already
+                drawing. It used to read "República Argentina · Ministerio de
+                Salud" — an endorsement nobody granted (there is no convenio
+                with any state body, and the Mi Argentina agreement is still an
+                open prerequisite). A claim of state backing on the first line
+                above the headline is exactly what Play treats as impersonation
+                and what a funcionario would read as a signature they never
+                gave. Replaced with what the product actually is. */}
             <p className="lp-eyebrow lp-eyebrow--dot lp-reveal">
-              República Argentina · Ministerio de Salud
+              Credencial digital · QR público verificable
             </p>
             <h1 className="lp-display lp-h-hero lp-reveal mt-4" data-d="1">
               Toda una vida,

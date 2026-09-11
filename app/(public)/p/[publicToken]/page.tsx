@@ -973,9 +973,13 @@ export default async function PublicCredentialPage({
 
           {/* Credential footer */}
           <div className="px-4 py-3 text-center font-ln-mono text-xs leading-[1.7] tracking-[.02em] text-ln-faint">
+            {/* "· República Argentina" used to close this line. On a card
+                composed as an identity document it named the State as the
+                issuing authority, which no convenio grants. The token stands
+                on its own; the product's own name is already above it. */}
             CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
             <br />
-            {pet.publicToken.toUpperCase()} · República Argentina
+            {pet.publicToken.toUpperCase()}
           </div>
         </div>
         {/* END CREDENTIAL CARD */}

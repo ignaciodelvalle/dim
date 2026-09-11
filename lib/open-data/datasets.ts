@@ -64,7 +64,13 @@ export const OPEN_DATA_LICENSE = {
   id: "CC-BY-4.0",
   name: "Creative Commons Atribución 4.0 Internacional (CC BY 4.0)",
   url: "https://creativecommons.org/licenses/by/4.0/deed.es",
-  attribution: "miMAR — Sistema de credencial digital de mascotas (Argentina). datos.mimar.gob.ar",
+  // The attribution used to end "datos.mimar.gob.ar". A .gob.ar host is
+  // delegated only to the State, and this one is not delegated at all — see
+  // OWNED_WEB_DOMAINS in lib/infra/site-url.ts, where `mimar.gob.ar` is
+  // deliberately absent "until it is delegated". Stamped into every dataset
+  // download and every citation made from it, that string asserted a state
+  // origin the project does not have. The name alone attributes correctly.
+  attribution: "miMAR — Sistema de credencial digital de mascotas (Argentina).",
 } as const;
 
 /** A published column: machine name (the CSV/JSON key) + a citizen description. */
