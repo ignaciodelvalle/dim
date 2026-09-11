@@ -27,6 +27,7 @@ import "server-only";
 import webpush from "web-push";
 
 import { db, pushSubscriptions } from "@/db";
+import { sendExpoPushForNotifications } from "@/lib/infra/expo-push";
 import { isPushEligible } from "@/lib/infra/push-eligibility";
 import { reportError } from "@/lib/infra/report-error";
 import { and, eq, isNull } from "drizzle-orm";
@@ -156,30 +157,50 @@ export async function sendWebPush(userId: string, payload: WebPushPayload): Prom
 }
 
 /**
- * THE SEAM HOOK. Call after a successful insert into `notifications` with the
- * rows that were written. Filters to severity === 'urgent' (v1 scope:
- * hallazgos / custodia) PLUS the 'pet_sighting' type — a sighting is
- * warning-severity in the Bandeja (taxonomy: avistaje ≠ hallazgo, it must not
- * style like "someone HAS the pet") but is still a time-sensitive lost-mode
- * signal the owner wants pushed.
+ * THE SEAM HOOK, AND IT NOW FEEDS TWO CHANNELS. Call after a successful insert
+ * into `notifications` with the rows that were written. Filters to severity ===
+ * 'urgent' (v1 scope: hallazgos / custodia) PLUS the 'pet_sighting' type — a
+ * sighting is warning-severity in the Bandeja (taxonomy: avistaje ≠ hallazgo,
+ * it must not style like "someone HAS the pet") but is still a time-sensitive
+ * lost-mode signal the owner wants pushed.
  *
- * Never throws; cheap no-op when push is disabled or no row qualifies.
+ * THE WEB FLAG NO LONGER RETURNS FOR THE WHOLE FUNCTION, and that move is the
+ * point of this shape rather than a tidy-up. `isWebPushEnabled()` used to be an
+ * early return here, which was correct while this hook had one leg. With a
+ * native leg behind the same hook it would have meant that a deployment turning
+ * WEB push off also silenced every PHONE — a flag named for one channel deciding
+ * for another. Each leg now answers "can I deliver" for itself:
+ * `NEXT_PUBLIC_PUSH_ENABLED` + VAPID for the browser, `EXPO_ACCESS_TOKEN` for
+ * the device.
+ *
+ * One behavioural difference, stated because it is real and tiny: the filter now
+ * runs even when web push is disabled. It is a pure predicate over an array that
+ * is almost always length one, and the alternative is the coupling above.
+ *
+ * Never throws; cheap no-op when no row qualifies or neither leg is configured.
  */
 export async function sendPushForNotifications(rows: PushCandidateRow[]): Promise<void> {
-  if (!isWebPushEnabled()) return;
-
   // The predicate moved to `push-eligibility.ts` and is NOT inlined here any
-  // more: a second channel is landing behind this same hook, and two channels
-  // that each carry their own copy of "what is worth a lock screen" drift the
-  // first time somebody widens one. Behaviour is unchanged — the extracted
-  // function is the same expression this line used to hold.
+  // more: two channels that each carry their own copy of "what is worth a lock
+  // screen" drift the first time somebody widens one. The extracted function is
+  // the same expression this line used to hold.
   const pushable = rows.filter(isPushEligible);
-  for (const row of pushable) {
-    await sendWebPush(row.userId, {
-      title: row.title,
-      body: row.body ?? null,
-      url: row.ctaUrl ?? null,
-      tag: row.dedupeKey ?? null,
-    });
+  if (pushable.length === 0) return;
+
+  if (isWebPushEnabled()) {
+    for (const row of pushable) {
+      await sendWebPush(row.userId, {
+        title: row.title,
+        body: row.body ?? null,
+        url: row.ctaUrl ?? null,
+        tag: row.dedupeKey ?? null,
+      });
+    }
   }
+
+  // SECOND, NOT FIRST, so the web leg's timing is exactly what it was: a slow
+  // round trip to Expo must not delay a delivery path that already worked.
+  // `sendExpoPushForNotifications` never throws, for the same ARCH-P reason
+  // everything else on this seam does not.
+  await sendExpoPushForNotifications(pushable);
 }
