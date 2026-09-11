@@ -52,6 +52,7 @@ import { eq } from "drizzle-orm";
 
 import { db, profiles } from "@/db";
 import { writeAuditLog } from "@/lib/infra/audit-log";
+import { avatarSignedUrl } from "@/lib/infra/storage";
 import {
   MAX_IMAGE_BYTES,
   type RasterMime,
@@ -88,7 +89,24 @@ export function avatarObjectKey(userId: string, mimeType: RasterMime): string {
 // Storage upload helper type (injectable for tests)
 // ---------------------------------------------------------------------------
 
-type StorageUploadResult = { storagePath: string; publicUrl: string };
+/**
+ * ONE FIELD, AND THE SECOND ONE'S REMOVAL IS THE FIX.
+ *
+ * This used to also carry `publicUrl`:
+ * `${NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/sign/avatars/${storagePath}`,
+ * and THAT is what went into `profiles.avatar_url`. The `/object/sign/`
+ * endpoint requires a `?token=` query parameter; this string never had one. So
+ * the column held neither a working URL nor a path — a third thing useful for
+ * nothing, which is why `lib/infra/storage-gc.ts` records `avatars` as the
+ * bucket most worth collecting and refuses to collect it ("the column's
+ * contents cannot currently be trusted to say what an object's path even is.
+ * Fix the writer first"), and why an art. 16 erasure left the person's own face
+ * in our object store.
+ *
+ * The path is now what is stored, which is what the comment below the old line
+ * always claimed. Rendering signs it: `avatarSignedUrl` in lib/infra/storage.ts.
+ */
+type StorageUploadResult = { storagePath: string };
 type StorageUploadFn = (opts: {
   userId: string;
   /** The bytes, read ONCE by the caller — a 5 MiB blob is not materialised twice. */
@@ -116,11 +134,10 @@ async function defaultStorageUpload({
 
   if (error) throw new Error(error.message);
 
-  // Store the storage path; a signed URL can be generated at render time.
-  // This avoids baking a 1-year expiry into the DB row and makes the avatarUrl
-  // bucket-relative — easy to regenerate if the signed URL expires.
-  const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/sign/avatars/${storagePath}`;
-  return { storagePath, publicUrl };
+  // The storage path, bucket-relative. A signed URL is generated at render
+  // time (`avatarSignedUrl`) — nothing with an expiry is baked into the row,
+  // and the row is something the database can join on.
+  return { storagePath };
 }
 
 // ---------------------------------------------------------------------------
@@ -175,9 +192,9 @@ export async function uploadAvatarForUser(
 
   // 2. Existence check
   const [current] = await db
-    // avatarUrl is read for the audit row's `before` state — replacing an
+    // The stored path is read for the audit row's `before` state — replacing an
     // avatar and setting the first one are different facts.
-    .select({ id: profiles.id, avatarUrl: profiles.avatarUrl })
+    .select({ id: profiles.id, avatarStoragePath: profiles.avatarStoragePath })
     .from(profiles)
     .where(eq(profiles.id, userId))
     .limit(1);
@@ -224,7 +241,7 @@ export async function uploadAvatarForUser(
   await db.transaction(async (tx) => {
     await tx
       .update(profiles)
-      .set({ avatarUrl: uploadResult.publicUrl, updatedAt: new Date() })
+      .set({ avatarStoragePath: uploadResult.storagePath, updatedAt: new Date() })
       .where(eq(profiles.id, userId));
 
     await writeAuditLog(tx, {
@@ -245,10 +262,55 @@ export async function uploadAvatarForUser(
           ? { mime_declared: input.mimeType, mime_detected: detectedMime }
           : {}),
       },
-      before: { avatar_url: current.avatarUrl },
-      after: { avatar_url: uploadResult.publicUrl },
+      before: { avatar_url: current.avatarStoragePath },
+      after: { avatar_url: uploadResult.storagePath },
     });
   });
 
-  return { ok: true, avatarUrl: uploadResult.publicUrl };
+  // The PATH, not a URL. `uploadAvatarAction` signs it for the browser — this
+  // use-case owns the durable fact and the render concern stays at the edge.
+  return { ok: true, storagePath: uploadResult.storagePath };
+}
+
+// ---------------------------------------------------------------------------
+// Upload + sign, composed here rather than in the Server Action
+// ---------------------------------------------------------------------------
+
+/**
+ * Uploads the avatar and returns a SHORT-LIVED SIGNED URL for the caller to
+ * render immediately, alongside nothing else.
+ *
+ * WHY THIS COMPOSITION LIVES IN THE APPLICATION LAYER AND NOT IN THE ACTION.
+ * The action tried to own it first and `check-action-line-budget` refused —
+ * correctly. `app/actions/profile.ts` is a known fat action with a frozen line
+ * budget, and the fence's message is not a formality: it says migrate logic to
+ * `src/modules/<domain>/application/` instead of adding to it. Signing a path
+ * is a decision about what the caller is allowed to see, which is application
+ * work; the action's whole job is to establish WHO is asking and hand off.
+ *
+ * THE SPLIT BETWEEN PATH AND URL IS PRESERVED, NOT COLLAPSED. `uploadAvatarForUser`
+ * still returns only the durable fact — the object key. This function is a
+ * second, explicit step on top of it. Collapsing the two is precisely the
+ * mistake that put a fabricated tokenless `/object/sign/avatars/…` string into
+ * `profiles.avatar_url`: a value that was neither the durable fact nor a
+ * renderable URL. One function may produce a key; another may produce a lease
+ * on it; no function produces a thing that is secretly both.
+ *
+ * `avatarUrl` IS NULLABLE AND THAT IS NOT A FAILURE. The upload succeeded and
+ * the row points at the object; only the lease could not be minted. A caller
+ * that treats null as an error would tell the person their photo did not
+ * upload, which is false — and /cuenta signs the stored path again on its own
+ * render anyway. The correct handling is to keep showing whatever preview was
+ * already on screen.
+ */
+export async function uploadAvatarAndSign(
+  userId: string,
+  input: Parameters<typeof uploadAvatarForUser>[1],
+): Promise<{ error: string } | { ok: true; avatarUrl: string | null }> {
+  const result = await uploadAvatarForUser(userId, input);
+  if ("error" in result) return result;
+  // The key just written belongs to THIS user — `avatarObjectKey` derives it
+  // from `userId` and nothing the caller sent reaches it — which is what makes
+  // signing it here safe without a second ownership check.
+  return { ok: true, avatarUrl: await avatarSignedUrl(result.storagePath) };
 }

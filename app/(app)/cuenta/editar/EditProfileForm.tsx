@@ -29,6 +29,11 @@ function PhoneFormatWarning({ value }: { value: string }) {
 type InitialProfile = {
   displayName: string;
   phone: string;
+  /**
+   * A SHORT-LIVED SIGNED URL, minted by the server render — `avatars` is a
+   * private bucket and `profiles.avatar_url` holds a path, not a URL. Preview
+   * only; never persisted, never sent back.
+   */
   avatarUrl: string;
   preferredVetName: string;
   preferredVetPhone: string;
@@ -152,7 +157,12 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           }
         } else {
           setPendingAvatarFile(null);
-          setAvatarPreview(avatarResult.avatarUrl);
+          // `avatarUrl` is a freshly SIGNED url — `avatars` is private and the
+          // column holds a path (migration 0219). Null means the upload
+          // SUCCEEDED but signing it for display did not, so keep the previous
+          // preview rather than blanking the avatar: the photo is stored, and
+          // the next /cuenta render signs it again from the path.
+          setAvatarPreview((prev) => avatarResult.avatarUrl ?? prev);
         }
       }
 

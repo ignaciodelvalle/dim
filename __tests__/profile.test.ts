@@ -667,7 +667,7 @@ describe("avatars storage bucket", () => {
 describe("uploadAvatarForUser — happy path (stub storage)", () => {
   it("updates avatarUrl and writes audit_log when storage succeeds", async () => {
     // Reset profile
-    await db.update(profiles).set({ avatarUrl: null }).where(eq(profiles.id, actorUserId));
+    await db.update(profiles).set({ avatarStoragePath: null }).where(eq(profiles.id, actorUserId));
 
     // Provide a valid small JPEG blob (minimal valid JPEG header bytes)
     const minimalJpeg = new Uint8Array([
@@ -680,10 +680,7 @@ describe("uploadAvatarForUser — happy path (stub storage)", () => {
       fileName: "avatar.jpg",
       mimeType: "image/jpeg",
       fileSize: smallFile.size,
-      _storageStub: async () => ({
-        storagePath: `avatars/${actorUserId}/avatar.jpg`,
-        publicUrl: `https://example.com/storage/avatars/${actorUserId}/avatar.jpg`,
-      }),
+      _storageStub: async () => ({ storagePath: `${actorUserId}/1700000000000.jpg` }),
     });
 
     // Should succeed
@@ -691,16 +688,20 @@ describe("uploadAvatarForUser — happy path (stub storage)", () => {
     if ("error" in result) return;
 
     expect(result.ok).toBe(true);
-    expect(result.avatarUrl).toContain("avatar.jpg");
+    // THE PATH, NOT A URL — the whole point of the 0219 fix. A value carrying
+    // a scheme is the old fabricated `/object/sign/avatars/…` string, which was
+    // neither renderable nor joinable.
+    expect(result.storagePath).toBe(`${actorUserId}/1700000000000.jpg`);
+    expect(result.storagePath).not.toContain("://");
 
-    // Profile avatarUrl updated
+    // The column stores exactly that path.
     const [row] = await db
-      .select({ avatarUrl: profiles.avatarUrl })
+      .select({ avatarStoragePath: profiles.avatarStoragePath })
       .from(profiles)
       .where(eq(profiles.id, actorUserId))
       .limit(1);
 
-    expect(row.avatarUrl).toBeTruthy();
+    expect(row.avatarStoragePath).toBe(`${actorUserId}/1700000000000.jpg`);
 
     // Audit log written
     const [logRow] = await db

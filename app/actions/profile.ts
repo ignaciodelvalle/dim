@@ -23,7 +23,7 @@ import {
   updateEmergencyContactsForPet as _updateEmergencyContactsForPet,
 } from "@/src/modules/pets/application/profile/update-emergency-contacts";
 import { updateProfileForUser as _updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
-import { uploadAvatarForUser as _uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
+import { uploadAvatarAndSign as _uploadAvatarAndSign } from "@/src/modules/pets/application/profile/upload-avatar";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -55,17 +55,20 @@ export async function updateProfileAction(input: {
   return result;
 }
 
+/**
+ * Thin delegation. The upload-and-sign composition lives in the application
+ * layer (`uploadAvatarAndSign`) because `check-action-line-budget` freezes this
+ * file's size and its message says exactly where logic belongs instead.
+ */
 export async function uploadAvatarAction(input: {
   fileBlob: Blob;
   fileName: string;
   mimeType: string;
   fileSize: number;
-}) {
+}): Promise<{ error: string } | { ok: true; avatarUrl: string | null }> {
   const { user } = await requireUserOrRedirect();
-  const result = await _uploadAvatarForUser(user.id, input);
-  if ("ok" in result) {
-    revalidatePath("/cuenta");
-  }
+  const result = await _uploadAvatarAndSign(user.id, input);
+  if ("ok" in result) revalidatePath("/cuenta");
   return result;
 }
 

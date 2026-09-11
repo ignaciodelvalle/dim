@@ -42,10 +42,20 @@
 //     `upsert: true` under a CHANGING key, so every avatar change genuinely
 //     orphans the previous object, and erasure nulls `profiles.avatar_url`
 //     without ever deleting the object. Real garbage, and the bucket most worth
-//     doing next. Not here, because the only reference is a full URL string in
-//     `profiles.avatar_url` — and that URL is MALFORMED (`/object/sign/...` with
-//     no token, RN-4 finding A3), so the column's contents cannot currently be
+//     doing next. Not here, because the only reference was a full URL string in
+//     `profiles.avatar_url` — and that URL was MALFORMED (`/object/sign/...`
+//     with no token, RN-4 finding A3), so the column's contents could not be
 //     trusted to say what an object's path even is. Fix the writer first.
+//     UPDATE 2026-09-11: THE WRITER IS FIXED. `upload-avatar.ts` now stores the
+//     bucket-relative path and migration 0219 backfilled the rows it could
+//     parse with certainty, so the anti-join this paragraph said was impossible
+//     is now writable. Two caveats before someone writes it: 0219 deliberately
+//     LEFT UNPARSEABLE ROWS ALONE, so a handful of values are still full URLs
+//     and an anti-join would call their objects unreferenced — those objects
+//     are live avatars; and every avatar the subject ever REPLACED is already
+//     an orphan by construction (a changing key under `upsert: true`), which is
+//     the actual garbage worth collecting. The art. 16 erasure path no longer
+//     depends on any of this: `purgeSubjectAvatars` sweeps the uid prefix.
 //   revocations, welfare-evidence — evidence hanging off an audit entry and off
 //     a cruelty complaint. Both are legal-hold shaped and neither has a stated
 //     retention policy, which is exactly why `data-lifecycle.ts` leaves the four
@@ -255,9 +265,12 @@ type OrphanRow = { name: string };
  *     readers all hand it to `orgLogoUrl()`, which builds a URL against a bucket
  *     called `org-logos` that no `db/**.sql` creates. Joining a dead column
  *     against a different bucket's key space would be noise dressed as a guard.
- *   · `profiles.avatar_url` stores a full URL rather than a path, so the join
- *     would be an unindexable substring match — and it cannot collide anyway: an
- *     avatar key's leaf is `{Date.now()}.{ext}`, a staged key's is a UUID.
+ *   · `profiles.avatar_url` held a full URL rather than a path, so the join
+ *     would have been an unindexable substring match — and it cannot collide
+ *     anyway: an avatar key's leaf is `{Date.now()}.{ext}`, a staged key's is a
+ *     UUID. The URL half is no longer true as of migration 0219 (the column
+ *     holds a path now); the no-collision half still is, which is why this
+ *     staged-upload query still does not need to join it.
  */
 export async function listAbandonedStagedObjects(limit: number): Promise<string[]> {
   const rows = (await db.execute(sql`

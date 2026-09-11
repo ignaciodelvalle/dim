@@ -216,6 +216,73 @@ async function purgeOwnedPetAttachments(userId: string): Promise<void> {
 }
 
 /**
+ * DELETE THE SUBJECT'S OWN AVATAR OBJECTS — the face of the person exercising
+ * art. 16, which until now survived their erasure forever.
+ *
+ * The RPC nulls `profiles.avatar_url` and the object stays in the private
+ * `avatars` bucket. There is no storage GC for that bucket (lib/infra/storage-gc.ts
+ * names it "the bucket most worth doing next" and declines, because the column
+ * used to hold a fabricated tokenless URL rather than a path), so nothing else
+ * has ever removed one.
+ *
+ * BY PREFIX, NOT BY COLUMN, and the reasons are cumulative:
+ *   1. `avatarObjectKey` is `{userId}/{Date.now()}.{ext}` — a CHANGING key
+ *      under `upsert: true`, so every avatar the subject ever replaced is still
+ *      there as its own object. The column names at most the last one; the
+ *      prefix names all of them.
+ *   2. The column is nulled by the RPC, which runs BEFORE this step. A
+ *      column-driven delete would have to be re-ordered ahead of Step 1; a
+ *      prefix does not care when it runs.
+ *   3. Migration 0219 deliberately leaves an unparseable legacy value UNTOUCHED
+ *      rather than guessing at it. Those rows name no path at all — the prefix
+ *      still reaches their objects.
+ *
+ * The prefix is the subject's own uid, so this cannot reach another person's
+ * avatar. It CAN reach an object somebody else planted under that prefix — 0171
+ * grants any authenticated caller an INSERT at any key in this bucket (see
+ * 0218's header) — and deleting that is right, not collateral: it is an object
+ * sitting in the erased subject's namespace.
+ *
+ * PAGINATED for the reason the staged sweep is: `list()` answers 100 by default
+ * and takes no "all of them" option, so an unpaginated version silently keeps
+ * everything past the hundredth. Same two constants, same stop rule, and
+ * BEST-EFFORT with the same shape as the removes around it — a supresión must
+ * not stall on a Storage hiccup, and `remove()`'s returned error is not checked
+ * here any more than it is for `pet-photos` or `event-attachments`.
+ */
+async function purgeSubjectAvatars(userId: string): Promise<void> {
+  const admin = createAdminClient();
+  try {
+    let removed = 0;
+    let page = 0;
+    for (; page < STAGING_SWEEP_MAX_PAGES; page += 1) {
+      const listed = await admin.storage
+        .from("avatars")
+        .list(userId, { limit: STAGING_SWEEP_PAGE_SIZE, offset: 0 });
+      const paths = (listed.data ?? []).map((entry) => `${userId}/${entry.name}`);
+      if (paths.length === 0) break;
+      await admin.storage.from("avatars").remove(paths);
+      removed += paths.length;
+      // Offset stays at zero: the page just removed is gone, so the next
+      // unremoved object is again at the start. See the staged sweep.
+      if (paths.length < STAGING_SWEEP_PAGE_SIZE) break;
+    }
+    if (page === STAGING_SWEEP_MAX_PAGES) {
+      console.warn("[erase-subject-data] avatar sweep hit its page cap", {
+        userId,
+        removed,
+        cap: STAGING_SWEEP_MAX_PAGES * STAGING_SWEEP_PAGE_SIZE,
+      });
+    }
+  } catch (err) {
+    console.warn("[erase-subject-data] avatar sweep failed", {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * END EVERY LIVE CARETAKER ARRANGEMENT THE SUBJECT IS PART OF — and why this is
  * here rather than inside `erase_subject_data`.
  *
@@ -707,6 +774,20 @@ export async function eraseSubjectDataFor(
     await purgeOwnedPetAttachments(userId);
   } catch (err) {
     console.error("[erase-subject-data] attachment/storage purge failed", {
+      userId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Step 3b — the subject's OWN avatar objects, in the private `avatars`
+  // bucket. Separate from the step above because that one is pet-scoped and
+  // early-returns for a subject who owns no pets, while an avatar belongs to
+  // the person: a subject with no animals at all still had their face left
+  // behind. See `purgeSubjectAvatars` for why it goes by prefix.
+  try {
+    await purgeSubjectAvatars(userId);
+  } catch (err) {
+    console.error("[erase-subject-data] avatar purge failed", {
       userId,
       message: err instanceof Error ? err.message : String(err),
     });

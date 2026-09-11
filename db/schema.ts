@@ -311,7 +311,23 @@ export const profiles = pgTable(
     role: userRoleEnum("role").notNull().default("owner"),
     displayName: text("display_name").notNull(),
     phone: text("phone"),
-    avatarUrl: text("avatar_url"),
+    // A BUCKET-RELATIVE PATH INTO THE PRIVATE `avatars` BUCKET — `{userId}/{ts}.{ext}`
+    // — NOT a URL, despite the column's name.
+    //
+    // The column is `avatar_url` and stays `avatar_url`: `erase_subject_data`
+    // and `export_subject_data` are SECURITY DEFINER functions that name it,
+    // and their live definitions sit inside immutable migrations (latest: 0208,
+    // ~470 lines). Renaming the column would mean re-creating both RPCs to
+    // change one identifier — a far larger blast radius than the defect fixed
+    // here. The DRIZZLE FIELD is renamed instead, so every TypeScript reader
+    // breaks at compile time and has to be visited: the old contents were a
+    // fabricated `/object/sign/avatars/…` URL with no `?token=` (storage-gc.ts
+    // "Fix the writer first"), and a reader that silently kept treating the new
+    // contents as a URL would render a broken image rather than fail loudly.
+    // Migration 0219 reshapes the existing rows. Sign it with
+    // `avatarSignedUrl()` at render time; `organizations.avatar_url` is a
+    // DIFFERENT column with different semantics and is untouched.
+    avatarStoragePath: text("avatar_url"),
     // Mi Argentina identity (Wave 5 Item 25a — migration 0106).
     // No DNI in plaintext rule (Ley 25.326 / Mi Argentina premise).
     //   miarg_sub       — opaque, stable subject ID from Mi Argentina OIDC.
@@ -2411,6 +2427,23 @@ export const AUDIT_LOG_ACTIONS = [
   // raw PII pet lists (contrast with analytics_export_generated's storage+email
   // multi-slice bulk export). Payload: { dashboard, row_counts }.
   "gob_dashboard_export_generated",
+  // SENASA / LSUCyF batch export — GET /gob/senasa/export (migration 0220).
+  // Payload: { format, scope: { kind, jurisdiction_count, province, locality },
+  //            period: { since, until } }.
+  //
+  // NOT a variant of gob_dashboard_export_generated, and the entry right above
+  // is why: that one declares itself "aggregate/scoped rows only, no raw PII pet
+  // lists", and this is one row per animal per sanitary event with the exact
+  // clinical date. The repo's own rule for when to split an action (migration
+  // 0202 split three because the ACTOR differed; 0203 kept one for two surfaces
+  // because only the TRANSPORT differed) points the same way here: the ACT and
+  // the data class differ, not the transport.
+  //
+  // No row count in the payload — the response is streamed, so the count is not
+  // known when the row is written, and a row written afterwards is missing
+  // precisely when a transfer was interrupted mid-download. See logSenasaExport
+  // (lib/analytics/senasa-export-query.ts).
+  "senasa_export_generated",
   // Welfare MPF CABA export — formal denuncia PDF for fiscalía (Ley 14.346).
   // Payload: { welfareReportId, referenceCode, storagePath, schemaVersion }.
   "welfare_mpf_export_generated",

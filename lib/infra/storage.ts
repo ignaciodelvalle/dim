@@ -20,6 +20,9 @@ function loadAdmin(): Promise<typeof import("@/lib/supabase/admin")> {
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const EVENT_ATTACHMENT_URL_TTL_SECONDS = 3600;
 const WELFARE_ATTACHMENT_URL_TTL_SECONDS = 3600;
+// An avatar is re-signed on every render of the page that shows it, so the TTL
+// only has to outlive one page view.
+const AVATAR_URL_TTL_SECONDS = 3600;
 
 export function petPhotoUrl(storagePath: string | null | undefined): string | null {
   if (!storagePath) return null;
@@ -133,4 +136,74 @@ export async function eventAttachmentSignedUrls(
     return new Map();
   }
   return result;
+}
+
+/**
+ * Sign an avatar object — a user's own profile photo, in the private `avatars`
+ * bucket.
+ *
+ * WHY THIS EXISTS AT ALL, and it is the second half of a fix whose first half
+ * is `upload-avatar.ts`. `profiles.avatar_url` used to be handed a FABRICATED
+ * string: `{SUPABASE_URL}/storage/v1/object/sign/avatars/{path}` with no
+ * `?token=`. The `/object/sign/` endpoint REQUIRES that token, so the value was
+ * neither a working URL nor a path — a third thing useful for nothing, which is
+ * exactly why `storage-gc.ts` records the `avatars` bucket as having no
+ * collector ("the column's contents cannot currently be trusted to say what an
+ * object's path even is. Fix the writer first."). The writer now stores the
+ * bucket-relative path and THIS signs it at render time, which is what the
+ * original comment in `defaultStorageUpload` always claimed was happening.
+ *
+ * LEGACY VALUES ARE REFUSED, NOT GUESSED, AND THE TEST IS POSITIVE RATHER THAN
+ * A BLOCKLIST. Migration 0219 rewrites every row it can parse with certainty
+ * and deliberately leaves the rest untouched, so a legacy value may still
+ * arrive here. The first version of this guard asked `storagePath.includes("://")`
+ * — which is a list of one bad shape, and it was already too narrow: a row
+ * written while `NEXT_PUBLIC_SUPABASE_URL` was set but EMPTY reads
+ * `/storage/v1/object/sign/avatars/{uid}/{ts}.jpg`, has no `://`, and sailed
+ * past it into `createSignedUrl`. That failed closed (Storage 404 → null →
+ * initials), so nothing leaked — but it failed closed by luck, not by the
+ * guard, and the next odd shape gets the same non-answer.
+ *
+ * So the question asked is the one that actually matters: IS THIS THE KEY SHAPE
+ * THIS MODULE WRITES? `avatarObjectKey` emits `{uuid}/{digits}.{ext}` and
+ * nothing else. Anything that is not that is refused, whatever it is. A
+ * blocklist has to anticipate the next wrong value; an allowlist does not.
+ *
+ * The surface falls back to initials — the same thing the person saw before,
+ * since the malformed URL never rendered either.
+ *
+ * SERVICE ROLE, like every other signer in this module, so the caller IS the
+ * authorization. The avatar key is `{userId}/…`, so calling this with a path
+ * that is not the viewer's own hands out somebody else's face. Both call sites
+ * pass a path read from the viewer's OWN profile row.
+ */
+/**
+ * The ONLY key shape `avatarObjectKey` produces: a uuid prefix, a `Date.now()`
+ * leaf, a short extension. Declared here rather than inline so the refusal
+ * above is a single named fact and not a condition someone edits in passing.
+ *
+ * The extension is deliberately NOT an allowlist of `jpg|png|webp`: for most of
+ * this column's life the writer took it from the client filename, so real live
+ * keys end in `.JPG`, `.jpeg` and `.img`. Those objects exist and are somebody's
+ * avatar. See migration 0219.
+ */
+const AVATAR_KEY_SHAPE =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/[0-9]+\.[A-Za-z0-9]{1,10}$/;
+
+export async function avatarSignedUrl(
+  storagePath: string | null | undefined,
+  expiresIn: number = AVATAR_URL_TTL_SECONDS,
+): Promise<string | null> {
+  if (!storagePath) return null;
+  if (!AVATAR_KEY_SHAPE.test(storagePath)) return null;
+  try {
+    const { createAdminClient } = await loadAdmin();
+    const { data, error } = await createAdminClient()
+      .storage.from("avatars")
+      .createSignedUrl(storagePath, expiresIn);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
+  } catch {
+    return null;
+  }
 }

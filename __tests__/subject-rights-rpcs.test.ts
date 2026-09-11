@@ -159,7 +159,9 @@ async function resetProfilePIIToFresh(userId: string, displayName: string) {
       // face photo, matricula_* professional-license PII.
       preferredVetName: "Dr. Vet Fixture",
       preferredVetPhone: "+5491155550000",
-      avatarUrl: "https://example.test/avatar.png",
+      // A PATH now, not a URL — migration 0219. The column name stayed
+      // `avatar_url` because the RPCs name it; the contents did not.
+      avatarStoragePath: `${"00000000-0000-0000-0000-000000000000"}/1700000000000.jpg`,
       matriculaNumber: null,
       matriculaJurisdiccion: null,
       // Seed consent so a fresh re-run starts from a known state. The signup
@@ -446,7 +448,7 @@ describe("erase_subject_data RPC", () => {
         // V1-2 fix B: extended PII columns.
         preferredVetName: profiles.preferredVetName,
         preferredVetPhone: profiles.preferredVetPhone,
-        avatarUrl: profiles.avatarUrl,
+        avatarStoragePath: profiles.avatarStoragePath,
         matriculaNumber: profiles.matriculaNumber,
         matriculaJurisdiccion: profiles.matriculaJurisdiccion,
       })
@@ -459,7 +461,7 @@ describe("erase_subject_data RPC", () => {
     // Newly-covered profile PII columns are nulled.
     expect(row.preferredVetName).toBeNull();
     expect(row.preferredVetPhone).toBeNull();
-    expect(row.avatarUrl).toBeNull();
+    expect(row.avatarStoragePath).toBeNull();
     expect(row.matriculaNumber).toBeNull();
     expect(row.matriculaJurisdiccion).toBeNull();
 

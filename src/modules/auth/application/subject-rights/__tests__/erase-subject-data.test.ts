@@ -310,6 +310,109 @@ describe("eraseMySubjectDataAction", () => {
   });
 
   // ------------------------------------------------------------------
+  // The subject's OWN avatar (Step 3b). Until this existed, an art. 16
+  // supresión nulled `profiles.avatar_url` and left the photo of the person's
+  // face in the private `avatars` bucket forever — and nothing else would ever
+  // remove it, since storage-gc.ts declines to collect that bucket.
+  // ------------------------------------------------------------------
+  describe("deletes the subject's own avatar objects", () => {
+    it("sweeps the subject's uid prefix in the avatars bucket", async () => {
+      mockStorageList.mockImplementation((bucket: string) =>
+        bucket === "avatars"
+          ? Promise.resolve({ data: [{ name: "1757000000000.jpg" }], error: null })
+          : Promise.resolve({ data: [], error: null }),
+      );
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+
+      const listCalls = mockStorageList.mock.calls.filter((c) => c[0] === "avatars");
+      expect(listCalls).toHaveLength(1);
+      // BY PREFIX = the subject's uid, and paginated with an explicit limit for
+      // the same reason the staged sweep is: storage-js answers 100 by default.
+      expect(listCalls[0][1]).toBe(USER_ID);
+      expect(listCalls[0][2]).toEqual({ limit: 1000, offset: 0 });
+
+      expect(mockStorageRemove).toHaveBeenCalledWith("avatars", [`${USER_ID}/1757000000000.jpg`]);
+    });
+
+    it("runs for a subject who owns no pets at all", async () => {
+      // THE REGRESSION THIS PINS. The avatar purge must NOT live inside
+      // purgeOwnedPetAttachments: that function early-returns when the subject
+      // owns no pets, and an avatar belongs to the person, not to an animal. A
+      // subject with no pets whatsoever still had their face left behind.
+      mockStorageList.mockImplementation((bucket: string) =>
+        bucket === "avatars"
+          ? Promise.resolve({ data: [{ name: "old.png" }, { name: "new.jpg" }], error: null })
+          : Promise.resolve({ data: [], error: null }),
+      );
+      // mockOwnedRows stays empty — no owned pets.
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+      expect(mockStorageRemove).toHaveBeenCalledWith("avatars", [
+        `${USER_ID}/old.png`,
+        `${USER_ID}/new.jpg`,
+      ]);
+    });
+
+    it("removes EVERY avatar the subject ever had, not just the current one", async () => {
+      // avatarObjectKey is `{userId}/{Date.now()}.{ext}` under `upsert: true` —
+      // a CHANGING key, so each replacement orphans its predecessor. The column
+      // names at most the last one; the prefix names all of them. This is also
+      // why the sweep does not read `profiles.avatar_url`, which the RPC has
+      // already nulled by the time Step 3b runs.
+      mockStorageList.mockImplementation((bucket: string) =>
+        bucket === "avatars"
+          ? Promise.resolve({
+              data: [{ name: "1.jpg" }, { name: "2.jpg" }, { name: "3.webp" }],
+              error: null,
+            })
+          : Promise.resolve({ data: [], error: null }),
+      );
+
+      await eraseMySubjectDataAction("borro mi cuenta");
+      const [, paths] = mockStorageRemove.mock.calls.find((c) => c[0] === "avatars") as [
+        string,
+        string[],
+      ];
+      expect(paths).toHaveLength(3);
+    });
+
+    it("does not let an avatar Storage failure stall the erasure", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockStorageList.mockImplementation((bucket: string) =>
+        bucket === "avatars"
+          ? Promise.reject(new Error("storage unreachable"))
+          : Promise.resolve({ data: [], error: null }),
+      );
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      // Best-effort, like every other remove here.
+      expect(result.ok).toBe(true);
+      expect(warnSpy).toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it("stops at the page cap rather than spinning a supresión forever", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockStorageList.mockImplementation((bucket: string) =>
+        bucket === "avatars"
+          ? Promise.resolve({
+              data: Array.from({ length: 1000 }, (_, i) => ({ name: `${i}.jpg` })),
+              error: null,
+            })
+          : Promise.resolve({ data: [], error: null }),
+      );
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+      expect(mockStorageList.mock.calls.filter((c) => c[0] === "avatars")).toHaveLength(20);
+      warnSpy.mockRestore();
+    });
+  });
+
+  // ------------------------------------------------------------------
   // Chip release (Step 1.5) — the microchip of every pet the erasure
   // suppressed is RELEASED through the event-backed revoke use-case so a finder
   // can re-register the animal. These pin the orchestration (call, scope,

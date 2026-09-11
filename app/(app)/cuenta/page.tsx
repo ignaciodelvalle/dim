@@ -22,6 +22,7 @@ import {
   countPendingFosterProposals,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { avatarSignedUrl } from "@/lib/infra/storage";
 import { shouldShowTagSurfaces } from "@/lib/infra/tag-surfaces-visibility";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
@@ -73,7 +74,7 @@ async function loadCuentaData(userId: string) {
       .select({
         role: profiles.role,
         displayName: profiles.displayName,
-        avatarUrl: profiles.avatarUrl,
+        avatarStoragePath: profiles.avatarStoragePath,
         accountType: profiles.accountType,
         // Wave 5 Item 25a: no plaintext DNI. Display uses dniLast4 only.
         dniLast4: profiles.dniLast4,
@@ -119,7 +120,15 @@ async function loadCuentaData(userId: string) {
     vetNeedsClinic = !adminRow;
   }
 
-  return { profile, vetNeedsClinic, pendingProposals, activeFosters, showChapas };
+  // The column holds a PATH into the private `avatars` bucket, not a URL, so
+  // the renderable thing is minted here (migration 0219 / storage.ts
+  // `avatarSignedUrl`). Deliberately INSIDE loadCuentaData so the Storage
+  // round-trip is covered by the same `loadWithTimeout` bound as everything
+  // else on this page — an unbounded signer is how /cuenta hung once already
+  // (task #50). It fails to null, and null renders the initials monogram.
+  const avatarUrl = await avatarSignedUrl(profile?.avatarStoragePath);
+
+  return { profile, avatarUrl, vetNeedsClinic, pendingProposals, activeFosters, showChapas };
 }
 
 export default async function CuentaPage() {
@@ -162,7 +171,8 @@ export default async function CuentaPage() {
     );
   }
 
-  const { profile, vetNeedsClinic, pendingProposals, activeFosters, showChapas } = load.value;
+  const { profile, avatarUrl, vetNeedsClinic, pendingProposals, activeFosters, showChapas } =
+    load.value;
 
   if (!profile) {
     return (
@@ -207,10 +217,10 @@ export default async function CuentaPage() {
         <LnCardBody>
           <div className="flex items-center gap-4">
             {/* Avatar */}
-            {profile.avatarUrl ? (
+            {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={profile.avatarUrl}
+                src={avatarUrl}
                 alt={profile.displayName}
                 className="h-[64px] w-[64px] flex-shrink-0 rounded-full border border-[var(--color-ln-line-strong)] object-cover"
               />
@@ -531,7 +541,7 @@ export default async function CuentaPage() {
           initialProfile={{
             displayName: profile.displayName ?? "",
             phone: profile.phone ?? "",
-            avatarUrl: profile.avatarUrl ?? "",
+            avatarUrl: avatarUrl ?? "",
             preferredVetName: profile.preferredVetName ?? "",
             preferredVetPhone: profile.preferredVetPhone ?? "",
             emergencyContactName: profile.emergencyContactName ?? "",

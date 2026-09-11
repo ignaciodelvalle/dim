@@ -31,6 +31,7 @@ import { DniVerifyForm } from "./verificar-dni/DniVerifyForm";
 type InitialProfile = {
   displayName: string;
   phone: string;
+  /** A short-lived SIGNED URL for preview — see EditProfileForm's copy of this type. */
   avatarUrl: string;
   preferredVetName: string;
   preferredVetPhone: string;
