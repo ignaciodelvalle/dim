@@ -824,7 +824,35 @@ describe("/api/v1 rate-limit families — the numbers the derivation committed t
     //                                     14.844
     //
     // and 14.124 + 600 + 120 = 14.844 agrees.
-    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(14_844);
+    //
+    // 14.964 WITH THE PUSH-TARGET DOOR (`me/push-targets`), and this one breaks
+    // the pattern above in a way worth reading rather than skimming: it is POST
+    // ONLY, so it contributes ONE bucket and not the read/write pair the last
+    // four doors each added. There is no GET because there is nothing for a
+    // phone to read — it already knows its own device id and its own token, and
+    // an endpoint that listed somebody's registered devices would be a new
+    // disclosure surface built for no caller.
+    //
+    // The single bucket is `authenticated-write` by borrowing rather than by a
+    // family of its own; `lib/infra/api-v1-limits.ts` argues that at the entry.
+    // Hand-summed per family over the map as this lane leaves it, and NOT read
+    // off the `reduce` this assertion compares against:
+    //
+    //   authenticated-read     19 × 600 = 11.400
+    //   authenticated-write    14 × 120 =  1.680
+    //   account-security        2 ×  60 =    120
+    //   public-reference        1 × 600 =    600
+    //   inbox-state             1 × 240 =    240
+    //   pet-disclosure-write    2 × 180 =    360
+    //   pet-record-write        1 × 240 =    240
+    //   pet-registration        1 × 120 =    120
+    //   media-upload            1 × 144 =    144
+    //   adoption-application    1 ×  60 =     60
+    //                          ── 43 buckets ─────────
+    //                                     14.964
+    //
+    // and 14.844 + 120 = 14.964 agrees.
+    expect(API_V1_CGNAT_FAMILY_IP_CEILING_PER_MINUTE).toBe(14_964);
   });
 
   it("keeps pet-disclosure-write at N callers on BOTH windows", () => {
