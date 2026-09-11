@@ -91,11 +91,22 @@ const deviceId = z
  * at send time with `DeviceNotRegistered`, which soft-revokes the row. A regex
  * that tried to look more thorough would be asserting a liveness it cannot see.
  */
+/**
+ * The prefix, as a constant rather than a literal in one refine.
+ *
+ * EXPORTED BECAUSE THE PHONE NEEDS THE SAME STRING. The mobile adapter checks
+ * the shape of what `expo-notifications` handed it before spending a round trip
+ * on a registration this schema would refuse — and a second copy of the literal
+ * in `apps/mobile` would be a rule enforced in two places that can only ever
+ * drift apart. One string, one package, both sides.
+ */
+export const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
+
 const expoPushToken = z
   .string({ error: "EXPO_PUSH_TOKEN_REQUIRED" })
   .trim()
   .min(1, { error: "EXPO_PUSH_TOKEN_REQUIRED" })
-  .refine((value) => value.startsWith("ExponentPushToken["), {
+  .refine((value) => value.startsWith(EXPO_PUSH_TOKEN_PREFIX), {
     error: "EXPO_PUSH_TOKEN_MALFORMED",
   });
 

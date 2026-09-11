@@ -276,6 +276,7 @@ export {
   resolvePetIdentityLengths,
 } from "./pet-profile-edit.ts";
 export {
+  EXPO_PUSH_TOKEN_PREFIX,
   PUSH_APP_VERSION_MAX_LENGTH,
   PUSH_PLATFORMS,
   PUSH_REGISTRATION_INPUT_CODES,
