@@ -1775,6 +1775,79 @@ export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
 
 // ============================================================================
+// PushTargets — native (Expo) push destinations, sibling of push_subscriptions
+// ============================================================================
+// A SECOND TABLE RATHER THAN THREE NULLABLE COLUMNS. `push_subscriptions` above
+// declares `endpoint`, `p256dh` and `auth` NOT NULL because a browser
+// registration cannot exist without them, and the web send path leans on that.
+// A device token fills none of the three. Relaxing them to fit a channel that
+// did not exist yet would weaken three live invariants to accommodate a
+// hypothetical one — so the native channel gets its own table and the two stay
+// siblings permanently. This is NOT a migration path: web push keeps
+// `push_subscriptions` for good.
+//
+// THE UNIQUE KEY IS `device_id`, AND IT IS DELIBERATELY NOT THE TOKEN. Expo push
+// tokens rotate. A token used as the conflict target orphans a row on every
+// rotation, and once orphaned there is no install identity left to reconcile
+// against — the table grows a tail of dead rows nobody can attribute.
+// `device_id` is a UUID the app mints ONCE on first launch and keeps in
+// `expo-secure-store`. One install is one row, for the life of the install.
+//
+// THE CONSEQUENCE IS INTENDED, not an accident of the key choice: registration
+// upserts `user_id` on conflict with `device_id`, so if a second person signs in
+// on the same phone the row's owner flips and the first person stops receiving
+// pushes there. That is correct. A lock screen belongs to whoever is signed in
+// on that device, not to whoever signed in first.
+export const pushTargets = pgTable(
+  "push_targets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    // Install identity, minted once by the app and held in expo-secure-store.
+    // Globally unique: one install is one row. See the note above for why this
+    // is the conflict target and the token is not.
+    deviceId: text("device_id").notNull().unique(),
+    // The Expo push token (ExponentPushToken[...]). Rotates; updated in place on
+    // re-registration, which is why it is not the key.
+    expoPushToken: text("expo_push_token").notNull(),
+    platform: text("platform").notNull(),
+    // Triage only: which build a dead token came from. Nothing routes on it.
+    appVersion: text("app_version"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Bumped on every successful delivery, same contract as push_subscriptions.
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    // Soft revocation: sign-out, or Expo answered DeviceNotRegistered. Hard
+    // deletion happens only server-side (the purge) or via the profiles cascade.
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => ({
+    // Send-path index: all active targets for one user. Mirrors
+    // push_subscriptions_user_active_idx.
+    userActiveIdx: index("push_targets_user_active_idx")
+      .on(table.userId)
+      .where(sql`${table.revokedAt} IS NULL`),
+    // Purge-path index, partial on the REVOKED population for the same reason
+    // push_subscriptions_revoked_at_idx is: the live rows are already covered
+    // above, so a live row costs nothing to maintain here and the purge's
+    // `revoked_at < cutoff` is an index-range scan instead of a table scan.
+    revokedAtIdx: index("push_targets_revoked_at_idx")
+      .on(table.revokedAt)
+      .where(sql`${table.revokedAt} IS NOT NULL`),
+    // Expo brokers to exactly two stores. The constraint is here rather than in
+    // a comment because a third value would be a typo, not a feature.
+    platformValid: check(
+      "push_targets_platform_valid",
+      sql`${table.platform} in ('ios', 'android')`,
+    ),
+  }),
+);
+
+export type PushTarget = typeof pushTargets.$inferSelect;
+export type NewPushTarget = typeof pushTargets.$inferInsert;
+
+// ============================================================================
 // NotificationDeadLetter — recoverable failure surface (migration 0124)
 // ============================================================================
 // When the createNotification() service's insert throws (pool exhaustion,
