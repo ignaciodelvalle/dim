@@ -27,14 +27,13 @@
 // `DISABLED_OPACITY`'s header records. A disabled control announces its state
 // (`accessibilityState.disabled`) and its reason (the caption).
 
-import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { OwnerPetObligationCardV1 } from "@dim/contract/api";
 
-import { API_BASE_URL, publicCredentialPageUrl } from "../config/api";
+import { publicCredentialPageUrl } from "../config/api";
 import { CredentialQr } from "../credential/CredentialQr";
 import { Icon } from "../ui/Icon";
 import { Body, Card, Row, Unavailable } from "../ui/components";
@@ -68,10 +67,8 @@ import {
   casesLine,
   complianceStampLabel,
   complianceSummaryLabel,
-  findHomeWebUrl,
   isAttestationDoorCard,
   ownerFaceGates,
-  petTagWebUrl,
   registeredBadgeWord,
   rehomeBannerLine,
   reminderDueLabel,
@@ -726,15 +723,20 @@ function MoreList({
             on a fallecida pet these rows promised a page that does not exist
             THERE either, which is worse than an inert row: it sends somebody
             to a browser to look for it. */}
+      {/* INERT ON PURPOSE, AND THIS REVERSES A DECISION MADE EARLIER THE SAME DAY.
+          On 2026-09-11 these two rows were given `onPress` handlers that opened
+          the browser, because until then they rendered with none and a person
+          tapping one could not tell an inert row from a broken button. That
+          reasoning was about the ROW. The product owner's is about the PERSON,
+          and it outranks it: a tester sent out to a browser mid-flow does not
+          come back, and the pilot is measured in people who keep using the app.
+          A row that says where the thing lives costs a moment of mild
+          disappointment; a browser tab costs the session.
+          `ListRow` renders an `onPress`-less row muted and announces
+          `disabled`, and the caption says where it is — which is what makes
+          this different from the silent dead rows those handlers replaced. */}
       {gates.showWebOnlyRows ? (
-        <MoreRow
-          label="Chapa física"
-          caption="Disponible en la web"
-          accessibilityHint="Se abre en el navegador."
-          onPress={() =>
-            void Linking.openURL(petTagWebUrl(API_BASE_URL, view.publicToken)).catch(() => {})
-          }
-        />
+        <MoreRow label="Chapa física" caption="Se pide desde la web" />
       ) : null}
       {/* ONE DESTINATION, TWO LABELS, TWO AUDIENCES — AND NOT AN `else`
             (finding F2, review 2026-09-07). The else arm here covered `owner`
@@ -758,15 +760,9 @@ function MoreList({
             THE FOSTER'S ROW STAYS WEB-ONLY, which the comment below already
             settled: its ask is `foster`'s `sendRehomeRequest`, a different
             action in a different module from the titular's `RehomeScreen`. */}
+      {/* Same reversal, same reason — see the note on "Chapa física" above. */}
       {gates.canSeeFindHome ? (
-        <MoreRow
-          label="Buscar hogar"
-          caption="Disponible en la web"
-          accessibilityHint="Se abre en el navegador."
-          onPress={() =>
-            void Linking.openURL(findHomeWebUrl(API_BASE_URL, view.publicToken)).catch(() => {})
-          }
-        />
+        <MoreRow label="Buscar hogar" caption="Se hace desde la web" />
       ) : null}
       {/* LIVE SINCE 2026-09-10: `GET|POST /pets/{token}/rehome` reaches the
             three use-cases the web's buscar-hogar page reaches, and

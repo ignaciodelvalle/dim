@@ -715,6 +715,17 @@ function webPetPage(origin: string, publicToken: string, page: string): string {
 }
 
 /** Ordering a physical tag — the web's `chapita` page. */
+// NEITHER OF THE TWO BUILDERS BELOW IS WIRED TO A ROW TODAY (2026-09-11), and
+// that is a product decision rather than an oversight. "Chapa física" and
+// "Buscar hogar" used to open the browser; during the closed pilot they render
+// as inert rows that say where the thing lives, because a tester sent out to a
+// browser mid-flow does not come back and the pilot is measured in people who
+// keep using the app.
+//
+// Kept rather than deleted: the decision is scoped to the pilot, the builders
+// are three lines each, and rewriting a URL from memory later is how a token
+// ends up in the wrong path segment. Their tests are the only callers right
+// now, and those tests say so in their own describe.
 export function petTagWebUrl(origin: string, publicToken: string): string {
   return webPetPage(origin, publicToken, "chapita");
 }

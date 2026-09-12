@@ -740,7 +740,12 @@ describe("PetDocumentScreen — controls with no native destination are drawn ho
     mockPush.mockClear();
     // ONE web-only row left for a titular (Chapa física): the acompañamiento
     // row went live on 2026-09-10 and navigates below.
-    expect(screen.getAllByText("Disponible en la web").length).toBeGreaterThanOrEqual(1);
+    //
+    // THE CAPTION CHANGED ON 2026-09-11 and the new words are the decision.
+    // "Disponible en la web" invites a tap that now does nothing; "Se pide
+    // desde la web" says where the thing lives, which is what an inert row owes
+    // the person reading it. See the note above the row in OwnerFace.tsx.
+    expect(screen.getAllByText("Se pide desde la web").length).toBeGreaterThanOrEqual(1);
     // Viaje is disabled on the WEB too, with the web's own badge, and it is
     // the one row in this sheet that is still legitimately inert: "Próximamente"
     // promises nothing, so there is nowhere to send anybody.
@@ -928,37 +933,49 @@ describe("PetDocumentScreen — the face reads petStatus and the role (A3-docume
     expect(screen.queryByText("Acompañamiento de adopción")).toBeNull();
   });
 
-  // THE TWO ROWS THAT ANNOUNCED THEIR OWN UNAVAILABILITY AND THEN DID NOTHING
-  // (2026-09-11). Both rendered with no `onPress` — `ListRow`'s inert arm — in a
-  // sheet where every other row navigates, so a tap produced nothing and the
-  // person could not tell that from a broken button. The caption was already
-  // making a promise ("Disponible en la web"); these tests pin that the promise
-  // is now KEPT.
+  // ===================================================================
+  // THE TWO WEB-ONLY ROWS SEND NOBODY TO A BROWSER. THESE TESTS ARE INVERTED
+  // FROM WHAT THEY ASSERTED THIS MORNING, AND THE INVERSION IS THE RECORD.
+  // ===================================================================
+  // Earlier on 2026-09-11 both rows were given `Linking.openURL` handlers, and
+  // these two tests pinned that they fired. The reasoning was about the ROW: a
+  // row that rendered with no `onPress` in a sheet where everything else
+  // navigates is indistinguishable from a broken button, and the caption was
+  // already promising something ("Disponible en la web").
   //
-  // THE PATH IS A LITERAL AND THE ORIGIN IS NOT. Composing the whole expected
-  // string out of the same helper under test would assert nothing; the origin is
-  // build configuration (`EXPO_PUBLIC_API_BASE_URL`), so it is matched loosely
-  // and the part this change decides — which page, for which pet — is written
-  // out by hand. `owner-face-view-model.test.ts` pins the builders exactly,
-  // against a fixed origin.
-  it("opens the web chapita page from the titular's inert-looking row", async () => {
+  // The product owner's reasoning is about the PERSON, and it outranks it:
+  // during a closed-testing pilot, a tester sent out to a browser mid-flow does
+  // not come back, and the pilot is measured in people who keep using the app.
+  // A row that says where the thing lives costs a moment of mild
+  // disappointment; a browser tab costs the session.
+  //
+  // So the old assertions are not deleted, they are turned around, and the
+  // caption changed with them — "Se pide desde la web" states a fact instead of
+  // inviting a tap. `ListRow` renders an `onPress`-less row muted and announces
+  // `disabled`, which is what makes this different from the silent dead rows
+  // those handlers replaced.
+  //
+  // THE ASSERTION IS ON `mockOpenURL` NOT BEING CALLED AT ALL, for both roles,
+  // because that is the thing the decision is about: no path out of the app.
+  it("does NOT send the titular to a browser from Chapa física", async () => {
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
     fireEvent.press(screen.getByText("Más"));
 
     fireEvent.press(screen.getByText("Chapa física"));
-    expect(mockOpenURL).toHaveBeenCalledTimes(1);
-    expect(mockOpenURL.mock.calls[0]?.[0]).toContain("/mis-mascotas/DIM-PAMP-0001/chapita");
-    // An absolute url, because a browser cannot resolve a relative one.
-    expect(mockOpenURL.mock.calls[0]?.[0]).toMatch(/^https?:\/\//);
+    expect(mockOpenURL).not.toHaveBeenCalled();
+    // And it does not silently navigate in-app either: the row is inert, and
+    // the caption is where the person finds out why.
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByText("Se pide desde la web")).toBeOnTheScreen();
   });
 
-  it("opens the web buscar-hogar page from the FOSTER's row", async () => {
-    // The foster's ask is `foster`'s `sendRehomeRequest` — a different module
-    // from the titular's `RehomeScreen`, which went native on 2026-09-10. So
-    // this row stays a web handoff, and the test names the role to keep the two
-    // apart: a regression that pointed this at `rehomeRoute` would send a foster
-    // to a screen whose endpoint does not serve them.
+  it("does NOT send the FOSTER to a browser from Buscar hogar", async () => {
+    // The role matters and the test names it: the foster's ask is `foster`'s
+    // `sendRehomeRequest`, a different module from the titular's `RehomeScreen`
+    // (native since 2026-09-10). A regression that pointed this row at
+    // `rehomeRoute` would send a foster to a screen whose endpoint does not
+    // serve them — so "goes nowhere" is asserted against BOTH exits.
     mockFetchOwnerPetDetail.mockResolvedValue({
       outcome: "ok",
       payload: payload({ viewer: { role: "foster", isTitular: false } }),
@@ -968,11 +985,9 @@ describe("PetDocumentScreen — the face reads petStatus and the role (A3-docume
     fireEvent.press(screen.getByText("Más"));
 
     fireEvent.press(screen.getByText("Buscar hogar"));
-    expect(mockOpenURL).toHaveBeenCalledTimes(1);
-    expect(mockOpenURL.mock.calls[0]?.[0]).toContain("/mis-mascotas/DIM-PAMP-0001/buscar-hogar");
-    // And it does NOT navigate in-app — the distinction the row's own comment
-    // turns on.
+    expect(mockOpenURL).not.toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByText("Se hace desde la web")).toBeOnTheScreen();
   });
 
   it("keeps Modo perdida on a LOST animal while the titular-only rows go inert", async () => {
