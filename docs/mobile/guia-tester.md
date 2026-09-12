@@ -1,17 +1,18 @@
 # Guía para testers de miMAR
 
-> **ANTES DE MANDAR ESTA GUÍA — dos cosas que sólo puede completar el dueño del producto.**
+> **UNA SOLA COSA POR CONFIRMAR ANTES DE ENVIAR — y después este bloque se borra.**
 >
-> 1. **El enlace de abajo es el de *pruebas internas*.** La prueba cerrada tiene su
->    propio enlace de aceptación, distinto, que emite Play Console al publicar en esa
->    pista. Reemplazalo antes de enviar: si mandás el de pruebas internas, la persona
->    acepta una pista que no es la que estás contando.
-> 2. **Las fechas.** La ventana que figura abajo es la del piloto de septiembre.
->    Google exige 12 testers aceptados sostenidos durante 14 días corridos para poder
->    promover a producción, y ese reloj arranca el día de la publicación — no el día
->    que se envía esta guía.
+> **El enlace de aceptación de la prueba cerrada.** Abajo figura
+> `https://play.google.com/apps/testing/ar.mimar.app`, que es el formato que Play
+> Console emite para una pista cerrada. Verificalo contra el valor exacto que muestra
+> Play Console en **Pruebas → Prueba cerrada → Testers → Cómo se unen los testers**, y
+> pegá ese. El enlace del listado de la tienda NO sirve para darse de alta: mientras la
+> persona no haya aceptado, la ficha le responde *"no se encontró el elemento"*.
 >
-> Este bloque se borra al mandarla.
+> Ventana del piloto: la prueba cerrada arranca el **sábado 13 de septiembre de 2026**.
+> Google exige 12 testers aceptados sostenidos durante 14 días corridos, así que el
+> plazo se cumple el **sábado 27 de septiembre** — siempre que los 12 acepten el día 1
+> y ninguno se dé de baja en el medio.
 
 miMAR es la app donde vas a tener la libreta sanitaria de tu mascota, su credencial digital y el modo perdida, todo desde el celular. Estás probando una versión previa al lanzamiento, para encontrar qué funciona y qué no antes de abrirla a todo el mundo.
 
@@ -19,15 +20,21 @@ Si algo no anda, no es que lo hiciste mal — es exactamente lo que estamos busc
 
 ## Instalar
 
-Vas a recibir un link para sumarte a las pruebas internas de Google Play:
+Son dos pasos, en este orden. El orden importa: si hacés el segundo antes que el primero, la tienda te va a decir que la app no existe.
 
-https://play.google.com/apps/internaltest/4701563537823002634
+**Paso 1 — aceptá ser tester.** Abrí este link **desde tu celular Android** (no desde la computadora):
 
-**Abrilo desde tu celular Android** (no desde la computadora) y aceptá ser tester. Vas a ver un mensaje que confirma que ya sos tester.
+https://play.google.com/apps/testing/ar.mimar.app
 
-**Importante, y es donde más gente se traba:** después de aceptar, **cerrá el navegador y abrí la app Play Store del teléfono**. Buscá **miMAR** ahí adentro y descargala desde la app.
+Vas a ver una pantalla que te explica de qué se trata y un botón para aceptar. Cuando lo tocás, aparece un mensaje confirmando que ya sos tester.
 
-Si intentás bajarla desde el navegador te va a decir *"no se encontró el elemento"*. No está roto: la tienda web no muestra apps que todavía están en pruebas, y la app sí.
+**Paso 2 — instalá la app.** Recién ahora, abrí este otro link, también desde el celular:
+
+https://play.google.com/store/apps/details?id=ar.mimar.app
+
+Se te va a abrir la app Play Store del teléfono en la ficha de miMAR, con el botón **Instalar**.
+
+Si en el paso 2 te dice *"no se encontró el elemento"*, es que el paso 1 no quedó hecho. No está roto: la tienda no muestra una app en prueba a quien todavía no aceptó. Volvé al primer link.
 
 **La cuenta tiene que ser la misma.** El link se abre con la cuenta de Google del navegador y la descarga la hace la cuenta de la Play Store. Si tu teléfono tiene dos cuentas de Google, revisá que sea la misma que nos pasaste: abrí Play Store y tocá tu foto arriba a la derecha, ahí dice cuál está usando. Si te dice *"la descarga no está disponible en este momento"*, casi siempre es eso.
 
