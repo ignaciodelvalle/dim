@@ -2,6 +2,12 @@
 
 > Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
 > Verified against code on 2026-09-02 by writer B (opus subagent) · Status: reviewed
+>
+> **Re-verificación PARCIAL el 2026-09-11.** Se volvió a contrastar contra el
+> código, y se precisó, solamente la afirmación sobre SENASA en "NO dibujar / NO
+> afirmar". **El resto del archivo sigue verificado al 2026-09-02 y no al
+> 2026-09-11** — entre ambas fechas entraron alrededor de 130 cambios que este
+> documento no volvió a mirar.
 > Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
 
 ## Título
@@ -115,7 +121,7 @@ flowchart TD
 ## NO dibujar / NO afirmar
 
 - **NO dibujar una flecha que llegue a un organismo externo.** La propia página es hoy contradictoria: el mismo aviso legal dice, textual, "Aviso: Las denuncias registradas en este portal son derivadas a las autoridades competentes conforme a la Ley 14.346. La integración con canales gubernamentales está en desarrollo — tu denuncia queda guardada y será enviada cuando esté disponible" (`app/(public)/denuncias/page.tsx:107-111`). La primera oración afirma, en presente, que ya se derivan; la segunda dice que la integración todavía no existe. La gestión real es interna: cola por jurisdicción con respaldo de la administración nacional.
-- **NO afirmar que hay notificación automática a SENASA.** El motor de exportación existe; no hay pantalla ni envío automático (`docs/reviews/2026-09-fresh/DECK-FACTS.md` §4).
+- **NO afirmar que hay notificación automática a SENASA.** El motor de exportación existe; no hay pantalla ni envío automático (`docs/reviews/2026-09-fresh/DECK-FACTS.md` §4). **Eso sigue siendo cierto y es la frase que se dice.** Precisión disponible si repreguntan, agregada el 2026-09-11 (commit `629052357`): ya existe una **puerta de descarga** del lote sanitario, `app/gob/senasa/export/route.ts` — acotada a la jurisdicción y al período del funcionario, con la misma guarda que las otras exportaciones del portal y con **acción de auditoría propia** (`senasa_export_generated`), justamente porque lleva una fila por animal por evento y no filas agregadas. Lo que no existe: pantalla que la ofrezca (se dejó afuera a propósito, es decisión de producto) ni envío automático al organismo.
 - **NO afirmar que la policía o el 911 reciben algo.** No hay integración de ninguna clase. Lo único que existe es la recomendación de llamar, en `app/(public)/ayuda/page.tsx`. Esta contradicción ya causó daño y está registrada: una versión anterior de esa página afirmaba sin matiz que "las denuncias son recibidas por las autoridades sanitarias pertinentes", y alguien que ve un animal en peligro podía no llamar creyendo que ya había avisado (`docs/onboarding/README.md`, Contradicciones, punto 3).
 - **NO poner "mordedura" entre los tipos de denuncia.** No es uno de ellos: el circuito de mordedura es clínico y organizacional, no de denuncias (`src/modules/welfare/domain/types.ts:12`, y `docs/onboarding/README.md`).
 - **NO prometer novedades al denunciante anónimo.** El código de seguimiento confirma que la denuncia **existe** y cuándo se hizo, y nada más: el texto libre, la descripción del denunciado, las coordenadas y la evidencia exigen una sesión verificada contra el correo que quedó en el expediente. Quien denunció sin dejar correo no puede ver el estado nunca (`docs/reviews/2026-09-fresh/DECK-FACTS.md` §3, D05-36).

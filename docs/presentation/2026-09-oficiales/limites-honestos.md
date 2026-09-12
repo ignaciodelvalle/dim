@@ -2,6 +2,13 @@
 
 > Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
 > Verified against code on 2026-09-02 by writer C (opus subagent) · Status: reviewed
+>
+> **Re-verificación PARCIAL el 2026-09-11.** Se volvió a contrastar contra el
+> código, y se corrigió, solamente el apartado **D.5** (la causa del rojo de la
+> suite de navegador). **El resto del archivo sigue verificado al 2026-09-02 y no
+> al 2026-09-11** — entre ambas fechas entraron alrededor de 130 cambios que este
+> documento no volvió a mirar. En un documento cuyo tema ES la honestidad, el
+> encabezado tiene que decir hasta dónde llega su propia frescura.
 > Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
 
 Esta no es una ficha de diagrama: es la lista consolidada que gobierna a las
@@ -339,26 +346,47 @@ general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
 - **Frase tentadora:** "Todos los controles automáticos están en verde."
 - **Por qué no se sostiene:** la suite de navegador es una **compuerta aparte** —
   no está dentro de la cadena de verificación (`pnpm verify`)— y su trabajo en integración continua está en
-  rojo, por dos causas distintas y ya documentadas. En el job de integración continua
+  rojo. Las dos corridas fallan por la misma familia de causa —**precondiciones de
+  datos de prueba**— y cada una está medida por separado. En el job de integración continua
   regular (`ci.yml`), la medición del 2026-08-30 es específica y vale la pena no
   redondearla: el entorno se levantó en todas las corridas medidas menos una, y
   los rojos restantes están **dentro** del paso de la suite, es decir son sus
   propias aserciones. La causa que se dejó documentada sin tocar los specs es que
   fallan sus **precondiciones**, no sus sujetos: la semilla deja la base en un
   estado distinto del que los specs buscan. Aparte, el trabajo nocturno
-  (`e2e-nightly.yml`) está en rojo por una causa distinta: dos secretos que la
-  suite necesita nunca se crearon en el repositorio, así que llegan vacíos al
-  job.
+  (`e2e-nightly.yml`) está en rojo por la **misma familia de causa, y está
+  medida**: tres recorridos necesitan que el refugio sembrado tenga al menos un
+  animal bajo custodia viva, y no tiene ninguno. Doce custodias en toda la vida
+  de esa organización, las doce cerradas. La suite **se come su propio dato de
+  prueba** —uno de los recorridos da un animal en adopción, lo que cierra la
+  custodia— y ningún paso la vuelve a abrir; dos rondas de siembra
+  (2026-07-07 y 2026-08-23) terminaron igual. Volver a sembrar desde el job
+  tampoco alcanza: el script de siembra no es idempotente y su paso de animales
+  de refugio se saltea correctamente, así que no restauraría nada. El arreglo es
+  que cada recorrido se provea su propia custodia, y uno de ellos ya lo hace.
+- **Corrección de un diagnóstico anterior (2026-09-09, commit `7bffa0453`).**
+  Hasta esa fecha este documento y el comentario del propio job decían que el
+  nocturno estaba en rojo porque **dos secretos nunca se crearon**. Eso era
+  cierto cuando se escribió y dejó de serlo: los dos secretos
+  (`STAGING_SUPABASE_URL`, `STAGING_SUPABASE_ANON_KEY`) **están puestos** y el
+  recorrido que los consume (`cross-tenant-isolation`) pasa — no está entre las
+  fallas. Vale decirlo en voz alta si alguien pregunta: no es que no lo
+  configuramos, es que lo medimos y es un defecto del dato de prueba.
+  `docs/agents/open-work.md` (punto 6) todavía arrastra la versión vieja.
 - **Estado:** el lente que audita esa práctica quedó diferido
   (`docs/reviews/2026-09-fresh/briefs/C09.md`), y su propio texto advierte que uno
   de los archivos de limpieza cambió después de la auditoría.
-- **Fuente:** `docs/agents/open-work.md`; `e2e/README.md`.
+- **Fuente:** `.github/workflows/e2e-nightly.yml` (bloque de comentarios, commit
+  `7bffa0453`) para el nocturno; `e2e/README.md` para las convenciones.
+  `docs/agents/open-work.md` sigue siendo la fuente de la corrida regular, pero su
+  punto 6 (sobre los secretos) está desactualizado — no lo cites para el nocturno.
 - **Lo que sí se puede decir:** "El control local —reglas de estilo, tipos, cercos
   y la suite unitaria— es la definición de terminado del proyecto y se corre en cada cambio.
-  La suite de navegador es una compuerta separada y hoy está en rojo por dos causas
-  identificadas y con lente asignado: precondiciones de datos de prueba en la
-  corrida regular, y secretos de configuración pendientes de crear en la corrida
-  nocturna."
+  La suite de navegador es una compuerta separada y hoy está en rojo por una causa
+  identificada y medida en las dos corridas: **precondiciones de datos de prueba**.
+  La semilla deja la base en un estado distinto del que los recorridos buscan, y en
+  la corrida nocturna sabemos exactamente cuál: el refugio de prueba se quedó sin
+  ninguna custodia viva. No es la aplicación fallando; es el dato sembrado."
   Hay <!-- fact:e2e_specs -->45<!-- /fact --> recorridos de navegador y
   <!-- fact:ci_workflows -->7<!-- /fact --> flujos de integración continua.
 

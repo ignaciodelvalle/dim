@@ -2,6 +2,14 @@
 
 > Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
 > Verified against code on 2026-09-02 by writer E (opus subagent) · Status: draft
+>
+> **Re-verificación PARCIAL el 2026-09-11.** Se volvieron a contrastar contra el
+> código, y se corrigieron, solamente estas afirmaciones: la tarea programada de
+> limpieza de almacenamiento (Lámina 14) y su coherencia con la Lámina 11, y la
+> puerta de exportación a SENASA (Lámina 15). **El resto del archivo sigue
+> verificado al 2026-09-02 y no al 2026-09-11**: entre una fecha y la otra
+> entraron alrededor de 130 cambios al repositorio que este documento no volvió
+> a mirar. No leas el encabezado como si todo estuviera fresco.
 > Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
 
 ## Para qué sirve este archivo
@@ -375,7 +383,11 @@ funciona si las dos láminas incómodas están donde se ven.
   - **La web no tiene reporte de fallas; el celular sí.** Si el mazo muestra
     observabilidad, la muestra del lado del teléfono.
   - No hay tarea de limpieza de archivos ni política de retención automática para
-    fotos y adjuntos. Existe borrado por evento, no recolección periódica.
+    fotos y adjuntos. Existe borrado por evento, no recolección periódica. Sigue
+    siendo cierto palabra por palabra: la única tarea de limpieza de almacenamiento
+    que existe (ver Lámina 14) toca **un solo balde**, el de subidas a medio camino,
+    y `pet-photos` y `event-attachments` son precisamente dos de los baldes que se
+    niega a tocar (`lib/infra/storage-gc.ts`).
 
 ## Lámina 12 — Datos abiertos y gobernanza
 
@@ -468,7 +480,19 @@ funciona si las dos láminas incómodas están donde se ven.
   - **No se dibuja una flecha de "prueba" a "producción".** Hay un solo entorno vivo.
     Se puede decir "piloto corriendo en un entorno vivo"; no se puede dibujar una
     promoción entre dos extremos que no existen los dos.
-  - No se dibuja ninguna tarea programada que limpie almacenamiento: no hay ninguna.
+  - **Hay UNA tarea programada que limpia almacenamiento, y limpia un solo balde.**
+    Desde el 2026-09-10 (`app/api/cron/data-lifecycle/route.ts`, sexto y último
+    objetivo del reparto nocturno) se borran los archivos **estacionados de subidas
+    que quedaron a medio camino** (`uploads-staging`), pasados seis días. Nada más.
+    Los otros diez baldes quedan explícitamente afuera, con el motivo escrito uno
+    por uno en `lib/infra/storage-gc.ts` — y entre ellos están **las fotos de
+    mascotas y los adjuntos de eventos**, que es por lo que la Lámina 11 sigue
+    diciendo, con razón, que no hay limpieza ni retención automática para fotos y
+    adjuntos. Las dos frases no se contradicen: la tarea existe y es angosta a
+    propósito. Si alguien pregunta, la razón es honesta: esas fotos y adjuntos
+    comparten una sola columna de rutas sin distinguir de qué balde vienen, así que
+    hoy no se puede probar que un archivo no esté referenciado — y un recolector que
+    adivina es peor que ninguno.
   - No se dice que la aplicación de celular esté publicada al público general. Es una
     aplicación Android en prueba interna con un grupo de testers — ver la nota de
     alcance del preámbulo, y no agregues una cifra.
@@ -508,8 +532,18 @@ funciona si las dos láminas incómodas están donde se ven.
     identidad federada, y el camino de ida y vuelta no está implementado. Se dibuja
     con trama punteada o no se dibuja.
   - **No se dice "registro nacional".** Es un piloto sobre un entorno vivo.
-  - No se promete notificación automática a SENASA: existe el motor de exportación,
-    no existe la pantalla ni el envío.
+  - No se promete notificación automática a SENASA. **Frase segura:** "existe el
+    motor de exportación; no existe pantalla ni envío automático." Sigue siendo
+    literalmente cierta: no hay ninguna página. **Si repreguntan, la versión
+    precisa, que es mejor noticia:** desde el 2026-09-11 hay una **puerta de
+    descarga** (`app/gob/senasa/export/route.ts`) — un funcionario autorizado puede
+    bajar el lote sanitario acotado a su jurisdicción y su período, protegida con la
+    misma guarda que el resto de las exportaciones del portal y con su **propio
+    registro de auditoría** para que se pueda preguntar quién se llevó filas crudas.
+    Antes de eso la cadena no tenía ningún llamador. Lo que sigue faltando es el
+    punto de entrada en la interfaz —se dejó afuera a propósito, es decisión de
+    producto— y el envío automático a SENASA, que espera el formato homologado
+    (Lámina de pedidos, punto 4).
   - No se promete importación de padrones municipales preexistentes: no hay
     importador, y los datos del territorio arrancan de cero.
   - **No se dice cuántos testers son.** La frase es "en prueba interna con un grupo de

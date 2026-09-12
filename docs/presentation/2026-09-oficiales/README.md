@@ -81,7 +81,13 @@ En este orden, sin saltear:
    necesitamos del Estado, y por cada una qué queda sin funcionar hasta que llegue.
    No lleva diagrama y no se dibuja: se lee y, si hace falta, se imprime y se deja
    sobre la mesa. Es el único documento del pack que le pide algo a alguien.
-6. Solo si necesitás profundidad sobre un mecanismo: `docs/architecture` — la
+6. `15-runbook-demo.md` — **tampoco es un spec: es el manual de la demo en vivo.**
+   `00-guion.md` manda mostrar la Lámina 16 en vivo, y este archivo es el único lugar
+   que dice cómo: qué pestañas abrir y en qué orden, con qué cuenta, el camino de
+   clics de cada bloque, y **un plan B nombrado por bloque** para cuando algo no
+   responde. Lleva cuatro cosas marcadas como sin confirmar, a propósito. Se lee
+   parado. Escrito el 2026-09-11.
+7. Solo si necesitás profundidad sobre un mecanismo: `docs/architecture` — la
    referencia de ingeniería, en inglés, enlazada al código.
 
 **Trece specs, no doce, desde el 2026-09-09.** Las secciones 3 a 6 de abajo —conteo

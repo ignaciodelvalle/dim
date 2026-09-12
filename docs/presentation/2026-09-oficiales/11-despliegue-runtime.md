@@ -2,6 +2,12 @@
 
 > Snapshot: `c10f4ff03` (`main`) · Facts: `docs/architecture/facts.json` generated 2026-09-02
 > Verified against code on 2026-09-02 by writer A (opus subagent) · Status: draft
+>
+> **Re-verificación PARCIAL el 2026-09-11.** Se volvió a contrastar contra el
+> código, y se corrigió, solamente el diagnóstico del trabajo nocturno de
+> navegador (sección "NO dibujar / NO afirmar"). **El resto del archivo sigue
+> verificado al 2026-09-02 y no al 2026-09-11** — entre ambas fechas entraron
+> alrededor de 130 cambios que este documento no volvió a mirar.
 > Numbers in this file are `<!-- fact:key -->` markers checked by `__tests__/architecture-facts.test.ts`.
 
 ## Título
@@ -164,8 +170,20 @@ graph TB
   pasa igual. Es el hallazgo `C04-1`
   (`docs/reviews/2026-09-fresh/SYNTHESIS.md`).
 - **No decir que los recorridos de navegador están en verde.** El trabajo
-  nocturno está en rojo por secretos que nunca se crearon, y eso está registrado
-  (`docs/agents/open-work.md`).
+  nocturno está en rojo, y la causa está medida: **tres recorridos necesitan que
+  el refugio de prueba tenga al menos un animal bajo custodia viva, y no tiene
+  ninguno.** Se contaron doce custodias en toda la vida de esa organización y las
+  doce están cerradas. La suite se come su propio dato de prueba —uno de los
+  recorridos da un animal en adopción, lo que cierra la custodia— y ningún paso
+  la vuelve a abrir. Es un defecto del dato sembrado, no de la aplicación
+  (`.github/workflows/e2e-nightly.yml`, bloque de comentarios; medido contra la
+  base de ensayo el 2026-09-09, commit `7bffa0453`).
+- **No repetir la explicación vieja: "faltan dos secretos".** Los dos secretos
+  del trabajo nocturno (`STAGING_SUPABASE_URL` y `STAGING_SUPABASE_ANON_KEY`)
+  **están puestos**, verificado el 2026-09-09, y el recorrido que los usa
+  (`cross-tenant-isolation`) pasa. Ese diagnóstico sobrevivió a su propio hecho.
+  `docs/agents/open-work.md` (punto 6) todavía lo afirma y quedó desactualizado;
+  la fuente buena es el commit `7bffa0453`.
 
 ## Confianza
 

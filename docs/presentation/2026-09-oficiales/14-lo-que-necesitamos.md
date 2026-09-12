@@ -98,6 +98,16 @@ interfaz de formateador enchufable diseñada para que **el formateador real entr
 sin tocar nada más**. La base de datos está alineada con los campos de la libreta
 desde hace meses.
 
+Desde el 2026-09-11 esa cadena además **tiene puerta**: `app/gob/senasa/export/route.ts`
+(commit `629052357`). Hasta ese día no tenía ningún llamador — estaba construida y
+dormida, un funcionario no podía bajar nada. Hoy sí puede: descarga el lote acotado a
+su jurisdicción y a su período, con la misma guarda que el resto de las exportaciones
+del portal y con registro de auditoría propio. Es decir que lo que falta ya no es "casi
+todo el camino de salida", es **el formato y el envío**: cuando llegue la especificación
+homologada, el formateador nuevo se registra y **esta ruta no cambia**. Lo otro que falta
+es el punto de entrada en la interfaz, y eso es una decisión de producto nuestra, no un
+pedido a SENASA.
+
 **Qué queda sin funcionar hasta que llegue.** Hoy un funcionario exporta una
 planilla, la abre en Excel y **vuelve a tipear los datos** en el formulario
 heredado. El documento de diseño dice literalmente sobre el formato real: *"no lo
