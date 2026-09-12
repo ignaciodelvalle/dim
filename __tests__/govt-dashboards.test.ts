@@ -881,6 +881,49 @@ describe("fetchLostPets", () => {
     expect(names.has("Lost-LP")).toBe(true);
   });
 
+  it("pulls the fetch window IN ORDER, so the newest case cannot fall off it", async () => {
+    // THE SAME DEFECT `lost-listing-order-above-cap.test.ts` DOCUMENTS FOR THE
+    // PUBLIC LISTING, found here on 2026-09-11 and never fixed on this side.
+    // `fetchLostPets` capped at 500 with NO `orderBy`, so Postgres returned an
+    // arbitrary five hundred: the plan decides, the same jurisdiction can
+    // answer with a different set of animals on two consecutive loads, and a
+    // pet that went missing an hour ago may simply not be on the page. On
+    // staging the public listing crossed that line at 4011 lost pets and the
+    // three genuinely newest were absent from page 1 — one of them the only
+    // lost pet in the database carrying a photo.
+    //
+    // It surfaced as a FLAKE: the test above passed alone and failed inside the
+    // full suite, once the local database had accumulated more than 500 lost
+    // pets across runs and the seeded row fell outside the arbitrary window.
+    //
+    // THE PROBE, mirroring the precedent's: filler rows first, the needle
+    // inserted LAST so it is physically last in the heap, and the cap set one
+    // short of the fixture. An unordered LIMIT returns the physically-first
+    // rows and drops the needle — which is what makes this fail against the old
+    // code rather than pass by luck. Ordered by `updatedAt DESC`, the needle
+    // was touched most recently of anything in the table, so it comes first.
+    const FILLER = 5;
+    for (let i = 0; i < FILLER; i++) {
+      const id = await insertFixturePet({
+        name: `Relleno-orden-${i}`,
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      await markLost(id, 10 + i);
+    }
+    const needleId = await insertFixturePet({
+      name: "Aguja-orden",
+      species: "dog",
+      province: "CABA",
+      locality: "CABA",
+    });
+    await markLost(needleId, 1);
+
+    const page = await fetchLostPets({ role: "admin" }, [], { fetchCap: FILLER });
+    expect(page.map((p) => p.petName)).toContain("Aguja-orden");
+  });
+
   it("govt only sees lost pets in their assigned localities", async () => {
     const a = await insertFixturePet({
       name: "Lost-CABA",

@@ -43,6 +43,9 @@ export const RECOVERED_WINDOW_DAYS = 30;
  */
 export type PetListSelector = PetStatusFilter | "recovered";
 
+/** The rows this dashboard will pull before it stops. See `fetchCap`. */
+const LOST_PETS_FETCH_CAP = 500;
+
 export async function fetchLostPets(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -59,6 +62,20 @@ export async function fetchLostPets(
      */
     adminProvince?: string;
     adminLocality?: string;
+    /**
+     * THE FETCH CAP, INJECTABLE FOR ONE REASON: so the ordering can be probed.
+     *
+     * Mirrors `queryLostListing`'s `fetchCap`, and for the identical argument
+     * (`__tests__/lost-listing-order-above-cap.test.ts`): reproducing an
+     * unordered window at the real 500 needs 500+ pets AND 500+ spine events,
+     * and `pet_events` cannot be torn down — the append-only trigger refuses,
+     * so teardown would have to go through the audited mutation hatch and leave
+     * 500 override rows in `audit_log` per run. The defect is about ORDERING,
+     * which is indifferent to the constant, so it is probed at a handful.
+     *
+     * Production callers never pass it.
+     */
+    fetchCap?: number;
   } = {},
 ): Promise<LostPetRow[]> {
   // Default to 'lost' only — preserves backward-compat for metrics and
@@ -166,7 +183,28 @@ export async function fetchLostPets(
     })
     .from(pets)
     .where(and(...conditions))
-    .limit(500);
+    // A CAP WITHOUT AN ORDER IS NOT A TOP-500, IT IS AN ARBITRARY 500.
+    //
+    // This had `.limit(500)` and no `orderBy` since it was written. Postgres is
+    // then free to return any five hundred matching rows, and it does: the plan
+    // decides, so the same jurisdiction can answer with a different set of
+    // animals on two consecutive loads, and a pet that went missing an hour ago
+    // may simply not be on the page. On a screen a sanitary authority acts on,
+    // "which five hundred" is not an implementation detail.
+    //
+    // Found on 2026-09-11 through `govt-dashboards.test.ts`, which passed alone
+    // and failed inside the full suite once the local database had accumulated
+    // more than 500 lost pets across runs — the seeded row fell outside the
+    // arbitrary window. The flake was the symptom; this is the defect.
+    //
+    // `updatedAt` DESC, because the question this dashboard answers is "what is
+    // happening now": a status change, a sighting or a jurisdiction move all
+    // touch the row, so the most recently active cases surface first. `id` is
+    // the tiebreaker, so the page is stable when timestamps collide — which
+    // they do in seeds and in batch imports, the two places a wobbling list
+    // would be noticed last.
+    .orderBy(desc(pets.updatedAt), pets.id)
+    .limit(filters.fetchCap ?? LOST_PETS_FETCH_CAP);
 
   if (baseRows.length === 0) return [];
 
