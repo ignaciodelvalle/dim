@@ -182,6 +182,45 @@ describe("FieldLabel — the asterisk is decoration, and stays out of the a11y t
   });
 });
 
+describe("TextField — the return key belongs to the field, not to the crash fix", () => {
+  // THE REGRESSION THIS PINS WAS SHIPPED AND CAUGHT IN REVIEW, not imagined.
+  // The Android <=9 crash fix set `submitBehavior="submit"` on every TextInput
+  // the kit renders. React Native's own typing says what that costs a MULTILINE
+  // field: `undefined` defaults to `"newline"`, while `"submit"` "will only
+  // send a submit event and not blur" — so Enter stopped inserting a line
+  // break in all 26 multiline fields, and a denuncia became one run-on
+  // paragraph.
+  //
+  // It bought nothing: the crash is reached only through `shouldBlurOnReturn()`,
+  // which is already false for multiline. The fix was never needed there.
+
+  it("leaves a MULTILINE field's submitBehavior alone, so Enter still types a newline", () => {
+    render(<TextField label="Qué pasó" multiline value="" onChangeText={() => {}} />);
+    // `undefined`, not `"submit"` — RN then applies its own multiline default.
+    expect(screen.getByLabelText("Qué pasó").props.submitBehavior).toBeUndefined();
+  });
+
+  it("still floors a SINGLE-LINE field at 'submit', which is the crash fix", () => {
+    // The other half. Asserting only the multiline arm would pass on a revert
+    // that dropped the default entirely and brought the crash back.
+    render(<TextField label="Nombre" value="" onChangeText={() => {}} />);
+    expect(screen.getByLabelText("Nombre").props.submitBehavior).toBe("submit");
+  });
+
+  it("lets a caller override either way — a floor, not a lock", () => {
+    render(
+      <TextField
+        label="Notas"
+        multiline
+        submitBehavior="submit"
+        value=""
+        onChangeText={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Notas").props.submitBehavior).toBe("submit");
+  });
+});
+
 describe("TextField — the accessible name", () => {
   it("keeps the ', obligatorio' suffix when a caller passes its own accessibilityLabel", () => {
     // CA-M1/CA-M2 (2026-09-05 audit): `...rest` used to be spread AFTER the
@@ -305,20 +344,26 @@ describe("PasswordField — the eye toggle may not cap the input (B-08)", () => 
 // ---------------------------------------------------------------------------
 
 describe("keyboardAvoidingBehavior — accused and acquitted on 2026-09-11", () => {
-  // THIS BLOCK USED TO ASSERT THE OPPOSITE, and the inversion is the record of a
-  // shipped defect rather than a change of mind.
+  // NOT ONE ASSERTION IN THIS BLOCK CHANGED, and saying so is the point.
   //
-  // Its old title was "neither platform may get `undefined`", and it pinned
-  // `"height"` for Android because `undefined` renders a plain <View> — a
-  // silent no-op across sixteen screens. That analysis was RIGHT about the
-  // no-op and WRONG about what to do next: `"height"` shipped in build 11 and
-  // closed the app on every screen whose keyboard opened, reported from a real
-  // device as Android's own "dejó de funcionar".
+  // On 2026-09-11 `keyboardAvoidingBehavior` was accused of the crash reported
+  // from a real device as Android's own "dejó de funcionar", on the theory that
+  // `"height"` — which had shipped in build 11 — was closing the app on every
+  // screen whose keyboard opened. The function was reverted for an afternoon
+  // and these assertions were rewritten to match.
   //
-  // So the old assertions are not deleted, they are inverted, and the reason
-  // rides with them: the previous value is known good across an entire pilot,
-  // and a form whose save button hides under the keyboard is survivable in a way
-  // that an app which closes on every field is not.
+  // THE THEORY WAS WRONG. The stack, once it arrived over adb, named a
+  // ClassCastException in React Native's own `ReactEditText`, reached through
+  // `onEditorAction` and nothing to do with `KeyboardAvoidingView`. The
+  // accusation rested on "only one variable changed between builds 10 and 11",
+  // which was itself false — 163 mobile files had. So the revert was undone and
+  // the assertions came back exactly as they were; only this note and the
+  // titles are new.
+  //
+  // An earlier draft of this comment claimed the block "used to assert the
+  // opposite" and had been "inverted". It had not. That sentence survived the
+  // un-revert and was caught in review — a false record in a test file is worse
+  // than no record, because the next reader believes it.
   //
   // THE RULE IS STILL TESTED AS A FUNCTION, for the original reason: Jest runs
   // on one platform, and a render assertion can only ever see the arm this
@@ -344,11 +389,12 @@ describe("keyboardAvoidingBehavior — accused and acquitted on 2026-09-11", () 
 
   it("returns only values React Native's `behavior` prop accepts", () => {
     // The property that outlives whichever way the Android arm is pointing:
-    // every answer must be something `KeyboardAvoidingView` understands.
-    // `undefined` qualifies — it is the prop's own default, and the no-op it
-    // produces is now a deliberate choice rather than an oversight. What this
-    // forbids is a future arm returning a string RN does not switch on, which
-    // would be the same silent nothing with none of the reasoning.
+    // every answer must be something `KeyboardAvoidingView` actually switches
+    // on. `undefined` does NOT qualify — it renders a plain <View>, which is
+    // the silent no-op this function exists to prevent, and the assertion below
+    // rejects it. (A previous version of this comment said the opposite, left
+    // over from the afternoon the Android arm was reverted; it was contradicted
+    // by the very line under it.)
     for (const os of ["ios", "android", "windows", "macos", "web"] as const) {
       expect(["padding", "height"]).toContain(keyboardAvoidingBehavior(os));
     }

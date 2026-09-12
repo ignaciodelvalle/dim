@@ -434,6 +434,23 @@ export function TextField({
   //
   // PUT BEFORE `{...rest}` ON PURPOSE: a caller that passes its own
   // `submitBehavior` still wins. This is a floor, not a lock.
+  //
+  // AND IT IS SINGLE-LINE ONLY, which the first version of this fix got wrong
+  // and shipped. `submitBehavior` was set unconditionally, and React Native's
+  // own typing spells out the cost: for a MULTILINE input, `undefined` defaults
+  // to `"newline"` and `"submit"` "will only send a submit event and not blur"
+  // — so Enter stopped inserting a line break in all 26 multiline fields in
+  // this app. Somebody writing a denuncia would have got one unbreakable
+  // run-on paragraph.
+  //
+  // The regression bought nothing, which is the part worth remembering: the
+  // crash is reached only through `shouldBlurOnReturn()`, and that is already
+  // false for a multiline field. `use-return-key-chain.ts` states the same
+  // invariant at its head — "a multiline field's return key types a newline,
+  // that is its job" — and this change broke it globally while quoting it.
+  //
+  // Jest could not have caught it: no test asserts newline behaviour, and the
+  // arm that breaks is native.
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
@@ -443,7 +460,8 @@ export function TextField({
           ref={inputRef}
           accessibilityLabel={accessibleName(label, accessibilityLabel, required)}
           placeholderTextColor={COLORS.inkFaint}
-          submitBehavior="submit"
+          // SINGLE-LINE ONLY — see the note above, and the correction below it.
+          submitBehavior={rest.multiline ? undefined : "submit"}
           {...rest}
           onBlur={(e) => {
             setFocused(false);
