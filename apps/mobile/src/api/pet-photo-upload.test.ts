@@ -119,25 +119,119 @@ describe("uploading the bytes — the call that is NOT ours", () => {
     expect(headers["content-type"]).toBe("image/jpeg");
   });
 
-  it("reads 400/401/403 as a DEAD TICKET and never ends the session", async () => {
-    // ONE assertion over the whole table rather than three inside a loop:
-    // jest's `expect` takes no message argument (that is vitest's), so a loop
-    // that failed on the third status would report the same bare diff as one
-    // that failed on the first. Collecting the outcomes and comparing the
-    // TABLE puts the failing status in the diff itself.
-    const outcomes: Array<[number, unknown]> = [];
-    for (const status of [400, 401, 403]) {
-      mockFetch(() => new Response(null, { status }));
-      outcomes.push([status, await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg")]);
+  it("tells a DEAD TICKET apart from a REFUSED FILE, and never ends the session", async () => {
+    // THE BODIES ARE REAL. Every one of them was measured against the live
+    // project on 2026-09-11 with one fresh ticket per case, and every one of
+    // them arrives as HTTP 400 — which is exactly why the status cannot be the
+    // discriminator and this test cannot be written against it.
+    //
+    // Two of these rows used to be read as "the ticket is done, ask for
+    // another one". They are not: a photo the bucket refuses by TYPE or by
+    // SIZE is refused identically through every new ticket ever minted, and
+    // the person was being told to keep trying.
+    //
+    // ONE assertion over the whole table rather than one per row: jest's
+    // `expect` takes no message argument (that is vitest's), so a loop that
+    // failed on the fifth row would report the same bare diff as one that
+    // failed on the first. Comparing the TABLE puts the failing row in the
+    // diff itself.
+    const bodies = {
+      spent: {
+        statusCode: "409",
+        error: "Duplicate",
+        message: "The resource already exists",
+        code: "KeyAlreadyExists",
+      },
+      garbage: {
+        statusCode: "400",
+        error: "InvalidJWT",
+        message: "Invalid Compact JWS",
+        code: "InvalidJWT",
+      },
+      otherKey: {
+        statusCode: "400",
+        error: "InvalidSignature",
+        message: "Invalid signature",
+        code: "InvalidSignature",
+      },
+      badMime: {
+        statusCode: "415",
+        error: "invalid_mime_type",
+        message: "mime type text/plain is not supported",
+        code: "InvalidMimeType",
+      },
+      tooBig: {
+        statusCode: "413",
+        error: "Payload too large",
+        message: "The object exceeded the maximum allowed size",
+        code: "EntityTooLarge",
+      },
+      unknown: {
+        statusCode: "400",
+        error: "SomethingNew",
+        message: "a code this build has never seen",
+        code: "SomethingNew",
+      },
+    };
+
+    const outcomes: Array<[string, unknown]> = [];
+    for (const [label, body] of Object.entries(bodies)) {
+      mockFetch(() => json(400, body));
+      const result = await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg");
+      outcomes.push([label, result]);
     }
+
     expect(outcomes).toEqual([
-      [400, { outcome: "expired" }],
-      [401, { outcome: "expired" }],
-      [403, { outcome: "expired" }],
+      [
+        "spent",
+        { outcome: "expired", detail: "HTTP 400 KeyAlreadyExists The resource already exists" },
+      ],
+      ["garbage", { outcome: "expired", detail: "HTTP 400 InvalidJWT Invalid Compact JWS" }],
+      ["otherKey", { outcome: "expired", detail: "HTTP 400 InvalidSignature Invalid signature" }],
+      [
+        "badMime",
+        {
+          outcome: "rejected",
+          detail: "HTTP 400 InvalidMimeType mime type text/plain is not supported",
+        },
+      ],
+      [
+        "tooBig",
+        {
+          outcome: "rejected",
+          detail: "HTTP 400 EntityTooLarge The object exceeded the maximum allowed size",
+        },
+      ],
+      // NOT folded into either side. A refusal this build cannot name is the
+      // exact case where guessing produced the defect being fixed here.
+      [
+        "unknown",
+        { outcome: "failed", detail: "HTTP 400 SomethingNew a code this build has never seen" },
+      ],
     ]);
+
     // THE ASSERTION THIS FILE EXISTS FOR. A stale upload URL is not a stale
     // session, and the two are different origins answering about different
     // things.
+    expect(ended).toEqual([]);
+  });
+
+  it("survives a refusal whose body is not JSON, and still says something", async () => {
+    // A proxy's HTML error page, a truncated stream, an empty body. The
+    // diagnostic must not become the failure: `readStorageError` swallowing
+    // its own throw is the point, and a body it cannot parse still has to
+    // reach the screen as something a tester can repeat.
+    mockFetch(() => new Response("<html>502 Bad Gateway</html>", { status: 400 }));
+    expect(await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg")).toEqual({
+      outcome: "failed",
+      detail: "HTTP 400 <html>502 Bad Gateway</html>",
+    });
+
+    mockFetch(() => new Response(null, { status: 400 }));
+    expect(await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg")).toEqual({
+      outcome: "failed",
+      detail: "HTTP 400",
+    });
     expect(ended).toEqual([]);
   });
 

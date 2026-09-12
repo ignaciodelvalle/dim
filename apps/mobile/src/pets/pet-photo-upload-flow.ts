@@ -56,11 +56,15 @@ export async function runPetPhotoUpload(
 
   onStep("put");
   const put = await uploadPetPhotoBytes(ticket.payload, image.bytes, image.contentType);
-  if (put.outcome === "expired") {
-    return { outcome: "failed", failure: { stage: "put", kind: "expired" } };
-  }
-  if (put.outcome === "failed") {
-    return { outcome: "failed", failure: { stage: "put", kind: "failed", detail: put.detail } };
+  if (put.outcome !== "ok") {
+    // The three refusal arms are forwarded BY NAME rather than folded together,
+    // because they disagree about what the person should do next and only the
+    // step that made the call knows which one happened. See the measured table
+    // above `uploadPetPhotoBytes`.
+    return {
+      outcome: "failed",
+      failure: { stage: "put", kind: put.outcome, detail: put.detail },
+    };
   }
 
   onStep("confirm");

@@ -58,11 +58,14 @@ export async function stageTattooPhoto(
   }
 
   const put = await uploadPetPhotoBytes(ticket.payload, image.bytes, image.contentType);
-  if (put.outcome === "expired") {
-    return { outcome: "failed", failure: { stage: "put", kind: "expired" } };
-  }
-  if (put.outcome === "failed") {
-    return { outcome: "failed", failure: { stage: "put", kind: "failed", detail: put.detail } };
+  if (put.outcome !== "ok") {
+    // Forwarded by name, same as the pet-photo flow: a tattoo photo the bucket
+    // refuses by type or size is not a ticket that expired, and telling the
+    // person to retry would be advice that cannot work.
+    return {
+      outcome: "failed",
+      failure: { stage: "put", kind: put.outcome, detail: put.detail },
+    };
   }
 
   return { outcome: "staged", stagedPath: ticket.payload.stagedPath };

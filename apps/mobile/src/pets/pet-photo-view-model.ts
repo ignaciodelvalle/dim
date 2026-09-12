@@ -146,9 +146,13 @@ export function petPhotoStepLabel(step: PetPhotoUploadStep): string {
  */
 export type PetPhotoUploadFailure =
   | { stage: "ticket"; result: Exclude<ApiResult<never>, { outcome: "ok" }> }
-  /** The signed URL was refused — spent, or past its two hours. */
-  | { stage: "put"; kind: "expired" }
-  | { stage: "put"; kind: "failed"; detail: string }
+  /**
+   * The PUT was refused, and WHICH refusal decides what to tell the person:
+   *   · `expired`  — the ticket is spent or invalid. A new one is the cure.
+   *   · `rejected` — the FILE was refused (type, size). A new ticket is not.
+   *   · `failed`   — no signal, or a refusal this build does not recognise.
+   */
+  | { stage: "put"; kind: "expired" | "rejected" | "failed"; detail: string }
   | { stage: "confirm"; result: Exclude<ApiResult<never>, { outcome: "ok" }> };
 
 /** The transport arms every bearer call shares — the ClaimScreen sentences. */
@@ -187,10 +191,36 @@ export function petPhotoFailureMessage(failure: PetPhotoUploadFailure): string {
     case "ticket":
       return transportMessage(failure.result);
     case "put":
-      return failure.kind === "expired"
-        ? "La subida tardó demasiado y el permiso venció. Volvé a intentar: pedimos uno nuevo."
-        : "No pudimos subir la foto. Revisá tu conexión y volvé a intentar.";
+      return putFailureMessage(failure);
     case "confirm":
       return transportMessage(failure.result);
+  }
+}
+
+/**
+ * THE THREE SENTENCES DIFFER IN WHAT THEY ASK FOR, which is the whole point of
+ * the split. Until 2026-09-11 every refusal got the "expired" one, so a photo
+ * the bucket refused by TYPE or SIZE told the person to retry — and every retry
+ * was refused the same way. An error message that asks for something that
+ * cannot work is worse than no message at all.
+ *
+ * ITS OWN FUNCTION rather than a switch nested inside the one above: a nested
+ * switch whose arms all return still reads as a fall-through to the `confirm`
+ * arm (`lint/suspicious/noFallthroughSwitchClause`), and silencing that rule
+ * here would silence it for a file where the next fall-through might be real.
+ * Split out, both switches stay exhaustive and both stay checked.
+ */
+function putFailureMessage(failure: Extract<PetPhotoUploadFailure, { stage: "put" }>): string {
+  switch (failure.kind) {
+    case "expired":
+      return "La subida tardó demasiado y el permiso venció. Volvé a intentar: pedimos uno nuevo.";
+    case "rejected":
+      // NO "volvé a intentar". The same file will be refused again.
+      return `El servidor no aceptó esa foto. Probá con otra. (${failure.detail})`;
+    case "failed":
+      // The detail rides along because this arm is also where an unrecognised
+      // refusal lands, and during the pilot a tester reading it aloud is the
+      // only instrument we have on their device.
+      return `No pudimos subir la foto. Revisá tu conexión y volvé a intentar. (${failure.detail})`;
   }
 }

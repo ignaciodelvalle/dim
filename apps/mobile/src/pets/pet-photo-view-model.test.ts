@@ -112,9 +112,40 @@ describe("the upload copy — three failures, three different instructions", () 
   });
 
   it("an expired ticket promises the FRESH permission a retry actually mints", () => {
-    const message = petPhotoFailureMessage({ stage: "put", kind: "expired" });
+    const message = petPhotoFailureMessage({
+      stage: "put",
+      kind: "expired",
+      detail: "HTTP 400 KeyAlreadyExists The resource already exists",
+    });
     expect(message).toContain("venció");
     expect(message).toContain("pedimos uno nuevo");
+  });
+
+  it("a REFUSED FILE never asks for a retry, because a retry cannot cure it", () => {
+    // The defect this arm exists to close: until 2026-09-11 a photo the bucket
+    // refused by type or size got the "expired" sentence, so the person was
+    // told to try again — and every attempt was refused identically. The
+    // assertion is on the ABSENCE of that promise, which is the part that was
+    // doing the harm.
+    const message = petPhotoFailureMessage({
+      stage: "put",
+      kind: "rejected",
+      detail: "HTTP 400 InvalidMimeType mime type text/plain is not supported",
+    });
+    expect(message).not.toContain("venció");
+    expect(message).not.toContain("Volvé a intentar");
+    expect(message).toContain("Probá con otra");
+    // The server's own words reach the screen: on a pilot device we cannot
+    // attach a debugger to, a tester reading this aloud is the instrument.
+    expect(message).toContain("InvalidMimeType");
+  });
+
+  it("gives the three PUT refusals three different sentences", () => {
+    // Survives a collapse back into one message, in any direction.
+    const messages = (["expired", "rejected", "failed"] as const).map((kind) =>
+      petPhotoFailureMessage({ stage: "put", kind, detail: "HTTP 400 X y" }),
+    );
+    expect(new Set(messages).size).toBe(3);
   });
 
   it("a dead PUT names the connection, not the permission", () => {

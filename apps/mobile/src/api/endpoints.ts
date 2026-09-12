@@ -1206,44 +1206,133 @@ export function requestPetPhotoTicket(
  * upload URL went stale, which is the exact class of bug `client.ts`'s header
  * describes for `session_shift_expired`.
  *
- * So it reports its own outcome, in three arms, and the caller decides:
+ * So it reports its own outcome, in four arms, and the caller decides:
  *   · `ok`        — the bytes are staged. Call `confirmPetPhoto` next.
- *   · `expired`   — the ticket is no longer valid. Re-ticket; do not sign out.
+ *   · `expired`   — the TICKET is no longer usable. Re-ticket; do not sign out.
+ *   · `rejected`  — the FILE was refused. A new ticket cures nothing.
  *   · `failed`    — anything else, including no signal. Retry with the same
  *                   ticket is safe (nothing has been claimed).
+ *
+ * ===================================================================
+ * WHY THE STATUS CODE IS NOT THE ANSWER, AND THE BODY IS.
+ * ===================================================================
+ * This function used to read `400 | 401 | 403` as "this ticket is done" and
+ * throw the response body away. The comment that justified it said 400 "is
+ * what the Storage API answers for an expired or already-spent signed upload
+ * token", and that sentence is TRUE AND USELESS: 400 is also what it answers
+ * for three other things, and the caller's advice — "volvé a intentar: pedimos
+ * uno nuevo" — cannot cure two of them. A person following it retries forever.
+ *
+ * Measured against the live project on 2026-09-11, one fresh ticket per case.
+ * EVERY ROW IS HTTP 400; only the body tells them apart:
+ *
+ *   token is garbage            InvalidJWT          "Invalid Compact JWS"
+ *   token minted for another key InvalidSignature   "Invalid signature"
+ *   ticket already spent        KeyAlreadyExists    (statusCode 409)
+ *   content-type not allowlisted InvalidMimeType    (statusCode 415)
+ *   over the bucket's 5 MiB     EntityTooLarge      (statusCode 413)
+ *
+ * The first three mean the ticket is done and a new one is the cure. The last
+ * two mean the BYTES are the problem and a thousand new tickets will each be
+ * refused exactly the same way. Collapsing them into one sentence is not a
+ * rounding error in the copy — it is advice that cannot work, which is the one
+ * thing an error message must never be.
+ *
+ * `detail` carries the status and the server's own words, so a tester on a
+ * device we cannot attach a debugger to can read the cause off the screen and
+ * repeat it. No ticket, token or URL goes into it — the Storage error bodies
+ * above carry none, and this only ever forwards them.
  *
  * `body` is a `Blob`. React Native's `fetch` handles a Blob from
  * `expo-file-system` or a picker without the FormData workaround
  * `@supabase/storage-js` warns about, because there is no multipart envelope
- * here — the signed upload endpoint takes the raw bytes.
+ * here — the signed upload endpoint takes the raw bytes. The `content-type`
+ * header does reach the wire on Android: `convertRequestBody` sends a blob as
+ * `{blob: body.data}`, so the `type` key that `BlobModule.toRequestBody` would
+ * prefer over the header is absent and the header stands.
  */
 export type PetPhotoUploadOutcome =
   | { outcome: "ok" }
-  | { outcome: "expired" }
+  | { outcome: "expired"; detail: string }
+  | { outcome: "rejected"; detail: string }
   | { outcome: "failed"; detail: string };
+
+/** Storage codes that mean the TICKET is done. A new ticket is the cure. */
+const STORAGE_TICKET_IS_DONE = new Set([
+  "KeyAlreadyExists",
+  "InvalidJWT",
+  "InvalidSignature",
+  "ExpiredToken",
+]);
+
+/** Storage codes that mean the FILE was refused. A new ticket cures nothing. */
+const STORAGE_FILE_WAS_REFUSED = new Set(["InvalidMimeType", "EntityTooLarge"]);
 
 export async function uploadPetPhotoBytes(
   ticket: PetPhotoTicketV1,
   body: Blob,
   contentType: PetPhotoContentType,
 ): Promise<PetPhotoUploadOutcome> {
+  let response: Response;
   try {
-    const response = await fetch(ticket.uploadUrl, {
+    response = await fetch(ticket.uploadUrl, {
       method: "PUT",
       headers: { "content-type": contentType },
       body,
     });
-    if (response.ok) return { outcome: "ok" };
-    // 400 is what the Storage API answers for an expired or already-spent
-    // signed upload token; 401/403 for a malformed one. All of them mean "this
-    // ticket is done", and none of them means "this account is done".
-    if (response.status === 400 || response.status === 401 || response.status === 403) {
-      return { outcome: "expired" };
-    }
-    return { outcome: "failed", detail: `HTTP ${response.status}` };
   } catch (error) {
+    // No signal at all — airplane mode, a dropped connection, a DNS failure.
+    // Nothing was sent, so the ticket is still good.
     return { outcome: "failed", detail: error instanceof Error ? error.message : String(error) };
   }
+  if (response.ok) return { outcome: "ok" };
+
+  const { code, detail } = await readStorageError(response);
+  if (code !== null && STORAGE_TICKET_IS_DONE.has(code)) return { outcome: "expired", detail };
+  if (code !== null && STORAGE_FILE_WAS_REFUSED.has(code)) return { outcome: "rejected", detail };
+  // An unrecognised refusal. NOT quietly filed as one of the two above: a code
+  // this build has never seen is exactly the case where guessing produced the
+  // defect this function was rewritten to remove.
+  return { outcome: "failed", detail };
+}
+
+/** The most a Storage error body may contribute to a sentence on a phone. */
+const STORAGE_DETAIL_MAX = 160;
+
+/**
+ * The `code` Storage named, and a line a person can read and repeat.
+ *
+ * Every arm survives a body that is empty, truncated, HTML from a proxy, or
+ * absent because the stream was already consumed. A diagnostic that can throw
+ * would replace the failure being diagnosed with its own.
+ */
+async function readStorageError(response: Response): Promise<{
+  code: string | null;
+  detail: string;
+}> {
+  let raw = "";
+  try {
+    raw = await response.text();
+  } catch {
+    return { code: null, detail: `HTTP ${response.status}` };
+  }
+
+  let code: string | null = null;
+  let message: string | null = null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null) {
+      const fields = parsed as { code?: unknown; message?: unknown };
+      if (typeof fields.code === "string") code = fields.code;
+      if (typeof fields.message === "string") message = fields.message;
+    }
+  } catch {
+    // Not JSON. `raw` is still the best thing we have to show.
+  }
+
+  const said = message ?? (raw.length > 0 ? raw : null);
+  const detail = [`HTTP ${response.status}`, code, said].filter((part) => part != null).join(" ");
+  return { code, detail: detail.slice(0, STORAGE_DETAIL_MAX) };
 }
 
 /**
