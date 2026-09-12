@@ -1,7 +1,14 @@
-# miMAR para veterinarios — cómo funciona
+# miMAR para veterinarios — lo que armamos, y lo que queremos revisar con vos
 
-> Borrador para las dos primeras veterinarias/os del piloto. Escrito para que lo
-> lean ellos, no el equipo. Revisar el tono antes de enviarlo.
+> Para las veterinarias y los veterinarios del piloto. Revisado contra el producto el 12/09/2026.
+
+---
+
+## Por qué te escribimos
+
+Armamos miMAR pensando en cómo creemos que trabaja una veterinaria. **Creemos** es la palabra importante: no queremos que te adaptes a lo que hicimos, queremos revisar con vos si lo que hicimos se adapta a tu día a día.
+
+Este documento te cuenta qué hay hoy, para que llegues a la charla sabiendo de qué hablamos. No hace falta que pruebes todo antes.
 
 ---
 
@@ -13,86 +20,65 @@ No es un software de gestión. No hay historia clínica completa, ni recetas, ni
 
 ---
 
-## Tenés dos sombreros, y podés usar los dos sobre el mismo animal
+## Dónde se usa
 
-Es la parte que más conviene entender, porque cambia qué significa cada cosa que cargás.
+**Desde el navegador**, en la computadora o en el celular. No hay que instalar nada.
 
-### 1. Tu cuenta personal — los animales que son tuyos o están a tu cargo
-
-Igual que cualquier persona. Tus perros, tus gatos, y **las callejeras que cuidás**. Ahí tenés:
-
-- La **credencial pública** de cada animal, con su QR
-- La **libreta sanitaria** completa
-- Alertas, recordatorios, "marcar como perdida"
-
-Cuando das de alta un animal podés elegir si sos **dueño/a permanente** o si lo tenés en **custodia temporal** — para las de calle que cuidás sin ser realmente la dueña, la segunda opción dice la verdad.
-
-### 2. Tu clínica — los pacientes de otros
-
-Acá entrás por el código DIM que el dueño te muestra en la chapita del animal, y firmás el evento **con tu matrícula**.
-
-**Esa es la diferencia que importa.** Un dueño puede anotar por su cuenta que vacunó a su perro; queda como una declaración suya. Lo que firmás vos queda marcado como *verificado por profesional*, y la libreta muestra la diferencia. Eso es lo que hace que el registro cuente.
-
-### Y podés combinarlos
-
-Si registrás una callejera en tu cuenta y después le ponés la antirrábica, podés cargarla **desde tu clínica**, usando el código DIM de esa misma credencial. Queda con tu firma profesional, aunque el animal esté a tu nombre.
-
-> Dicho al revés: **si lo cargás desde tu cuenta personal queda como declaración tuya de dueña; si lo cargás desde tu clínica queda con tu matrícula.** Mismo animal, distinto peso.
+Existe una app para Android, pero es para dueños y está en prueba cerrada. Para profesionales todavía no hay app: lo tuyo es la web. Por eso, parte de lo que veas en una libreta puede haberlo cargado el dueño desde su teléfono — y siempre se distingue de lo que firma un profesional.
 
 ---
 
-## Cómo das de alta un animal
+## Cómo entrás
 
-**Desde tu cuenta**, para los tuyos y los que cuidás:
-
-1. Mis mascotas → Registrar
-2. Nombre, especie, sexo, raza, color, **foto**
-3. Elegís **Dueño/a permanente** o **Custodia temporal**
-4. Si tiene chip, cargás el número ahí mismo
-
-El animal queda con su credencial y su QR desde el minuto uno.
-
-**Si no tiene chip ni tatuaje**, la foto pasa a ser importante en serio: es lo único que va a permitir reconocerlo después — para vos, para quien lo adopte, o si alguna vez hay que discutir de quién es.
+1. Creás tu cuenta, como cualquier persona.
+2. En **Cuenta → "Convertirme en profesional"** cargás tu matrícula, la jurisdicción que la emitió y la localidad donde ejercés. El sistema te pide el DNI si todavía no lo declaraste (se guarda protegido, nunca en texto plano).
+3. La solicitud la revisa la autoridad de tu localidad. No se consulta automáticamente al colegio: es una revisión humana.
+4. Con la matrícula aprobada, creás tu consultorio en **Cuenta → Crear consultorio**, o te suma como miembro la clínica donde trabajás.
 
 ---
 
-## Qué ve la gente cuando escanea el QR
+## Tu día a día, tal como lo imaginamos
 
-Esto suele ser la primera pregunta, y la respuesta corta es: **muy poco, y nada tuyo.**
+Esta es la parte que más nos interesa revisar con vos.
 
-- Con el animal **en estado normal**: se ve el animal (nombre, especie, foto, que está registrado). **No se muestra ningún dato tuyo. Ni tu teléfono, ni tu nombre.**
-- Sólo si vos lo marcás como **perdido**, y sólo si vos activás esa opción, se muestra un teléfono de contacto para que quien lo encuentre pueda avisarte.
+### Atender una mascota
 
-O sea: podés registrar veinte callejeras sin publicar tu número en ningún lado.
+El dueño llega, vos buscás al animal por su código `DIM-XXXX-XXXX` (está en su chapita y en su página con QR) y registrás lo que hiciste: vacuna, desparasitación, consulta, esterilización, microchip, medicación. Queda **firmado con tu matrícula** en la libreta del animal.
 
----
+### Confirmar lo que declaró el dueño
 
-## Cómo se lo pasás a una persona
+Si un dueño anotó por su cuenta que su perro tiene chip o está castrado, cuando lo atendés lo ves marcado como **"Declarado por el dueño · pendiente de firma"**. Lo revisás y lo confirmás con un toque, con los datos ya cargados.
 
-Cuando aparece un adoptante o el dueño real:
+### Turnos
 
-1. Entrás al animal → **Transferir mascota**
-2. Ponés el **mail** de la persona
-3. Ella acepta desde su cuenta, y el animal pasa a ser suyo
+En **Servicios** publicás lo que ofrecés (por ejemplo, antirrábica los sábados) con sus horarios. Los dueños de tu zona lo encuentran y reservan desde la web o la app, y en tu **Agenda** ves las reservas del día.
 
-**La persona necesita tener cuenta en miMAR** para poder aceptar. Es un paso más, pero es lo que hace que la transferencia sea real y quede registrada, y no un mensaje de WhatsApp.
+### Mordeduras
 
-Cuando el animal pasa a su nombre, **todo lo que vos firmaste sigue ahí.** Las vacunas, la desparasitación, la esterilización, el chip. No se pierde nada, y sigue teniendo tu matrícula al lado.
+Si te toca una mordedura, desde tu panel la reportás y se abre el circuito de observación antirrábica que sigue la autoridad local.
 
 ---
 
-## Qué queda registrado y qué podés ver
+## Tu firma vale distinto que la del dueño
 
-Lo que se guarda y viaja con el animal:
+Un dueño puede anotar por su cuenta que vacunó a su perro: queda como una declaración suya. Lo que firmás vos queda marcado como *verificado por profesional*, y la libreta muestra la diferencia. Eso es lo que hace que el registro cuente.
 
-- Vacunas, desparasitaciones, esterilización
-- Implantación de chip, tatuaje
-- Peso, consultas, y estudios (laboratorio, imágenes, cirugía, alergias)
-- Medicación iniciada y suspendida
+Y tenés dos sombreros:
 
-De los animales **tuyos o a tu cargo** ves todo: la libreta completa, la credencial, el historial.
+- **Tu cuenta personal**, para tus animales y las callejeras que cuidás. Lo que cargues ahí queda como declaración tuya.
+- **Tu consultorio**, para firmar con matrícula — también sobre un animal que está a tu nombre.
 
-De los **pacientes de otros** ves lo mínimo para identificar al animal cuando lo atendés —nombre, especie, estado— y podés firmar. **No ves los datos personales del dueño**, y eso es a propósito.
+> Mismo animal, distinto peso: **desde tu cuenta es tu palabra de dueña; desde el consultorio es tu matrícula.**
+
+---
+
+## Qué ves y qué no
+
+- Escaneando el QR ves la **credencial pública**: identidad, si tiene las vacunas al día (un tilde, no el detalle) y si tiene microchip. **No aparece ningún dato de contacto del dueño**, salvo que haya marcado al animal como perdido y elegido mostrarlo.
+- Cuando atendés a un paciente, ves lo necesario para identificarlo y podés firmar. **No ves los datos personales del dueño**, y eso es a propósito.
+- **El historial clínico completo es del dueño.** Para verlo, el dueño te muestra la libreta desde su celular o te genera un enlace temporal. Es una regla de privacidad, no un olvido.
+
+Cuando el animal cambia de dueño, **todo lo que firmaste sigue ahí**, con tu matrícula al lado.
 
 ---
 
@@ -100,18 +86,21 @@ De los **pacientes de otros** ves lo mínimo para identificar al animal cuando l
 
 Preferimos decirlo antes y no que lo descubras vos:
 
-- **Sólo podés firmar desde tu clínica sobre animales que ya estén en el sistema** y tengan su código DIM. Si atendés un paciente que no está registrado, hoy la vuelta es darlo de alta desde tu cuenta primero. Lo estamos resolviendo.
-- **No hay carga masiva** desde tu cuenta personal. Si tenés muchas callejeras, van de a una. Decinos cuántas son y vemos.
-- **No hay historia clínica, recetas ni facturación**, y no está en los planes.
+- **Sólo firmás sobre animales que ya están en el sistema.** Si llega un paciente sin registrar, hoy el dueño tiene que darlo de alta primero (le lleva un par de minutos desde el celular).
+- **No hay receta electrónica** con principio activo y posología (Res. SENASA 80/2025). Está prevista, no construida.
+- **No se lee la etiqueta del microchip**: los 15 dígitos van a mano, aunque el sistema valida el formato.
+- **No consulta RENAPER ni el colegio profesional**, y no está integrado con Mi Argentina todavía.
+- **No factura ni cobra.**
 
 ---
 
 ## Lo que te pedimos
 
-Una sola cosa, y es la más valiosa:
+Una charla, con tu rutina real sobre la mesa. Queremos recorrer con vos:
 
-> **De todo lo que hacés en una consulta, ¿qué te gustaría que siga al animal si mañana cambia de dueño o de veterinario?**
+1. **Una consulta típica, de punta a punta.** ¿En qué momento sacarías el celular o la compu para cargar algo? ¿Te frena o te acompaña?
+2. **Lo que anotás hoy.** ¿Dónde lo anotás, qué es obligatorio para vos, y qué te daría bronca perder si mañana el animal cambia de dueño o de veterinario?
+3. **Los turnos.** ¿Cómo los manejás hoy? ¿Lo que armamos se parece, o te obliga a trabajar distinto?
+4. **Lo que falta y lo que sobra.** Lo que te trabe, te confunda o te parezca al pedo.
 
-No te pedimos una lista de funcionalidades. Contanos qué anotás hoy, dónde te queda, y qué te daría bronca perder. Con eso decidimos mejor que con cualquier reunión de producto.
-
-Y todo lo que te trabe, te confunda o te parezca al pedo: escribinos. Es exactamente lo que necesitamos escuchar.
+No te pedimos una lista de funcionalidades. Con que nos cuentes cómo trabajás, decidimos mejor que con cualquier reunión de producto.
