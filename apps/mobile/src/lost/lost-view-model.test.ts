@@ -209,6 +209,50 @@ describe("buildMarkLost — the five toggles are STATED, never inherited", () =>
     });
   });
 
+  describe("the jurisdiction of the disappearance", () => {
+    const picked = {
+      provinceCode: "AR-X",
+      localityName: "Villa Carlos Paz",
+      localityIndecId: "14014010",
+    };
+
+    it("sends the trio the picker filled in", () => {
+      const built = buildMarkLost({ ...emptyLostDraft(), ...picked });
+      expect(built.ok && built.input).toMatchObject(picked);
+    });
+
+    it("sends three nulls when nobody chose a locality", () => {
+      // "No sé exactamente dónde" is a real answer. The server falls back to the
+      // animal's home jurisdiction, which is defined behaviour and not a hole.
+      const built = buildMarkLost(emptyLostDraft());
+      expect(built.ok && built.input).toMatchObject({
+        provinceCode: null,
+        localityName: null,
+        localityIndecId: null,
+      });
+    });
+
+    it("DROPS a partial trio rather than sending a place that does not exist", () => {
+      // The writer falls back FIELD BY FIELD, so a province with no locality
+      // would route the case to (new province, pet's locality) — a pair naming
+      // nowhere, on a record an authority acts on. The picker cannot produce a
+      // partial set; this refuses one anyway, because the cost of being wrong
+      // lands on somebody looking for their dog.
+      for (const partial of [
+        { provinceCode: picked.provinceCode },
+        { localityName: picked.localityName },
+        { provinceCode: picked.provinceCode, localityName: picked.localityName },
+      ]) {
+        const built = buildMarkLost({ ...emptyLostDraft(), ...partial });
+        expect(built.ok && built.input).toMatchObject({
+          provinceCode: null,
+          localityName: null,
+          localityIndecId: null,
+        });
+      }
+    });
+  });
+
   it("OMITS the incident snapshot entirely when nothing was filled in", () => {
     // The writer branches on whether the section exists to decide if it builds a
     // `lost_description`. A block of six nulls is not the same fact as no block.

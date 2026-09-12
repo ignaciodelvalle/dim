@@ -61,6 +61,7 @@ import { fetchPetLostMode, sendLostCommand } from "../api/endpoints";
 import { apiErrorMessage } from "../api/error-copy";
 import { sessionPort } from "../auth/session-store";
 import { publicCredentialPageUrl } from "../config/api";
+import { LocalityPicker } from "../pets/LocalityPicker";
 import { createAttemptSession } from "../pets/idempotency";
 import { Body, Card, ContactRow, Loading, Row, StaleNotice } from "../ui/components";
 import { FONTS } from "../ui/fonts";
@@ -667,6 +668,29 @@ function MarkLostForm({
         onChangeText={(v) => set("locationDescription", v)}
         placeholder="Plaza San Martín, Santa Rosa"
       />
+
+      {/* LA LOCALIDAD DEL HECHO, NO LA DEL ANIMAL. El campo de arriba es prosa
+          que lee quien encuentra a la mascota; este es el par sobre el que se
+          rutea el caso, el que filtra /gob/perdidas y el que cuenta el
+          panorama. Hasta el 2026-09-11 el caso se abría con la jurisdicción de
+          la FICHA, así que un perro perdido en Córdoba contaba en CABA.
+          OPCIONAL a propósito: alguien marcando una mascota perdida está
+          apurado y asustado, y "no sé exactamente dónde" es una respuesta real
+          — el respaldo es una conducta definida, no un agujero. */}
+      <LocalityPicker
+        provinceCode={draft.provinceCode}
+        localityName={draft.localityName}
+        onSelect={(selection) => {
+          set("provinceCode", selection.provinceCode);
+          set("localityName", selection.localityName);
+          // Cuál de los 68 homónimos. Sin esto el servidor resuelve por nombre
+          // y cae en el primero alfabéticamente, así que el caso llega a una
+          // autoridad que nadie eligió.
+          set("localityIndecId", selection.localityIndecId);
+        }}
+      />
+      <Body>Si la dejás vacía, la búsqueda cuenta donde vive tu mascota.</Body>
+
       <TextField
         label="Qué pasó"
         multiline

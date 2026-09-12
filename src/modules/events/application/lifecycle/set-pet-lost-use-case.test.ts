@@ -209,6 +209,66 @@ describe("setPetLostWriter", () => {
     expect(tx).not.toHaveBeenCalled();
   });
 
+  describe("the case is opened WHERE IT HAPPENED, not where the animal lives", () => {
+    // THE PRODUCT DECISION UNDER TEST, and it is the same one the bite work
+    // unit settled: a dog that disappears in Córdoba while registered in CABA is
+    // Córdoba's problem. `/gob/perdidas` filters on this pair and the panorama
+    // cube counts it, so getting it wrong does not surface as a bug — it
+    // surfaces as a province quietly reporting somebody else's animals.
+    //
+    // Until 2026-09-11 `openCase` read `petJurisdiction*` unconditionally, so
+    // EVERY lost case in the system claimed the animal's home address.
+
+    async function run(params: Record<string, unknown>) {
+      const repo = makeRepo();
+      await setPetLostWriter({ ...baseParams, ...params } as typeof baseParams, {
+        repo: repo as unknown as Pick<
+          EventsRepository,
+          "insertEvent" | "updatePetLostProjection" | "insertIdentification"
+        >,
+        transaction: makeTransaction(),
+        broadcastLostPet: mockBroadcastLostPet,
+      });
+      const [caseArg] = mockOpenCase.mock.calls[0] as [Record<string, unknown>, unknown];
+      return {
+        province: caseArg.jurisdictionProvince,
+        locality: caseArg.jurisdictionLocality,
+      };
+    }
+
+    it("uses the jurisdiction of the disappearance when it is given", async () => {
+      expect(
+        await run({
+          eventJurisdictionProvince: "Córdoba",
+          eventJurisdictionLocality: "Villa Carlos Paz",
+        }),
+      ).toEqual({ province: "Córdoba", locality: "Villa Carlos Paz" });
+    });
+
+    it("falls back to the animal's home jurisdiction when nobody said", async () => {
+      // "No sé exactamente dónde" is a real answer from somebody in a panic, and
+      // the fallback is defined behaviour rather than a hole.
+      expect(await run({})).toEqual({ province: "Buenos Aires", locality: "La Plata" });
+    });
+
+    it("falls back as a PAIR, never field by field", async () => {
+      // THE ASSERTION THAT EARNS ITS KEEP. A province with no locality must not
+      // produce (Córdoba, La Plata) — a place that does not exist, on a record
+      // an authority acts on, that nothing downstream would notice. The
+      // contract refuses the partial trio upstream; this is the writer refusing
+      // it for the callers that never read a contract.
+      expect(await run({ eventJurisdictionProvince: "Córdoba" })).toEqual({
+        province: "Buenos Aires",
+        locality: "La Plata",
+      });
+      mockOpenCase.mockClear();
+      expect(await run({ eventJurisdictionLocality: "Villa Carlos Paz" })).toEqual({
+        province: "Buenos Aires",
+        locality: "La Plata",
+      });
+    });
+  });
+
   it("inserts status_changed and updates pets projection on success", async () => {
     const repo = makeRepo();
     const tx = makeTransaction();

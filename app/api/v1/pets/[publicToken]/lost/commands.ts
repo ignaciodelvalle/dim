@@ -359,6 +359,50 @@ async function markLost(
 ) {
   const { broadcastLostPet } = await import("@/lib/infra/lost-pet-broadcast");
 
+  // ===================================================================
+  // WHERE IT WAS LOST, CANONICALISED — the case is routed on this.
+  // ===================================================================
+  // The contract already refused a partial trio, so these three are all present
+  // or all absent, and absent means "no lo sé": `setPetLostWriter` then falls
+  // back to the animal's home jurisdiction, which is what every caller got
+  // before this block existed.
+  //
+  // `locality: "strict"`, the same choice `appendBite` made and for the same
+  // reason: the app picked from the INDEC catalogue, so the (province, locality)
+  // pair can be VERIFIED, and a client that invents a locality is refused with a
+  // 400 instead of writing a place that does not exist into a record a sanitary
+  // authority acts on. The web's own `setPetLostAction` still normalises with
+  // `locality: "none"` because a reverse-geocoded string is all a map pin gives
+  // it — the divergence is deliberate and in the safe direction.
+  let eventProvince: string | null = null;
+  let eventLocality: string | null = null;
+  if (input.provinceCode !== null) {
+    try {
+      const normalised = await normalizeLocationForWrite(
+        {
+          provinceCode: input.provinceCode,
+          // The CODE is what a client may assert; the display name is the
+          // catalogue's to decide.
+          province: null,
+          locality: input.localityName,
+          localityIndecId: input.localityIndecId,
+          // The pin is a separate field on this command and travels on its own.
+          lat: null,
+          lng: null,
+          address: null,
+        },
+        { locality: "strict" },
+      );
+      eventProvince = normalised.province;
+      eventLocality = normalised.locality;
+    } catch {
+      // `strict` throws on a pair the catalogue does not hold. That is a request
+      // problem rather than a fact about the animal, so it is a 400 and not one
+      // of the 409s.
+      return apiV1Error("invalid_request", 400);
+    }
+  }
+
   const result = await setPetLostWriter(
     {
       petId: pet.id,
@@ -382,6 +426,10 @@ async function markLost(
       // action hands over — the schema already held them to a real range.
       locationLat: input.locationLat == null ? null : String(input.locationLat),
       locationLng: input.locationLng == null ? null : String(input.locationLng),
+      // Null when the person did not say, and the writer's fallback to the
+      // animal's home jurisdiction is the defined behaviour for that.
+      eventJurisdictionProvince: eventProvince,
+      eventJurisdictionLocality: eventLocality,
       reason: input.reason,
       disclosurePrefs: input.disclosure,
       enrichedDescription: input.enrichedDescription ?? null,

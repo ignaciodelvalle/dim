@@ -118,6 +118,7 @@ export const LOST_COMMAND_INPUT_CODES = [
   "COORDS_INVALID",
   "COORDS_OUT_OF_RANGE",
   "COORDS_INCOMPLETE",
+  "LOST_JURISDICTION_INCOMPLETE",
   "REPORT_TARGET_REQUIRED",
   "REPORT_CATEGORY_INVALID",
   "REPORT_REASON_TOO_LONG",
@@ -177,6 +178,68 @@ function refineCoords(
 }
 
 /**
+ * WHERE THE ANIMAL WENT MISSING — the jurisdiction of the EVENT, not the pet's.
+ *
+ * A dog that disappears in Córdoba while registered in CABA is Córdoba's
+ * problem. `set-pet-lost-use-case` opens the `lost_pet_episode` case with a
+ * jurisdiction, and until 2026-09-11 it had only one to give: the ANIMAL's home
+ * one, copied from `pets.jurisdiction_*`. Every lost case in the system
+ * therefore claims to have happened where the animal lives, and `/gob/perdidas`
+ * and the panorama cube both read that pair.
+ *
+ * That is the same defect the bite work unit settled for `record-event`, and
+ * these are the same three fields it introduced, for the same reasons:
+ * a province CODE (what a client may assert), a locality NAME, and the INDEC id
+ * that separates the 68 (province, name) collisions the catalogue ships. The
+ * server canonicalises them; the display name is the catalogue's to decide.
+ *
+ * ABSENT IS A VALID ANSWER and means "no lo sé" — the writer's fall back to the
+ * animal's home jurisdiction is the defined behaviour for it, and a person
+ * marking a pet lost in a panic must not be stopped by a form field.
+ */
+const eventJurisdiction = {
+  /** ISO 3166-2 (`"AR-X"`). The server canonicalises to the stored display name. */
+  provinceCode: optionalText,
+  localityName: optionalText,
+  /** Disambiguates the 68 (province, name) collisions the INDEC catalogue ships. */
+  localityIndecId: optionalText,
+};
+
+/**
+ * THE THREE JURISDICTION FIELDS TRAVEL TOGETHER OR NOT AT ALL.
+ *
+ * Any proper subset produces a place that does not exist, because the writer
+ * falls back to the animal's home jurisdiction FIELD BY FIELD: a province with
+ * no locality routes the case to (new province, pet's locality) — a pair naming
+ * nowhere, on a record an authority acts on, and nothing downstream would
+ * notice. `refineBite` in `record-event.ts` refuses the identical shape for the
+ * identical reason; this is that rule, for this command.
+ *
+ * ITS OWN FUNCTION rather than three more branches inside `refineCoords`: that
+ * one answers a different question (is this point real?) and merging them would
+ * make a single refinement that fails for two unrelated causes.
+ */
+function refineEventJurisdiction(
+  input: {
+    provinceCode?: string | null;
+    localityName?: string | null;
+    localityIndecId?: string | null;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const given = [input.provinceCode, input.localityName, input.localityIndecId].filter(
+    (value) => value !== null && value !== undefined,
+  ).length;
+  if (given !== 0 && given !== 3) {
+    ctx.addIssue({
+      code: "custom",
+      message: "LOST_JURISDICTION_INCOMPLETE",
+      path: ["localityName"],
+    });
+  }
+}
+
+/**
  * The incident snapshot the web's wizard collects on its later steps.
  *
  * OPTIONAL AS A WHOLE and optional field by field, exactly as
@@ -207,6 +270,7 @@ const markLost = z
     /** The web's `locationAddress` — where the animal was last seen, in words. */
     locationDescription: optionalText,
     ...coords,
+    ...eventJurisdiction,
     /** The web's `reason` — the owner's own note about the disappearance. */
     reason: optionalText,
     disclosure: z.object(
@@ -221,13 +285,20 @@ const markLost = z
     ),
     enrichedDescription: enrichedDescription.nullish(),
   })
-  .superRefine(refineCoords);
+  .superRefine(refineCoords)
+  .superRefine(refineEventJurisdiction);
 
 const reportLastSeen = z
   .object({
     command: z.literal("report_last_seen"),
     locationDescription: optionalText,
     ...coords,
+    // NO JURISDICTION HERE, and the omission is deliberate rather than an
+    // oversight to be corrected later. A sighting appends a `note_added` to the
+    // spine (`updateLostLastSeen`); it opens no case and routes nothing, so the
+    // three fields would be contract surface no writer reads — which is how a
+    // schema starts lying about what the system does. When a sighting learns to
+    // move the case's jurisdiction, that is the work unit that adds them.
     /** The web's `reason` field on `UpdateLastSeenForm` — a free-text note. */
     note: optionalText,
   })

@@ -67,6 +67,23 @@ export type SetPetLostWriterParams = {
   locationDescription: string | null;
   locationLat: string | null;
   locationLng: string | null;
+  /**
+   * WHERE THE ANIMAL WENT MISSING, canonicalised, when the caller knows it.
+   *
+   * The case this use case opens is routed on these. They default to the
+   * ANIMAL'S HOME jurisdiction below, which is what every caller got before
+   * 2026-09-11 and what a caller that cannot ask still gets — but a dog lost in
+   * Córdoba is Córdoba's problem even when it lives in CABA, and `/gob/perdidas`
+   * and the panorama cube both read the pair this decides.
+   *
+   * BOTH OR NEITHER. The fallback is a PAIR and not two independent defaults:
+   * a province with no locality would route the case to (new province, pet's
+   * locality), which names nowhere. `refineEventJurisdiction` in the contract
+   * refuses the partial trio upstream; this is the same rule at the writer,
+   * where a caller that never reads the contract still lands.
+   */
+  eventJurisdictionProvince?: string | null;
+  eventJurisdictionLocality?: string | null;
   reason: string | null;
   disclosurePrefs: DisclosurePrefsInput;
   enrichedDescription?: EnrichedLostDescriptionInput | null;
@@ -125,11 +142,21 @@ export async function setPetLostWriter(
     locationDescription,
     locationLat,
     locationLng,
+    eventJurisdictionProvince = null,
+    eventJurisdictionLocality = null,
     reason,
     disclosurePrefs,
     enrichedDescription = null,
     now = new Date(),
   } = params;
+
+  // THE PAIR, resolved once. See the note on the two input fields: the fallback
+  // is all-or-nothing, so a caller that knows only the province gets the
+  // animal's home pair rather than a province glued to somebody else's locality.
+  const hasEventJurisdiction =
+    eventJurisdictionProvince !== null && eventJurisdictionLocality !== null;
+  const caseProvince = hasEventJurisdiction ? eventJurisdictionProvince : petJurisdictionProvince;
+  const caseLocality = hasEventJurisdiction ? eventJurisdictionLocality : petJurisdictionLocality;
 
   if (petStatus === "lost") return { error: "Esta mascota ya está marcada como perdida." };
   if (petStatus === "deceased")
@@ -197,8 +224,11 @@ export async function setPetLostWriter(
           kind: "lost_pet_episode",
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
-          jurisdictionProvince: petJurisdictionProvince,
-          jurisdictionLocality: petJurisdictionLocality,
+          // WHERE IT HAPPENED, falling back to where the animal lives. This
+          // used to read `petJurisdiction*` unconditionally, so every lost case
+          // in the system claimed to have happened at the animal's address.
+          jurisdictionProvince: caseProvince,
+          jurisdictionLocality: caseLocality,
           openedByUserId: recordedByUserId,
           openedReason: {
             code: "pet_marked_lost",

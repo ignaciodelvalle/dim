@@ -349,6 +349,19 @@ export function feedTruncationNote(truncated: boolean): string | null {
 export type LostDraft = {
   /** Where the animal was last seen, in words. */
   locationDescription: string;
+  /**
+   * WHERE IT WENT MISSING, from the INDEC catalogue — the case is routed on it.
+   *
+   * Not the same fact as `locationDescription`, which is prose a finder reads.
+   * This is the pair `/gob/perdidas` filters on and the panorama cube counts,
+   * and until 2026-09-11 the case carried the animal's HOME jurisdiction
+   * instead — so a dog lost in Córdoba counted in CABA. Same decision the bite
+   * form already records, same three fields, same all-or-nothing rule.
+   */
+  provinceCode: string;
+  localityName: string;
+  /** Which of the 68 homonyms. Without it the server picks one nobody chose. */
+  localityIndecId: string;
   /** The owner's own note — the reason on marcar perdida, the note on avistaje. */
   note: string;
   /** The incident snapshot the web's wizard collects on its later steps. */
@@ -381,6 +394,9 @@ export type LostDraft = {
 export function emptyLostDraft(): LostDraft {
   return {
     locationDescription: "",
+    provinceCode: "",
+    localityName: "",
+    localityIndecId: "",
     note: "",
     color: "",
     distinguishingFeatures: "",
@@ -416,6 +432,27 @@ function validated(wire: unknown): CommandResult {
 }
 
 /**
+ * THE JURISDICTION TRIO, or nothing at all.
+ *
+ * `LocalityPicker` writes all three in one `onSelect` and clears all three in
+ * one tap, so a partial set should be impossible — and this refuses it anyway,
+ * because the writer falls back to the animal's home jurisdiction FIELD BY
+ * FIELD. A province with no locality would route the case to (new province,
+ * pet's locality): a pair naming nowhere, on a record an authority acts on.
+ * The contract refuses the same shape with `LOST_JURISDICTION_INCOMPLETE`; this
+ * is the client not bothering to send a request that cannot be accepted.
+ */
+function jurisdictionTrio(draft: LostDraft) {
+  const provinceCode = orNull(draft.provinceCode);
+  const localityName = orNull(draft.localityName);
+  const localityIndecId = orNull(draft.localityIndecId);
+  const complete = provinceCode !== null && localityName !== null && localityIndecId !== null;
+  return complete
+    ? { provinceCode, localityName, localityIndecId }
+    : { provinceCode: null, localityName: null, localityIndecId: null };
+}
+
+/**
  * MARCAR PERDIDA, from the draft.
  *
  * NO COORDINATES, and that is a decision this work unit records rather than
@@ -423,6 +460,12 @@ function validated(wire: unknown): CommandResult {
  * the last-seen place as TEXT — which is exactly what an untouched web wizard
  * sends too. The contract's pair is optional and both-or-neither, so adding a
  * pin later is a map widget here and nothing at all on the server.
+ *
+ * IT DOES SEND A JURISDICTION SINCE 2026-09-11, which is the other half of the
+ * same question and a cheaper one to answer: no permission, no map, no GPS —
+ * the locality picker this app already ships. Without it the case was opened at
+ * the animal's home address no matter where it disappeared, which is the defect
+ * the bite form fixed for `record-event` and the same one, here.
  */
 export function buildMarkLost(draft: LostDraft): CommandResult {
   const enriched = {
@@ -438,6 +481,7 @@ export function buildMarkLost(draft: LostDraft): CommandResult {
   return validated({
     command: "mark_lost",
     locationDescription: orNull(draft.locationDescription),
+    ...jurisdictionTrio(draft),
     reason: orNull(draft.note),
     disclosure: draft.disclosure,
     // OMITTED ENTIRELY when nothing was filled in, rather than sent as six
@@ -510,6 +554,13 @@ export function lostInputCodeMessage(code: LostCommandInputCode | null): string 
       return "La ubicación está fuera de rango.";
     case "COORDS_INCOMPLETE":
       return "Falta una de las dos coordenadas del punto.";
+    case "LOST_JURISDICTION_INCOMPLETE":
+      // `LocalityPicker` writes its three fields together and clears them
+      // together, and `jurisdictionTrio` drops a partial set before it is ever
+      // sent — so a person cannot reach this. It means this build and the
+      // contract disagree about the shape, which is not a field anybody can go
+      // and fix.
+      return "Esta versión de la app no pudo enviar la localidad. Actualizá la app.";
     case "REPORT_TARGET_REQUIRED":
       // The app sends the row's own id, so a person can never cause this. It is
       // a build out of step with the contract, and the sentence says so rather
