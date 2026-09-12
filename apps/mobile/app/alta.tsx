@@ -444,6 +444,37 @@ function BreedPicker({
     return matches.slice(0, 12);
   }, [options, query]);
 
+  // A PICKER WITH A CHOICE SHOWS THE CHOICE, NOT THE CATALOGUE. Reported from a
+  // real Android on 2026-09-11: after tapping a breed the chip appeared AND the
+  // twelve filtered rows stayed below it AND the field kept the typed text.
+  // Three representations of one decision, stacked — and the rows pushed
+  // "Continuar" off the bottom, so the person could neither see that the choice
+  // had registered nor reach the way forward.
+  //
+  // The list was not staying open "in case you change your mind": that has its
+  // own control and it says "Quitar".
+  if (draft.breed) {
+    return (
+      <>
+        <Body>La raza es opcional. Si no la sabés, seguí sin elegir.</Body>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Raza elegida: ${draft.breed}. Tocá para quitarla.`}
+          onPress={() => {
+            // The query goes with it — reopening the picker on the leftovers of
+            // the search that found the PREVIOUS answer is its own confusion.
+            setQuery("");
+            patch({ breed: "" });
+          }}
+          style={styles.selected}
+        >
+          <Text style={styles.selectedLabel}>{draft.breed}</Text>
+          <Text style={styles.selectedClear}>Quitar</Text>
+        </Pressable>
+      </>
+    );
+  }
+
   return (
     <>
       <Body>La raza es opcional. Si no la sabés, seguí sin elegir.</Body>
@@ -455,16 +486,6 @@ function BreedPicker({
         placeholder="Escribí para filtrar"
         value={query}
       />
-      {draft.breed ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => patch({ breed: "" })}
-          style={styles.selected}
-        >
-          <Text style={styles.selectedLabel}>{draft.breed}</Text>
-          <Text style={styles.selectedClear}>Quitar</Text>
-        </Pressable>
-      ) : null}
       {filtered.length === 0 ? (
         <Body>No encontramos esa raza en el catálogo. Podés dejarla vacía.</Body>
       ) : (

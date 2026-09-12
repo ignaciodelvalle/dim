@@ -139,40 +139,51 @@ export function LocalityPicker({
   const selected = provinceCode.length > 0 && localityName.length > 0;
   const where = pickedDepartment === null ? provinceCode : `${pickedDepartment} · ${provinceCode}`;
 
+  // A PICKER WITH A CHOICE SHOWS THE CHOICE, NOT THE CATALOGUE. Reported from a
+  // real Android on 2026-09-11, and the breed picker in `app/alta.tsx` had the
+  // identical defect: after tapping a locality the chip appeared, and the search
+  // field and its result rows stayed below it. The rows pushed "Continuar" off
+  // the screen, so the person could neither see that the choice had taken nor
+  // reach the way forward.
+  //
+  // The list was not staying open "in case you change your mind" — changing it
+  // has its own control, and it says "Cambiar". A catalogue rendered underneath
+  // an answer invites the reading that nothing was chosen yet.
+  if (selected) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Localidad elegida: ${localityName}, ${where}. Tocá para cambiarla.`}
+        onPress={() => {
+          setPickedDepartment(null);
+          onSelect({
+            provinceCode: "",
+            provinceName: "",
+            localityName: "",
+            localityIndecId: "",
+            departmentName: null,
+          });
+        }}
+        style={styles.selected}
+      >
+        <View style={styles.selectedText}>
+          <Text style={styles.selectedName}>{localityName}</Text>
+          {/* THE DEPARTMENT, when this picker is the one that chose the row
+              (A2-alta-asentar-03). The list disambiguates homonyms by
+              department and the chip then showed only the province code, so the
+              person could not check that the San Martín on the confirm screen
+              was the San Martín they tapped. Held in this component's own state
+              rather than threaded through four callers' drafts: on a remount the
+              chip falls back to the province, which is what it always said. */}
+          <Text style={styles.selectedProvince}>{where}</Text>
+        </View>
+        <Text style={styles.selectedClear}>Cambiar</Text>
+      </Pressable>
+    );
+  }
+
   return (
     <>
-      {selected ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Localidad elegida: ${localityName}, ${where}. Tocá para cambiarla.`}
-          onPress={() => {
-            setPickedDepartment(null);
-            onSelect({
-              provinceCode: "",
-              provinceName: "",
-              localityName: "",
-              localityIndecId: "",
-              departmentName: null,
-            });
-          }}
-          style={styles.selected}
-        >
-          <View style={styles.selectedText}>
-            <Text style={styles.selectedName}>{localityName}</Text>
-            {/* THE DEPARTMENT, when this picker is the one that chose the row
-                (A2-alta-asentar-03). The list disambiguates homonyms by
-                department and the chip then showed only the province code, so
-                the person could not check that the San Martín on the confirm
-                screen was the San Martín they tapped. Held in this component's
-                own state rather than threaded through four callers' drafts: on a
-                remount the chip falls back to the province, which is what it
-                always said. */}
-            <Text style={styles.selectedProvince}>{where}</Text>
-          </View>
-          <Text style={styles.selectedClear}>Cambiar</Text>
-        </Pressable>
-      ) : null}
-
       {/* NO explicit `accessibilityLabel` (CA-M2, WCAG 2.5.3 "Label in Name").
           It said "Buscar localidad" while the visible label said "Localidad",
           so a person driving the phone by voice who read the screen and said
@@ -195,6 +206,14 @@ export function LocalityPicker({
         query={query}
         onPick={(selection) => {
           setPickedDepartment(selection.departmentName);
+          // COLLAPSE THE SEARCH. Without these three lines the rows stayed on
+          // screen under the chip and pushed the form's next button out of
+          // reach. Cancelling the generation matters as much as clearing the
+          // text: a response already in flight would otherwise land after the
+          // choice and repopulate the list nobody asked to see again.
+          generation.current += 1;
+          setQuery("");
+          setState({ phase: "idle" });
           onSelect(selection);
         }}
         onRetry={() => void run(query.trim())}
