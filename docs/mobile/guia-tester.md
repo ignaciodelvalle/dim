@@ -11,11 +11,14 @@ Estás probando una versión previa al lanzamiento. Si algo no anda, no es que l
 
 ## Instalar
 
-Abrí este link **desde tu celular Android**:
+Desde tu celular Android:
 
-https://play.google.com/store/apps/details?id=ar.mimar.app
+1. **Si ya tenías miMAR instalada, desinstalala primero.**
+2. Abrí este link y tocá **Become a tester** (o "Convertirte en tester"):
+   https://play.google.com/apps/testing/ar.mimar.app
+3. Instalala desde la Play Store: https://play.google.com/store/apps/details?id=ar.mimar.app
 
-Se abre la Play Store en la ficha de miMAR, con el botón **Instalar**.
+El paso 2 es el que te suma a la prueba. Actualizar o reinstalar sin tocar ese botón no cuenta.
 
 Tiene que ser la misma cuenta de Google que nos pasaste. Si tu teléfono tiene dos, fijate cuál está usando: abrí Play Store y tocá tu foto arriba a la derecha. Si la ficha no aparece o te dice que la descarga no está disponible, casi siempre es eso — avisanos y lo resolvemos.
 

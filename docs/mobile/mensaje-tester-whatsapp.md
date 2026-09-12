@@ -6,9 +6,13 @@
 
 Hola! Te escribo porque estoy por abrir la prueba de **miMAR**, la app para tener la libreta sanitaria, la credencial digital y el modo perdida de tu mascota en el celular. Sos una de las 12 personas que quiero que la pruebe antes de que salga.
 
-Instalala desde el celular Android: https://play.google.com/store/apps/details?id=ar.mimar.app
+Desde el celular Android, en este orden:
 
-Importante: entrá con **la misma cuenta de Google** que me pasaste, si no la ficha no te va a aparecer. Cualquier cosa rara, escribime y lo vemos.
+1. Si ya la tenías instalada, desinstalala.
+2. Entrá acá y tocá **Become a tester**: https://play.google.com/apps/testing/ar.mimar.app
+3. Bajala desde la Play Store: https://play.google.com/store/apps/details?id=ar.mimar.app
+
+El paso 2 es clave: sin ese botón no quedás anotado en la prueba. Y usá **la misma cuenta de Google** que me pasaste, si no la ficha no te va a aparecer. Cualquier cosa rara, escribime y lo vemos.
 
 Gracias!
 
