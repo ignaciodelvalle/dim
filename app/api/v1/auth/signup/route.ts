@@ -107,6 +107,14 @@ export async function POST(request: Request) {
         return apiV1Error("rate_limited", 429);
       case "signup_failed":
         return apiV1Error("signup_failed", 400);
+      // 422 and not 400, mirroring what GoTrue itself answered: the body parsed
+      // and the request was well formed — one VALUE in it was refused. It is
+      // deliberately NOT folded into `invalid_request` below, because that code
+      // means "the client is out of step with the contract" and carries copy
+      // telling the person to update the app. Here the client did everything
+      // right and the person must change one field.
+      case "weak_password":
+        return apiV1Error("weak_password", 422);
       // The four validation branches. All four are the schema's job one line
       // above; the use-case re-checks them because it may not assume its caller
       // validated, and they collapse to one wire code because a client that

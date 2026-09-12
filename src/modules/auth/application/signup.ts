@@ -60,6 +60,7 @@ export type SignupErrorCode =
   | "password_mismatch"
   | "tos_not_accepted"
   | "rate_limited"
+  | "weak_password"
   | "signup_failed";
 
 export type SignupValue = {
@@ -186,6 +187,37 @@ export async function signup(input: SignupInput, deps: SignupDeps): Promise<Sign
     const lower = error.message.toLowerCase();
     if (lower.includes("already") || lower.includes("registered")) {
       return { ok: true, value: { session: null } };
+    }
+    // THE PASSWORD REFUSAL IS TOLD, NOT SWALLOWED, AND THAT DOES NOT REOPEN THE
+    // LEAK THE PARAGRAPH ABOVE CLOSES.
+    //
+    // Measured on the live project 2026-09-11: with leaked-password protection
+    // on, GoTrue answers `POST /signup` with 422 and "Password is known to be
+    // weak and easy to guess, please choose a different one." That collapsed
+    // into `signup_failed`, whose copy is "volvé a intentar en unos minutos" —
+    // advice that CANNOT WORK. The same password is refused forever, so the
+    // person retries until they give up, on the first screen of the product.
+    // Seven attempts in eight minutes are in the logs; the person was the
+    // product owner, and a pilot tester would simply have left.
+    //
+    // WHY IT IS SAFE TO SAY. The enumeration defence above exists because
+    // "already registered" reveals that an email HAS an account. This refusal
+    // reveals nothing about the email: it is a verdict on the characters the
+    // person just typed, and it is identical whether or not that address is
+    // registered. An attacker who submits a weak password learns the password
+    // is weak; one who submits a strong password still cannot tell a new signup
+    // from a duplicate. The signal that was hidden stays hidden.
+    //
+    // MATCHED ON THE MESSAGE, like the branch above it, and the fragility is
+    // stated rather than hidden: the Supabase SDK does not carry a stable code
+    // on this path today. If the wording changes upstream this silently falls
+    // back to `signup_failed` — the old behaviour, not a new failure. The test
+    // pins the real sentence from the logs so a change is noticed.
+    if (lower.includes("password")) {
+      return refuse(
+        "weak_password",
+        "Esa contraseña es muy fácil de adivinar. Elegí otra, con palabras o números que no uses en otro lado.",
+      );
     }
     // Every other failure returns a single generic message — never the raw
     // Supabase text, which could itself hint at account state.

@@ -110,6 +110,15 @@
  *                           as success, above). Single generic code on purpose:
  *                           the raw provider text can itself hint at account
  *                           state.
+ * - `weak_password`       — the identity provider refused the PASSWORD, not the
+ *                           account. Carved out of `signup_failed` on
+ *                           2026-09-11, when leaked-password protection was
+ *                           turned on and every rejection reached the person as
+ *                           "try again in a few minutes" — advice that cannot
+ *                           work, on the first screen of the product. It does
+ *                           not weaken the enumeration defence: this verdict is
+ *                           about the characters typed and reads the same for a
+ *                           registered address and an unregistered one.
  *
  * THE WRITE CODES (WU-B). `POST /api/v1/pets` is the first `/api/v1` endpoint
  * that CHANGES something, and the note above about `UseCaseResult`'s untyped
@@ -1110,6 +1119,7 @@ export const API_V1_ERROR_CODES = [
   "session_shift_expired",
   "invalid_request",
   "signup_failed",
+  "weak_password",
   "identity_pending",
   "identity_name_provisional",
   "identity_already_complete",

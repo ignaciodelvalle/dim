@@ -188,11 +188,80 @@ describe("signupAction — email enumeration defense", () => {
   });
 
   it("returns a generic message (never raw Supabase text) for other failures", async () => {
-    mockSignUp.mockResolvedValue({ error: { message: "password is too weak: entropy 12" } });
+    // The example used to be a password message. It is not any more, and the
+    // reason is the test below: a password refusal now earns its own sentence.
+    // This one keeps the original claim with an input that still belongs to it —
+    // a failure the person can do nothing about, where a generic sentence is the
+    // honest answer.
+    mockSignUp.mockResolvedValue({ error: { message: "unexpected_failure: db is down" } });
     const result = await signupAction({ error: null }, signupForm("c@example.com"));
     expect(result.error).toMatch(/No pudimos completar el registro/);
-    expect(result.error).not.toMatch(/entropy|weak|password/i);
+    expect(result.error).not.toMatch(/unexpected_failure|db is down/i);
     expect(result.ok).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // The password refusal, told instead of swallowed (2026-09-11)
+  // -------------------------------------------------------------------------
+
+  it("tells the person their password was refused, with the REAL sentence the provider sends", async () => {
+    // Not an invented fixture. This is the exact string the live project
+    // answered seven times in eight minutes on 2026-09-11, once leaked-password
+    // protection was switched on — copied out of the auth logs. Pinning the real
+    // wording is what makes this test notice if upstream changes it: the match
+    // is on the message, because the SDK carries no stable code on this path.
+    mockSignUp.mockResolvedValue({
+      error: {
+        message: "Password is known to be weak and easy to guess, please choose a different one.",
+      },
+    });
+
+    const result = await signupAction({ error: null }, signupForm("d@example.com"));
+
+    expect(result.error).toMatch(/fácil de adivinar/);
+    expect(result.ok).toBeUndefined();
+    // The remedy the OLD copy gave was impossible: waiting changes nothing about
+    // a password, so the person retries the same one forever. That sentence must
+    // never come back on this path.
+    expect(result.error).not.toMatch(/en unos minutos/);
+    expect(result.error).not.toMatch(/No pudimos completar el registro/);
+  });
+
+  it("still leaks no raw provider text while doing it", async () => {
+    mockSignUp.mockResolvedValue({
+      error: {
+        message: "Password is known to be weak and easy to guess, please choose a different one.",
+      },
+    });
+    const result = await signupAction({ error: null }, signupForm("e@example.com"));
+    // Our own Spanish sentence, not a translation of theirs and not theirs.
+    expect(result.error).not.toMatch(/known to be weak|easy to guess|choose a different/i);
+  });
+
+  it("the password verdict reads the SAME for a registered and an unregistered address", async () => {
+    // THE LOAD-BEARING ONE, and the reason this change does not reopen the leak
+    // the rest of this file exists to close. The enumeration defence hides
+    // whether an email HAS an account. A password verdict is about the
+    // characters typed, so it must be byte-identical either way — and if it ever
+    // is not, this file is where that shows up.
+    const refusal = {
+      error: {
+        message: "Password is known to be weak and easy to guess, please choose a different one.",
+      },
+    };
+    mockSignUp.mockResolvedValueOnce(refusal);
+    const fresh = await signupAction({ error: null }, signupForm("nueva@example.com"));
+    mockSignUp.mockResolvedValueOnce(refusal);
+    const existing = await signupAction({ error: null }, signupForm("existe@example.com"));
+
+    // Compared WITHOUT the echoed `email`, and the exclusion is reasoned rather
+    // than convenient: that field is the address the caller just sent, returned
+    // so the form can repopulate itself. It is the input, not a verdict, and it
+    // is already known to whoever submitted it. Everything the SERVER decided
+    // must match, and does.
+    const { email: _fresh, ...freshVerdict } = fresh as Record<string, unknown>;
+    const { email: _existing, ...existingVerdict } = existing as Record<string, unknown>;
+    expect(existingVerdict).toEqual(freshVerdict);
   });
 });
 

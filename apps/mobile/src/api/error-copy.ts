@@ -124,6 +124,12 @@ export function apiErrorMessage(code: ApiV1ErrorCode): string {
       return "La app envió un pedido que el servidor no pudo leer. Actualizá la app.";
     case "signup_failed":
       return "No pudimos crear la cuenta. Volvé a intentar en unos minutos.";
+    // NAMES THE FIX, because the generic sentence above names a remedy that is
+    // impossible here: waiting changes nothing about a password. It also does
+    // not say "insegura" or "débil" as a scolding — the person did nothing
+    // wrong, the password is simply one a lot of people already use.
+    case "weak_password":
+      return "Esa contraseña es muy fácil de adivinar. Probá con otra que no uses en ningún otro lado.";
     // Says WHAT IS MISSING and WHERE it gets fixed. "No tenés permiso" would be
     // the wrong sentence twice over: nothing was denied to this person, and the
     // remedy is a step they can take right now. The app already routes a

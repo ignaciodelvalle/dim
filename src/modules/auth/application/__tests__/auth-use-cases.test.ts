@@ -343,10 +343,40 @@ describe("signup — the enumeration masquerade", () => {
     expect(result).toEqual({ ok: true, value: { session: null } });
   });
 
-  it("never surfaces the provider's text on any other failure", async () => {
+  it("says WHY when the provider refused the password, in our own words", async () => {
+    // THIS TEST USED TO ASSERT THE GENERIC REFUSAL, and the fixture is the same
+    // one it always used — a provider message about a weak password. The
+    // product owner hit it on a real device on 2026-09-11: "estaba poniendo una
+    // pass muy fácil, pero fallaba diciéndome nada útil". A person who can fix
+    // the problem in three seconds was being told to try again later.
+    //
+    // THE LEAK GUARD THIS FILE EXISTS FOR IS UNTOUCHED. The provider's own
+    // string never reaches the caller — the branch reads it and answers with a
+    // sentence written here. That is why the assertion is on OUR text, and why
+    // the case below still exists for everything else.
     const result = await signup(
       VALID,
       deps(signupPort({ error: { message: "password is too weak: entropy 12" } })),
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "weak_password",
+        message:
+          "Esa contraseña es muy fácil de adivinar. Elegí otra, con palabras o números que no uses en otro lado.",
+      },
+    });
+    // The proof that nothing leaked: no fragment of the provider's message.
+    expect(result.ok === false && result.error.message).not.toContain("entropy");
+  });
+
+  it("never surfaces the provider's text on any OTHER failure", async () => {
+    // The generic arm, pinned with a message that has nothing to do with a
+    // password — otherwise the branch above would swallow this case too and the
+    // leak guard would be testing itself.
+    const result = await signup(
+      VALID,
+      deps(signupPort({ error: { message: "smtp relay refused: 550 mailbox unavailable" } })),
     );
     expect(result).toEqual({
       ok: false,

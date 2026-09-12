@@ -558,10 +558,29 @@ describe("POST /api/v1/auth/signup", () => {
     expect(await res.json()).toEqual({ session: null });
   });
 
-  it("never surfaces the provider's own text on any other failure", async () => {
+  it("answers 422 weak_password when the provider refused the password", async () => {
+    // INVERTED ON 2026-09-11 from "never surfaces the provider's own text on
+    // any other failure", which used this exact fixture and demanded the
+    // generic 400. A person putting in an easy password was told to come back
+    // in a few minutes — advice that cannot work for a problem they could fix
+    // on the spot. The provider's string still never crosses; only the code
+    // does, and the app owns the sentence.
     control.answer = {
       data: { user: null, session: null },
       error: { message: "password is too weak: entropy 12" },
+    };
+    const res = await signupRoute(post("/auth/signup", VALID));
+
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: "weak_password" });
+  });
+
+  it("never surfaces the provider's own text on any OTHER failure", async () => {
+    // The generic arm, with a message that has nothing to do with a password —
+    // otherwise the branch above swallows this case and the guard tests itself.
+    control.answer = {
+      data: { user: null, session: null },
+      error: { message: "smtp relay refused: 550 mailbox unavailable" },
     };
     const res = await signupRoute(post("/auth/signup", VALID));
 
