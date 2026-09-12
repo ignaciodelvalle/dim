@@ -21,7 +21,7 @@
 // reviewing six fields has not said "save" yet).
 
 import { type RefObject, createRef, useCallback, useRef } from "react";
-import type { TextInput, TextInputProps } from "react-native";
+import { Keyboard, type TextInput, type TextInputProps } from "react-native";
 
 type ChainProps = {
   inputRef: RefObject<TextInput | null>;
@@ -47,10 +47,25 @@ export function useReturnKeyChain(
         returnKeyType: last ? "done" : "next",
         // "submit" keeps the keyboard OPEN while focus moves; closing and
         // reopening it between every field is the flicker this hook removes.
-        submitBehavior: last ? "blurAndSubmit" : "submit",
+        //
+        // AND THE LAST FIELD USES IT TOO SINCE 2026-09-11, which is a crash fix
+        // rather than a tidy-up. It used to ask for "blurAndSubmit" so the
+        // keyboard would close on "done" — and that is the one value that sends
+        // React Native into `clearFocusAndMaybeRefocus`, whose `rootView as
+        // ViewGroup` cast throws on Android 9 and older. Measured over adb from
+        // an Android 8.1 device: every form killed the app on its last field.
+        // See the note in kit.tsx for the RN source and the version condition.
+        //
+        // The keyboard still closes, because we close it ourselves one line
+        // below. Same behaviour for the person, without the broken path.
+        submitBehavior: "submit",
         onSubmitEditing: () => {
-          if (last) onDone?.();
-          else next?.current?.focus();
+          if (last) {
+            // Explicitly, rather than by asking the native side to blur. This
+            // is the half of "blurAndSubmit" we actually wanted.
+            Keyboard.dismiss();
+            onDone?.();
+          } else next?.current?.focus();
         },
       };
     },

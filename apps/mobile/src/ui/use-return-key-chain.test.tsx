@@ -7,7 +7,7 @@
 
 import { describe, expect, it, jest } from "@jest/globals";
 import { render } from "@testing-library/react-native";
-import type { TextInput } from "react-native";
+import { Keyboard, type TextInput } from "react-native";
 
 import { useReturnKeyChain } from "./use-return-key-chain";
 
@@ -21,13 +21,45 @@ function Harness({ count, onDone }: { count: number; onDone?: () => void }) {
 }
 
 describe("the three props per position", () => {
-  it("middle fields say NEXT and keep the keyboard open; the last says DONE and blurs", () => {
+  it("every field keeps submitBehavior `submit`; only the RETURN KEY distinguishes the last", () => {
     render(<Harness count={3} />);
     expect(chain(0).returnKeyType).toBe("next");
-    expect(chain(0).submitBehavior).toBe("submit");
     expect(chain(1).returnKeyType).toBe("next");
     expect(chain(2).returnKeyType).toBe("done");
-    expect(chain(2).submitBehavior).toBe("blurAndSubmit");
+    for (const i of [0, 1, 2]) expect(chain(i).submitBehavior).toBe("submit");
+  });
+
+  it("NO field asks for `blurAndSubmit` — it is the value that crashes Android 9 and older", () => {
+    // The assertion that would have caught this before a person did. The last
+    // field used to ask for "blurAndSubmit" so the keyboard would close, and
+    // that is the ONE value routing React Native into
+    // `clearFocusAndMaybeRefocus`, whose `rootView as ViewGroup` cast throws
+    // below API 29. Measured over adb from an Android 8.1 device on
+    // 2026-09-11: the app died on the last field of every form.
+    render(<Harness count={4} />);
+    for (const i of [0, 1, 2, 3]) {
+      expect(chain(i).submitBehavior).not.toBe("blurAndSubmit");
+    }
+  });
+
+  it("the last field still closes the keyboard — we do it ourselves", () => {
+    // The half of "blurAndSubmit" that was actually wanted, kept. If this ever
+    // goes green by removing the dismiss rather than by keeping it, the person
+    // is left staring at a keyboard over a form they already finished.
+    const dismiss = jest.spyOn(Keyboard, "dismiss").mockImplementation(() => {});
+    render(<Harness count={2} />);
+    chain(1).onSubmitEditing();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    dismiss.mockRestore();
+  });
+
+  it("a MIDDLE field does not close the keyboard", () => {
+    const dismiss = jest.spyOn(Keyboard, "dismiss").mockImplementation(() => {});
+    render(<Harness count={2} />);
+    chain(1).inputRef.current = { focus: jest.fn() } as unknown as TextInput;
+    chain(0).onSubmitEditing();
+    expect(dismiss).not.toHaveBeenCalled();
+    dismiss.mockRestore();
   });
 
   it("submit on a middle field focuses the NEXT field through its ref", () => {

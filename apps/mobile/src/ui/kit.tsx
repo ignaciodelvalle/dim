@@ -170,6 +170,23 @@ export function pullToRefresh(onRefresh: () => void, refreshing: boolean) {
  * fingerprint and cost a build — there was nothing to change.
  */
 export function keyboardAvoidingBehavior(os: typeof Platform.OS): "padding" | "height" {
+  // ANDROID GETS `"height"`, AND THIS VALUE WAS ACCUSED AND ACQUITTED ON
+  // 2026-09-11 — the record is here so nobody re-runs the trial.
+  //
+  // Build 11 shipped it and the app began closing whenever a keyboard was
+  // involved. It was the obvious suspect: it is the one thing that changed what
+  // happens when an IME appears, and it reaches all sixteen screens that ask for
+  // keyboard avoidance. That reasoning was wrong twice over. There were six days
+  // and 163 mobile files between builds 10 and 11, so "only one variable moved"
+  // was never true; and the crash, pulled off the device over adb, was a
+  // ClassCastException inside React Native's own `ReactEditText`, reached
+  // through `onEditorAction` and gated on `submitBehavior` — see the note in
+  // `TextField` below. Nothing to do with this function.
+  //
+  // Reverted here for an afternoon on that bad evidence, and restored once the
+  // stack arrived. The defect it fixes is real: under Expo SDK 54+ Android is
+  // edge-to-edge, the window no longer resizes for the IME, and `undefined`
+  // renders a plain <View> that avoids nothing.
   return os === "ios" ? "padding" : "height";
 }
 
@@ -390,6 +407,33 @@ export function TextField({
   accessibilityLabel,
   ...rest
 }: TextFieldProps) {
+  // THE `submitBehavior` DEFAULT IS `"submit"`, AND IT IS A CRASH FIX, NOT A
+  // PREFERENCE. Measured over adb from a Galaxy J7 (Android 8.1, API 27) on
+  // 2026-09-11, twice, while the product owner tried to use the app:
+  //
+  //   java.lang.ClassCastException: ReactEditText cannot be cast to ViewGroup
+  //     at ReactEditText.clearFocusAndMaybeRefocus(ReactEditText.kt:378)
+  //     at ReactTextInputManager.addEventEmitters$lambda$3(...:936)
+  //     at android.widget.TextView.onEditorAction(...)
+  //
+  // React Native's own code, and the condition is in the open:
+  //
+  //   if (SDK_INT > VERSION_CODES.P || !isInTouchMode) { super.clearFocus() }
+  //   else { val rootViewGroup = rootView as ViewGroup   // <- throws }
+  //
+  // `P` is 28. On API 29+ the first arm runs and there is no cast; at 28 and
+  // below the else-arm casts `rootView` and dies. `clearFocusAndMaybeRefocus`
+  // is called from the editor-action listener, and ONLY when
+  // `shouldBlurOnReturn()` is true — which is React Native's DEFAULT for every
+  // single-line TextInput. So on Android 9 and older, every plain field in this
+  // app closed the app when the person pressed the keyboard's own "Listo" key.
+  //
+  // `"submit"` dispatches the submit event and does not blur, so the broken
+  // method is never reached. What it costs is that the keyboard stays open
+  // after the key; the callers that want it closed say so themselves.
+  //
+  // PUT BEFORE `{...rest}` ON PURPOSE: a caller that passes its own
+  // `submitBehavior` still wins. This is a floor, not a lock.
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
@@ -399,6 +443,7 @@ export function TextField({
           ref={inputRef}
           accessibilityLabel={accessibleName(label, accessibilityLabel, required)}
           placeholderTextColor={COLORS.inkFaint}
+          submitBehavior="submit"
           {...rest}
           onBlur={(e) => {
             setFocused(false);
@@ -447,6 +492,7 @@ export function PasswordField({
         <TextInput
           accessibilityLabel={accessibleName(label, accessibilityLabel, required)}
           placeholderTextColor={COLORS.inkFaint}
+          submitBehavior="submit"
           {...rest}
           secureTextEntry={!visible}
           onBlur={(e) => {

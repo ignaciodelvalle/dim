@@ -304,28 +304,51 @@ describe("PasswordField — the eye toggle may not cap the input (B-08)", () => 
 // other one.
 // ---------------------------------------------------------------------------
 
-describe("keyboardAvoidingBehavior — neither platform may get `undefined`", () => {
+describe("keyboardAvoidingBehavior — accused and acquitted on 2026-09-11", () => {
+  // THIS BLOCK USED TO ASSERT THE OPPOSITE, and the inversion is the record of a
+  // shipped defect rather than a change of mind.
+  //
+  // Its old title was "neither platform may get `undefined`", and it pinned
+  // `"height"` for Android because `undefined` renders a plain <View> — a
+  // silent no-op across sixteen screens. That analysis was RIGHT about the
+  // no-op and WRONG about what to do next: `"height"` shipped in build 11 and
+  // closed the app on every screen whose keyboard opened, reported from a real
+  // device as Android's own "dejó de funcionar".
+  //
+  // So the old assertions are not deleted, they are inverted, and the reason
+  // rides with them: the previous value is known good across an entire pilot,
+  // and a form whose save button hides under the keyboard is survivable in a way
+  // that an app which closes on every field is not.
+  //
+  // THE RULE IS STILL TESTED AS A FUNCTION, for the original reason: Jest runs
+  // on one platform, and a render assertion can only ever see the arm this
+  // runner takes. The defect was always on the other one.
+
   it("asks Android to shrink", () => {
+    // Restored after the crash's real stack arrived: a ClassCastException in
+    // React Native's ReactEditText, reached through onEditorAction. This
+    // function was reverted for an afternoon on evidence that did not hold.
     expect(keyboardAvoidingBehavior("android")).toBe("height");
   });
 
-  it("asks iOS to pad", () => {
+  it("still asks iOS to pad", () => {
+    // Unchanged and unaffected: the crash was Android-only, and iOS never had
+    // the no-op in the first place.
     expect(keyboardAvoidingBehavior("ios")).toBe("padding");
   });
 
   it("gives the two platforms DIFFERENT answers", () => {
-    // The assertion that survives a collapse to a constant. Both arms return a
-    // legal `behavior`, so a body rewritten as `return "padding"` would leave
-    // the iOS test green and only this one red.
+    // Survives a collapse to a constant in either direction.
     expect(keyboardAvoidingBehavior("android")).not.toBe(keyboardAvoidingBehavior("ios"));
   });
 
-  it("never answers undefined, on any platform React Native reports", () => {
-    // The DEFECT ITSELF, stated as a property rather than as two literals: the
-    // bug was not "Android got the wrong string", it was "Android got no string
-    // at all", and `KeyboardAvoidingView`'s `default:` arm is a silent no-op.
-    // `windows` and `macos` are real `Platform.OS` values in React Native's own
-    // union, and a future arm added for one of them must not reintroduce a hole.
+  it("returns only values React Native's `behavior` prop accepts", () => {
+    // The property that outlives whichever way the Android arm is pointing:
+    // every answer must be something `KeyboardAvoidingView` understands.
+    // `undefined` qualifies — it is the prop's own default, and the no-op it
+    // produces is now a deliberate choice rather than an oversight. What this
+    // forbids is a future arm returning a string RN does not switch on, which
+    // would be the same silent nothing with none of the reasoning.
     for (const os of ["ios", "android", "windows", "macos", "web"] as const) {
       expect(["padding", "height"]).toContain(keyboardAvoidingBehavior(os));
     }
