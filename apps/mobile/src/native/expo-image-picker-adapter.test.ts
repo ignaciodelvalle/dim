@@ -63,8 +63,10 @@ import {
   longestEdgeClamp,
 } from "./expo-image-picker-adapter";
 
-/** The bytes the re-encode is pretending to have produced. */
-const JPEG_BYTES = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10])]);
+/** The bytes the re-encode is pretending to have produced. A Uint8Array, not a
+ *  Blob: the adapter reads `.arrayBuffer()` because a Blob body loses its
+ *  content-type on Android — see `readAsBytes`. */
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 const MANIPULATED_URI = "file:///cache/ImageManipulator/re-encoded.jpg";
 
@@ -85,7 +87,16 @@ function asset(overrides: Record<string, unknown> = {}) {
 function fetchServing(uri: string) {
   return jest.fn(async (requested: unknown) => {
     if (requested !== uri) throw new Error(`unexpected fetch of ${String(requested)}`);
-    return { blob: async () => JPEG_BYTES };
+    // `.arrayBuffer()`, not `.blob()` — the adapter reads bytes now. The buffer
+    // is sliced to the view's own bounds so the Uint8Array the adapter builds
+    // equals JPEG_BYTES exactly.
+    return {
+      arrayBuffer: async () =>
+        JPEG_BYTES.buffer.slice(
+          JPEG_BYTES.byteOffset,
+          JPEG_BYTES.byteOffset + JPEG_BYTES.byteLength,
+        ),
+    };
   });
 }
 

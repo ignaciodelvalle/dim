@@ -244,7 +244,7 @@ async function pickImage(): Promise<ImagePickResult> {
       format: SaveFormat.JPEG,
     });
 
-    const bytes = await readAsBlob(jpeg.uri);
+    const bytes = await readAsBytes(jpeg.uri);
     return {
       outcome: "picked",
       bytes,
@@ -314,16 +314,26 @@ export function longestEdgeClamp(
 }
 
 /**
- * The bytes behind a device-local URI.
+ * The bytes behind a device-local URI, as a `Uint8Array`.
  *
  * React Native's `fetch` reads `file://` and `content://` through the platform
- * networking layer, which is the only route from a URI to a `Blob` that does
- * not go through a base64 string — and base64 of a 5 MiB photo is a 6.7 MiB
- * JS string built to be thrown away.
+ * networking layer. `.arrayBuffer()` is backed by the same read as `.blob()` in
+ * RN (FileReader routes it through the native module), so this costs no more
+ * than reading a blob would.
+ *
+ * A Uint8Array AND NOT A BLOB, AND THAT IS THE FIX FOR THE UPLOAD BUG, NOT A
+ * STYLE CALL. Measured on a real Android device on 2026-09-12: a signed PUT
+ * with a `Blob` body reaches Supabase Storage as `content-type:
+ * application/octet-stream` no matter what header the caller sets, and the
+ * bucket refuses it (`InvalidMimeType`). RN's own JSON calls prove the header
+ * survives for non-blob bodies, so the blob path is where it is lost. A
+ * `Uint8Array` routes through the base64 request-body branch, which uses the
+ * content-type header (and errors loudly rather than defaulting to
+ * octet-stream if it is ever missing). See `uploadPetPhotoBytes`.
  */
-async function readAsBlob(uri: string): Promise<Blob> {
+async function readAsBytes(uri: string): Promise<Uint8Array> {
   const response = await fetch(uri);
-  return await response.blob();
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 /**

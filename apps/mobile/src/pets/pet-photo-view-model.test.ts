@@ -32,7 +32,7 @@ import {
 function picked(over: Partial<Extract<ImagePickResult, { outcome: "picked" }>> = {}) {
   return {
     outcome: "picked" as const,
-    bytes: new Blob(["x"]),
+    bytes: new Uint8Array([1]),
     contentType: "image/jpeg",
     previewUri: "file:///cache/a.jpg",
     ...over,
@@ -74,17 +74,17 @@ describe("acceptPickedImage — the gate", () => {
   });
 
   it("refuses a file over the bucket's own 5 MiB, before the upload is paid for", () => {
-    const big = new Blob([new Uint8Array(PET_PHOTO_MAX_BYTES + 1)]);
+    const big = new Uint8Array(PET_PHOTO_MAX_BYTES + 1);
     const outcome = acceptPickedImage(picked({ bytes: big }));
     expect(outcome).toEqual({ ok: false, message: expect.stringContaining("5 MB") });
 
     // The boundary itself passes: the cap is the server's `> MAX`, mirrored.
-    const exact = new Blob([new Uint8Array(PET_PHOTO_MAX_BYTES)]);
+    const exact = new Uint8Array(PET_PHOTO_MAX_BYTES);
     expect(acceptPickedImage(picked({ bytes: exact })).ok).toBe(true);
   });
 
   it("refuses an empty file with its own sentence", () => {
-    const outcome = acceptPickedImage(picked({ bytes: new Blob([]) }));
+    const outcome = acceptPickedImage(picked({ bytes: new Uint8Array(0) }));
     expect(outcome).toEqual({ ok: false, message: expect.stringContaining("no se pudo leer") });
   });
 

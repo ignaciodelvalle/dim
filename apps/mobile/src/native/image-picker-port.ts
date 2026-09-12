@@ -50,8 +50,10 @@
 export type ImagePickResult =
   | {
       outcome: "picked";
-      /** The encoded image file, ready to PUT. */
-      bytes: Blob;
+      /** The encoded image file, ready to PUT. A Uint8Array, not a Blob — see
+       *  the note on `readAsBytes` and `uploadPetPhotoBytes` for why the blob
+       *  body form loses its content-type on Android. */
+      bytes: Uint8Array;
       /** What `bytes` actually are — the adapter's promise, re-checked by the screen. */
       contentType: string;
       /** Device-local URI for an `<Image>` preview, when the module offers one. */

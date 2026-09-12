@@ -1312,7 +1312,7 @@ describe("tatuaje — el asiento que necesita una foto", () => {
       available: true,
       pickImage: async () => ({
         outcome: "picked",
-        bytes: new Blob(["x"], { type: "image/jpeg" }),
+        bytes: new Uint8Array([0xff, 0xd8, 0xff]),
         contentType: "image/jpeg",
         previewUri: null,
       }),
@@ -1337,7 +1337,7 @@ describe("tatuaje — el asiento que necesita una foto", () => {
       available: true,
       pickImage: async () => ({
         outcome: "picked",
-        bytes: new Blob(["x"], { type: "image/jpeg" }),
+        bytes: new Uint8Array([0xff, 0xd8, 0xff]),
         contentType: "image/jpeg",
         previewUri: null,
       }),
@@ -1364,7 +1364,7 @@ describe("tatuaje — el asiento que necesita una foto", () => {
       available: true,
       pickImage: async () => ({
         outcome: "picked",
-        bytes: new Blob(["x"], { type: "image/jpeg" }),
+        bytes: new Uint8Array([0xff, 0xd8, 0xff]),
         contentType: "image/jpeg",
         previewUri: null,
       }),

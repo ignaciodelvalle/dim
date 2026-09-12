@@ -67,7 +67,7 @@ function installPicker() {
 function aPick(over: Partial<Extract<ImagePickResult, { outcome: "picked" }>> = {}) {
   return {
     outcome: "picked" as const,
-    bytes: new Blob(["photo-bytes"]),
+    bytes: new Uint8Array([1, 2, 3, 4, 5, 6]),
     contentType: "image/jpeg",
     previewUri: "file:///cache/a.jpg",
     ...over,
@@ -215,7 +215,7 @@ describe("the upload", () => {
 
     await waitFor(() => expect(screen.getByText("Foto actualizada")).toBeTruthy());
     expect(mockTicket).toHaveBeenCalledWith({}, TOKEN, "image/jpeg");
-    expect(mockPut).toHaveBeenCalledWith(ticket, expect.any(Blob), "image/jpeg");
+    expect(mockPut).toHaveBeenCalledWith(ticket, expect.any(Uint8Array), "image/jpeg");
     expect(mockConfirm).toHaveBeenCalledWith({}, TOKEN, STAGED);
   });
 

@@ -43,7 +43,7 @@ export const PET_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 /** A pick this screen accepts: typed content, bounded size, ready to upload. */
 export type AcceptedImage = {
-  bytes: Blob;
+  bytes: Uint8Array;
   contentType: PetPhotoContentType;
   previewUri: string | null;
 };
@@ -94,10 +94,10 @@ export function acceptPickedImage(result: ImagePickResult): PickOutcome {
           message: `Ese archivo no es una imagen que podamos usar. Elegí una ${FORMATS}.`,
         };
       }
-      if (result.bytes.size === 0) {
+      if (result.bytes.byteLength === 0) {
         return { ok: false, message: "Esa foto no se pudo leer. Probá con otra." };
       }
-      if (result.bytes.size > PET_PHOTO_MAX_BYTES) {
+      if (result.bytes.byteLength > PET_PHOTO_MAX_BYTES) {
         // The bucket would refuse it at the PUT; refusing here saves the
         // person a full upload that ends in the same sentence.
         return { ok: false, message: "Esa foto pesa más de 5 MB. Elegí una más liviana." };

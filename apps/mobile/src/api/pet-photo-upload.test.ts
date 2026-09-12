@@ -105,7 +105,7 @@ describe("requesting a ticket", () => {
 describe("uploading the bytes — the call that is NOT ours", () => {
   it("PUTs to the ticket's URL with NO bearer token", async () => {
     mockFetch(() => new Response(null, { status: 200 }));
-    const result = await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg");
+    const result = await uploadPetPhotoBytes(ticket, new Uint8Array([1, 2, 3]), "image/jpeg");
     expect(result).toEqual({ outcome: "ok" });
 
     expect(calls).toHaveLength(1);
@@ -117,6 +117,21 @@ describe("uploading the bytes — the call that is NOT ours", () => {
     const names = Object.keys(headers).map((k) => k.toLowerCase());
     expect(names).not.toContain("authorization");
     expect(headers["content-type"]).toBe("image/jpeg");
+  });
+
+  it("PUTs a Uint8Array body, NOT a Blob — the fix for the octet-stream bug", async () => {
+    // MEASURED ON A REAL DEVICE (2026-09-12): a Blob body reaches Supabase as
+    // `content-type: application/octet-stream` whatever header is set, and the
+    // bucket refuses it. A Uint8Array routes through React Native's base64
+    // request-body branch, which honours the content-type header. This asserts
+    // the JS half we control — the body handed to fetch is a byte view, not a
+    // Blob — because jsdom cannot see the native wire behaviour that made the
+    // difference (the same class of gap as the KeyboardAvoidingView native arm).
+    mockFetch(() => new Response(null, { status: 200 }));
+    await uploadPetPhotoBytes(ticket, new Uint8Array([0xff, 0xd8, 0xff]), "image/jpeg");
+    const body = onlyCall().init.body;
+    expect(ArrayBuffer.isView(body as ArrayBufferView)).toBe(true);
+    expect(body instanceof Blob).toBe(false);
   });
 
   it("tells a DEAD TICKET apart from a REFUSED FILE, and never ends the session", async () => {
@@ -177,7 +192,7 @@ describe("uploading the bytes — the call that is NOT ours", () => {
     const outcomes: Array<[string, unknown]> = [];
     for (const [label, body] of Object.entries(bodies)) {
       mockFetch(() => json(400, body));
-      const result = await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg");
+      const result = await uploadPetPhotoBytes(ticket, new Uint8Array([1, 2, 3]), "image/jpeg");
       outcomes.push([label, result]);
     }
 
@@ -222,13 +237,13 @@ describe("uploading the bytes — the call that is NOT ours", () => {
     // its own throw is the point, and a body it cannot parse still has to
     // reach the screen as something a tester can repeat.
     mockFetch(() => new Response("<html>502 Bad Gateway</html>", { status: 400 }));
-    expect(await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg")).toEqual({
+    expect(await uploadPetPhotoBytes(ticket, new Uint8Array([1, 2, 3]), "image/jpeg")).toEqual({
       outcome: "failed",
       detail: "HTTP 400 <html>502 Bad Gateway</html>",
     });
 
     mockFetch(() => new Response(null, { status: 400 }));
-    expect(await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/jpeg")).toEqual({
+    expect(await uploadPetPhotoBytes(ticket, new Uint8Array([1, 2, 3]), "image/jpeg")).toEqual({
       outcome: "failed",
       detail: "HTTP 400",
     });
@@ -237,13 +252,13 @@ describe("uploading the bytes — the call that is NOT ours", () => {
 
   it("reads a 5xx and a dead connection as retryable, and still ends nothing", async () => {
     mockFetch(() => new Response(null, { status: 503 }));
-    expect(await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/png")).toEqual({
+    expect(await uploadPetPhotoBytes(ticket, new Uint8Array([1, 2, 3]), "image/png")).toEqual({
       outcome: "failed",
       detail: "HTTP 503",
     });
 
     mockFetch(() => new Error("Network request failed"));
-    const offline = await uploadPetPhotoBytes(ticket, new Blob(["x"]), "image/png");
+    const offline = await uploadPetPhotoBytes(ticket, new Uint8Array([1, 2, 3]), "image/png");
     expect(offline.outcome).toBe("failed");
     expect(ended).toEqual([]);
   });

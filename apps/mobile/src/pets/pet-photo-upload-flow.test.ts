@@ -45,7 +45,7 @@ const ticket = {
 const session = {} as SessionPort;
 
 const image: AcceptedImage = {
-  bytes: new Blob(["bytes"]),
+  bytes: new Uint8Array([1, 2, 3, 4, 5]),
   contentType: "image/jpeg",
   previewUri: null,
 };

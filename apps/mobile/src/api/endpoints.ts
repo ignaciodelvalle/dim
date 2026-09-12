@@ -1243,13 +1243,24 @@ export function requestPetPhotoTicket(
  * repeat it. No ticket, token or URL goes into it — the Storage error bodies
  * above carry none, and this only ever forwards them.
  *
- * `body` is a `Blob`. React Native's `fetch` handles a Blob from
- * `expo-file-system` or a picker without the FormData workaround
- * `@supabase/storage-js` warns about, because there is no multipart envelope
- * here — the signed upload endpoint takes the raw bytes. The `content-type`
- * header does reach the wire on Android: `convertRequestBody` sends a blob as
- * `{blob: body.data}`, so the `type` key that `BlobModule.toRequestBody` would
- * prefer over the header is absent and the header stands.
+ * `body` IS A `Uint8Array` AND NOT A `Blob`, AND THAT DISTINCTION IS THIS
+ * FUNCTION'S SECOND BUG FIX. An earlier version of this very comment claimed
+ * "the content-type header does reach the wire on Android" for a blob body.
+ * It does not — measured on a real Android device on 2026-09-12, a signed PUT
+ * with a Blob body arrives at Supabase Storage as
+ * `content-type: application/octet-stream`, whatever header the caller sets,
+ * and the bucket refuses it with `InvalidMimeType`. The screen was then told
+ * the file was rejected (thanks to the fix above), which was honest but not the
+ * whole story: the file was fine, the transport mislabelled it.
+ *
+ * The app's ordinary JSON calls set `content-type: application/json` and work,
+ * which proves the header survives for NON-blob bodies — so the loss is
+ * specific to React Native's blob request path. A `Uint8Array` is carried by
+ * `convertRequestBody` as `{base64: …}`, whose native branch USES the
+ * content-type header (and raises a visible error rather than silently
+ * defaulting to octet-stream if it is ever absent). The bytes are produced as a
+ * Uint8Array at the source — see `readAsBytes` in the picker adapter — so
+ * nothing re-reads a blob here.
  */
 export type PetPhotoUploadOutcome =
   | { outcome: "ok" }
@@ -1270,7 +1281,7 @@ const STORAGE_FILE_WAS_REFUSED = new Set(["InvalidMimeType", "EntityTooLarge"]);
 
 export async function uploadPetPhotoBytes(
   ticket: PetPhotoTicketV1,
-  body: Blob,
+  body: Uint8Array,
   contentType: PetPhotoContentType,
 ): Promise<PetPhotoUploadOutcome> {
   let response: Response;
@@ -1278,7 +1289,12 @@ export async function uploadPetPhotoBytes(
     response = await fetch(ticket.uploadUrl, {
       method: "PUT",
       headers: { "content-type": contentType },
-      body,
+      // `as BodyInit`: React Native's `fetch` accepts a `Uint8Array` body at
+      // runtime — that is the whole point of this change — but the DOM `lib`
+      // types this tsconfig pulls model the web `BodyInit`, which does not name
+      // a bare typed array. The cast asserts the runtime contract the ambient
+      // types cannot see; it is not widening anything the code does.
+      body: body as unknown as BodyInit,
     });
   } catch (error) {
     // No signal at all — airplane mode, a dropped connection, a DNS failure.
