@@ -212,9 +212,9 @@ describe("setPetLostWriter", () => {
   describe("the case is opened WHERE IT HAPPENED, not where the animal lives", () => {
     // THE PRODUCT DECISION UNDER TEST, and it is the same one the bite work
     // unit settled: a dog that disappears in Córdoba while registered in CABA is
-    // Córdoba's problem. `/gob/perdidas` filters on this pair and the panorama
-    // cube counts it, so getting it wrong does not surface as a bug — it
-    // surfaces as a province quietly reporting somebody else's animals.
+    // Córdoba's problem. The pair decides which jurisdiction OWNS the case and
+    // which organisations get the alert — the lost listings still scope on the
+    // pet's own columns, which the writer's docblock measures and names.
     //
     // Until 2026-09-11 `openCase` read `petJurisdiction*` unconditionally, so
     // EVERY lost case in the system claimed the animal's home address.
@@ -249,6 +249,35 @@ describe("setPetLostWriter", () => {
       // "No sé exactamente dónde" is a real answer from somebody in a panic, and
       // the fallback is defined behaviour rather than a hole.
       expect(await run({})).toEqual({ province: "Buenos Aires", locality: "La Plata" });
+    });
+
+    it("sends the ALERT to where it was lost, not to where the animal lives", async () => {
+      // THE HALF THE FIRST VERSION FORGOT, and forgetting it was worse than
+      // changing nothing: the case moved to Córdoba while `broadcastLostPet`
+      // still got `null` for `lastLocation`, so it fell back to the pet's home
+      // pair and told CABA. A Córdoba official would have held a case that no
+      // Córdoba rescue organisation was ever alerted to, and nobody near the
+      // animal would go and look.
+      const repo = makeRepo();
+      await setPetLostWriter(
+        {
+          ...baseParams,
+          eventJurisdictionProvince: "Córdoba",
+          eventJurisdictionLocality: "Villa Carlos Paz",
+        } as typeof baseParams,
+        {
+          repo: repo as unknown as Pick<
+            EventsRepository,
+            "insertEvent" | "updatePetLostProjection" | "insertIdentification"
+          >,
+          transaction: makeTransaction(),
+          broadcastLostPet: mockBroadcastLostPet,
+        },
+      );
+      // `broadcastLostPet(db, pet, owner, lastLocation, opts)` — the fourth
+      // argument is the override the fan-out reads before the pet's own pair.
+      const lastLocation = mockBroadcastLostPet.mock.calls[0]?.[3];
+      expect(lastLocation).toEqual({ province: "Córdoba", locality: "Villa Carlos Paz" });
     });
 
     it("falls back as a PAIR, never field by field", async () => {

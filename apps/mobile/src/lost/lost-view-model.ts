@@ -353,10 +353,11 @@ export type LostDraft = {
    * WHERE IT WENT MISSING, from the INDEC catalogue — the case is routed on it.
    *
    * Not the same fact as `locationDescription`, which is prose a finder reads.
-   * This is the pair `/gob/perdidas` filters on and the panorama cube counts,
-   * and until 2026-09-11 the case carried the animal's HOME jurisdiction
-   * instead — so a dog lost in Córdoba counted in CABA. Same decision the bite
-   * form already records, same three fields, same all-or-nothing rule.
+   * This is the pair that decides which jurisdiction owns the case and which
+   * organisations are alerted. Until 2026-09-11 both followed the animal's HOME
+   * address, so a dog lost in Córdoba opened a CABA case and alerted CABA.
+   * Same decision the bite form already records, same three fields, same
+   * all-or-nothing rule.
    */
   provinceCode: string;
   localityName: string;

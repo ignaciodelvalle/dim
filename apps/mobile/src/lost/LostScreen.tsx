@@ -671,9 +671,9 @@ function MarkLostForm({
 
       {/* LA LOCALIDAD DEL HECHO, NO LA DEL ANIMAL. El campo de arriba es prosa
           que lee quien encuentra a la mascota; este es el par sobre el que se
-          rutea el caso, el que filtra /gob/perdidas y el que cuenta el
-          panorama. Hasta el 2026-09-11 el caso se abría con la jurisdicción de
-          la FICHA, así que un perro perdido en Córdoba contaba en CABA.
+          rutea el caso y sobre el que sale el aviso a las organizaciones. Hasta
+          el 2026-09-11 los dos seguían la jurisdicción de la FICHA, así que un
+          perro perdido en Córdoba abría un caso en CABA y avisaba a CABA.
           OPCIONAL a propósito: alguien marcando una mascota perdida está
           apurado y asustado, y "no sé exactamente dónde" es una respuesta real
           — el respaldo es una conducta definida, no un agujero. */}

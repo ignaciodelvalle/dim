@@ -70,11 +70,28 @@ export type SetPetLostWriterParams = {
   /**
    * WHERE THE ANIMAL WENT MISSING, canonicalised, when the caller knows it.
    *
-   * The case this use case opens is routed on these. They default to the
-   * ANIMAL'S HOME jurisdiction below, which is what every caller got before
-   * 2026-09-11 and what a caller that cannot ask still gets — but a dog lost in
-   * Córdoba is Córdoba's problem even when it lives in CABA, and `/gob/perdidas`
-   * and the panorama cube both read the pair this decides.
+   * The case this use case opens is routed on these, and so is the alert
+   * fan-out below. They default to the ANIMAL'S HOME jurisdiction, which is
+   * what every caller got before 2026-09-11 and what a caller that cannot ask
+   * still gets — but a dog lost in Córdoba is Córdoba's problem even when it
+   * lives in CABA.
+   *
+   * WHAT THIS PAIR DOES AND DOES NOT REACH, measured rather than assumed. An
+   * earlier version of this comment claimed `/gob/perdidas` and the panorama
+   * cube read it. THEY DO NOT, and the claim was written without checking:
+   *   · `lib/analytics/dashboards/perdidas.ts` scopes on
+   *     `pets.jurisdictionProvince / jurisdictionLocality`.
+   *   · `src/modules/lost/infrastructure/lost-listing-read.ts` filters the
+   *     public listing on the same pet columns.
+   *   · the lost KPIs count `pets.status`, not cases.
+   * So this pair decides the CASE and the ALERTS; the lost listings and
+   * counters still follow the animal's home address. That split is the bite
+   * work unit's split too — it is the system's current shape, not something
+   * introduced here — and closing it is a separate unit, because it also has
+   * to answer an RLS question: `cases` RLS matches the case pair
+   * (0034_cases_rls_expanded.sql) while pet-scoped RLS matches the pet pair
+   * (0105_rls_defense_in_depth.sql), so an incident-jurisdiction official can
+   * hold a case whose animal they cannot read.
    *
    * BOTH OR NEITHER. The fallback is a PAIR and not two independent defaults:
    * a province with no locality would route the case to (new province, pet's
@@ -420,7 +437,21 @@ export async function setPetLostWriter(
           jurisdictionLocality: petJurisdictionLocality,
         },
         { id: ownerUserId, displayName: ownerDisplayName },
-        null,
+        // THE FAN-OUT FOLLOWS THE CASE, and this argument is the reason the
+        // parameter exists: `broadcastLostPet` reads
+        // `lastLocation?.province ?? pet.jurisdictionProvince`. It was being
+        // passed `null`, so every alert went to the animal's HOME province.
+        //
+        // The first version of the incident-jurisdiction change moved the case
+        // and left this line alone, which is worse than either end state: a dog
+        // registered in CABA and lost in Villa Carlos Paz opened a Córdoba case
+        // while only CABA organisations were told. Nobody in Córdoba would go
+        // and look, and a Córdoba official would hold a case nobody there had
+        // been alerted to. Caught in review before it shipped.
+        //
+        // Falls back on its own: when nobody said where, `caseProvince` IS the
+        // pet's pair, so this reads exactly as it did before.
+        { province: caseProvince, locality: caseLocality },
         { episodeKey: episodeCaseId },
       );
     } catch (err) {

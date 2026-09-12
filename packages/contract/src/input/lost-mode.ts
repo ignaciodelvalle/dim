@@ -184,8 +184,13 @@ function refineCoords(
  * problem. `set-pet-lost-use-case` opens the `lost_pet_episode` case with a
  * jurisdiction, and until 2026-09-11 it had only one to give: the ANIMAL's home
  * one, copied from `pets.jurisdiction_*`. Every lost case in the system
- * therefore claims to have happened where the animal lives, and `/gob/perdidas`
- * and the panorama cube both read that pair.
+ * therefore claims to have happened where the animal lives, and the alert
+ * fan-out went to the same place.
+ *
+ * WHAT IT REACHES IS THE CASE AND THE ALERTS, not the lost listings: those
+ * scope on the pet's own columns (`dashboards/perdidas.ts`,
+ * `lost-listing-read.ts`). An earlier version of this note claimed otherwise
+ * without checking. See the writer's own docblock for the full measurement.
  *
  * That is the same defect the bite work unit settled for `record-event`, and
  * these are the same three fields it introduced, for the same reasons:
