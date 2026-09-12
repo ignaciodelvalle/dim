@@ -567,7 +567,9 @@ describe("POST /api/v1/auth/signup", () => {
     // does, and the app owns the sentence.
     control.answer = {
       data: { user: null, session: null },
-      error: { message: "password is too weak: entropy 12" },
+      error: {
+        message: "Password is known to be weak and easy to guess, please choose a different one.",
+      },
     };
     const res = await signupRoute(post("/auth/signup", VALID));
 

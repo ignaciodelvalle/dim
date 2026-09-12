@@ -93,7 +93,8 @@ function loginPort(answer: {
 function signupPort(answer: {
   user?: { id: string } | null;
   session?: typeof GOTRUE_SESSION | null;
-  error?: { message: string } | null;
+  /** `code` is GoTrue's typed `ErrorCode`; see the note on `GoTrueAuthResponse`. */
+  error?: { message: string; code?: string } | null;
 }) {
   return {
     signUp: async () => {
@@ -356,7 +357,14 @@ describe("signup — the enumeration masquerade", () => {
     // the case below still exists for everything else.
     const result = await signup(
       VALID,
-      deps(signupPort({ error: { message: "password is too weak: entropy 12" } })),
+      deps(
+        signupPort({
+          error: {
+            message:
+              "Password is known to be weak and easy to guess, please choose a different one.",
+          },
+        }),
+      ),
     );
     expect(result).toEqual({
       ok: false,
@@ -368,6 +376,33 @@ describe("signup — the enumeration masquerade", () => {
     });
     // The proof that nothing leaked: no fragment of the provider's message.
     expect(result.ok === false && result.error.message).not.toContain("entropy");
+  });
+
+  it("classifies by the provider's CODE, even when the message says nothing", async () => {
+    // The instrument that replaced two rounds of substring matching.
+    // `weak_password` is a member of `@supabase/auth-js`'s typed `ErrorCode`
+    // union and was confirmed on the wire against the live project. A message
+    // this build has never seen must still be classified correctly.
+    const result = await signup(
+      VALID,
+      deps(signupPort({ error: { message: "una redacción futura", code: "weak_password" } })),
+    );
+    expect(result.ok === false && result.error.code).toBe("weak_password");
+  });
+
+  it("does NOT call a 73-character passphrase easy to guess", async () => {
+    // THE BUG THE FIRST VERSION SHIPPED. The branch matched `includes("password")`,
+    // and GoTrue also answers "Password cannot be longer than 72 characters" —
+    // which contains the word. Nothing upstream stops a long value from getting
+    // there: `signup` checks empty, minimum, mismatch and TOS, and no maximum.
+    // So the one person using a password manager properly was told their
+    // passphrase was "muy fácil de adivinar". The branch now matches the
+    // VERDICT, not the noun.
+    const result = await signup(
+      VALID,
+      deps(signupPort({ error: { message: "Password cannot be longer than 72 characters" } })),
+    );
+    expect(result.ok === false && result.error.code).toBe("signup_failed");
   });
 
   it("never surfaces the provider's text on any OTHER failure", async () => {

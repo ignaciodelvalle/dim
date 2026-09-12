@@ -55,10 +55,23 @@ export type GoTrueSessionLike = {
  */
 export type GoTrueAuthResponse = {
   data: { user: { id: string; email?: string | null } | null; session: GoTrueSessionLike | null };
-  // GoTrue's `AuthError`. Only `message` is read, and only to classify the
-  // "already registered" case — never surfaced to a client verbatim, because
-  // the provider's text can itself hint at account state.
-  error: { message: string } | null;
+  // GoTrue's `AuthError`, never surfaced to a client verbatim, because the
+  // provider's text can itself hint at account state.
+  //
+  // `message` classifies the "already registered" case. `code` was added on
+  // 2026-09-11, and this is the "somebody asks why" this type's header asks
+  // for: `signup` had started classifying the weak-password refusal by
+  // substring, and a substring is the wrong instrument. `includes("password")`
+  // also matched "Password cannot be longer than 72 characters", so a
+  // password-manager passphrase was reported as easy to guess.
+  //
+  // `code` is a stable, TYPED value — `weak_password` is a member of
+  // `@supabase/auth-js`'s own `ErrorCode` union — and it was confirmed on the
+  // wire against the live project the same day (`POST /auth/v1/signup` → 422,
+  // `"error_code":"weak_password"`). Optional because an older SDK, a proxy, or
+  // a transport error can leave it absent, and the consumer must treat absence
+  // as "unclassified" rather than as a verdict.
+  error: { message: string; code?: string } | null;
 };
 
 /** What `login` needs. `signOut` is the deactivated-institutional branch. */

@@ -200,20 +200,55 @@ export async function signup(input: SignupInput, deps: SignupDeps): Promise<Sign
     // Seven attempts in eight minutes are in the logs; the person was the
     // product owner, and a pilot tester would simply have left.
     //
-    // WHY IT IS SAFE TO SAY. The enumeration defence above exists because
-    // "already registered" reveals that an email HAS an account. This refusal
-    // reveals nothing about the email: it is a verdict on the characters the
-    // person just typed, and it is identical whether or not that address is
-    // registered. An attacker who submits a weak password learns the password
-    // is weak; one who submits a strong password still cannot tell a new signup
-    // from a duplicate. The signal that was hidden stays hidden.
+    // WHY IT IS SAFE TO SAY, AND THIS TIME IT WAS MEASURED.
+    // The enumeration defence above exists because "already registered" reveals
+    // that an email HAS an account. This refusal reveals nothing about the
+    // email ON OUR SIDE: it is a verdict on the characters just typed, decided
+    // by the provider's answer and never by the address, which
+    // `signup-enumeration.test.ts` pins.
+    //
+    // THE UPSTREAM RESIDUAL, CLOSED 2026-09-11. The worry was ordering: if
+    // GoTrue ran its user-exists check BEFORE password strength, a registered
+    // address would answer 200-with-no-session while an unregistered one
+    // answered 422 — two behaviours each correct alone, composing into a
+    // one-probe oracle. An earlier version of this comment called that settled
+    // without anybody checking, which is why it was then written down as an
+    // open question, and then actually probed against the live project:
+    //
+    //   POST /auth/v1/signup, password "password123"
+    //     owner@dim.test (registered)    -> 422 weak_password, no user, no session
+    //     probe-<uuid>@dim.test (fresh)  -> 422 weak_password, no user, no session
+    //
+    // Byte-identical, and no account was created by either. GoTrue evaluates
+    // the password FIRST, so there is no oracle on this path. If that ordering
+    // ever changes upstream the two answers diverge, which is what the probe
+    // would show again — it is cheap and reserved-TLD addresses make it
+    // harmless to repeat.
     //
     // MATCHED ON THE MESSAGE, like the branch above it, and the fragility is
     // stated rather than hidden: the Supabase SDK does not carry a stable code
     // on this path today. If the wording changes upstream this silently falls
     // back to `signup_failed` — the old behaviour, not a new failure. The test
     // pins the real sentence from the logs so a change is noticed.
-    if (lower.includes("password")) {
+    //
+    // MATCHED ON THE CODE, AND THE TWO EARLIER VERSIONS OF THIS LINE ARE THE
+    // ARGUMENT FOR IT. The first matched `includes("password")`, which also
+    // catches "Password cannot be longer than 72 characters" — nothing upstream
+    // caps the length, so a password-manager passphrase was told it was easy to
+    // guess. The second matched the verdict words instead, which was better and
+    // still a substring.
+    //
+    // `error.code` is neither: `weak_password` is a member of
+    // `@supabase/auth-js`'s own typed `ErrorCode` union, and the live project
+    // was probed on 2026-09-11 to confirm it reaches the wire
+    // (`"error_code":"weak_password"`, HTTP 422). The message fallback stays for
+    // an older SDK or a proxy that drops the field — belt and braces, with the
+    // braces now doing the work.
+    const isWeakPassword =
+      error.code === "weak_password" ||
+      lower.includes("known to be weak") ||
+      lower.includes("easy to guess");
+    if (isWeakPassword) {
       return refuse(
         "weak_password",
         "Esa contraseña es muy fácil de adivinar. Elegí otra, con palabras o números que no uses en otro lado.",

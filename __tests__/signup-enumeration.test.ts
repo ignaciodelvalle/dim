@@ -239,11 +239,27 @@ describe("signupAction — email enumeration defense", () => {
   });
 
   it("the password verdict reads the SAME for a registered and an unregistered address", async () => {
-    // THE LOAD-BEARING ONE, and the reason this change does not reopen the leak
-    // the rest of this file exists to close. The enumeration defence hides
-    // whether an email HAS an account. A password verdict is about the
-    // characters typed, so it must be byte-identical either way — and if it ever
-    // is not, this file is where that shows up.
+    // THIS TEST WAS A TAUTOLOGY AND IS NOT ANY MORE. It used to feed the SAME
+    // provider response to both arms and then assert the two results matched —
+    // identical input through one pure branch, so it asserted `f(x) === f(x)`
+    // and would have stayed green under any implementation at all. Caught in
+    // review; `docs/agents/README.md` forbids exactly this shape and it slipped
+    // in anyway, wearing a docblock that called it load-bearing.
+    //
+    // WHAT IT ASSERTS NOW is the property that is actually ours to keep: the
+    // verdict is decided by the PROVIDER'S ANSWER and never by the address. The
+    // two arms differ in the email only — same response, and any divergence
+    // would have to come from our own branching on the address, which is the
+    // leak this file exists to close.
+    //
+    // WHAT NO UNIT TEST HERE CAN SETTLE, stated plainly instead of asserted
+    // away: whether GoTrue evaluates password strength BEFORE or AFTER its own
+    // user-exists check. If existence won, a registered address would answer
+    // 200 with no session while an unregistered one answered 422 weak_password
+    // — a one-probe oracle using any known-leaked password, built out of two
+    // behaviours that are each correct on their own. That ordering lives
+    // upstream, and the comment in `signup.ts` used to call it settled without
+    // anybody having measured it. It needs a probe against the live project.
     const refusal = {
       error: {
         message: "Password is known to be weak and easy to guess, please choose a different one.",
