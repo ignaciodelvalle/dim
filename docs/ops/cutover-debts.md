@@ -49,8 +49,9 @@
   verify its state on staging too.
 - [ ] **Migration `0188` checksum drift**: it was edited after being applied. Reconcile the
   record before production inherits it.
-- [ ] **Legal baseline**: `ar-v1` (PO-signed 2026-08-16) was never applied to staging as of
-  2026-09-14; `ar-v2` is an unsigned draft pending legal review. Production needs the reviewed,
+- [ ] **Legal baseline**: `ar-v1` (PO-signed 2026-08-16) was applied to staging by the PO on
+  2026-09-14 03:56 UTC (2 rows, `baseline_version = ar-v1`, audited under the PO's account —
+  verified by query); production still needs it. `ar-v2` is an unsigned draft pending legal review. Production needs the reviewed,
   signed dataset applied with `scripts/seed-legal-baseline.ts` (checksum + sign-off gate). Note
   the ar-v2 finding: no Argentine norm mandates microchip; `AGENTS.md:333` and
   `lib/metrics/metric-legal-basis.ts:53-56` still claim otherwise.
