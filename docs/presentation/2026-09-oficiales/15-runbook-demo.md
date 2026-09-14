@@ -306,6 +306,11 @@ admitir**.
 
 | # | Sin confirmar | Cómo lo confirmás |
 |---|---|---|
+> **Verificado contra la base de ensayo el 2026-09-14** (A, C y D; B sigue siendo del teléfono):
+> - **A → CABA.** `govt_assignments` vigente de `govt@dim.test`: CABA / Ciudad Autónoma de Buenos Aires. `govt-local@dim.test`: Buenos Aires / La Plata y CABA / Palermo.
+> - **C → la cola ENO de `govt@dim.test` va a estar VACÍA.** Hay 7 filas `eno_authority` en toda la base, las 7 de **Salta** y las 7 en estado `delivered` — ninguna en CABA y ninguna pendiente. Contá el Bloque D con la lámina. Y ojo con la palabra: `delivered` es el estado interno de la fila; **no** significa que un aviso haya llegado a una autoridad (ver `limites-honestos.md`: el ENO no sale del sistema).
+> - **D → vigente.** Las seis cuentas demo (`govt`, `govt-local`, `owner`, `lilian`, `orgadmin`, `admin` @dim.test) validan `Test1234!` y ninguna está desactivada.
+
 | 🔴 A | **Qué jurisdicción ve `govt@dim.test` hoy en ensayo.** El código dice Ushuaia + El Calafate; dos documentos dicen CABA. | Entrá a `/gob` con esa cuenta el lunes. Si no es la que querés, usá `govt-local@dim.test`. |
 | 🔴 B | **Si la app de celular abre y tiene sesión en tu teléfono.** La pantalla existe; el estado del teléfono no se lee desde el repositorio, y una versión anterior publicada no podía iniciar sesión. | Abrila el lunes con `owner@dim.test`. Si no arranca, Bloque B va por la web. |
 | 🔴 C | **Si `/gob/outbox?preset=eno` tiene alguna fila en ensayo.** No hay ningún sembrado que garantice un caso ENO vivo en la base remota. | Abrila el lunes. Si está vacía, el Bloque D se cuenta con la lámina. |
