@@ -56,6 +56,11 @@
   the ar-v2 finding: no Argentine norm mandates microchip; `AGENTS.md:333` and
   `lib/metrics/metric-legal-basis.ts:53-56` still claim otherwise.
 
+- [ ] **Delete the demo "test rules" in CABA · Barracas** — `sterilization`, `microchip_required`
+  and `compliance_targets`, all with `legal_basis = 'REGLA DE PRUEBA — no refleja una norma vigente'`,
+  inserted 2026-09-14 for the government meeting (audited under the PO's account). They must never
+  reach production, and in staging they should go once the meeting is over.
+
 ## 4. Mobile
 
 - [ ] **Production build profile bakes production origins.** `EXPO_PUBLIC_SUPABASE_*` and the

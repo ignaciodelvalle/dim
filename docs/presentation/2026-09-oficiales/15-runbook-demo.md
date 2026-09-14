@@ -311,6 +311,47 @@ admitir**.
 > - **C → la cola ENO de `govt@dim.test` va a estar VACÍA.** Hay 7 filas `eno_authority` en toda la base, las 7 de **Salta** y las 7 en estado `delivered` — ninguna en CABA y ninguna pendiente. Contá el Bloque D con la lámina. Y ojo con la palabra: `delivered` es el estado interno de la fila; **no** significa que un aviso haya llegado a una autoridad (ver `limites-honestos.md`: el ENO no sale del sistema).
 > - **D → vigente.** Las seis cuentas demo (`govt`, `govt-local`, `owner`, `lilian`, `orgadmin`, `admin` @dim.test) validan `Test1234!` y ninguna está desactivada.
 
+### Cumplimiento: casos y reglas preparados (2026-09-14)
+
+**Reglas con ley real** (base legal `ar-v1`, firmada y aplicada en ensayo): antirrábica **obligatoria**
+en todo el país (Ley 22.953) y en CABA con refuerzo cada 12 meses (Ley 22.953 · Ord. CABA 41.831).
+
+**Casos para mostrar — la ficha de cumplimiento se ve entrando como el DUEÑO**, no desde `/gob`
+(la consola de gobierno muestra las reglas y los indicadores, no la tarjeta de cada animal):
+
+| Estado que muestra | Mascota | Dónde | Entrá con |
+|---|---|---|---|
+| **Vigente** — firmada por veterinario, vence 15/06/2027 | Pampa `DIM-PAMP-0001` | CABA · Belgrano | `owner@dim.test` |
+| **Sin registro** — ninguna antirrábica | Greta `DIM-DEMO-0002` | CABA · Flores | `ignacio@dim.test` |
+| **Reglas de PRUEBA** en la tarjeta (ver abajo), antirrábica vigente | Rocco `DIM-DEMO-0001` | CABA · Barracas | `owner@dim.test` |
+
+> ⚠️ **No hay caso "Vencida", y NO digas que el sistema vence la vacuna "a los 12 meses que fija la
+> regla".** Medido en código: la frecuencia de la regla **solo se muestra como texto**
+> (`lib/domain/rule-types-registry.ts:380`); la tarjeta calcula "Vencida" únicamente desde la fecha de
+> próxima dosis cargada en la vacuna o desde un recordatorio vencido
+> (`lib/projections/pet-compliance.ts:469-506`). Una vacuna vieja sin esa fecha se lee **"Registrada"**,
+> no "Vencida". Ninguna mascota demo tiene hoy una próxima dosis ya pasada, y fabricar una firma de
+> veterinario por SQL para la demo sería justamente la falsificación que `limites-honestos.md` describe.
+> Si preguntan: *"la regla ya está cargada; que el vencimiento se calcule solo a partir de ella es el
+> próximo paso"*.
+
+**Reglas configurables — DE PRUEBA, solo en CABA · Barracas** (elegida porque tiene **cero** mascotas de
+ciudadanos reales; Palermo tenía 7). Cada una dice en su base legal **"REGLA DE PRUEBA — no refleja una
+norma vigente"**, que es el texto que aparece en la tarjeta:
+
+| Regla | Nivel | Parámetros |
+|---|---|---|
+| Esterilización | Recomendada | desde los 6 meses |
+| Microchip | Recomendado | — |
+| Metas de cumplimiento | — | antirrábica 70 %, esterilización 40 % |
+
+Sirven para mostrar **cómo** una jurisdicción carga lo suyo, no **qué** exige la ley: ninguna norma
+argentina obliga al microchip, y las leyes provinciales de esterilización obligan al Estado, no al dueño
+(borrador `ar-v2`). Borrarlas antes del cutover (`docs/ops/cutover-debts.md`).
+
+**Probá mañana antes de entrar:** `/gob/reglas` con `govt@dim.test` (tienen que verse las dos de ley y,
+bajando a Barracas, las tres de prueba) y la tarjeta de Rocco con `owner@dim.test`.
+
 | 🔴 A | **Qué jurisdicción ve `govt@dim.test` hoy en ensayo.** El código dice Ushuaia + El Calafate; dos documentos dicen CABA. | Entrá a `/gob` con esa cuenta el lunes. Si no es la que querés, usá `govt-local@dim.test`. |
 | 🔴 B | **Si la app de celular abre y tiene sesión en tu teléfono.** La pantalla existe; el estado del teléfono no se lee desde el repositorio, y una versión anterior publicada no podía iniciar sesión. | Abrila el lunes con `owner@dim.test`. Si no arranca, Bloque B va por la web. |
 | 🔴 C | **Si `/gob/outbox?preset=eno` tiene alguna fila en ensayo.** No hay ningún sembrado que garantice un caso ENO vivo en la base remota. | Abrila el lunes. Si está vacía, el Bloque D se cuenta con la lámina. |
