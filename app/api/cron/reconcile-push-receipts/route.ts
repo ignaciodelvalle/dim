@@ -41,15 +41,26 @@
 // and returns. A backlog beyond one batch is drained by the next night, which is
 // the same posture every purge in `data-lifecycle.ts` takes.
 //
+// THE TELEMETRY GOES THROUGH `withCronRun`, not through a hand-rolled pair of
+// writes. Canon B02: a route under app/ does not write to the database — writes
+// travel through a use case — and the boundary fence says in as many words that
+// adding a file to its baseline is not the fix. `withCronRun` is the shared
+// wrapper ten crons in this directory already use; the two rows it writes are
+// its business, not this route's.
+//
+// It also corrects the severity this route used to send by hand. A `warning` was
+// argued here on the grounds that a bad night at Expo degrades nothing a person
+// can see — but a bad night at Expo never reaches this catch:
+// `reconcileExpoPushReceipts` swallows its own per-chunk failures and no-ops
+// without `EXPO_ACCESS_TOKEN`. What reaches it is structural (the database is
+// gone), and structural is `critical`, which is what the wrapper sends.
+//
 // Returns: { ok, checked, revoked, expired, durationMs, runId }
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { eq } from "drizzle-orm";
-
-import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
-import { sendCronAlert } from "@/lib/infra/cron-alert";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { reconcileExpoPushReceipts } from "@/lib/infra/expo-push";
 
 export const dynamic = "force-dynamic";
@@ -63,74 +74,53 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const start = Date.now();
-
-  const [run] = await db
-    .insert(cronRuns)
-    .values({ cronName: CRON_NAME, status: "running" })
-    .returning();
-
-  let status: "ok" | "failed" = "ok";
-  let outcome = { checked: 0, revoked: 0, expired: 0 };
-  const errors: { section: string; reason: string }[] = [];
+  // Captured from inside the wrapper so the response can name the row a reader
+  // would go look at. It stays empty only if the insert itself failed, in which
+  // case there is no row to name.
+  let runId = "";
 
   try {
-    // `reconcileExpoPushReceipts` swallows its own per-chunk failures and
-    // no-ops when this deployment has no `EXPO_ACCESS_TOKEN` — which is most of
-    // them. So this catch is for something structural (the database is gone),
-    // not for a bad night at Expo, and a run that reports zeros is the ordinary
-    // result on any environment without the credential.
-    outcome = await reconcileExpoPushReceipts();
+    const outcome = await withCronRun(
+      CRON_NAME,
+      async (id) => {
+        runId = id;
+        return await reconcileExpoPushReceipts();
+      },
+      (result) => ({
+        // The receipts actually answered for. Revocations are the outcome worth
+        // reading, but the count of rows LOOKED AT is what says whether this job
+        // is doing anything at all — a fleet with push enabled and a permanent
+        // zero here means tickets are not recording their ids.
+        itemsProcessed: result.checked,
+        details: { ...result },
+      }),
+    );
+
+    return NextResponse.json(
+      {
+        ok: true,
+        checked: outcome.checked,
+        revoked: outcome.revoked,
+        expired: outcome.expired,
+        durationMs: Date.now() - start,
+        runId,
+      },
+      { status: 200 },
+    );
   } catch (err) {
-    status = "failed";
-    errors.push({
-      section: "reconcileExpoPushReceipts",
-      reason: err instanceof Error ? err.message : String(err),
-    });
+    // `withCronRun` has already finalized the row as failed and alerted; this
+    // arm only shapes the response. A failed run answers 500 so Vercel's cron
+    // dashboard flags it, the same rule every sibling in this directory follows:
+    // a 200 with `ok: false` reads as a successful run to Vercel.
     console.error("[cron/reconcile-push-receipts] Error:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        durationMs: Date.now() - start,
+        runId,
+      },
+      { status: 500 },
+    );
   }
-
-  const durationMs = Date.now() - start;
-
-  await db
-    .update(cronRuns)
-    .set({
-      status,
-      finishedAt: new Date(),
-      // The receipts actually answered for. Revocations are the outcome worth
-      // reading, but the count of rows LOOKED AT is what says whether this job
-      // is doing anything at all — a fleet with push enabled and a permanent
-      // zero here means tickets are not recording their ids.
-      itemsProcessed: outcome.checked,
-      details: errors.length > 0 ? { ...outcome, errors } : outcome,
-    })
-    .where(eq(cronRuns.id, run.id));
-
-  // A failed run returns 500 so Vercel's cron dashboard flags it, the same rule
-  // every sibling in this directory follows: a 200 with `ok: false` reads as a
-  // successful run to Vercel.
-  if (status === "failed") {
-    await sendCronAlert({
-      job: CRON_NAME,
-      // Not `critical`. Nothing a person can see degrades when this job misses a
-      // night: the dead rows are still dead, the live ones still receive, and
-      // the next run reads the same pending ids — as long as it happens inside
-      // Expo's ~24h retention, which a nightly schedule leaves no room to miss
-      // twice. That is a real deadline and the reason this is not `info`.
-      severity: "warning",
-      error: errors[0]?.reason ?? "push receipt reconciliation failed",
-      details: { ...outcome, errors },
-    });
-  }
-
-  return NextResponse.json(
-    {
-      ok: status === "ok",
-      checked: outcome.checked,
-      revoked: outcome.revoked,
-      expired: outcome.expired,
-      durationMs,
-      runId: run.id,
-    },
-    { status: status === "ok" ? 200 : 500 },
-  );
 }
