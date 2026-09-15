@@ -76,6 +76,7 @@ import { planesLookCrossed } from "../config/api";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
 import {
   type PushRevocationOutcome,
+  registerThisDeviceForPush,
   revokeThisDeviceForPush,
 } from "../notifications/push-registration";
 import { addAuthBreadcrumb, reportHandledFailure } from "../observability/report";
@@ -1350,6 +1351,34 @@ export async function signOutEverywhere(endedAt: string): Promise<RevokeResult> 
 
   const result = await revokeAllSessions(sessionPort);
   if (result.outcome !== "ok") {
+    // THE REVOKE FAILED, SO THE PHONE IN THIS PERSON'S HAND HAS TO GET ITS
+    // DELIVERY ROW BACK — and nothing else in the app will do it for us.
+    //
+    // This arm returns without calling `clearSession`, which is right: a
+    // half-done revocation that also signed this device out is the worst of
+    // both. But the push revoke ABOVE already landed, and the session stays
+    // `signed-in`, so no state transition ever reaches
+    // `startPushRegistration`'s listener — and even if one did, its
+    // `registeredFor` marker still equals this user's id and would short it
+    // out. The row is revoked server-side and this install would never
+    // re-register until the app was restarted: the person keeps using miMAR
+    // and silently never gets another urgent lost-pet push on this phone. A
+    // failure of "cerrar sesión en todos los dispositivos" must not be a
+    // permanent, invisible mute of the one device that pressed it.
+    //
+    // RE-REGISTER RATHER THAN JUST CLEARING THE MARKER, because clearing it
+    // only arms a retry for a transition that may not come for hours. The
+    // credential is still live — `revokeAllSessions` FAILING is exactly the
+    // case where this session survived — so the request can land now.
+    // `registerThisDeviceForPush` is idempotent by contract, it upserts one row
+    // on `device_id`, and it asks for no permission this install has not
+    // already been granted, so a person who declined is not re-prompted.
+    //
+    // BEST EFFORT, AND SILENT. There is no surface for "no pudimos volver a
+    // encender las notificaciones de este teléfono", and the sentence this
+    // function returns is about the sessions, which is what was asked and what
+    // failed.
+    await registerThisDeviceForPush(sessionPort).catch(() => undefined);
     return {
       ok: false,
       message: apiFailureMessage(result) ?? "No pudimos cerrar las otras sesiones.",

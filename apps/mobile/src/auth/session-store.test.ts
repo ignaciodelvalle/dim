@@ -75,8 +75,11 @@ jest.mock("../credential/credential-cache", () => ({
  * only ever prove that a function was reached.
  */
 const mockRevokeThisDeviceForPush: AsyncMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockRegisterThisDeviceForPush: AsyncMock =
+  jest.fn<(...args: unknown[]) => Promise<unknown>>();
 jest.mock("../notifications/push-registration", () => ({
   revokeThisDeviceForPush: (...args: unknown[]) => mockRevokeThisDeviceForPush(...args),
+  registerThisDeviceForPush: (...args: unknown[]) => mockRegisterThisDeviceForPush(...args),
 }));
 
 /**
@@ -161,6 +164,7 @@ beforeEach(() => {
   mockDropLocalSession.mockResolvedValue(undefined);
   mockForgetAllCachedCredentials.mockResolvedValue(undefined);
   mockRevokeThisDeviceForPush.mockResolvedValue({ outcome: "acknowledged" });
+  mockRegisterThisDeviceForPush.mockResolvedValue({ outcome: "registered" });
   mockRevokeAllSessions.mockResolvedValue({ outcome: "ok", payload: { revoked: true } });
   mockLogin.mockResolvedValue(LOGIN_OK);
   mockFetchMe.mockResolvedValue({ outcome: "ok", payload: { user: LOGIN_OK.payload.user } });
@@ -1222,5 +1226,52 @@ describe("signOutEverywhere — stopping delivery before stopping the session", 
     // both. The push target was already revoked, and the next sign-in on this
     // device upserts it live again.
     expect(mockDropLocalSession).not.toHaveBeenCalled();
+  });
+
+  it("puts this phone's push target BACK when the revocation is refused", async () => {
+    // THE SILENT MUTE. The push revoke goes first and lands; then
+    // `revokeAllSessions` fails, so this arm returns without clearing the
+    // session. The phase stays `signed-in` and `startPushRegistration`'s
+    // `registeredFor` marker still holds this user's id — so nothing ever
+    // re-registers, and the row stays revoked server-side until the app is
+    // restarted. The person keeps using miMAR and never gets another urgent
+    // lost-pet push on the phone in their hand.
+    mockRevokeAllSessions.mockResolvedValue({
+      outcome: "api-error",
+      code: "temporarily_unavailable",
+      retryAfterSeconds: null,
+      correlationId: null,
+    });
+
+    const result = await signOutEverywhere("/ajustes");
+
+    expect(result.ok).toBe(false);
+    expect(mockRevokeThisDeviceForPush).toHaveBeenCalledTimes(1);
+    expect(mockRegisterThisDeviceForPush).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT re-register when the revocation succeeded", async () => {
+    // The other half, and the one that would make the fix a bug: on success
+    // every session is gone by design, and putting the delivery row back would
+    // undo the act the button performs.
+    await signOutEverywhere("/ajustes");
+
+    expect(mockRegisterThisDeviceForPush).not.toHaveBeenCalled();
+  });
+
+  it("still answers when the re-registration itself throws", async () => {
+    mockRevokeAllSessions.mockResolvedValue({
+      outcome: "api-error",
+      code: "temporarily_unavailable",
+      retryAfterSeconds: null,
+      correlationId: null,
+    });
+    mockRegisterThisDeviceForPush.mockRejectedValue(new Error("no network"));
+
+    // Best effort: a phone with no signal must not turn a refused revocation
+    // into an unhandled rejection on the way out of the screen.
+    const result = await signOutEverywhere("/ajustes");
+
+    expect(result.ok).toBe(false);
   });
 });
