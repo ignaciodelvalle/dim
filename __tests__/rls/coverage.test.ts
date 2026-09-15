@@ -217,6 +217,17 @@ async function policyCountMap(): Promise<Map<string, number>> {
   return map;
 }
 
+/** Every policy on one table, with the command it applies to. */
+async function policiesOn(table: string): Promise<Array<{ policyname: string; cmd: string }>> {
+  return (await db.execute(sql`
+    select policyname, cmd
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = ${table}
+    order by policyname
+  `)) as unknown as Array<{ policyname: string; cmd: string }>;
+}
+
 /** Every policy in the public schema with its role set, from the live catalog. */
 async function policyRoleRows(): Promise<Array<{ tablename: string; policyname: string }>> {
   return (await db.execute(sql`
@@ -308,6 +319,44 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
       withPolicies,
       `Deny-all tables MUST have zero policies but some carry policies — a policy on a deny-all table can silently widen the PostgREST surface (P0). Investigate each: ${withPolicies.join(", ")}`,
     ).toEqual([]);
+  });
+
+  // "ZERO WRITE POLICIES" WAS A COMMENT, NOT A FENCE, AND THIS IS THE FENCE.
+  //
+  // `push_targets` is in RLS_REQUIRED, which asserts only that RLS is ENABLED.
+  // The zero-policy assertion above reaches DENY_ALL_ALLOWLIST members and
+  // `push_targets` is not one: it is SELECT-own, so it legitimately carries a
+  // policy and cannot be checked by counting to zero. Its actual posture —
+  // "read your own rows, and write nothing, ever" — lived in the RLS_REQUIRED
+  // comment and in migration 0222's header, and nowhere a test could read.
+  //
+  // THAT IS NOT HYPOTHETICAL. Migration 0222 ships
+  // `DROP POLICY IF EXISTS "push_targets insert by owner"` and its UPDATE
+  // sibling precisely because an earlier draft created them. A future migration
+  // that re-added one would open the table to PostgREST — a client writing its
+  // own delivery rows directly — and every fence in this file would stay green,
+  // because RLS is still enabled and the table is still not deny-all.
+  //
+  // THE ROW CARRIES A CREDENTIAL, which is why this table gets the assertion
+  // first. `expo_push_token` is a delivery address anybody holding it can push
+  // to. `pet_tags` and `pet_caretaker_grants` are documented with the same
+  // SELECT-only shape and deserve the same treatment; this is the pattern to
+  // copy when somebody gets to them.
+  it("push_targets is SELECT-only — one policy, and not a write one", async () => {
+    const policies = await policiesOn("push_targets");
+
+    expect(
+      policies.map((p) => `${p.policyname} (${p.cmd})`),
+      "push_targets must carry EXACTLY ONE policy. A second one is either a write policy (which opens the table to PostgREST) or a widened read.",
+    ).toHaveLength(1);
+
+    // `cmd` is 'SELECT' for a read policy and 'INSERT' / 'UPDATE' / 'DELETE' /
+    // 'ALL' for the ones that must never exist here. Asserting the value rather
+    // than "is not INSERT" is what makes 'ALL' fail too.
+    expect(
+      policies[0]?.cmd,
+      `push_targets' only policy must be a SELECT. Found '${policies[0]?.cmd}' on '${policies[0]?.policyname}': registration, the last_used_at bump, the soft revoke and the purge are all server-side over the BYPASSRLS connection, so a client-writable path here is a surface nobody asked for.`,
+    ).toBe("SELECT");
   });
 
   // 2026-08-05: a policy with no TO clause applies to PUBLIC — every role,
