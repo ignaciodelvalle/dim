@@ -33,6 +33,29 @@ vi.mock("@/lib/infra/report-error", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock: the NATIVE leg.
+//
+// WHY IT IS MOCKED HERE AT ALL, when its own behaviour is tested in
+// expo-push-send.test.ts: because this file owns the FAN-OUT, and the fan-out
+// was the one part of the two-channel seam that nothing tested. `lib/infra/
+// expo-push.ts` is thoroughly covered and `sendPushForNotifications`'s call to
+// it was not covered at all — which matters more than it sounds, because the
+// native leg no-ops silently without EXPO_ACCESS_TOKEN. Deleting the call
+// entirely changed nothing observable in any test, in any environment a test
+// runs in. The feature would have been "shipped" and never sent a single push.
+//
+// It RECORDS ITS ARGUMENT rather than accepting and discarding one: which rows
+// reach the second leg is the whole question here.
+// ---------------------------------------------------------------------------
+
+const expoLegCalls: Array<Array<{ title: string }>> = [];
+vi.mock("@/lib/infra/expo-push", () => ({
+  sendExpoPushForNotifications: async (rows: Array<{ title: string }>) => {
+    expoLegCalls.push(rows);
+  },
+}));
+
+// ---------------------------------------------------------------------------
 // Mock: @/db — select returns the fixture subscriptions; update captures the
 // set() payloads so tests can assert revocation vs last-used bumps. The
 // pushSubscriptions table object is the REAL schema export so the drizzle
@@ -95,6 +118,7 @@ beforeEach(() => {
   selectShouldThrow = false;
   updateSetCalls.length = 0;
   sendNotificationMock.mockReset().mockResolvedValue({ statusCode: 201 });
+  expoLegCalls.length = 0;
   reportErrorMock.mockReset();
 });
 
@@ -269,6 +293,86 @@ describe("sendPushForNotifications", () => {
     vi.stubEnv("NEXT_PUBLIC_PUSH_ENABLED", "");
     await sendPushForNotifications([{ userId: USER_ID, severity: "urgent", title: "X" }]);
     expect(sendNotificationMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE FAN-OUT — the hook has two legs, and only one of them was ever tested
+//
+// `sendPushForNotifications` is the single choke point every use-case in this
+// system calls after writing a notification. Since the native channel landed it
+// feeds TWO senders, and the call to the second one had no test of any kind.
+//
+// That gap is not academic, and it is the reason this block exists rather than
+// a note in a review. The native leg no-ops without `EXPO_ACCESS_TOKEN`, which
+// no test environment and no local stack has — so deleting the call from this
+// function changed nothing that anything anywhere could observe. A whole
+// delivery channel, correct and covered end to end on its own, reachable by
+// nothing.
+// ---------------------------------------------------------------------------
+
+describe("sendPushForNotifications — the second leg", () => {
+  it("hands the native leg the rows that qualify", async () => {
+    enablePushEnv();
+    mockSubs = [activeSub("sub-1")];
+
+    await sendPushForNotifications([
+      { userId: USER_ID, severity: "info", title: "Bienvenida" },
+      { userId: USER_ID, severity: "urgent", title: "Alguien encontró a Pampa" },
+    ]);
+
+    expect(expoLegCalls).toHaveLength(1);
+    // The FILTERED rows, not the raw batch: the predicate runs once, above both
+    // legs, so the two channels cannot disagree about what is worth a lock
+    // screen. Handing over everything would make the native leg re-decide.
+    expect(expoLegCalls[0].map((row) => row.title)).toEqual(["Alguien encontró a Pampa"]);
+  });
+
+  it("reaches phones even when WEB push is turned off", async () => {
+    // The flag that used to return for the whole function. A deployment that
+    // turns web push off has said nothing about phones, and this is the
+    // assertion that keeps `NEXT_PUBLIC_PUSH_ENABLED` from silently deciding for
+    // a channel it is not named after.
+    vi.stubEnv("NEXT_PUBLIC_PUSH_ENABLED", "");
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "");
+    mockSubs = [activeSub("sub-1")];
+
+    await sendPushForNotifications([{ userId: USER_ID, severity: "urgent", title: "Hallazgo" }]);
+
+    expect(sendNotificationMock).not.toHaveBeenCalled();
+    expect(expoLegCalls).toHaveLength(1);
+    expect(expoLegCalls[0]).toHaveLength(1);
+  });
+
+  it("does not call the native leg when nothing qualifies", async () => {
+    enablePushEnv();
+    mockSubs = [activeSub("sub-1")];
+
+    await sendPushForNotifications([{ userId: USER_ID, severity: "info", title: "Bienvenida" }]);
+
+    // The early return above both legs. A call with an empty array would be a
+    // round trip through a sender that has nothing to send.
+    expect(expoLegCalls).toHaveLength(0);
+  });
+
+  it("sends to the browser BEFORE it sends to the phone", async () => {
+    // Stated as its own assertion because it is a deliberate ordering with a
+    // reason: the web leg's timing must be exactly what it was before a second
+    // channel existed, and a slow round trip to Expo must not delay a delivery
+    // path that already worked.
+    const order: string[] = [];
+    sendNotificationMock.mockImplementation(async () => {
+      order.push("web");
+      return { statusCode: 201 };
+    });
+    enablePushEnv();
+    mockSubs = [activeSub("sub-1")];
+
+    await sendPushForNotifications([{ userId: USER_ID, severity: "urgent", title: "Hallazgo" }]);
+    order.push(...expoLegCalls.map(() => "native"));
+
+    expect(order).toEqual(["web", "native"]);
   });
 });
 

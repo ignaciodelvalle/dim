@@ -123,7 +123,31 @@ function enableExpo() {
   vi.stubEnv("EXPO_ACCESS_TOKEN", "test-expo-access-token");
 }
 
+/**
+ * THE AMBIENT ENVIRONMENT IS NOT ALLOWED TO DECIDE ANYTHING IN THIS FILE.
+ *
+ * `isExpoPushEnabled()` reads `process.env.EXPO_ACCESS_TOKEN`, and vitest loads
+ * `.env.local`. So on a machine where somebody has put a real Expo credential
+ * there — which is exactly the machine where this feature is being worked on —
+ * every "no-ops when the credential is absent" test below ran with the
+ * credential PRESENT and failed, while the same tests passed in CI and on every
+ * other laptop.
+ *
+ * The fix is not to document the trap. It is to make the file answer the
+ * question itself: each test declares the state it is testing, and the default
+ * here is "absent". `vi.stubEnv` with an empty string is what `web-push-send.
+ * test.ts` already does for its own flag, and the blank value is deliberately
+ * the same one the "present but blank" test uses — the sender trims, so blank
+ * and absent are one state by design.
+ */
+function disableExpo() {
+  vi.stubEnv("EXPO_ACCESS_TOKEN", "");
+}
+
 beforeEach(() => {
+  // FIRST, before any fixture. Every test in this file starts from a declared
+  // environment; the ones that need the credential call `enableExpo()`.
+  disableExpo();
   mockTargets = [];
   lookupShouldThrow = false;
   markedUsed.length = 0;
@@ -143,6 +167,9 @@ afterEach(() => {
 
 describe("sendExpoPushForNotifications — enablement", () => {
   it("no-ops when EXPO_ACCESS_TOKEN is absent", async () => {
+    // `disableExpo()` in beforeEach is what makes this true regardless of what
+    // .env.local holds. Before it, this test failed on exactly the machines
+    // where somebody had configured the feature.
     mockTargets = [target("t1")];
     await sendExpoPushForNotifications([URGENT]);
     expect(sendPushNotificationsAsyncMock).not.toHaveBeenCalled();
