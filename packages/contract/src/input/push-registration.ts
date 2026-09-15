@@ -36,6 +36,7 @@ import { z } from "zod";
 export const PUSH_REGISTRATION_INPUT_CODES = [
   "COMMAND_REQUIRED",
   "DEVICE_ID_REQUIRED",
+  "DEVICE_ID_TOO_LONG",
   "EXPO_PUSH_TOKEN_REQUIRED",
   "EXPO_PUSH_TOKEN_MALFORMED",
   "PLATFORM_REQUIRED",
@@ -73,11 +74,21 @@ export const PUSH_APP_VERSION_MAX_LENGTH = 64;
  * gain — the column is unique and the write is scoped to the caller, so a
  * device_id belonging to somebody else flips a row the caller then owns, which
  * is the documented behaviour rather than an attack.
+ *
+ * IT IS CAPPED FOR THE REASON `PUSH_APP_VERSION_MAX_LENGTH` IS CAPPED — a
+ * string a client controls is a row a client controls the size of, and "shape
+ * only" was never an argument for "any length at all". Two hundred characters
+ * is an order of magnitude above any install identity a client could sanely
+ * mint (a uuid is 36) and far below anything worth storing by accident. The cap
+ * is on LENGTH and still not on FORMAT: this rejects a megabyte, not a spelling.
  */
+export const PUSH_DEVICE_ID_MAX_LENGTH = 200;
+
 const deviceId = z
   .string({ error: "DEVICE_ID_REQUIRED" })
   .trim()
-  .min(1, { error: "DEVICE_ID_REQUIRED" });
+  .min(1, { error: "DEVICE_ID_REQUIRED" })
+  .max(PUSH_DEVICE_ID_MAX_LENGTH, { error: "DEVICE_ID_TOO_LONG" });
 
 /**
  * The Expo push token.
@@ -129,10 +140,24 @@ export const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
  */
 export const PUSH_ANDROID_CHANNEL_ID = "avisos-v1";
 
+/**
+ * The longest token this endpoint will take.
+ *
+ * SAME DISCIPLINE AS `PUSH_APP_VERSION_MAX_LENGTH`, and for the same one-line
+ * reason: a string a client controls is a row a client controls the size of.
+ * The prefix check above already refuses most rubbish, but `ExponentPushToken[`
+ * followed by a megabyte passes it — a prefix says nothing about a tail. Real
+ * tokens are well under a hundred characters; 512 is generous enough that a
+ * format change at Expo does not become an outage here, and small enough that
+ * the column cannot be used as storage.
+ */
+export const EXPO_PUSH_TOKEN_MAX_LENGTH = 512;
+
 const expoPushToken = z
   .string({ error: "EXPO_PUSH_TOKEN_REQUIRED" })
   .trim()
   .min(1, { error: "EXPO_PUSH_TOKEN_REQUIRED" })
+  .max(EXPO_PUSH_TOKEN_MAX_LENGTH, { error: "EXPO_PUSH_TOKEN_MALFORMED" })
   .refine((value) => value.startsWith(EXPO_PUSH_TOKEN_PREFIX), {
     error: "EXPO_PUSH_TOKEN_MALFORMED",
   });

@@ -296,6 +296,42 @@ describe("POST /api/v1/me/push-targets — refusing a bad body", () => {
     expect(control.writes).toHaveLength(0);
   });
 
+  // A STRING A CLIENT CONTROLS IS A ROW A CLIENT CONTROLS THE SIZE OF — the
+  // sentence `appVersion`'s cap was written for, applied to the two fields that
+  // were still uncapped. `deviceId` is "shape only, never a format assertion",
+  // which was an argument about SPELLING and was being read as an argument
+  // about LENGTH; `expoPushToken` had a prefix check, and a prefix says nothing
+  // about a tail. Both writes are authenticated, so this is a storage bound
+  // rather than an authorization one — which is exactly what makes it the kind
+  // of thing nobody notices is missing.
+
+  it("refuses a device id longer than the contract's cap", async () => {
+    const res = await POST(req({ ...REGISTER, deviceId: "d".repeat(201) }));
+
+    expect(res.status).toBe(400);
+    expect(control.writes).toHaveLength(0);
+  });
+
+  it("still accepts a device id at exactly the cap", async () => {
+    // The boundary in the other direction: a cap that refuses its own limit is
+    // an off-by-one nobody sees until a client mints a longer id.
+    const res = await POST(req({ ...REGISTER, deviceId: "d".repeat(200) }));
+
+    expect(res.status).toBe(200);
+    expect(control.writes).toHaveLength(1);
+  });
+
+  it("refuses a well-prefixed token that is a megabyte long", async () => {
+    // `ExponentPushToken[` plus anything passes the prefix check. That is the
+    // gap: the shape assertion and the size assertion are different questions.
+    const res = await POST(
+      req({ ...REGISTER, expoPushToken: `ExponentPushToken[${"x".repeat(600)}]` }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(control.writes).toHaveLength(0);
+  });
+
   it("refuses a command it does not know", async () => {
     const res = await POST(req({ command: "delete_everything", deviceId: DEVICE_ID }));
 
