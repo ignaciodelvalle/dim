@@ -36,7 +36,7 @@ import type { ApiV1ErrorCode } from "@dim/contract/api";
 import * as Sentry from "@sentry/react-native";
 
 /** Which part of the app produced the failure. Closed: it becomes a tag. */
-export const REPORT_SURFACES = ["api", "auth", "update"] as const;
+export const REPORT_SURFACES = ["api", "auth", "update", "push"] as const;
 export type ReportSurface = (typeof REPORT_SURFACES)[number];
 
 /**
@@ -61,6 +61,22 @@ export const REPORT_FAILURES = [
   // device that took a staged update and would not apply it.
   "update-download-failed",
   "update-restart-failed",
+  // THE PUSH SURFACE'S TWO, AND NEITHER OF THEM IS "a notification did not
+  // arrive" — that is unobservable from here and always will be.
+  //
+  // `push-revoke-failed` is the one with teeth. A person ending a session asked
+  // for delivery to this device to STOP; when the request carrying that does not
+  // land, the row stays live and the phone keeps lighting up. The sign-out
+  // itself is deliberately unaffected — somebody leaving is leaving — so without
+  // an event here the failure is invisible on both sides: nothing on screen,
+  // nothing in the file, and a lock screen that keeps ringing.
+  "push-revoke-failed",
+  // `push-not-configured` is the BUILD saying it cannot receive at all, which on
+  // Android almost always means the FCM credential is missing from the binary
+  // (see expo-push-adapter.ts). It is not a person's problem and shows nothing;
+  // it exists so "push works on iOS and silently not on Android" is a question
+  // the file can answer instead of a thing somebody notices in a demo.
+  "push-not-configured",
 ] as const;
 export type ReportFailure = (typeof REPORT_FAILURES)[number];
 

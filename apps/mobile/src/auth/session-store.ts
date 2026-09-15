@@ -74,8 +74,11 @@ import {
 } from "../api/endpoints";
 import { planesLookCrossed } from "../config/api";
 import { forgetAllCachedCredentials } from "../credential/credential-cache";
-import { revokeThisDeviceForPush } from "../notifications/push-registration";
-import { addAuthBreadcrumb } from "../observability/report";
+import {
+  type PushRevocationOutcome,
+  revokeThisDeviceForPush,
+} from "../notifications/push-registration";
+import { addAuthBreadcrumb, reportHandledFailure } from "../observability/report";
 import {
   AUTH_STORAGE_KEY,
   authClient,
@@ -464,7 +467,40 @@ async function refreshAccessTokenOutcome(): Promise<RefreshOutcome> {
  * sesión" that leaves a live refresh token in the Keystore is a lie told to the
  * person holding the phone.
  */
-async function clearSession(): Promise<void> {
+/**
+ * What `clearSession` must NOT do again.
+ *
+ * One caller — `signOutEverywhere` — has to revoke this device's push target
+ * BEFORE it starts, because by the time it starts the credentials the revoke
+ * needs are already dead. It passes this so the teardown does not spend a second
+ * round trip repeating a request that can now only fail.
+ */
+type ClearSessionOptions = { pushAlreadyRevoked?: boolean };
+
+/**
+ * A revoke that did not land, made visible — the reason the outcome exists.
+ *
+ * NOT SHOWN TO ANYBODY, and that is the right call rather than a cop-out: the
+ * person is signing out and they are leaving either way, and there is no screen
+ * in this app where "no pudimos apagar las notificaciones de este teléfono"
+ * could be acted on. What there IS is a file, and this makes the failure
+ * reachable there — which is the whole difference between best-effort and
+ * unobservable.
+ *
+ * `unreachable` IS DROPPED, deliberately, and it is the same exclusion
+ * `REPORT_FAILURES` already makes for the API surface: a phone signing out on
+ * the subway is not a defect, and reporting it would bury the real events under
+ * one per tunnel. It costs a real miss — a revoke genuinely lost to a flaky
+ * network looks identical from here — and the trade is taken knowingly, because
+ * an alert channel nobody can read is not an alert channel.
+ */
+function reportFailedPushRevocation(outcome: PushRevocationOutcome): void {
+  if (outcome.outcome !== "failed") return;
+  if (outcome.detail === "unreachable") return;
+  reportHandledFailure({ surface: "push", failure: "push-revoke-failed" });
+}
+
+async function clearSession(options: ClearSessionOptions = {}): Promise<void> {
   // FIRST LINE, BEFORE ANY AWAIT. Everything below this point is a teardown, and
   // every in-flight refresh that resolves from here on must be refused its
   // `restoreSnapshot` — see `signOutEpoch`.
@@ -500,14 +536,17 @@ async function clearSession(): Promise<void> {
   // pointing here. Removing this line and running `session-store.test.ts` ends
   // in `FATAL ERROR: Reached heap limit Allocation failed` and SIGABRT
   // (measured). On a phone that is the app dying on the way out.
-  if (!pushRevokeInFlight) {
+  if (!options.pushAlreadyRevoked && !pushRevokeInFlight) {
     pushRevokeInFlight = true;
     try {
-      await revokeThisDeviceForPush(sessionPort);
+      reportFailedPushRevocation(await revokeThisDeviceForPush(sessionPort));
     } catch {
       // Best-effort, exactly like `forgetAllCachedCredentials`: somebody who
       // pressed "Cerrar sesión" is leaving, and a push row that could not be
-      // updated must not turn that into an error.
+      // updated must not turn that into an error. `revokeThisDeviceForPush`
+      // resolves rather than rejecting, so reaching here means something under
+      // it broke its own contract.
+      reportFailedPushRevocation({ outcome: "failed", detail: "threw" });
     } finally {
       pushRevokeInFlight = false;
     }
@@ -1279,6 +1318,36 @@ export type RevokeResult = { ok: true } | { ok: false; message: string };
  * lost the one you were holding.
  */
 export async function signOutEverywhere(endedAt: string): Promise<RevokeResult> {
+  // THE PUSH REVOKE GOES FIRST, AND IT IS THE ONE PLACE IN THIS FILE WHERE THE
+  // ORDER IS NOT A MATTER OF TASTE.
+  //
+  // `clearSession()` revokes this device's push target on its way out, which is
+  // correct for every other exit — the tokens are still in hand when it runs. It
+  // is NOT correct here, and this function was the counter-example all along.
+  // `revokeAllSessions` kills THIS session too: the moment it answers 200, the
+  // access token is refused by GoTrue and the refresh token is gone (the
+  // docblock above measured exactly that). So the revoke `clearSession` then
+  // makes goes out with a dead bearer, comes back 401, and changes nothing.
+  //
+  // The scenario that makes it matter is the one the button is FOR. Somebody's
+  // phone is gone; they sign in somewhere else and press "cerrar sesión en todos
+  // los dispositivos". Every session dies — and the phone in a stranger's pocket
+  // keeps its live `push_targets` row and keeps lighting up, because a push is
+  // delivered server-side and never consults a session. Moving the call above
+  // `revokeAllSessions` is what makes the request carry a credential that still
+  // works.
+  //
+  // IT IS NOT THE WHOLE FIX AND MUST NOT BE MISTAKEN FOR ONE: this only ever
+  // reaches the device in the caller's hand. The device the person is trying to
+  // cut off is silenced by the SERVER, which revokes every target for the user
+  // inside `POST /api/v1/me/revoke-sessions`. This half is what keeps the phone
+  // that pressed the button from re-registering nothing and from being the one
+  // exception to its own act.
+  const pushRevocation = await revokeThisDeviceForPush(sessionPort).catch(
+    (): PushRevocationOutcome => ({ outcome: "failed", detail: "threw" }),
+  );
+  reportFailedPushRevocation(pushRevocation);
+
   const result = await revokeAllSessions(sessionPort);
   if (result.outcome !== "ok") {
     return {
@@ -1286,7 +1355,10 @@ export async function signOutEverywhere(endedAt: string): Promise<RevokeResult> 
       message: apiFailureMessage(result) ?? "No pudimos cerrar las otras sesiones.",
     };
   }
-  await clearSession();
+  // `pushAlreadyRevoked` regardless of the outcome above: the credential that
+  // could have carried a retry is dead now, so a second attempt is a round trip
+  // that can only answer 401. The failure was already reported.
+  await clearSession({ pushAlreadyRevoked: true });
   setState({ phase: "signed-out", reason: "revoked_all", endedAt });
   return { ok: true };
 }

@@ -59,7 +59,9 @@ import { apiV1Error, apiV1Json } from "@/lib/infra/api-v1";
 import { API_V1_ACCOUNT_SECURITY_IP_LIMIT } from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { requireLiveUser } from "@/lib/infra/live-user";
+import { revokeAllPushTargetsForUser } from "@/lib/infra/push-target-store";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { reportError } from "@/lib/infra/report-error";
 import { createClientFromBearer } from "@/lib/supabase/bearer";
 import { revokeAllSessions } from "@/src/modules/auth/application/revoke-sessions";
 
@@ -169,6 +171,38 @@ export async function POST(request: Request) {
         throw new Error(`Unhandled liveness refusal: ${JSON.stringify(unhandled)}`);
       }
     }
+  }
+
+  // THE PUSH TARGETS GO FIRST, AND THE ORDER IS THE WHOLE POINT OF THIS BLOCK.
+  //
+  // "Cerrar sesión en todos los dispositivos" is what somebody does about a
+  // phone they no longer hold. Killing the SESSIONS stops that phone from
+  // reading anything; it does nothing whatsoever about `push_targets`, which is
+  // a separate delivery address the send path reads server-side with no session
+  // involved. Before this call the stolen phone kept receiving every urgent
+  // notification on its lock screen — genericised since the lock-screen
+  // allowlist landed, but still a doorbell ringing in somebody else's pocket,
+  // announcing that this person has an animal in trouble.
+  //
+  // BEFORE and not after, because the two must not be allowed to half-happen in
+  // the direction that matters. If this write fails we answer 503 with every
+  // session still ALIVE: the person retries, and nothing about their situation
+  // has silently changed. The reverse order would leave them signed out
+  // everywhere, told it worked, and still delivering to the device they were
+  // trying to cut off — which is precisely the state this endpoint exists to
+  // get them out of.
+  //
+  // NOT WRAPPED IN A DB BUDGET, for the reason `/me/push-targets` records: the
+  // budget races a promise against a timer and rejects without aborting the
+  // statement, so a timeout would answer "this did not happen" over a write that
+  // then commits.
+  try {
+    await revokeAllPushTargetsForUser(live.user.id);
+  } catch (err) {
+    reportError("api-v1-me-revoke-sessions/push-targets", err, { userId: live.user.id });
+    return apiV1Error("temporarily_unavailable", 503, {
+      "retry-after": String(UNAVAILABLE_RETRY_AFTER_SECONDS),
+    });
   }
 
   // `client.token` and not a token re-read from anywhere else: it is the exact

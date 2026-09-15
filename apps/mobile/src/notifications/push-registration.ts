@@ -159,31 +159,57 @@ export async function registerThisDeviceForPush(
 }
 
 /**
+ * What one revocation attempt produced.
+ *
+ * IT USED TO BE `void`, AND THAT WAS THE DEFECT. The call is best-effort by
+ * design — nobody is blocked from leaving because a row would not update — but
+ * "best-effort" was implemented as "unobservable", so a revoke that never landed
+ * looked exactly like one that did, from every angle: no return value, no
+ * screen, no event. The row stayed live and the phone kept ringing, and the only
+ * way to find out was to hold the phone.
+ *
+ * `skipped` is not a failure and must not be reported: it is the build with no
+ * push module, or an install that never minted an id, neither of which ever had
+ * a row to revoke.
+ */
+export type PushRevocationOutcome =
+  /** The server acknowledged. `revoked: false` — nothing to revoke — is still this. */
+  | { outcome: "acknowledged" }
+  /** There was never anything to revoke here. Not a failure. */
+  | { outcome: "skipped"; reason: "no-push-in-build" | "no-install-id" }
+  /** The request did not land. The row may still be live. */
+  | { outcome: "failed"; detail: string };
+
+/**
  * Tell the server to stop delivering to this install.
  *
  * CALLED FROM `clearSession()` IN THE SESSION STORE, which is the funnel every
  * way of ending a session passes through, and called BEFORE the tokens are
  * dropped — a revoke needs the very credentials the sign-out is about to
- * destroy.
+ * destroy. `signOutEverywhere` is the one caller that cannot rely on that,
+ * because it kills the session over the network FIRST; it calls this itself,
+ * earlier, and tells `clearSession` not to repeat it.
  *
- * BEST-EFFORT, ALWAYS, and it resolves rather than reporting. A "Cerrar sesión"
- * that failed because a push row could not be updated would be a worse lie than
- * the row: the person asked to leave and they are leaving. The row is soft — it
- * is revoked, not deleted — so the recovery is the next sign-in on this device,
- * which upserts it live again.
+ * STILL BEST-EFFORT — it resolves, never rejects, and no caller is allowed to
+ * block a sign-out on it. What changed is that the failure is now a VALUE the
+ * caller can report, instead of being swallowed here. The row is soft — revoked,
+ * not deleted — so the recovery is the next sign-in on this device, which
+ * upserts it live again.
  *
  * IT MINTS NO INSTALL ID. `getOrCreateInstallDeviceId` would create one for a
  * device that never registered, and the request would revoke nothing at the
  * cost of a round trip on every sign-out of every build that has no push. The
  * port check above it is what makes that impossible.
  */
-export async function revokeThisDeviceForPush(session: SessionPort): Promise<void> {
-  if (!getPushPort().available) return;
+export async function revokeThisDeviceForPush(
+  session: SessionPort,
+): Promise<PushRevocationOutcome> {
+  if (!getPushPort().available) return { outcome: "skipped", reason: "no-push-in-build" };
 
   const deviceId = await getOrCreateInstallDeviceId();
-  if (deviceId === null) return;
+  if (deviceId === null) return { outcome: "skipped", reason: "no-install-id" };
 
-  await apiRequest<{ revoked: boolean }>(
+  const result = await apiRequest<{ revoked: boolean }>(
     {
       path: PUSH_TARGETS_PATH,
       method: "POST",
@@ -191,4 +217,12 @@ export async function revokeThisDeviceForPush(session: SessionPort): Promise<voi
     },
     session,
   );
+
+  // `unreachable` is folded in with the rest on purpose. A subway sign-out is
+  // not a defect, and the caller's reporter drops `unreachable` for exactly that
+  // reason — but from HERE the two are the same fact: delivery to this device
+  // was not stopped. Deciding which of them is worth an event belongs to
+  // whoever is reporting, not to the function that made the request.
+  if (result.outcome !== "ok") return { outcome: "failed", detail: result.outcome };
+  return { outcome: "acknowledged" };
 }

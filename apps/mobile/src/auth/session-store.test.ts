@@ -66,10 +66,17 @@ jest.mock("../credential/credential-cache", () => ({
  * The push revoke, mocked for the same reason `forgetAllCachedCredentials` is:
  * it is a side effect of ending a session, it reaches the network, and what
  * matters here is WHEN the store calls it — not what it does.
+ *
+ * IT FORWARDS ITS ARGUMENT, and that is a correction rather than a detail. This
+ * stub used to be `() => mockRevokeThisDeviceForPush()`, which drops the
+ * `SessionPort` the store hands it — so every assertion below still passed with
+ * the argument deleted from the call site, and the one thing that makes the
+ * revoke authenticated was untested. A stub that discards what it receives can
+ * only ever prove that a function was reached.
  */
 const mockRevokeThisDeviceForPush: AsyncMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 jest.mock("../notifications/push-registration", () => ({
-  revokeThisDeviceForPush: () => mockRevokeThisDeviceForPush(),
+  revokeThisDeviceForPush: (...args: unknown[]) => mockRevokeThisDeviceForPush(...args),
 }));
 
 /**
@@ -80,19 +87,39 @@ jest.mock("../notifications/push-registration", () => ({
  * catches anything. This proves the crumb reaches the transport.
  */
 const mockCrumbs: { category?: string; message?: string }[] = [];
+/**
+ * And the EVENTS, for the same reason and with the same instrument. This was
+ * `captureException: () => undefined` — a stub that accepted the call and threw
+ * away both arguments, so a handled failure reported with the wrong surface, the
+ * wrong tags or no error at all was indistinguishable from one reported
+ * correctly. It is now observable; the arrow wrapper (rather than the mock
+ * itself) is what keeps the hoisted factory from dereferencing the const before
+ * it is initialised.
+ */
+const mockCaptureException: jest.Mock = jest.fn();
 jest.mock("@sentry/react-native", () => ({
   addBreadcrumb: (crumb: { category?: string; message?: string }) => {
     mockCrumbs.push(crumb);
   },
-  captureException: () => undefined,
+  captureException: (...args: unknown[]) => mockCaptureException(...args),
 }));
+
+/**
+ * "Cerrar sesión en todos los dispositivos", as a mock that can be OBSERVED.
+ *
+ * It was a literal `() => Promise.resolve({ outcome: "ok", … })` — a stub with
+ * no identity, which is why nothing in this file could ask when it was called
+ * relative to anything else, and why the ordering defect below lived here
+ * unnoticed. It also dropped its `SessionPort`.
+ */
+const mockRevokeAllSessions: AsyncMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
 jest.mock("../api/endpoints", () => ({
   login: (...args: unknown[]) => mockLogin(...args),
   completeIdentity: (...args: unknown[]) => mockCompleteIdentity(...args),
   fetchMe: (...args: unknown[]) => mockFetchMe(...args),
   signup: (...args: unknown[]) => mockSignup(...args),
-  revokeAllSessions: () => Promise.resolve({ outcome: "ok", payload: { revoked: true } }),
+  revokeAllSessions: (...args: unknown[]) => mockRevokeAllSessions(...args),
 }));
 
 import {
@@ -104,6 +131,7 @@ import {
   sessionPort,
   signIn,
   signOut,
+  signOutEverywhere,
   signUp,
 } from "./session-store";
 
@@ -132,7 +160,8 @@ beforeEach(() => {
   mockAuth.signOut.mockResolvedValue({ error: null });
   mockDropLocalSession.mockResolvedValue(undefined);
   mockForgetAllCachedCredentials.mockResolvedValue(undefined);
-  mockRevokeThisDeviceForPush.mockResolvedValue(undefined);
+  mockRevokeThisDeviceForPush.mockResolvedValue({ outcome: "acknowledged" });
+  mockRevokeAllSessions.mockResolvedValue({ outcome: "ok", payload: { revoked: true } });
   mockLogin.mockResolvedValue(LOGIN_OK);
   mockFetchMe.mockResolvedValue({ outcome: "ok", payload: { user: LOGIN_OK.payload.user } });
   mockSignup.mockResolvedValue({
@@ -1082,6 +1111,15 @@ describe("clearSession — telling the server to stop delivering", () => {
   // This test drives exactly that shape: the mocked revoke reaches for a token,
   // and the auth plane answers with the refusal that ends sessions.
   // -------------------------------------------------------------------------
+  it("hands the revoke the session port it needs to authenticate", async () => {
+    await signOut("/mascotas");
+
+    // The port is what turns this into an AUTHENTICATED request; without it the
+    // server sees an anonymous POST and the row stays live. Asserted because the
+    // stub above used to throw the argument away.
+    expect(mockRevokeThisDeviceForPush).toHaveBeenCalledWith(sessionPort);
+  });
+
   it("cannot recurse when the revoke's own token read ends the session", async () => {
     mockAuth.getSession.mockResolvedValue({
       data: { session: null },
@@ -1100,5 +1138,89 @@ describe("clearSession — telling the server to stop delivering", () => {
 
     // ONCE. Without the guard this number is bounded only by the stack.
     expect(mockRevokeThisDeviceForPush).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// signOutEverywhere — the order, and why it is a security property
+//
+// `revokeAllSessions` kills THIS session too (the store's own docblock measured
+// it: the access token is refused at once and the refresh token is gone). So a
+// push revoke made afterwards carries a dead bearer and cannot land. Before the
+// fix these two ran in exactly that order, which meant the one act somebody
+// performs about a phone they no longer hold left that phone's delivery row
+// live.
+// ---------------------------------------------------------------------------
+
+describe("signOutEverywhere — stopping delivery before stopping the session", () => {
+  it("revokes this device's push target BEFORE it kills the sessions", async () => {
+    const order: string[] = [];
+    mockRevokeThisDeviceForPush.mockImplementation(async () => {
+      order.push("push-revoke");
+      return { outcome: "acknowledged" };
+    });
+    mockRevokeAllSessions.mockImplementation(async () => {
+      order.push("revoke-all-sessions");
+      return { outcome: "ok", payload: { revoked: true } };
+    });
+
+    const result = await signOutEverywhere("/ajustes");
+
+    expect(result).toEqual({ ok: true });
+    expect(order).toEqual(["push-revoke", "revoke-all-sessions"]);
+  });
+
+  it("does not repeat the revoke during the teardown", async () => {
+    await signOutEverywhere("/ajustes");
+
+    // `clearSession` revokes on its own for every OTHER exit, and must not here:
+    // the credential a second attempt would carry is already dead, so it would
+    // be a round trip that can only answer 401.
+    expect(mockRevokeThisDeviceForPush).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a revoke that did not land, instead of swallowing it", async () => {
+    mockRevokeThisDeviceForPush.mockResolvedValue({ outcome: "failed", detail: "api-error" });
+
+    const result = await signOutEverywhere("/ajustes");
+
+    // The sign-out still succeeds — the person asked to leave and they are
+    // leaving — but the row may still be live, and that fact now leaves the
+    // device instead of dying inside a `void`.
+    expect(result).toEqual({ ok: true });
+    expect(mockCaptureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "push/push-revoke-failed" }),
+      expect.objectContaining({
+        tags: expect.objectContaining({ surface: "push", failure: "push-revoke-failed" }),
+      }),
+    );
+  });
+
+  it("does NOT report a revoke lost to a phone with no signal", async () => {
+    mockRevokeThisDeviceForPush.mockResolvedValue({ outcome: "failed", detail: "unreachable" });
+
+    await signOutEverywhere("/ajustes");
+
+    // Same exclusion `REPORT_FAILURES` already makes for the API surface: a
+    // sign-out in a tunnel is not a defect, and one event per tunnel would bury
+    // the ones that are.
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
+  it("leaves the session alone when the server refuses the revocation", async () => {
+    mockRevokeAllSessions.mockResolvedValue({
+      outcome: "api-error",
+      code: "temporarily_unavailable",
+      retryAfterSeconds: null,
+      correlationId: null,
+    });
+
+    const result = await signOutEverywhere("/ajustes");
+
+    expect(result.ok).toBe(false);
+    // A half-done revocation that also signed this device out is the worst of
+    // both. The push target was already revoked, and the next sign-in on this
+    // device upserts it live again.
+    expect(mockDropLocalSession).not.toHaveBeenCalled();
   });
 });

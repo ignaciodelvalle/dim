@@ -26,6 +26,10 @@ const control = vi.hoisted(() => ({
   limits: [] as Array<{ endpoint: string; identifier: string }>,
   limiterThrowsOn: null as string | null,
   revokeCalls: [] as Array<{ accessToken: string; userId: string; surface: string }>,
+  /** Every act, in order, so the ORDER of the two revocations can be asserted. */
+  trace: [] as string[],
+  pushTargetUserIds: [] as string[],
+  pushRevokeThrows: false,
 }));
 
 vi.mock("@/lib/supabase/bearer", async (importOriginal) => {
@@ -60,8 +64,28 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
 vi.mock("@/src/modules/auth/application/revoke-sessions", () => ({
   revokeAllSessions: async (input: { accessToken: string; userId: string; surface: string }) => {
     control.revokeCalls.push(input);
+    control.trace.push("sessions");
     return control.revokeResult;
   },
+}));
+
+// The native delivery targets. Mocked as a SEAM — its own rules are tested
+// against real Postgres in __tests__/push-target-store.test.ts — and it records
+// the user id it was handed rather than only that it was reached, because
+// revoking the wrong person's phones is the failure this stub has to be able to
+// see.
+vi.mock("@/lib/infra/push-target-store", () => ({
+  revokeAllPushTargetsForUser: async (userId: string) => {
+    control.pushTargetUserIds.push(userId);
+    control.trace.push("push-targets");
+    if (control.pushRevokeThrows) throw new Error("db unavailable");
+    return 2;
+  },
+}));
+
+const reportErrorMock = vi.fn();
+vi.mock("@/lib/infra/report-error", () => ({
+  reportError: (...args: unknown[]) => reportErrorMock(...args),
 }));
 
 import { POST } from "@/app/api/v1/me/revoke-sessions/route";
@@ -84,6 +108,10 @@ beforeEach(() => {
   control.limits = [];
   control.limiterThrowsOn = null;
   control.revokeCalls = [];
+  control.trace = [];
+  control.pushTargetUserIds = [];
+  control.pushRevokeThrows = false;
+  reportErrorMock.mockReset();
 });
 
 afterEach(() => {
@@ -202,5 +230,60 @@ describe("POST /api/v1/me/revoke-sessions — refusals", () => {
     expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({ error: "temporarily_unavailable" });
     expect(res.headers.get("retry-after")).toBe("5");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The push targets — the half of "cerrar sesión en todos los dispositivos" that
+// was missing, and the reason it matters.
+//
+// Killing the SESSIONS stops a lost phone from READING anything. It does nothing
+// about `push_targets`, which the send path reads server-side with no session
+// involved — so before this, the phone somebody was trying to cut off kept
+// receiving every urgent notification on its lock screen. These pin both the act
+// and its ORDER.
+// ---------------------------------------------------------------------------
+
+describe("POST /api/v1/me/revoke-sessions — native delivery targets", () => {
+  it("revokes every push target the person has, for that person", async () => {
+    control.live = liveUser("user-042");
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(control.pushTargetUserIds).toEqual(["user-042"]);
+  });
+
+  it("revokes the targets BEFORE it kills the sessions", async () => {
+    await POST(request());
+
+    // If this reversed, the failure arm below could no longer leave the person
+    // in a recoverable state: the sessions would already be gone while the phone
+    // kept ringing, which is exactly the situation the button exists to end.
+    expect(control.trace).toEqual(["push-targets", "sessions"]);
+  });
+
+  it("answers 503 and leaves every session ALIVE when the target revoke fails", async () => {
+    control.pushRevokeThrows = true;
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("5");
+    // Not attempted at all: a person told "no pudimos" must find their
+    // situation unchanged, not half-changed in the direction that cannot be
+    // undone.
+    expect(control.revokeCalls).toHaveLength(0);
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    expect(reportErrorMock.mock.calls[0][0]).toBe("api-v1-me-revoke-sessions/push-targets");
+  });
+
+  it("does not touch the targets when the caller never got past the guard", async () => {
+    control.live = { ok: false, reason: "ACCOUNT_ERASED" };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(403);
+    expect(control.pushTargetUserIds).toHaveLength(0);
   });
 });

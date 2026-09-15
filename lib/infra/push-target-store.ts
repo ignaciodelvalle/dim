@@ -105,6 +105,38 @@ export async function revokePushTarget(userId: string, deviceId: string): Promis
 }
 
 /**
+ * "Cerrar sesión en todos los dispositivos": stop delivering to EVERY device
+ * this person has, not just the one asking.
+ *
+ * WHY THIS EXISTS AT ALL, AND WHY IT IS NOT `revokePushTarget` IN A LOOP. The
+ * per-device revoke above is driven by the app that holds the install id, which
+ * means it can only ever reach the phone in the caller's hand. The act this one
+ * serves is the opposite act: somebody whose phone was LOST OR STOLEN opens
+ * miMAR on another device and asks for every session to die. Before this,
+ * exactly the sessions died — and the stolen phone kept its live `push_targets`
+ * row, so every urgent notification carried on lighting up a lock screen in
+ * somebody else's pocket. That is the feature failing at the one moment it is
+ * for.
+ *
+ * SOFT, LIKE EVERY OTHER REVOCATION HERE. The rows keep their trail until the
+ * nightly purge, and the recovery is the ordinary one: the next sign-in on any
+ * of those devices re-registers and clears `revoked_at`. A person who finds the
+ * phone under the car seat signs in again and push works, without a reinstall.
+ *
+ * ALREADY-REVOKED ROWS ARE FILTERED OUT rather than re-stamped, so the returned
+ * count answers "how many live devices did this silence" and a second call
+ * answers 0 — which is the honest answer, and the one a caller can log.
+ */
+export async function revokeAllPushTargetsForUser(userId: string): Promise<number> {
+  const rows = await db
+    .update(pushTargets)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(pushTargets.userId, userId), isNull(pushTargets.revokedAt)))
+    .returning({ id: pushTargets.id });
+  return rows.length;
+}
+
+/**
  * The send path's read: every device this person has that is still live.
  *
  * `revoked_at IS NULL` is the filter `push_targets_user_active_idx` is partial

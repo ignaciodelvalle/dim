@@ -25,6 +25,7 @@ import {
   activePushTargetsForUser,
   markPushTargetUsed,
   registerPushTarget,
+  revokeAllPushTargetsForUser,
   revokePushTarget,
   revokePushTargetById,
 } from "@/lib/infra/push-target-store";
@@ -39,6 +40,9 @@ const PASS = "PushTargetStore_2026!";
 
 /** One device_id both people in this file register, because that IS the test. */
 const SHARED_DEVICE = "device-push-target-store-shared";
+
+/** A second install for the same person — "todos los dispositivos" needs two. */
+const SECOND_DEVICE = "device-push-target-store-second";
 
 let userA: string;
 let userB: string;
@@ -94,6 +98,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await db.delete(pushTargets).where(eq(pushTargets.deviceId, SHARED_DEVICE));
+  await db.delete(pushTargets).where(eq(pushTargets.deviceId, SECOND_DEVICE));
 });
 
 describe("registerPushTarget — the conflict target is device_id", () => {
@@ -365,5 +370,100 @@ describe("activePushTargetsForUser — scoping", () => {
       .where(and(eq(pushTargets.userId, userB), eq(pushTargets.deviceId, SHARED_DEVICE)));
     expect(forB).toHaveLength(0);
     expect(await activePushTargetsForUser(userB)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// revokeAllPushTargetsForUser — "cerrar sesión en todos los dispositivos"
+//
+// The per-device revoke above can only ever reach the phone in the caller's
+// hand, because the app is what holds the install id. The act this one serves is
+// the opposite one: somebody whose phone is GONE asks, from another device, for
+// everything to stop. Without it the sessions died and the stolen phone kept its
+// live row — and kept lighting up.
+// ---------------------------------------------------------------------------
+
+describe("revokeAllPushTargetsForUser — every device, not just this one", () => {
+  async function registerBoth() {
+    await registerPushTarget({
+      userId: userA,
+      deviceId: SHARED_DEVICE,
+      expoPushToken: "ExponentPushToken[lost-phone]",
+      platform: "android",
+    });
+    await registerPushTarget({
+      userId: userA,
+      deviceId: SECOND_DEVICE,
+      expoPushToken: "ExponentPushToken[tablet]",
+      platform: "ios",
+    });
+  }
+
+  it("silences every live device the person has", async () => {
+    await registerBoth();
+    expect(await activePushTargetsForUser(userA)).toHaveLength(2);
+
+    const revoked = await revokeAllPushTargetsForUser(userA);
+
+    expect(revoked).toBe(2);
+    expect(await activePushTargetsForUser(userA)).toHaveLength(0);
+  });
+
+  it("revokes, never deletes — the trail survives for the purge and for art. 14", async () => {
+    await registerBoth();
+
+    await revokeAllPushTargetsForUser(userA);
+
+    const rows = await db
+      .select({ revokedAt: pushTargets.revokedAt })
+      .from(pushTargets)
+      .where(eq(pushTargets.userId, userA));
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.revokedAt).not.toBeNull();
+  });
+
+  it("does NOT touch anybody else's devices", async () => {
+    await registerBoth();
+    await registerPushTarget({
+      userId: userB,
+      deviceId: "device-push-target-store-other-person",
+      expoPushToken: "ExponentPushToken[somebody-else]",
+      platform: "android",
+    });
+
+    await revokeAllPushTargetsForUser(userA);
+
+    expect(await activePushTargetsForUser(userB)).toHaveLength(1);
+    await db
+      .delete(pushTargets)
+      .where(eq(pushTargets.deviceId, "device-push-target-store-other-person"));
+  });
+
+  it("answers 0 the second time, because there was nothing live left", async () => {
+    await registerBoth();
+    await revokeAllPushTargetsForUser(userA);
+
+    // The count is "how many live devices did this silence", not "how many rows
+    // exist" — a caller logging it should see an honest zero, and an
+    // already-revoked row must not have its timestamp moved.
+    expect(await revokeAllPushTargetsForUser(userA)).toBe(0);
+  });
+
+  it("brings a device back when the person signs in on it again", async () => {
+    await registerBoth();
+    await revokeAllPushTargetsForUser(userA);
+
+    await registerPushTarget({
+      userId: userA,
+      deviceId: SHARED_DEVICE,
+      expoPushToken: "ExponentPushToken[found-under-the-seat]",
+      platform: "android",
+    });
+
+    // Soft revocation is what makes this possible: somebody who finds the phone
+    // signs in and push works again, with no reinstall.
+    const active = await activePushTargetsForUser(userA);
+    expect(active).toHaveLength(1);
+    expect(active[0].expoPushToken).toBe("ExponentPushToken[found-under-the-seat]");
   });
 });
