@@ -164,6 +164,21 @@ storage-state*.json
 auth.json
 my-session.json
 
+# Firebase Admin SDK service-account keys — the FCM V1 credential that lets Expo
+# deliver push on this project's behalf. Downloaded from Firebase → Project
+# settings → Service accounts, uploaded once with `eas credentials`, and never
+# stored here: the repo is public and this file is a PRIVATE KEY, not an
+# identifier. Firebase names its download <project>-firebase-adminsdk-<id>.json,
+# which the first pattern catches; the second covers a copy somebody renamed.
+# .easignore carries both lines verbatim (release-config.test.ts compares them
+# rule for rule) — change both or that fence goes red.
+#
+# NOT to be confused with `apps/mobile/google-services.json`, which is committed
+# ON PURPOSE and must stay that way — that one carries public-facing identifiers
+# and `expo config` fails without it. Two files, one console, opposite rules.
+*firebase-adminsdk*.json
+service-account*.json
+
 # A ROOT app.json is Expo debris. The real one is apps/mobile/app.json.
 #
 # `@expo/config`'s `modifyConfigAsync()` writes `path.join(projectRoot, "app.json")`

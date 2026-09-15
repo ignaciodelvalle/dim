@@ -177,6 +177,17 @@ storage-state*.json
 auth.json
 my-session.json
 
+# Firebase Admin SDK service-account keys — verbatim from .gitignore, and this
+# copy matters MORE than that one. Keeping the key out of git keeps it off a
+# public repo; keeping it out of here keeps it out of the archive uploaded to
+# EAS on every build. A credential that never reaches GitHub but rides along in
+# every build upload has not been protected, only moved.
+#
+# NOT google-services.json, which is committed on purpose and which the build
+# actually needs — see the note beside these two lines in .gitignore.
+*firebase-adminsdk*.json
+service-account*.json
+
 # A ROOT app.json is Expo debris. The real one is apps/mobile/app.json.
 /app.json
 

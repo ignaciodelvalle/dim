@@ -344,22 +344,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     ...config.android,
     package: ANDROID_PACKAGE_NAME,
-    // THE ONE KEY PUSH ON ANDROID NEEDS AND THIS FILE DOES NOT HAVE:
+    // THE ONE KEY PUSH ON ANDROID NEEDS. Landed 2026-09-15, together with the
+    // file it points at.
+    googleServicesFile: "./google-services.json",
     //
-    //     googleServicesFile: "./google-services.json",
-    //
-    // It is commented out ON PURPOSE and must not be uncommented until the file
-    // is actually in this directory. `expo config` and `expo prebuild` both READ
-    // the path and fail on a missing file, so writing the key hopefully would
-    // turn a missing credential into a broken build — including `pnpm
-    // verify:mobile`, which runs `expo config`.
+    // IT IS ONLY EVER WRITTEN WITH THE FILE PRESENT. `expo config` and
+    // `expo prebuild` both READ the path and fail on a missing file, so writing
+    // this key hopefully turns a missing credential into a broken build —
+    // including `pnpm verify:mobile`, which runs `expo config`. If the file ever
+    // has to leave this directory, this line leaves with it.
     //
     // WHAT IT IS. `google-services.json` comes from the Firebase console for the
-    // project that owns `ar.mimar.app`, and it is what lets the compiled app ask
-    // FCM for a token. The same credential also has to be uploaded to Expo
-    // (`eas credentials`) so the push service can broker on this project's
-    // behalf. Neither half is in this repository and neither is an agent's to
-    // produce: obtaining them is the product owner's.
+    // project that owns `ar.mimar.app` (`mimar-57482`), and it is what lets the
+    // compiled app ask FCM for a token. It carries public-facing identifiers, not
+    // secrets, which is why it is COMMITTED — Expo's own guidance says so.
+    //
+    // ITS OTHER HALF IS NOT HERE AND MUST NEVER BE. The Firebase SERVICE ACCOUNT
+    // key (Project settings → Service accounts → Generate new private key) is
+    // what lets Expo broker deliveries on this project's behalf. That one is a
+    // private key: it was uploaded once with `eas credentials` (FCM V1) and it is
+    // excluded by BOTH `.gitignore` and `.easignore` — the second matters more,
+    // because a credential kept off a public repo but riding inside every build
+    // archive has been moved, not protected. Two files, one console, opposite
+    // rules.
     //
     // WHAT HAPPENS WITHOUT IT, stated here so nobody has to discover it. The
     // build compiles, the app runs, the OS permission dialog appears and can be
