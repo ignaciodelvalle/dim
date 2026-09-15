@@ -118,12 +118,149 @@ async function addressMessages(rows: ExpoPushCandidateRow[]): Promise<Addressed[
   return addressed;
 }
 
-/** What one notification looks like on the wire. */
+/**
+ * The notification types whose title AND body may be rendered VERBATIM on a
+ * lock screen, and therefore handed in plaintext to Expo.
+ *
+ * WHY THIS LIST EXISTS, AND WHY IT IS AN ALLOWLIST
+ * ------------------------------------------------
+ * Expo Push is a third-party processor in the United States, and the title and
+ * body of a message travel through it in the clear: they sit in Expo's
+ * infrastructure, they reach APNs/FCM, and they land on a LOCK SCREEN that
+ * anybody holding the phone can read without unlocking it. The web leg has no
+ * equivalent exposure — a Web Push payload is end-to-end encrypted to the
+ * browser's own keys, so `web-push.ts` can send the row as written and this
+ * file cannot. That asymmetry is why the declaration lives here and not in the
+ * channel-neutral `push-eligibility.ts`: it is a property of the TRANSPORT, not
+ * of the row. If the web leg ever stops being end-to-end encrypted, this moves.
+ *
+ * Some notification bodies are built from a third party's personal data. The
+ * worst is `pet_in_possession`, whose body carries the finder's NAME, PHONE,
+ * the LOCATION they are holding the animal at and their free-text message
+ * (app/(public)/p/[publicToken]/encontre/action.ts:406-433). Under Ley 25.326
+ * art. 12 that is an international transfer of personal data, and it is not the
+ * kind of thing that may happen because nobody looked.
+ *
+ * THE DEFAULT IS CLOSED, AND THAT IS THE WHOLE POINT. A denylist of leaky types
+ * would be a fence that enumerates FORMS, and this repo has already learned what
+ * those cost: the one spelling nobody thought of is the one that ships. The
+ * subject here is "may this text leave the building", so the answer defaults to
+ * NO and a type earns `true` only by being read and argued. A notification type
+ * invented next month — or an existing type whose body grows a new interpolated
+ * variable — is generic until somebody comes back here, which is the failure
+ * mode we want: a duller lock screen, not a leak.
+ *
+ * A TYPE IS ONLY AS SAFE AS ITS LEAST SAFE CREATION SITE. `vaccine_due` is the
+ * worked example and the reason this list is short: one of its two writers
+ * (lib/infra/outreach-reminders.ts:196-206) builds a body from the pet's name
+ * and a day count, which is fine, and the other (lib/infra/notifications.ts:242)
+ * passes `row.title` straight off a reminder the person typed themselves. Free
+ * text cannot be argued about, so the TYPE is unsafe even though one of its
+ * sites is not. Every entry below was checked against EVERY site that creates
+ * it, not against the first one found.
+ *
+ * TWO EXCLUSION RULES DID MOST OF THE WORK, and they are written down so the
+ * next person extends the list the same way rather than re-deciding:
+ *
+ *   1. FREE TEXT IS NEVER SAFE. A field somebody typed cannot be argued about,
+ *      only read, and the next person to type in it has not read this comment.
+ *      This is what disqualifies `pet_in_possession`, `pet_sighting` and
+ *      `pet_found_report` (a finder's message), the two `closureNotes` rabies
+ *      types, `decomiso_owner_lost_custody` (`judicialProceedingReference`,
+ *      validated nowhere), `rabies_observation_completed_dead_authority` (the
+ *      `facility` field, likewise) and `vaccine_due` — whose scheduled-scan
+ *      writer passes `reminders.title` straight through
+ *      (lib/infra/notifications.ts:244), a column a person can write.
+ *
+ *   2. AN ORGANISATION'S DISPLAY NAME COUNTS AS A NAME. A refugio or a
+ *      veterinaria can be, and often is, one natural person trading under their
+ *      own name, and the row's context — a seizure, a maltreatment report, a
+ *      custody handover — is exactly what makes the pairing sensitive. So
+ *      `welfare_org_side_critical_received`, `decomiso_handoff_proposed_receiver`,
+ *      `chip_match_notification_owner`, `bite_reported_authority` and
+ *      `custody_transfer_proposal_owner` stay off, even though each has at
+ *      least one writer that names nobody. Cheap to give up; expensive to be
+ *      wrong about.
+ *
+ * Verified 2026-09-15 against every writer of every type named here, by two
+ * independent passes. Each entry names the site(s) read to justify it.
+ */
+const LOCK_SCREEN_SAFE_NOTIFICATION_TYPES: ReadonlySet<string> = new Set([
+  // Static title, static body — no interpolation at all. The one type on this
+  // list whose safety needs no argument beyond reading it.
+  // src/modules/events/application/surveillance/symptom-observed-use-case.ts:282-285
+  "rabies_observation_escalation_owner",
+
+  // Title is `… — ${pet.name}`; body interpolates only `windowPhrase(days)` (a
+  // derived phrase like "de 10 días") and a formatted deadline date. A pet's
+  // own name is not a third party's personal data. Both writers checked.
+  // src/modules/surveillance/application/close-eligible-observations.ts:203-206
+  // src/modules/surveillance/application/close-eligible-observations.ts:293-296
+  "rabies_observation_pending_review",
+
+  // Title is `Microchip fraud detected — ${pet.name}`; body interpolates the
+  // pet name and `caseId`, a row UUID. Sole writer. Goes to admins, and names
+  // no person — not the reporter, not the owner, not the previous keeper.
+  // src/modules/pets/application/microchip/replace-microchip.ts:379-382
+  "microchip_fraud_detected",
+
+  // Body is `Motivo: ${parsed.reason}. …` where `reason` is a closed set of
+  // reason codes off the zod schema, not prose. Sole writer.
+  // src/modules/pets/application/microchip/replace-microchip.ts:440-453
+  "microchip_updated_by_institution",
+
+  // Title and body are built from a disease label, a species label, a
+  // jurisdiction (locality/province — a PLACE, not an address) and two integer
+  // match counts. No person and no organisation is named. Sole writer.
+  // src/modules/events/application/clinical/route-outbreak-signal-notifications.ts:86-118
+  "outbreak_signal_detected",
+
+  // Disease label plus a jurisdiction name; the pet variant adds the pet's own
+  // name. Both come off the reportable-disease reference table, not off a form.
+  // src/modules/surveillance/application/process-eno-queue-batch.ts:149-165
+  "eno_disease_diagnosis",
+  // src/modules/surveillance/application/process-eno-queue-batch.ts:172-183
+  "eno_pet_disease_diagnosis",
+
+  // The strongest case on this list: title and body are CURATED LITERALS in
+  // lib/reference/disease-public-alert-catalog.ts, and the renderer substitutes
+  // exactly one placeholder — `{{pet_name}}` — with a regex that knows no other
+  // (disease-public-alert-catalog.ts:130). Nothing a person typed can reach it.
+  // lib/infra/owner-disease-alerts.ts:52-117
+  "disease_public_alert",
+]);
+
+/**
+ * What a notification looks like when its type has not earned a verbatim
+ * render. Neutral enough to say nothing, specific enough to be worth tapping.
+ *
+ * "miMAR" is the public brand, and the casing the whole product is fenced on
+ * (scripts/check-brand-casing.ts). The web leg's service worker falls back to
+ * the same word for a payload with no title (public/sw.js:37) — though it still
+ * spells it "MiMAR", which is a pre-existing casing bug in a file the fence's
+ * globs do not reach, and NOT a licence to copy it here.
+ */
+const GENERIC_PUSH_TITLE = "miMAR";
+const GENERIC_PUSH_BODY = "Tenés un aviso nuevo";
+
+/**
+ * What one notification looks like on the wire.
+ *
+ * THE DEEP LINK SURVIVES GENERICISATION, and it has to: `data.url` is not
+ * rendered by the OS, the app reads it after the tap and then fetches the real
+ * notification over an authenticated request. So the generic payload costs the
+ * person one tap, not the content — the lock screen stops being a reading
+ * surface and goes back to being a doorbell.
+ */
 function messageFor(token: string, row: ExpoPushCandidateRow): ExpoPushMessage {
+  // `?? ""` rather than a truthiness test: a null type is a row that declared
+  // nothing, which is exactly the case the closed default is for.
+  const verbatim = LOCK_SCREEN_SAFE_NOTIFICATION_TYPES.has(row.notificationType ?? "");
+
   return {
     to: token,
-    title: row.title,
-    body: row.body ?? undefined,
+    title: verbatim ? row.title : GENERIC_PUSH_TITLE,
+    body: verbatim ? (row.body ?? undefined) : GENERIC_PUSH_BODY,
     // The deep link the notification opens, carried as data rather than in the
     // body: the OS renders title and body, the app reads this when the person
     // taps.

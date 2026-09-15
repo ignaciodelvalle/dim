@@ -171,12 +171,18 @@ describe("sendExpoPushForNotifications — eligibility", () => {
 });
 
 describe("sendExpoPushForNotifications — what it puts on the wire", () => {
-  it("carries the title, the body and the deep link as data", async () => {
+  it("carries the title, the body and the deep link as data for a lock-screen-safe type", async () => {
     enableExpo();
     mockTargets = [target("t1")];
 
     await sendExpoPushForNotifications([
-      { ...URGENT, body: "Alguien tiene a Pampa", ctaUrl: "/mis-mascotas/DIM-PAMP-0001" },
+      {
+        ...URGENT,
+        notificationType: "rabies_observation_escalation_owner",
+        title: "URGENTE — posible signo de rabia en tu mascota",
+        body: "Consultá al veterinario inmediatamente.",
+        ctaUrl: "/mis-mascotas/DIM-PAMP-0001",
+      },
     ]);
 
     const [messages] = sendPushNotificationsAsyncMock.mock.calls[0] as [
@@ -184,9 +190,127 @@ describe("sendExpoPushForNotifications — what it puts on the wire", () => {
     ];
     expect(messages).toHaveLength(1);
     expect(messages[0].to).toBe("ExponentPushToken[t1]");
-    expect(messages[0].title).toBe("Hallazgo");
-    expect(messages[0].body).toBe("Alguien tiene a Pampa");
+    expect(messages[0].title).toBe("URGENTE — posible signo de rabia en tu mascota");
+    expect(messages[0].body).toBe("Consultá al veterinario inmediatamente.");
     expect(messages[0].data).toEqual({ url: "/mis-mascotas/DIM-PAMP-0001" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The lock-screen classification. Expo is a third-party processor in the United
+// States and the title/body travel through it in the clear, so a type that has
+// not been read and declared safe must not put its text on a lock screen.
+//
+// These assertions are about the DEFAULT, not about the three names currently
+// on the allowlist: the ones that matter most are the two that use a type
+// nobody has classified, because that is the shape a future type arrives in.
+// ---------------------------------------------------------------------------
+
+describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)", () => {
+  function sentMessage(): Record<string, unknown> {
+    const [messages] = sendPushNotificationsAsyncMock.mock.calls[0] as [
+      Array<Record<string, unknown>>,
+    ];
+    return messages[0];
+  }
+
+  it("genericises a notification whose type carries a third party's personal data", async () => {
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    // The real shape of a `pet_in_possession` body: the finder's name, their
+    // phone, where they are holding the animal and what they typed.
+    await sendExpoPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "urgent",
+        notificationType: "pet_in_possession",
+        title: "Alguien tiene a Pampa",
+        body: 'Laura Gómez dice que tiene a Pampa en Belgrano. Contactala al 11-5555-4444. Mensaje: "está en mi casa".',
+        ctaUrl: "/mis-mascotas/DIM-PAMP-0001",
+      },
+    ]);
+
+    const message = sentMessage();
+    expect(message.title).toBe("miMAR");
+    expect(message.body).toBe("Tenés un aviso nuevo");
+    expect(JSON.stringify(message)).not.toContain("Laura");
+    expect(JSON.stringify(message)).not.toContain("11-5555-4444");
+    expect(JSON.stringify(message)).not.toContain("Belgrano");
+    // The deep link survives: the app opens the right screen and fetches the
+    // real content over an authenticated request.
+    expect(message.data).toEqual({ url: "/mis-mascotas/DIM-PAMP-0001" });
+  });
+
+  it("genericises an UNKNOWN type — the default is closed, not open", async () => {
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "urgent",
+        notificationType: "some_type_invented_next_month",
+        title: "Nombre de una persona",
+        body: "Un dato personal de un tercero",
+      },
+    ]);
+
+    expect(sentMessage().title).toBe("miMAR");
+    expect(sentMessage().body).toBe("Tenés un aviso nuevo");
+  });
+
+  it("genericises a row with NO type at all", async () => {
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([URGENT]);
+
+    expect(sentMessage().title).toBe("miMAR");
+    expect(sentMessage().body).toBe("Tenés un aviso nuevo");
+  });
+
+  it("genericises pet_sighting, which is eligible to push but not safe to render", async () => {
+    // The one type the eligibility filter names by hand is NOT on the
+    // lock-screen allowlist: its body carries the finder's name and contact
+    // (src/modules/pets/application/sighting/report-pet-sighting.ts:318-330).
+    // Push-eligible and lock-screen-safe are two different questions.
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "warning",
+        notificationType: "pet_sighting",
+        title: "Avistaje de Pampa",
+        body: "Laura Gómez dejó su contacto: 11-5555-4444.",
+      },
+    ]);
+
+    expect(sentMessage().title).toBe("miMAR");
+    expect(sentMessage().body).toBe("Tenés un aviso nuevo");
+  });
+
+  it("keeps collapseId unchanged when the payload is genericised", async () => {
+    // Genericisation is about what a person READS. Replacing-instead-of-stacking
+    // is about how many rows pile up, and the two must not move together.
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "urgent",
+        notificationType: "pet_in_possession",
+        title: "Alguien tiene a Pampa",
+        body: "Laura Gómez dice que tiene a Pampa.",
+        dedupeKey: "hallazgo:pampa:2026-09-15",
+      },
+    ]);
+
+    expect(sentMessage().collapseId).toBe("hallazgo:pampa:2026-09-15");
+    expect(sentMessage().title).toBe("miMAR");
   });
 
   it("sets collapseId from the dedupe key, so a retry replaces instead of stacking", async () => {
