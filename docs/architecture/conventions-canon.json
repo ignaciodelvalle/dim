@@ -3064,14 +3064,14 @@
         "AGENTS.md:1743"
       ],
       "enforcer": [
-        "lib/infra/data-lifecycle.ts:114 ORG_CONTACT_IP_TTL_DAYS",
+        "lib/infra/data-lifecycle.ts:118 ORG_CONTACT_IP_TTL_DAYS",
         "__tests__/cron-data-lifecycle.test.ts:916-993"
       ],
       "enforcementKind": "vitest",
       "wired": "test:verified",
       "status": "ENFORCED",
       "clause": "R10",
-      "statusBasis": "__tests__/cron-data-lifecycle.test.ts:953-980 inserts two ORDINARY org_contact_messages rows (no erasure request anywhere in the fixture), runs purgeOldOrgContactIps() and asserts the past-TTL row's submitter_ip is null, the fresh one's survives, and the message body is untouched — that is the 'for everyone' half. :982-992 pins convergence. lib/infra/data-lifecycle.ts:114 ORG_CONTACT_IP_TTL_DAYS = 30, used as the cutoff at :357.",
+      "statusBasis": "__tests__/cron-data-lifecycle.test.ts:953-980 inserts two ORDINARY org_contact_messages rows (no erasure request anywhere in the fixture), runs purgeOldOrgContactIps() and asserts the past-TTL row's submitter_ip is null, the fresh one's survives, and the message body is untouched — that is the 'for everyone' half. :982-992 pins convergence. lib/infra/data-lifecycle.ts:118 ORG_CONTACT_IP_TTL_DAYS = 30, used as the cutoff at :413.",
       "notes": "The value 30 is live in the constant, but the test derives its fixtures from ORG_CONTACT_IP_TTL_DAYS (:955,:984) rather than from a literal, so a change to the constant would not be caught by an assertion — the behaviour is pinned, the policy number is not. Not enough to cap the row: the rule's contested clause is 'for everyone', and that is what the test exercises. 2026-09-10: this exact fixture shape was measured to be WORSE than 'not caught' in a sibling target — see storage-gc.ts's ABANDONED_STAGED_UPLOAD_MIN_AGE_MS, where fixtures derived from the constant made a mutation of that constant kill ZERO tests, because zeroing it moved the 'young' fixture into the future where nothing collects it. A boundary test whose fixtures come from the boundary cannot fail when the boundary moves. Deriving from the domain instead (a named real scenario) plus one assertion of the constant against an EXTERNAL requirement is the shape that works.",
       "confidence": 0.75,
       "numberKey": "ORG_CONTACT_IP_TTL_DAYS",
@@ -3899,7 +3899,7 @@
         "scripts/check-audit-log-coverage.ts:14-18",
         "package.json:20 lint:audit-log",
         "scripts/check-audit-log-actions-declared.ts",
-        "db/schema.ts:2424"
+        "db/schema.ts:2516"
       ],
       "enforcementKind": "lint-script",
       "wired": "verify",
