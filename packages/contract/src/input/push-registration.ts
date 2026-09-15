@@ -102,6 +102,33 @@ const deviceId = z
  */
 export const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
 
+/**
+ * The Android notification channel every native push is addressed to.
+ *
+ * WHY IT IS IN THE CONTRACT AND NOT IN EITHER APP. Android draws a notification
+ * through a CHANNEL, and the channel is named twice: the app creates it
+ * (`setNotificationChannelAsync`) and the SERVER addresses it (`channelId` on
+ * the Expo message). The two strings have to be the same string or the message
+ * lands in expo-notifications' unnamed fallback channel — which still shows
+ * something, so the mismatch does not fail, it just quietly ignores everything
+ * the app declared about how loud this is allowed to be. That is the exact shape
+ * of bug a shared constant exists to make impossible: two literals, two
+ * packages, no compiler between them.
+ *
+ * THE ID IS VERSIONED, and the `v1` is load-bearing rather than decorative. An
+ * Android channel's IMPORTANCE IS IMMUTABLE once created — the app can never
+ * raise it afterwards, only the person can, from system settings. So the day
+ * this project decides these notifications should interrupt rather than wait on
+ * the shade, the only honest way to ship it is a NEW channel, and a name that
+ * already carries a number is one that can be succeeded without reading like a
+ * typo. The old channel is then deleted by the app, and people who had lowered
+ * it keep that preference exactly as long as they keep the old channel.
+ *
+ * iOS IGNORES IT COMPLETELY. Channels are an Android concept; the field rides
+ * on every message because the message is one payload for both stores.
+ */
+export const PUSH_ANDROID_CHANNEL_ID = "avisos-v1";
+
 const expoPushToken = z
   .string({ error: "EXPO_PUSH_TOKEN_REQUIRED" })
   .trim()

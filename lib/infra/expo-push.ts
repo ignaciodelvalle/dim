@@ -2,6 +2,8 @@ import "server-only";
 
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
 
+import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
+
 import { isPushEligible } from "@/lib/infra/push-eligibility";
 import {
   activePushTargetsForUser,
@@ -272,6 +274,26 @@ function messageFor(token: string, row: ExpoPushCandidateRow): ExpoPushMessage {
     // screen. The Android-only `tag` field exists too and is deliberately not
     // used: one key, both stores.
     collapseId: row.dedupeKey ?? undefined,
+    // THE ANDROID CHANNEL, NAMED HERE BECAUSE A CHANNEL THE SERVER DOES NOT
+    // ADDRESS IS A CHANNEL THAT DOES NOTHING.
+    //
+    // This file used to say — and the adapter's header still explained at
+    // length — that creating a channel in the app "would be decoration unless
+    // the server addressed it". That was true and it was half a design: the app
+    // now creates `PUSH_ANDROID_CHANNEL_ID` and this line is the other half.
+    // Without it every message lands in expo-notifications' unnamed fallback
+    // channel, where the app's declaration of name, importance and vibration
+    // applies to nothing and the person sees a channel called "Miscellaneous"
+    // in their system settings.
+    //
+    // It does NOT raise anything. The channel is created at DEFAULT importance,
+    // which is the Android analog of the `priority` decision immediately below
+    // and is left at exactly the same conservative setting for exactly the same
+    // reason. What it buys is that the setting is OURS to have made, and the
+    // person's own override of it survives.
+    //
+    // iOS ignores the field.
+    channelId: PUSH_ANDROID_CHANNEL_ID,
     // NO `priority`, and that is a decision rather than an omission. Expo's
     // default maps to a normal-priority push, which Android's Doze can defer —
     // and these rows are urgent by definition, so "high" is tempting. It is

@@ -17,26 +17,29 @@
 // ---------------------------------------------------------------------------
 // WHAT THIS FILE DELIBERATELY DOES NOT DO
 // ---------------------------------------------------------------------------
-// Three things a reader will look for and not find. All three are absences on
-// purpose, and each would be a decision this unit was not handed:
+// Two of the three absences this header used to record are now PRESENT, and the
+// paragraphs are kept rather than deleted because what they argued is still the
+// reason each one has the shape it has.
 //
-//   · NO `setNotificationHandler`. That governs whether a notification is drawn
-//     while the app is in the FOREGROUND, which is a display decision about an
-//     app the person is already looking at. Scope (§2.4) is the module, the
-//     port, the permission, the token, and registration on sign-in — delivery,
-//     not presentation.
-//   · NO Android notification channel. Android 8+ needs one to draw anything,
-//     and expo-notifications falls back to its own default when a message names
-//     none — which is what the server sends, since `expo-push.ts` sets no
-//     `channelId`. Creating one here would be decoration unless the server
-//     addressed it, and a channel's IMPORTANCE IS IMMUTABLE ONCE CREATED: the
-//     app can never raise it afterwards, only the person can. That makes it
-//     precisely the class of decision §3.3 already settled for `priority` —
-//     "how loud is this allowed to be" is a product call taken once, for both
-//     legs, not a default invented by whoever wired the token first.
-//   · NO `expo-device` check for "is this a simulator". It is a fourth native
-//     module, and the question it answers arrives anyway as a rejection from
-//     the registration path below.
+//   · `setNotificationHandler` IS HERE NOW. It used to be absent because "a
+//     display decision about an app the person is already looking at" was out of
+//     that unit's scope. It is in scope now, and leaving it out was not neutral:
+//     without a handler, expo-notifications draws NOTHING in the foreground, so
+//     an urgent notification that arrived while somebody had the app open
+//     vanished. See `FOREGROUND_PRESENTATION` for what it answers and why.
+//   · THE ANDROID CHANNEL IS HERE NOW, and the old paragraph's objection was
+//     correct and has been answered rather than overruled. It said a channel
+//     "would be decoration unless the server addressed it" — so the server
+//     addresses it: `expo-push.ts` sets `channelId` to the same
+//     `PUSH_ANDROID_CHANNEL_ID` this file creates, from one constant in
+//     `@dim/contract/input`. Its second objection — that importance is IMMUTABLE
+//     once created, so the choice is a product call — is answered by making the
+//     conservative choice (DEFAULT, matching the deliberate absence of
+//     `priority` on the server side) and by versioning the id, so raising it
+//     later is a new channel rather than a silent no-op.
+//   · NO `expo-device` check for "is this a simulator". This one stands. It is a
+//     fourth native module, and the question it answers arrives anyway as a
+//     rejection from the registration path below.
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS ADAPTER PROMISES — the contract restated from the port's header
@@ -50,10 +53,75 @@
 
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 
-import { EXPO_PUSH_TOKEN_PREFIX } from "@dim/contract/input";
+import { EXPO_PUSH_TOKEN_PREFIX, PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
 
-import type { PushPermissionResult, PushPort, PushTokenResult } from "./push-port";
+import type { PushPermissionResult, PushPort, PushTap, PushTokenResult } from "./push-port";
+
+/**
+ * WHAT HAPPENS WHEN A NOTIFICATION ARRIVES WHILE THE APP IS OPEN.
+ *
+ * THE DEFAULT IS THE ONE OUTCOME THAT IS DEFINITELY WRONG. With no handler
+ * installed, expo-notifications draws NOTHING in the foreground — the payload
+ * reaches the JS runtime, nothing is presented, and the notification is gone. So
+ * an urgent sighting of somebody's lost animal, arriving in the five minutes
+ * they spend staring at this app because their animal is lost, is the one that
+ * does not get shown. Silence is not the conservative choice here; it is the
+ * failure.
+ *
+ * SO IT IS DRAWN, AND THE BANNER IS THE PART THAT IS NOT OPTIONAL. A banner is
+ * transient and non-modal on both platforms: it occupies the top of the screen
+ * for a few seconds and never takes a tap the person meant for what is
+ * underneath. `shouldShowList` puts the same notification in the tray, which is
+ * what makes it recoverable — somebody mid-form who lets the banner pass has not
+ * lost anything.
+ *
+ * AND THE SOUND IS NOT NEGOTIABLE ON ANDROID, WHICH IS WHY IT IS `true`.
+ *
+ * The obvious middle — draw the banner, stay quiet — does not exist, and the
+ * module's own type documentation is where that was measured rather than
+ * guessed: "On Android, setting `shouldPlaySound: false` will result in the
+ * drop-down notification alert NOT showing, no matter what the priority is"
+ * (expo-notifications, Notifications.types.d.ts, NotificationBehavior). So on
+ * Android the two are one switch, and a `false` written to spare somebody a
+ * chime would have silently taken the banner with it — the vanishing this
+ * handler exists to stop, reintroduced by the line meant to be considerate about
+ * it.
+ *
+ * Given the choice is banner-with-sound or neither, it is banner-with-sound, and
+ * the eligibility filter is what makes that defensible: this channel carries
+ * `severity === "urgent"` and `pet_sighting`, and nothing else. It is not a feed.
+ * A person who is looking at this app while somebody reports having seen their
+ * animal is exactly the person who should be interrupted.
+ *
+ * `shouldSetBadge: false` matches the app, which has no badge and no unread
+ * count anywhere. A number on the icon that nothing inside the app ever clears
+ * is a number that only grows.
+ *
+ * WHAT THE WEB LEG DOES, SINCE THAT IS THE COMPARISON THAT SETTLES TIES: its
+ * service worker calls `showNotification` unconditionally (public/sw.js), with
+ * no check for whether a tab is focused. So the web also draws in the
+ * foreground, and this matches it rather than inventing a second posture for the
+ * same rows.
+ */
+export const FOREGROUND_PRESENTATION = {
+  shouldShowBanner: true,
+  shouldShowList: true,
+  shouldPlaySound: true,
+  shouldSetBadge: false,
+} as const;
+
+/**
+ * Installed at MODULE SCOPE, which is what the module's own contract asks for:
+ * the handler has to be in place before the first notification is delivered, and
+ * this file is imported once, from `app/_layout.tsx`, before the first render.
+ * An install inside an effect would have a window — small, and exactly as long
+ * as a cold start, which is when a push is most likely to arrive.
+ */
+Notifications.setNotificationHandler({
+  handleNotification: async () => FOREGROUND_PRESENTATION,
+});
 
 /**
  * The iOS authorization this app asks for.
@@ -91,7 +159,120 @@ export const expoPush: PushPort = {
   available: true,
   requestPermission,
   getExpoPushToken,
+  lastTap,
+  onTap,
+  ensureNotificationChannel,
 };
+
+/**
+ * The channel's user-visible name and description — es-AR, because these are
+ * the two strings Android shows in the system settings screen where a person
+ * turns this category off. They are UI copy that happens to live in a native
+ * call, and the project's rule about which language UI copy is in does not stop
+ * at the app's own screens.
+ *
+ * The name is what appears under "Notificaciones" in the OS settings, so it
+ * names the CATEGORY rather than the product: the person is already inside an
+ * app called miMAR and does not need to be told so again.
+ */
+const ANDROID_CHANNEL_NAME = "Avisos urgentes";
+const ANDROID_CHANNEL_DESCRIPTION = "Hallazgos, avistajes y avisos de salud que no pueden esperar.";
+
+/**
+ * Create (or converge) the Android channel every message is addressed to.
+ *
+ * IDEMPOTENT BY DESIGN — `setNotificationChannelAsync` is an upsert, so calling
+ * it on every launch is how the channel's copy gets corrected after an update
+ * rather than being frozen at whatever the first install wrote. Everything
+ * except the IMPORTANCE converges; Android refuses to let an app raise that, and
+ * refuses just as firmly to let it lower one the person raised.
+ *
+ * IMPORTANCE IS `DEFAULT`, AND THAT IS THE ONE DECISION IN THIS FUNCTION.
+ * `DEFAULT` means the notification makes a sound and appears in the shade and
+ * the status bar; `HIGH` means it additionally peeks over whatever is on screen.
+ * It is `DEFAULT` for the same reason `expo-push.ts` sets no `priority`: how
+ * loud this channel is allowed to be is a product decision taken once for both
+ * legs, and the web leg sets no urgency header either. Two channels disagreeing
+ * about what is urgent is worse than both being conservative.
+ *
+ * Raising it later is possible and is deliberately NOT a one-line edit here: the
+ * id carries a version (`PUSH_ANDROID_CHANNEL_ID`) precisely so that the change
+ * ships as a new channel, which is the only thing Android will honour.
+ *
+ * ANDROID ONLY, checked here rather than left to the module. The function exists
+ * on iOS and resolves to `null`, which would work — but a reader of this file
+ * should be able to see that nothing happens on iOS without knowing that.
+ */
+async function ensureNotificationChannel(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  await Notifications.setNotificationChannelAsync(PUSH_ANDROID_CHANNEL_ID, {
+    name: ANDROID_CHANNEL_NAME,
+    description: ANDROID_CHANNEL_DESCRIPTION,
+    importance: Notifications.AndroidImportance.DEFAULT,
+  });
+}
+
+/**
+ * The deep link a notification response carried, read off the payload the server
+ * wrote — or `null`.
+ *
+ * EXPORTED, AND `unknown` RATHER THAN THE MODULE'S TYPE, because this is the one
+ * place in the seam where data from OUTSIDE the app is read. `content.data` is
+ * typed `Record<string, any>` by expo-notifications, which is to say it is typed
+ * as nothing: it travelled through Expo, through APNs or FCM, and through the
+ * OS. `messageFor` in `lib/infra/expo-push.ts` puts a `url` string there and
+ * every other shape is somebody else's notification, an older server, or a
+ * payload that lost a field on the way. All of them answer `null` here rather
+ * than reaching the router as a non-string.
+ *
+ * It does NOT resolve the route. That belongs to `push-tap.ts`, which is
+ * native-free and therefore testable without a device.
+ */
+export function deepLinkFromNotificationData(data: unknown): string | null {
+  if (typeof data !== "object" || data === null) return null;
+  const url = (data as { url?: unknown }).url;
+  return typeof url === "string" && url.length > 0 ? url : null;
+}
+
+/** One module response, as the port's `PushTap`. Exported for its own test. */
+export function tapFromResponse(response: {
+  notification?: { request?: { content?: { data?: unknown } } };
+}): PushTap {
+  return { url: deepLinkFromNotificationData(response.notification?.request?.content?.data) };
+}
+
+/**
+ * The tap that STARTED this process, if one did.
+ *
+ * `getLastNotificationResponseAsync` is the module's answer to a problem no
+ * listener can solve: a person tapping a notification for an app that is not
+ * running gets the response before the JS runtime exists. The module holds it
+ * and hands it over here.
+ *
+ * IT IS NOT DEDUPLICATED HERE, and the caller must know that: the module keeps
+ * answering the same response for the life of the process, so asking twice
+ * answers twice. `push-tap.ts` handles the launch tap exactly once; this stays a
+ * plain read of what the module holds.
+ */
+async function lastTap(): Promise<PushTap | null> {
+  const response = await Notifications.getLastNotificationResponseAsync();
+  return response === null || response === undefined ? null : tapFromResponse(response);
+}
+
+/**
+ * Taps while this process is alive — from the background, and from the
+ * foreground banner the handler above draws.
+ *
+ * THE SUBSCRIPTION IS RETURNED AS A PLAIN FUNCTION rather than the module's
+ * `EventSubscription`, so the port's type owes nothing to expo-notifications and
+ * a fake in a test is one arrow instead of an object with a `remove`.
+ */
+function onTap(listener: (tap: PushTap) => void): () => void {
+  const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    listener(tapFromResponse(response));
+  });
+  return () => subscription.remove();
+}
 
 /**
  * The EAS project this install belongs to, or `null`.
@@ -269,11 +450,60 @@ export function interpretTokenFailure(error: unknown): PushTokenResult {
   //
   // The network and server codes belong here on their own merits: Expo's own
   // documentation says to catch them and retry when the device is back online.
+  //
+  // AND ON ANDROID IT GETS THE SENTENCE, because a code is not an explanation.
+  // See `FCM_CONFIGURATION_MISSING`.
+  if (code === ANDROID_REGISTRATION_FAILED_CODE && Platform.OS === "android") {
+    return { outcome: "failed", detail: `${code}: ${FCM_CONFIGURATION_MISSING}` };
+  }
+
   return {
     outcome: "failed",
     detail: code === null ? failureDetail(error) : `${code}: ${messageOf(error)}`,
   };
 }
+
+/** The module's own code for "FCM would not give me a token". */
+const ANDROID_REGISTRATION_FAILED_CODE = "E_REGISTRATION_FAILED";
+
+/**
+ * THE MISSING PIECE OF THIS BUILD, SPELLED OUT RATHER THAN CODED.
+ *
+ * Android cannot mint a push token without an FCM credential compiled into the
+ * binary: `google-services.json`, referenced from `app.config.ts` as
+ * `android.googleServicesFile`, and uploaded to Expo so its push service can
+ * broker on this project's behalf. That file is NOT in this repository and is
+ * not the kind of thing an agent can produce — it comes from the Firebase
+ * console for the project that owns `ar.mimar.app`, and obtaining it is the
+ * product owner's.
+ *
+ * WHAT HAPPENS WITHOUT IT, and why this string exists. The build compiles. The
+ * app runs. The permission dialog appears and can be granted. And then
+ * `getExpoPushTokenAsync` rejects with `E_REGISTRATION_FAILED` carrying whatever
+ * FCM said, which from a breadcrumb reads like a transient network problem —
+ * so the visible symptom of a missing credential is "push just does not work on
+ * Android", with a diagnostic that points at the wrong thing. That is the
+ * silent failure the handoff asked not to ship.
+ *
+ * So the detail NAMES THE FILE AND WHERE IT COMES FROM. It is diagnostic and is
+ * never shown to a person — there is no screen for it and there should not be —
+ * but it is what a developer or the product owner reads in a Sentry event or an
+ * adb log, and it is the difference between an afternoon and a minute.
+ *
+ * IT IS DELIBERATELY NOT CONDITIONAL ON DETECTING THE FILE. There is no way to
+ * ask, from JS, whether the native build carries a valid FCM configuration —
+ * the only instrument is this failure. A guess that said "missing" when the real
+ * cause was an emulator with no Play Services would be a second wrong
+ * explanation, so the sentence says what to CHECK rather than asserting what
+ * happened.
+ */
+const FCM_CONFIGURATION_MISSING = [
+  "FCM refused to issue a token.",
+  "Check that this build carries android.googleServicesFile (google-services.json,",
+  "from the Firebase project that owns ar.mimar.app) and that the same credential",
+  "is uploaded to Expo for this EAS project.",
+  "On an emulator without Google Play Services this is expected and means nothing.",
+].join(" ");
 
 /** The `code` of an Expo `CodedError`, when there is one. */
 function errorCode(error: unknown): string | null {

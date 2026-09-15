@@ -54,6 +54,20 @@ export type PushTokenResult =
   | { outcome: "unavailable" }
   | { outcome: "failed"; detail: string };
 
+/**
+ * One tap on a notification, reduced to the only thing this app does with it.
+ *
+ * `url` IS WHATEVER THE SERVER PUT IN `data.url` AND IS NOT TRUSTED HERE. It is
+ * a string off a payload that travelled through Expo, APNs and FCM, so the port
+ * carries it verbatim and `push-tap.ts` decides what — if anything — it names.
+ * A port that resolved it to a route would be putting the routing table behind
+ * the native seam, where no test without a device can reach it.
+ *
+ * `null` for a notification with no deep link: a tap still means "open the app",
+ * which is a real outcome and not an absence.
+ */
+export type PushTap = { url: string | null };
+
 export type PushPort = {
   /** Stable identifier, e.g. "module-missing" or "expo-notifications". */
   readonly name: string;
@@ -65,6 +79,33 @@ export type PushPort = {
   readonly available: boolean;
   requestPermission(): Promise<PushPermissionResult>;
   getExpoPushToken(): Promise<PushTokenResult>;
+  /**
+   * The tap that STARTED this process, if one did. `null` otherwise.
+   *
+   * IT IS A SEPARATE CALL FROM `onTap` AND CANNOT BE FOLDED INTO IT. A person
+   * tapping a notification for an app that is not running gets the response
+   * delivered to a JS runtime that did not exist when it happened: by the time
+   * any listener could be attached, the event is already in the past. The module
+   * holds it and answers this instead. Without it the cold-start tap — the most
+   * common one, because a phone that has been quiet is a phone whose app is not
+   * running — opens the app on the home screen and loses the destination.
+   */
+  lastTap(): Promise<PushTap | null>;
+  /**
+   * Taps that happen while this process is alive — from the background, or from
+   * the foreground banner. Returns the unsubscribe.
+   */
+  onTap(listener: (tap: PushTap) => void): () => void;
+  /**
+   * Whatever the OS needs told before a notification can be DRAWN the way this
+   * app intends: on Android, the channel. A no-op everywhere else.
+   *
+   * SEPARATE FROM REGISTRATION, and on purpose. A channel is about how an
+   * arriving notification is presented, which is a property of the INSTALL, not
+   * of whoever is signed in — and it must exist before the first one arrives,
+   * which can be before anybody has signed in at all.
+   */
+  ensureNotificationChannel(): Promise<void>;
 };
 
 /**
@@ -82,6 +123,12 @@ export const moduleMissingPush: PushPort = {
   available: false,
   requestPermission: async () => ({ outcome: "unavailable" }),
   getExpoPushToken: async () => ({ outcome: "unavailable" }),
+  // No module means no notification ever arrived, so there is no tap to have
+  // launched this process and none can arrive later. `null` and an unsubscribe
+  // that does nothing are the truthful answers, not placeholders.
+  lastTap: async () => null,
+  onTap: () => () => undefined,
+  ensureNotificationChannel: async () => undefined,
 };
 
 let activePort: PushPort = moduleMissingPush;
@@ -135,6 +182,49 @@ export async function getExpoPushTokenSafely(): Promise<PushTokenResult> {
       outcome: "failed",
       detail: `${activePort.name} threw: ${error instanceof Error ? error.message : String(error)}`,
     };
+  }
+}
+
+/**
+ * The launch tap, with the same "never throws" enforcement the two above get.
+ *
+ * A REJECTION HERE IS A COLD START THAT NEVER FINISHES ROUTING, which is worse
+ * than a lost destination: the caller awaits this before it decides where to go.
+ * `null` is the safe answer — the app opens where it would have opened anyway.
+ */
+export async function lastPushTapSafely(): Promise<PushTap | null> {
+  try {
+    return await activePort.lastTap();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Subscribing, enforced the same way. A port that throws while being subscribed
+ * to must not take the layout that subscribed with it, so this answers a no-op
+ * unsubscribe and the app runs on without tap handling rather than not at all.
+ */
+export function onPushTapSafely(listener: (tap: PushTap) => void): () => void {
+  try {
+    return activePort.onTap(listener);
+  } catch {
+    return () => undefined;
+  }
+}
+
+/**
+ * The channel, enforced the same way — and this one is the likeliest to throw,
+ * because it is the first call in the whole seam that touches the native module
+ * on a build whose Android configuration is incomplete.
+ */
+export async function ensureNotificationChannelSafely(): Promise<void> {
+  try {
+    await activePort.ensureNotificationChannel();
+  } catch {
+    // Nothing to do and nobody to tell: a channel that could not be created
+    // means Android draws the notification in its fallback channel, which is
+    // duller than intended and still arrives.
   }
 }
 

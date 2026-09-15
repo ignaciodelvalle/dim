@@ -51,8 +51,9 @@ import { expoImagePicker } from "../src/native/expo-image-picker-adapter";
 // `expo-notifications` touches the native runtime at import time.
 import { expoPush } from "../src/native/expo-push-adapter";
 import { setImagePickerPort } from "../src/native/image-picker-port";
-import { setPushPort } from "../src/native/push-port";
+import { ensureNotificationChannelSafely, setPushPort } from "../src/native/push-port";
 import { startPushRegistration } from "../src/notifications/push-session-binding";
+import { usePushTapNavigation } from "../src/notifications/push-tap";
 import { initSentry } from "../src/observability/sentry";
 import { useNavigationBreadcrumb } from "../src/observability/use-navigation-breadcrumb";
 import { OfflineBanner } from "../src/ui/OfflineBanner";
@@ -96,6 +97,19 @@ setPushPort(expoPush);
 // may have resolved before this line runs. It never unsubscribes — the app has
 // one session for its whole life.
 startPushRegistration();
+
+// AND THE ANDROID CHANNEL, WHICH IS NOT PART OF REGISTRATION AND MUST NOT WAIT
+// FOR IT. Android draws a notification through a channel; without one, every
+// message lands in expo-notifications' unnamed fallback and the app's
+// declaration of how this category behaves applies to nothing. It belongs at app
+// start rather than at sign-in because it is a property of the INSTALL — it has
+// to exist before the first notification arrives, which can be before anybody
+// has signed in on this phone at all.
+//
+// Fire-and-forget, and safe: the port's wrapper swallows, the call is an upsert,
+// and a channel that could not be created costs a duller presentation rather
+// than a lost notification. Nothing renders from it, so nothing waits for it.
+void ensureNotificationChannelSafely();
 
 /**
  * THE ANCHOR: where hardware BACK goes when there is nothing behind (NAV-1).
@@ -141,6 +155,14 @@ function RootLayout() {
   // `suspended` while the launch gate is fetching: two fetches into one staging
   // directory is the overlap that hook's own `running` guard exists to stop.
   useForegroundUpdateCheck(EXPO_UPDATES_PORT, { suspended: launchGate !== "done" });
+  // WHERE A TAPPED NOTIFICATION GOES. A hook and not a module-scope subscription
+  // like the two `set…Port` calls above, for one reason: navigating needs a
+  // router, and the router does not exist until this layout has rendered. It
+  // handles both arrivals — the listener for a tap on a running app, and the
+  // module's held response for the tap that STARTED the process, which is the
+  // common one and the one a manual test never produces. Called before the font
+  // gate returns early, like the two hooks above and for the same reason.
+  usePushTapNavigation();
 
   // THE FIRST PAINT WAITS FOR THE TYPEFACE, and the alternative is worse than a
   // pause. React Native draws immediately with the system face and re-lays-out

@@ -37,12 +37,43 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 const mockGetPermissionsAsync = jest.fn();
 const mockRequestPermissionsAsync = jest.fn();
 const mockGetExpoPushTokenAsync = jest.fn();
+const mockSetNotificationChannelAsync = jest.fn();
+const mockGetLastNotificationResponseAsync = jest.fn<() => Promise<unknown>>();
+const mockAddNotificationResponseReceivedListener = jest.fn();
+const mockRemoveSubscription = jest.fn();
 let mockExpoConfig: unknown = { extra: { eas: { projectId: "db4bebed-test" } } };
 
 jest.mock("expo-notifications", () => ({
   getPermissionsAsync: () => mockGetPermissionsAsync(),
   requestPermissionsAsync: (...args: unknown[]) => mockRequestPermissionsAsync(...args),
   getExpoPushTokenAsync: (...args: unknown[]) => mockGetExpoPushTokenAsync(...args),
+  // THE ONE MOCK THAT CANNOT DELEGATE, and the reason is the same temporal dead
+  // zone the header above warns about — one step worse. The adapter calls
+  // `setNotificationHandler` at MODULE SCOPE, so it runs while this file's own
+  // imports are still being resolved, BEFORE any `const` here has been
+  // initialised. A delegating arrow would reach for a binding that does not
+  // exist yet and fail the whole suite with "not a function". So the mock is
+  // created inside the factory and fetched back below with `requireMock`.
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: (...args: unknown[]) => mockSetNotificationChannelAsync(...args),
+  getLastNotificationResponseAsync: () => mockGetLastNotificationResponseAsync(),
+  addNotificationResponseReceivedListener: (...args: unknown[]) => {
+    mockAddNotificationResponseReceivedListener(...args);
+    return { remove: () => mockRemoveSubscription() };
+  },
+  // The real enum, by value. Transcribed rather than imported because the module
+  // is mocked wholesale here; the assertion below pins the NAME so a renumbering
+  // upstream cannot pass silently.
+  AndroidImportance: {
+    UNKNOWN: 0,
+    UNSPECIFIED: 1,
+    NONE: 2,
+    MIN: 3,
+    LOW: 4,
+    DEFAULT: 5,
+    HIGH: 6,
+    MAX: 7,
+  },
 }));
 
 jest.mock("expo-constants", () => ({
@@ -54,13 +85,43 @@ jest.mock("expo-constants", () => ({
   },
 }));
 
+import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
+import { Platform } from "react-native";
+
 import {
+  FOREGROUND_PRESENTATION,
   IOS_PERMISSION_REQUEST,
+  deepLinkFromNotificationData,
   expoProjectId,
   expoPush,
   interpretPermission,
   interpretTokenFailure,
+  tapFromResponse,
 } from "./expo-push-adapter";
+
+/**
+ * `Platform.OS`, temporarily.
+ *
+ * The channel is Android-only and the suite runs under jest-expo's ios default,
+ * so the one branch that does anything is unreachable without this. A defineProperty
+ * rather than a `jest.mock("react-native")`: mocking the whole module here would
+ * replace far more than the one field being varied.
+ */
+/**
+ * The handler mock, fetched from the factory rather than closed over. See the
+ * note on `setNotificationHandler` above for why it cannot be the other way.
+ */
+const mockSetNotificationHandler = (
+  jest.requireMock("expo-notifications") as { setNotificationHandler: jest.Mock }
+).setNotificationHandler;
+
+function withPlatform(os: "ios" | "android", run: () => Promise<void>): Promise<void> {
+  const original = Platform.OS;
+  Object.defineProperty(Platform, "OS", { value: os, configurable: true });
+  return run().finally(() => {
+    Object.defineProperty(Platform, "OS", { value: original, configurable: true });
+  });
+}
 
 /**
  * A permissions status, with the two fields the adapter actually reads.
@@ -93,7 +154,15 @@ beforeEach(() => {
   mockGetPermissionsAsync.mockReset();
   mockRequestPermissionsAsync.mockReset();
   mockGetExpoPushTokenAsync.mockReset();
+  mockSetNotificationChannelAsync.mockReset();
+  mockGetLastNotificationResponseAsync.mockReset();
+  mockAddNotificationResponseReceivedListener.mockReset();
+  mockRemoveSubscription.mockReset();
   mockExpoConfig = { extra: { eas: { projectId: "db4bebed-test" } } };
+  // NOT `mockSetNotificationHandler`. It is called exactly once, at module
+  // scope, when this file imports the adapter — resetting it would erase the
+  // only record that ever exists and the "installs a handler" test would then
+  // pass for every file order and fail for none.
 });
 
 describe("the port's identity", () => {
@@ -360,5 +429,213 @@ describe("expoProjectId", () => {
   it("answers null when there is no expoConfig at all", () => {
     mockExpoConfig = null;
     expect(expoProjectId()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The FOREGROUND, which used to be an absence and was the wrong one.
+//
+// With no handler installed, expo-notifications draws nothing while the app is
+// open — so the notification that arrives during the five minutes somebody
+// spends staring at this app because their animal is lost is the one that
+// vanishes. These pin the answer, and specifically pin the field whose obvious
+// value is a trap.
+// ---------------------------------------------------------------------------
+
+describe("the foreground presentation", () => {
+  it("installs a handler at module scope, before anything can arrive", () => {
+    // Importing the adapter is what does this; asserting it here is asserting
+    // that the import had the effect, which is the only observable form of "at
+    // module scope".
+    expect(mockSetNotificationHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers the same presentation the constant declares", async () => {
+    const [config] = mockSetNotificationHandler.mock.calls[0] as [
+      { handleNotification: () => Promise<unknown> },
+    ];
+    await expect(config.handleNotification()).resolves.toEqual(FOREGROUND_PRESENTATION);
+  });
+
+  it("draws the banner AND files it in the tray", () => {
+    // Both, not either. The banner is what the person sees now; the list is what
+    // makes it recoverable for somebody mid-form who let the banner pass.
+    expect(FOREGROUND_PRESENTATION.shouldShowBanner).toBe(true);
+    expect(FOREGROUND_PRESENTATION.shouldShowList).toBe(true);
+  });
+
+  it("plays the sound, because on Android that is the banner's price", () => {
+    // NOT a preference. expo-notifications documents that `shouldPlaySound:
+    // false` suppresses the drop-down alert on Android entirely, "no matter what
+    // the priority is" — so a `false` written to spare somebody a chime takes
+    // the banner with it, which is the vanishing this handler exists to stop.
+    // Pinned against the literal so nobody makes it quiet without reading why.
+    expect(FOREGROUND_PRESENTATION.shouldPlaySound).toBe(true);
+  });
+
+  it("never touches the badge, which nothing in this app clears", () => {
+    expect(FOREGROUND_PRESENTATION.shouldSetBadge).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The Android channel
+// ---------------------------------------------------------------------------
+
+describe("ensureNotificationChannel", () => {
+  it("creates the channel the SERVER addresses, at default importance", async () => {
+    await withPlatform("android", async () => {
+      await expoPush.ensureNotificationChannel();
+    });
+
+    expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(1);
+    const [channelId, config] = mockSetNotificationChannelAsync.mock.calls[0] as [
+      string,
+      { name: string; description: string; importance: number },
+    ];
+    // THE SAME CONSTANT `expo-push.ts` puts in `channelId`. A channel the server
+    // does not address is a channel that configures nothing, so this is the
+    // assertion that keeps the two halves one design.
+    expect(channelId).toBe(PUSH_ANDROID_CHANNEL_ID);
+    // DEFAULT (5), not HIGH. Android refuses to let an app raise a channel's
+    // importance after creation, so this value is effectively permanent for
+    // every install that ever sees it — which is why it is pinned against a
+    // literal and why raising it means a new channel id.
+    expect(config.importance).toBe(5);
+    // es-AR, because these are the two strings Android shows in the system
+    // settings screen where somebody turns this category off.
+    expect(config.name).toBe("Avisos urgentes");
+    expect(config.description).toBe(
+      "Hallazgos, avistajes y avisos de salud que no pueden esperar.",
+    );
+  });
+
+  it("does nothing at all on iOS, where channels do not exist", async () => {
+    await withPlatform("ios", async () => {
+      await expoPush.ensureNotificationChannel();
+    });
+
+    expect(mockSetNotificationChannelAsync).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reading a tap
+// ---------------------------------------------------------------------------
+
+describe("deepLinkFromNotificationData — the payload is not trusted", () => {
+  it("reads the url the server wrote", () => {
+    expect(deepLinkFromNotificationData({ url: "/mis-mascotas/DIM-PAMP-0001" })).toBe(
+      "/mis-mascotas/DIM-PAMP-0001",
+    );
+  });
+
+  it("answers null for every shape that is not a url string", () => {
+    // `content.data` is typed `Record<string, any>` by the module, which is to
+    // say it is not typed: it came off a payload that travelled through Expo,
+    // through APNs or FCM, and through the OS. Each of these is a real arrival —
+    // another app's notification, an older server, a field lost on the way.
+    expect(deepLinkFromNotificationData(undefined)).toBeNull();
+    expect(deepLinkFromNotificationData(null)).toBeNull();
+    expect(deepLinkFromNotificationData({})).toBeNull();
+    expect(deepLinkFromNotificationData({ url: null })).toBeNull();
+    expect(deepLinkFromNotificationData({ url: 42 })).toBeNull();
+    expect(deepLinkFromNotificationData({ url: "" })).toBeNull();
+    expect(deepLinkFromNotificationData({ url: { href: "/x" } })).toBeNull();
+    expect(deepLinkFromNotificationData("/mis-mascotas/DIM-PAMP-0001")).toBeNull();
+  });
+
+  it("digs the url out of a whole response object", () => {
+    expect(
+      tapFromResponse({
+        notification: { request: { content: { data: { url: "/mis-turnos" } } } },
+      }),
+    ).toEqual({ url: "/mis-turnos" });
+  });
+
+  it("answers a tap with no url rather than no tap", () => {
+    // A notification with no CTA is still a tap, and a tap still means "open the
+    // app". Collapsing it to null would make the two indistinguishable.
+    expect(tapFromResponse({ notification: { request: { content: {} } } })).toEqual({ url: null });
+  });
+});
+
+describe("lastTap — the tap that started the process", () => {
+  it("reads the response the module was holding", async () => {
+    mockGetLastNotificationResponseAsync.mockResolvedValue({
+      notification: { request: { content: { data: { url: "/mis-mascotas/DIM-PAMP-0001" } } } },
+    });
+
+    await expect(expoPush.lastTap()).resolves.toEqual({ url: "/mis-mascotas/DIM-PAMP-0001" });
+  });
+
+  it("answers null when nothing launched this process", async () => {
+    mockGetLastNotificationResponseAsync.mockResolvedValue(null);
+    await expect(expoPush.lastTap()).resolves.toBeNull();
+  });
+
+  it("answers null for undefined too, which the module's own type allows", async () => {
+    mockGetLastNotificationResponseAsync.mockResolvedValue(undefined);
+    await expect(expoPush.lastTap()).resolves.toBeNull();
+  });
+});
+
+describe("onTap — taps while the process is alive", () => {
+  it("hands the listener a PushTap, not the module's response object", () => {
+    const seen: Array<{ url: string | null }> = [];
+    expoPush.onTap((tap) => seen.push(tap));
+
+    const [listener] = mockAddNotificationResponseReceivedListener.mock.calls[0] as [
+      (response: unknown) => void,
+    ];
+    listener({ notification: { request: { content: { data: { url: "/mis-turnos" } } } } });
+
+    // The port's type owes nothing to expo-notifications, which is what lets a
+    // fake in `push-tap.test.ts` be one arrow instead of a nested object.
+    expect(seen).toEqual([{ url: "/mis-turnos" }]);
+  });
+
+  it("returns an unsubscribe that removes the subscription", () => {
+    const unsubscribe = expoPush.onTap(() => undefined);
+    expect(mockRemoveSubscription).not.toHaveBeenCalled();
+    unsubscribe();
+    expect(mockRemoveSubscription).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The missing FCM credential — item 4's "fail loudly and explainably"
+// ---------------------------------------------------------------------------
+
+describe("E_REGISTRATION_FAILED on Android", () => {
+  it("names the file, where it comes from, and the harmless case", async () => {
+    await withPlatform("android", async () => {
+      const result = interpretTokenFailure(coded("E_REGISTRATION_FAILED", "FIS_AUTH_ERROR"));
+
+      // Still `failed` and not `unavailable`: a build that cannot obtain a
+      // single token must stay visible, which the file argues at length.
+      expect(result.outcome).toBe("failed");
+      const detail = result.outcome === "failed" ? result.detail : "";
+      // The three things a reader needs and a bare error code does not give
+      // them: WHAT is missing, WHERE it comes from, and when it means nothing.
+      expect(detail).toContain("google-services.json");
+      expect(detail).toContain("googleServicesFile");
+      expect(detail).toContain("ar.mimar.app");
+      expect(detail).toContain("Expo");
+      expect(detail).toContain("Google Play Services");
+      // The code still leads, so grouping in a log is unchanged.
+      expect(detail.startsWith("E_REGISTRATION_FAILED:")).toBe(true);
+    });
+  });
+
+  it("leaves the iOS message alone — that key is not iOS's problem", async () => {
+    await withPlatform("ios", async () => {
+      const result = interpretTokenFailure(coded("E_REGISTRATION_FAILED", "APNs said no"));
+
+      expect(result.outcome).toBe("failed");
+      const detail = result.outcome === "failed" ? result.detail : "";
+      expect(detail).toBe("E_REGISTRATION_FAILED: APNs said no");
+      expect(detail).not.toContain("google-services.json");
+    });
   });
 });

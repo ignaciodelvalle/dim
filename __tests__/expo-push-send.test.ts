@@ -75,6 +75,8 @@ vi.mock("@/lib/infra/push-target-store", () => ({
   },
 }));
 
+import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
+
 import { sendExpoPushForNotifications } from "@/lib/infra/expo-push";
 
 const USER_ID = "user-0000-0000-0000-000000000001";
@@ -193,6 +195,24 @@ describe("sendExpoPushForNotifications — what it puts on the wire", () => {
     expect(messages[0].title).toBe("URGENTE — posible signo de rabia en tu mascota");
     expect(messages[0].body).toBe("Consultá al veterinario inmediatamente.");
     expect(messages[0].data).toEqual({ url: "/mis-mascotas/DIM-PAMP-0001" });
+  });
+
+  it("addresses the Android channel the app creates, by the shared constant", async () => {
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([URGENT]);
+
+    const [messages] = sendPushNotificationsAsyncMock.mock.calls[0] as [
+      Array<Record<string, unknown>>,
+    ];
+    // THE TWO HALVES ARE ONE DESIGN AND THIS IS WHERE THEY MEET. The app calls
+    // `setNotificationChannelAsync(PUSH_ANDROID_CHANNEL_ID, …)` and declares a
+    // name, a description and an importance; without this field every message
+    // lands in expo-notifications' unnamed fallback channel and all three apply
+    // to nothing. The failure is silent — the notification still arrives — which
+    // is exactly why it is pinned rather than trusted.
+    expect(messages[0].channelId).toBe(PUSH_ANDROID_CHANNEL_ID);
   });
 });
 

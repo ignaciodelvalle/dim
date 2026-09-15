@@ -196,6 +196,9 @@ describe("the push seam", () => {
       available: true,
       requestPermission: async () => ({ outcome: "granted" }),
       getExpoPushToken: async () => ({ outcome: "token", expoPushToken: "ExponentPushToken[x]" }),
+      lastTap: async () => null,
+      onTap: () => () => undefined,
+      ensureNotificationChannel: async () => undefined,
     };
     const previous = setPushPort(fake);
     expect(previous).toBe(moduleMissingPush);
@@ -215,6 +218,9 @@ describe("the push seam", () => {
       getExpoPushToken: async () => {
         throw new Error("no project id");
       },
+      lastTap: async () => null,
+      onTap: () => () => undefined,
+      ensureNotificationChannel: async () => undefined,
     });
 
     const permission = await requestPushPermissionSafely();
@@ -235,6 +241,9 @@ describe("the push seam", () => {
         throw "just a string";
       },
       getExpoPushToken: async () => ({ outcome: "unavailable" }),
+      lastTap: async () => null,
+      onTap: () => () => undefined,
+      ensureNotificationChannel: async () => undefined,
     });
 
     const result = await requestPushPermissionSafely();
@@ -251,6 +260,9 @@ describe("the push seam", () => {
       available: true,
       requestPermission: async () => ({ outcome: "denied" }),
       getExpoPushToken: async () => ({ outcome: "denied" }),
+      lastTap: async () => null,
+      onTap: () => () => undefined,
+      ensureNotificationChannel: async () => undefined,
     });
     await expect(requestPushPermissionSafely()).resolves.toEqual({ outcome: "denied" });
     await expect(getExpoPushTokenSafely()).resolves.toEqual({ outcome: "denied" });

@@ -67,6 +67,12 @@ function workingPort(over: Partial<PushPort> = {}): PushPort {
     available: true,
     requestPermission: async () => ({ outcome: "granted" }),
     getExpoPushToken: async () => ({ outcome: "token", expoPushToken: TOKEN }),
+    // The presentation half of the port. Nothing in THIS file exercises it —
+    // registration is about delivery, not about drawing — but a port is a whole
+    // contract and a fake that implements half of it would not compile.
+    lastTap: async () => null,
+    onTap: () => () => undefined,
+    ensureNotificationChannel: async () => undefined,
     ...over,
   };
 }
@@ -294,7 +300,10 @@ describe("revokeThisDeviceForPush", () => {
     mockGetOrCreateInstallDeviceId.mockResolvedValue(null as never);
     setPushPort(workingPort());
 
-    await revokeThisDeviceForPush(session);
+    await expect(revokeThisDeviceForPush(session)).resolves.toEqual({
+      outcome: "skipped",
+      reason: "no-install-id",
+    });
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
@@ -302,6 +311,34 @@ describe("revokeThisDeviceForPush", () => {
     mockApiRequest.mockResolvedValue({ outcome: "unreachable", detail: "offline" } as never);
     setPushPort(workingPort());
 
-    await expect(revokeThisDeviceForPush(session)).resolves.toBeUndefined();
+    // IT RESOLVES, AND IT NOW SAYS WHAT HAPPENED. This used to assert
+    // `toBeUndefined()`, which was the defect stated as a test: the function
+    // returned `void`, so "the revoke did not land" and "the revoke landed" were
+    // the same observation from every angle, and the row stayed live with
+    // nothing anywhere recording it. Resolving is still the contract — somebody
+    // signing out is leaving — but the outcome is now a value a caller can
+    // report.
+    await expect(revokeThisDeviceForPush(session)).resolves.toEqual({
+      outcome: "failed",
+      detail: "unreachable",
+    });
+  });
+
+  it("reports an acknowledged revoke even when the server had nothing to revoke", async () => {
+    // `revoked: false` — already revoked, or never registered — is a legitimate
+    // 200 and must not read as a failure. Signing out twice is not an incident.
+    mockApiRequest.mockResolvedValue({ outcome: "ok", payload: { revoked: false } } as never);
+    setPushPort(workingPort());
+
+    await expect(revokeThisDeviceForPush(session)).resolves.toEqual({ outcome: "acknowledged" });
+  });
+
+  it("says WHY it skipped on a build with no push, so a caller does not report it", async () => {
+    resetPushPort();
+
+    await expect(revokeThisDeviceForPush(session)).resolves.toEqual({
+      outcome: "skipped",
+      reason: "no-push-in-build",
+    });
   });
 });

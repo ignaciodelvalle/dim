@@ -344,6 +344,41 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     ...config.android,
     package: ANDROID_PACKAGE_NAME,
+    // THE ONE KEY PUSH ON ANDROID NEEDS AND THIS FILE DOES NOT HAVE:
+    //
+    //     googleServicesFile: "./google-services.json",
+    //
+    // It is commented out ON PURPOSE and must not be uncommented until the file
+    // is actually in this directory. `expo config` and `expo prebuild` both READ
+    // the path and fail on a missing file, so writing the key hopefully would
+    // turn a missing credential into a broken build — including `pnpm
+    // verify:mobile`, which runs `expo config`.
+    //
+    // WHAT IT IS. `google-services.json` comes from the Firebase console for the
+    // project that owns `ar.mimar.app`, and it is what lets the compiled app ask
+    // FCM for a token. The same credential also has to be uploaded to Expo
+    // (`eas credentials`) so the push service can broker on this project's
+    // behalf. Neither half is in this repository and neither is an agent's to
+    // produce: obtaining them is the product owner's.
+    //
+    // WHAT HAPPENS WITHOUT IT, stated here so nobody has to discover it. The
+    // build compiles, the app runs, the OS permission dialog appears and can be
+    // granted — and then the token read rejects with `E_REGISTRATION_FAILED`,
+    // which from a log reads like a network problem. The visible symptom is
+    // "push works on iOS and not on Android", with a diagnostic pointing at the
+    // wrong thing. `src/native/expo-push-adapter.ts` turns that rejection into a
+    // sentence that names this key, this file and where it comes from, which is
+    // the whole mitigation available from this side.
+    //
+    // NO `expo-notifications` PLUGIN ENTRY EITHER, and that is an absence rather
+    // than an oversight. The plugin exists to set a notification ICON, a colour
+    // and custom SOUNDS; this app has no monochrome notification asset and no
+    // sound of its own, so an entry with no options would add a fingerprint
+    // change and configure nothing. The native module is autolinked by the
+    // dependency alone — including the `POST_NOTIFICATIONS` permission its own
+    // manifest declares — so nothing about delivery depends on it. Whoever adds
+    // the icon adds the entry in the same commit, and inserts it AFTER the
+    // `expo-image-picker` block for the ordering reason recorded above it.
     intentFilters: [
       // The custom scheme, declared explicitly rather than left to the implicit
       // filter Expo generates from `scheme`. When the verified `https` filter
