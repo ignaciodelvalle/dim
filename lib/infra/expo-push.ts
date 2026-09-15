@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import {
   Expo,
   type ExpoPushMessage,
@@ -192,52 +194,49 @@ async function addressMessages(rows: ExpoPushCandidateRow[]): Promise<Addressed[
  *      least one writer that names nobody. Cheap to give up; expensive to be
  *      wrong about.
  *
+ * A PET'S NAME IS FREE TEXT, AND RULE 1 EATS SIX ENTRIES THIS LIST USED TO
+ * CARRY. This is the correction, written out rather than quietly applied,
+ * because the mistake is the interesting part: the list was drawn up reading
+ * every writer for a THIRD PARTY'S data, found none, and admitted the type —
+ * while `${pet.name}` sat in the title of six of them. A pet name is not a
+ * third party's name, which is true and was never the question rule 1 asks.
+ * The question rule 1 asks is whether somebody TYPED it, and nothing validates
+ * this one: `PET_NAME_MAX` is 80 characters
+ * (packages/contract/src/input/pet-profile-edit.ts) and registration takes the
+ * field as `requiredText("NAME_REQUIRED")` — non-empty, trimmed, and otherwise
+ * anything at all. A pet registered as `miMAR: verificá tu cuenta en
+ * bit.ly/xY7` fits in 39 of those characters, and the day that animal gets an
+ * ENO diagnosis the string renders verbatim on a government official's lock
+ * screen and is transferred in the clear to Expo, to FCM and to APNs. That is
+ * the exact transfer this list exists to prevent.
+ *
+ * So `rabies_observation_pending_review`, `microchip_fraud_detected`,
+ * `microchip_updated_by_institution`, `eno_disease_diagnosis`,
+ * `eno_pet_disease_diagnosis` and `disease_public_alert` are OFF, each for the
+ * one reason: it renders a pet's name. Six separate excuses would read like six
+ * separate judgements; there is one rule and they all break it.
+ *
+ * SUBSTITUTING THE PUBLIC TOKEN FOR THE NAME WAS CONSIDERED AND REJECTED. It
+ * needs a token on rows that do not all carry one, and it buys back a duller
+ * lock screen by trading a rule everybody can apply for a special case somebody
+ * has to remember. The honest outcome is two entries. A list of eight that
+ * admitted free text was a wish, not an allowlist — and a two-entry allowlist
+ * that is TRUE is worth more than an eight-entry one that is aspirational.
+ *
  * Verified 2026-09-15 against every writer of every type named here, by two
  * independent passes. Each entry names the site(s) read to justify it.
  */
 const LOCK_SCREEN_SAFE_NOTIFICATION_TYPES: ReadonlySet<string> = new Set([
   // Static title, static body — no interpolation at all. The one type on this
-  // list whose safety needs no argument beyond reading it.
-  // src/modules/events/application/surveillance/symptom-observed-use-case.ts:282-285
+  // list whose safety needs no argument beyond reading it. Sole writer.
+  // src/modules/events/application/surveillance/symptom-observed-use-case.ts:279-292
   "rabies_observation_escalation_owner",
-
-  // Title is `… — ${pet.name}`; body interpolates only `windowPhrase(days)` (a
-  // derived phrase like "de 10 días") and a formatted deadline date. A pet's
-  // own name is not a third party's personal data. Both writers checked.
-  // src/modules/surveillance/application/close-eligible-observations.ts:203-206
-  // src/modules/surveillance/application/close-eligible-observations.ts:293-296
-  "rabies_observation_pending_review",
-
-  // Title is `Microchip fraud detected — ${pet.name}`; body interpolates the
-  // pet name and `caseId`, a row UUID. Sole writer. Goes to admins, and names
-  // no person — not the reporter, not the owner, not the previous keeper.
-  // src/modules/pets/application/microchip/replace-microchip.ts:379-382
-  "microchip_fraud_detected",
-
-  // Body is `Motivo: ${parsed.reason}. …` where `reason` is a closed set of
-  // reason codes off the zod schema, not prose. Sole writer.
-  // src/modules/pets/application/microchip/replace-microchip.ts:440-453
-  "microchip_updated_by_institution",
 
   // Title and body are built from a disease label, a species label, a
   // jurisdiction (locality/province — a PLACE, not an address) and two integer
-  // match counts. No person and no organisation is named. Sole writer.
+  // match counts. No person, no organisation, and no pet is named. Sole writer.
   // src/modules/events/application/clinical/route-outbreak-signal-notifications.ts:86-118
   "outbreak_signal_detected",
-
-  // Disease label plus a jurisdiction name; the pet variant adds the pet's own
-  // name. Both come off the reportable-disease reference table, not off a form.
-  // src/modules/surveillance/application/process-eno-queue-batch.ts:149-165
-  "eno_disease_diagnosis",
-  // src/modules/surveillance/application/process-eno-queue-batch.ts:172-183
-  "eno_pet_disease_diagnosis",
-
-  // The strongest case on this list: title and body are CURATED LITERALS in
-  // lib/reference/disease-public-alert-catalog.ts, and the renderer substitutes
-  // exactly one placeholder — `{{pet_name}}` — with a regex that knows no other
-  // (disease-public-alert-catalog.ts:130). Nothing a person typed can reach it.
-  // lib/infra/owner-disease-alerts.ts:52-117
-  "disease_public_alert",
 ]);
 
 /**
@@ -254,6 +253,50 @@ const GENERIC_PUSH_TITLE = "miMAR";
 const GENERIC_PUSH_BODY = "Tenés un aviso nuevo";
 
 /**
+ * How much of the digest rides on the wire.
+ *
+ * 32 hex characters is 128 bits, which is far past the point where two distinct
+ * dedupe keys collide by accident and comfortably inside APNs's 64-byte
+ * collapse-id limit. The number is a budget, not a security parameter: the
+ * property that matters is that DIFFERENT keys stay different, and a truncated
+ * SHA-256 keeps that at this width for any corpus this system will ever have.
+ */
+const COLLAPSE_KEY_HEX_LENGTH = 32;
+
+/**
+ * The collapse key, as something Expo may hold.
+ *
+ * WHY THE RAW DEDUPE KEY MAY NOT GO. A dedupe key in this system is a sentence:
+ * `event:${eventId}:${userId}:pet_in_possession`,
+ * `caretaker-death:${eventId}:${userId}`, `ppp-flip:${pet.id}:${userId}`
+ * (perro potencialmente peligroso), `caretaker:invitation_rejected:${grant.id}:
+ * ${grant.grantedByUserId}`. It names a CATEGORY and it carries a USER ID. So a
+ * message whose title and body were genericised precisely so that Expo, Apple
+ * and Google learn nothing was still handing all three a stable pseudonymous
+ * identifier joined to "this person has a dangerous-dog determination" or "this
+ * person's caretaker died". Genericising the text and shipping the label in the
+ * next field along is not a policy, it is an oversight with a comment on it.
+ *
+ * WHY A HASH IS ENOUGH, AND WHY NOTHING IS LOST. The collapse key has exactly
+ * two requirements and neither of them is legibility: it must be STABLE, so a
+ * retried write replaces the first notification instead of stacking a second,
+ * and it must be DISTINCT per subject, so two unrelated notifications do not
+ * eat each other. A digest preserves both exactly — same input, same key;
+ * different input, different key — and nothing anywhere reads a collapse key
+ * back. Not this file, not the app, not the stores: it is compared, never
+ * parsed.
+ *
+ * IT IS NOT A SECRET AND THIS IS NOT ENCRYPTION. An unsalted digest of a
+ * guessable string is guessable, and anybody who already knows an event id and
+ * a user id can confirm a match. What it removes is the part that was actually
+ * being given away for free — a readable label and an identifier handed to
+ * three foreign processors who were not asked to hold either.
+ */
+function collapseKeyFor(dedupeKey: string): string {
+  return createHash("sha256").update(dedupeKey).digest("hex").slice(0, COLLAPSE_KEY_HEX_LENGTH);
+}
+
+/**
  * What one notification looks like on the wire.
  *
  * THE DEEP LINK SURVIVES GENERICISATION, and it has to: `data.url` is not
@@ -261,6 +304,18 @@ const GENERIC_PUSH_BODY = "Tenés un aviso nuevo";
  * notification over an authenticated request. So the generic payload costs the
  * person one tap, not the content — the lock screen stops being a reading
  * surface and goes back to being a doorbell.
+ *
+ * `data.url` IS NOT GIVEN THE COLLAPSE KEY'S TREATMENT, and the reason is that
+ * it cannot be: the app NAVIGATES to this string, so a digest of it is a dead
+ * link. That is the whole difference between the two fields — one is compared
+ * and never read, the other is read and never compared — and it is why hashing
+ * was the right answer for one and is not available for the other. What it
+ * carries is a public token (public by design: it is the QR anybody can scan)
+ * or a static route like `/gob/vigilancia`. Those routes do tell Expo something
+ * coarse about the recipient's role, which is a real but much smaller
+ * disclosure than a user id joined to a category, and shrinking it would mean
+ * inventing an indirection the app would have to resolve. Left as is,
+ * deliberately, rather than by omission.
  */
 function messageFor(token: string, row: ExpoPushCandidateRow): ExpoPushMessage {
   // `?? ""` rather than a truthiness test: a null type is a row that declared
@@ -281,7 +336,12 @@ function messageFor(token: string, row: ExpoPushCandidateRow): ExpoPushMessage {
     // instead of stacking, so a retried write does not double somebody's lock
     // screen. The Android-only `tag` field exists too and is deliberately not
     // used: one key, both stores.
-    collapseId: row.dedupeKey ?? undefined,
+    //
+    // HASHED, NEVER RAW — see `collapseKeyFor`. The dedupe key names a
+    // notification CATEGORY and carries a USER ID, and a message genericised so
+    // the lock screen says nothing must not hand that to Expo in the field next
+    // to it.
+    collapseId: row.dedupeKey ? collapseKeyFor(row.dedupeKey) : undefined,
     // THE ANDROID CHANNEL, NAMED HERE BECAUSE A CHANNEL THE SERVER DOES NOT
     // ADDRESS IS A CHANNEL THAT DOES NOTHING.
     //

@@ -108,6 +108,8 @@ vi.mock("@/lib/infra/push-target-store", () => ({
   },
 }));
 
+import { createHash } from "node:crypto";
+
 import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
 
 import { reconcileExpoPushReceipts, sendExpoPushForNotifications } from "@/lib/infra/expo-push";
@@ -286,9 +288,15 @@ describe("sendExpoPushForNotifications — what it puts on the wire", () => {
 // States and the title/body travel through it in the clear, so a type that has
 // not been read and declared safe must not put its text on a lock screen.
 //
-// These assertions are about the DEFAULT, not about the three names currently
-// on the allowlist: the ones that matter most are the two that use a type
-// nobody has classified, because that is the shape a future type arrives in.
+// These assertions are about the DEFAULT, not about the two names currently on
+// the allowlist: the ones that matter most are the two that use a type nobody
+// has classified, because that is the shape a future type arrives in.
+//
+// AND ABOUT ONE CORRECTION THE DEFAULT DID NOT CATCH. Six types were on this
+// allowlist while interpolating `${pet.name}` into their titles — a field
+// nothing validates beyond "non-empty, at most 80 characters". The tests below
+// pin each of the six as GENERIC, and one of them registers a pet whose name is
+// a phishing line and asserts that the line never reaches the payload.
 // ---------------------------------------------------------------------------
 
 describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)", () => {
@@ -377,9 +385,112 @@ describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)"
     expect(sentMessage().body).toBe("Tenés un aviso nuevo");
   });
 
-  it("keeps collapseId unchanged when the payload is genericised", async () => {
+  // -------------------------------------------------------------------------
+  // A pet's name is free text, and six types used to render it on a lock
+  // screen. Each of these pins the type as GENERIC; the first one is the attack
+  // written out, so the failure is legible if somebody ever puts a type back.
+  // -------------------------------------------------------------------------
+
+  /** 39 characters. Passes `requiredText` and `PET_NAME_MAX` without a murmur. */
+  const HOSTILE_PET_NAME = "miMAR: verificá tu cuenta en bit.ly/xY7";
+
+  it("never puts a pet's name on the wire, even for an urgent allowlisted-looking type", async () => {
+    // THE WHOLE FINDING, IN ONE TEST. `eno_disease_diagnosis` is urgent,
+    // push-eligible, and was on the allowlist. Its title is
+    // `ENO: ${disease.label} — ${petRow.name}`, and nothing validates that name
+    // beyond non-empty and ≤ 80 characters — so an attacker registers a pet
+    // named after their phishing line and the government official reading the
+    // lock screen reads it instead of us.
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "urgent",
+        notificationType: "eno_disease_diagnosis",
+        title: `ENO: Leptospirosis — ${HOSTILE_PET_NAME}`,
+        body: "Diagnóstico de Leptospirosis reportado en La Plata. SLA: 24h.",
+        ctaUrl: "/gob/vigilancia",
+      },
+    ]);
+
+    const message = sentMessage();
+    expect(message.title).toBe("miMAR");
+    expect(message.body).toBe("Tenés un aviso nuevo");
+    // Not "the title was replaced" — that a substring of a name a stranger
+    // typed appears NOWHERE in what leaves this process.
+    expect(JSON.stringify(message)).not.toContain(HOSTILE_PET_NAME);
+    expect(JSON.stringify(message)).not.toContain("bit.ly");
+    // And the doorbell still rings at the right door.
+    expect(message.data).toEqual({ url: "/gob/vigilancia" });
+  });
+
+  it.each([
+    "rabies_observation_pending_review",
+    "microchip_fraud_detected",
+    "microchip_updated_by_institution",
+    "eno_disease_diagnosis",
+    "eno_pet_disease_diagnosis",
+    "disease_public_alert",
+  ])("genericises %s, which renders a pet's name", async (notificationType) => {
+    // One reason for all six, which is why they share one test: every one of
+    // them interpolates `${pet.name}` into its title, and a pet name is typed.
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "urgent",
+        notificationType,
+        title: `Algo sobre ${HOSTILE_PET_NAME}`,
+        body: `Más sobre ${HOSTILE_PET_NAME}.`,
+      },
+    ]);
+
+    expect(sentMessage().title).toBe("miMAR");
+    expect(sentMessage().body).toBe("Tenés un aviso nuevo");
+    expect(JSON.stringify(sentMessage())).not.toContain(HOSTILE_PET_NAME);
+  });
+
+  it("still renders the two types that name nobody and nothing", async () => {
+    // The other half of the correction: shrinking the list must not have
+    // emptied it. `outbreak_signal_detected` is a disease label, a species, a
+    // PLACE and two integers — no person, no organisation, no pet.
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "urgent",
+        notificationType: "outbreak_signal_detected",
+        title: "URGENTE — posible Rabia en La Plata",
+        body: "- Especie: Perro\n- Match strength: 2 high · 1 medium",
+        ctaUrl: "/gob/cola",
+      },
+    ]);
+
+    expect(sentMessage().title).toBe("URGENTE — posible Rabia en La Plata");
+    expect(sentMessage().body).toBe("- Especie: Perro\n- Match strength: 2 high · 1 medium");
+  });
+
+  // -------------------------------------------------------------------------
+  // The collapse key. It travels to Expo, to Apple and to Google on every
+  // message, genericised or not — so what it SAYS is as much a transfer as the
+  // body is.
+  // -------------------------------------------------------------------------
+
+  /** What `collapseKeyFor` must produce. Recomputed, never pasted. */
+  function expectedCollapseKey(dedupeKey: string): string {
+    return createHash("sha256").update(dedupeKey).digest("hex").slice(0, 32);
+  }
+
+  it("keeps collapsing when the payload is genericised, and says nothing while doing it", async () => {
     // Genericisation is about what a person READS. Replacing-instead-of-stacking
-    // is about how many rows pile up, and the two must not move together.
+    // is about how many rows pile up, and the two must not move together — the
+    // collapse key is still present and still derived from the dedupe key.
     enableExpo();
     mockTargets = [target("t1")];
 
@@ -390,24 +501,75 @@ describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)"
         notificationType: "pet_in_possession",
         title: "Alguien tiene a Pampa",
         body: "Laura Gómez dice que tiene a Pampa.",
-        dedupeKey: "hallazgo:pampa:2026-09-15",
+        dedupeKey: `event:evt-1:${USER_ID}:pet_in_possession`,
       },
     ]);
 
-    expect(sentMessage().collapseId).toBe("hallazgo:pampa:2026-09-15");
+    expect(sentMessage().collapseId).toBe(
+      expectedCollapseKey(`event:evt-1:${USER_ID}:pet_in_possession`),
+    );
     expect(sentMessage().title).toBe("miMAR");
   });
 
-  it("sets collapseId from the dedupe key, so a retry replaces instead of stacking", async () => {
+  it("does NOT ship the dedupe key's text — not the category, not the user id", async () => {
+    // The finding. A real dedupe key is a sentence: it names the kind of event
+    // and it carries the addressee's user id. Sending it alongside a body that
+    // was blanked out on purpose hands Expo, Apple and Google a stable
+    // pseudonymous identifier joined to "perro potencialmente peligroso".
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([{ ...URGENT, dedupeKey: `ppp-flip:pet-77:${USER_ID}` }]);
+
+    const wire = JSON.stringify(sentMessage());
+    expect(wire).not.toContain("ppp-flip");
+    expect(wire).not.toContain(USER_ID);
+    expect(wire).not.toContain("pet-77");
+  });
+
+  it("sets a STABLE collapse key from the dedupe key, so a retry replaces instead of stacking", async () => {
+    // Stability is the property the feature needs and the property a hash
+    // preserves: the same write, retried, must produce the same key.
     enableExpo();
     mockTargets = [target("t1")];
 
     await sendExpoPushForNotifications([{ ...URGENT, dedupeKey: "hallazgo:pampa:2026-09-11" }]);
+    const first = sentMessage().collapseId;
+
+    sendPushNotificationsAsyncMock.mockClear();
+    await sendExpoPushForNotifications([{ ...URGENT, dedupeKey: "hallazgo:pampa:2026-09-11" }]);
+
+    expect(first).toBe(expectedCollapseKey("hallazgo:pampa:2026-09-11"));
+    expect(sentMessage().collapseId).toBe(first);
+    expect(typeof first).toBe("string");
+  });
+
+  it("gives two different dedupe keys two different collapse keys", async () => {
+    // The other half of stability, and the one a constant would break: two
+    // unrelated notifications must not eat each other on the shade.
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([
+      { ...URGENT, dedupeKey: "hallazgo:pampa:2026-09-11" },
+      { ...URGENT, dedupeKey: "hallazgo:pampa:2026-09-12" },
+    ]);
 
     const [messages] = sendPushNotificationsAsyncMock.mock.calls[0] as [
       Array<Record<string, unknown>>,
     ];
-    expect(messages[0].collapseId).toBe("hallazgo:pampa:2026-09-11");
+    expect(messages[0].collapseId).not.toBe(messages[1].collapseId);
+  });
+
+  it("sends no collapse key at all when the row has no dedupe key", async () => {
+    enableExpo();
+    mockTargets = [target("t1")];
+
+    await sendExpoPushForNotifications([URGENT]);
+
+    // A digest of nothing would be a constant, and a constant collapse key
+    // makes every notification replace every other one.
+    expect(sentMessage().collapseId).toBeUndefined();
   });
 
   it("addresses every live device the person has", async () => {
