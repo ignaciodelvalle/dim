@@ -20,14 +20,22 @@
 // only honest shared unit is the call itself. That also keeps this module free
 // of server imports, which it has to be — the browser bundles it.
 
+// BOTH FAILURE SHAPES ARE WATCHED, not just the thrown one. `auth-js` RETURNS an
+// `AuthRetryableFetchError` when the call cannot reach GoTrue rather than throwing
+// it, so a bare `try/catch` here would report success on the most ordinary
+// failure there is — see `destroy-recovery-session.ts` for the full mechanism and
+// for the place where that distinction is load-bearing instead of best-effort.
+
 type SignsOut = {
-  signOut: (options: { scope: "others" }) => Promise<unknown>;
+  signOut: (options: { scope: "others" }) => Promise<{ error: unknown } | null | undefined>;
 };
 
 export async function revokeOtherSessions(auth: SignsOut): Promise<void> {
-  try {
-    await auth.signOut({ scope: "others" });
-  } catch (signOutError) {
-    console.warn("[password-reset] Failed to revoke other sessions (non-fatal):", signOutError);
+  const result = await auth
+    .signOut({ scope: "others" })
+    .catch((thrown: unknown) => ({ error: thrown }));
+
+  if (result?.error) {
+    console.warn("[password-reset] Failed to revoke other sessions (non-fatal):", result.error);
   }
 }

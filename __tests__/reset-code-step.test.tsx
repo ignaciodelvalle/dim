@@ -298,6 +298,47 @@ describe("ResetCodeStep — a recovery session never outlives the handler", () =
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  // THE SHAPE THAT GOT THROUGH THE FIRST TIME. `auth-js` RETURNS a fetch failure
+  // as `{ error }` instead of throwing it, and returns it WITHOUT having cleared
+  // local storage — so asserting that `signOut` was CALLED proved nothing about
+  // whether the session died. Worse, the two failures are correlated: whatever
+  // stopped `updateUser` is what will stop `signOut`, so this was the COMMON case
+  // of this branch, not the rare one.
+  it("clears the cookies anyway when signOut RETURNS an error instead of throwing", async () => {
+    document.cookie = "sb-demoproject-auth-token=header.payload";
+    document.cookie = "sb-demoproject-auth-token.1=signature";
+    expect(document.cookie).toContain("sb-demoproject-auth-token");
+
+    verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockRejectedValue(new Error("fetch failed"));
+    // status 0 is what an unreachable GoTrue produces — not one of the 404/401/403
+    // codes auth-js forgives, so it bails out BEFORE removing the session.
+    signOut.mockResolvedValue({ error: { status: 0, message: "fetch failed" } });
+    submitReset({ code: "123456" });
+
+    await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.update_failed));
+    // Retried once for an ordinary blip, then cleared without the network.
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(2));
+    expect(document.cookie).not.toContain("sb-demoproject-auth-token");
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("does not retry or touch cookies when the first signOut genuinely worked", async () => {
+    document.cookie = "sb-demoproject-auth-token=header.payload";
+
+    verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockRejectedValue(new Error("fetch failed"));
+    signOut.mockResolvedValue({ error: null });
+    submitReset({ code: "123456" });
+
+    await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.update_failed));
+    // Exactly one local sign-out: the retry is for failure, not a habit. This is
+    // what keeps the test above from passing vacuously.
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+    document.cookie = "sb-demoproject-auth-token=; Max-Age=0";
+  });
+
   it("does not sign out on a refused code — there was no session to drop", async () => {
     verifyOtp.mockResolvedValue({ data: { session: null }, error: GOTRUE_OTP_REFUSAL });
     submitReset({ code: "000000" });

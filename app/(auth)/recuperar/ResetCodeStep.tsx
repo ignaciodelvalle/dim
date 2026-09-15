@@ -18,9 +18,20 @@
 // `signOut({ scope: "others" })` never ran, and the victim got no signal at all.
 //
 // The fix is structural rather than a guard, a marker or a middleware fence:
-// after this change there is no user-visible step between redeeming the code and
-// setting the password, so there is nothing left to abandon. A guard would have
-// had to decide what "abandoned" means; removing the window does not.
+// after this change there is no USER-VISIBLE step between redeeming the code and
+// setting the password, so there is nothing left for a person to abandon. A guard
+// would have had to decide what "abandoned" means; removing the window does not.
+//
+// BE PRECISE ABOUT WHAT THAT DOES NOT BUY, because the next reader will otherwise
+// trust a guarantee that is not here. This closes the UI path, not the protocol:
+// the anon key is public (see the section below), so anyone holding the code can
+// still `POST /auth/v1/verify` themselves and mint a session without ever loading
+// this page. What the change removes is the low-skill version of the phone scam,
+// and it makes the scam NOISY — the attacker now has to change the password to
+// get through the screen, which is the one action the victim cannot miss. The
+// real control on a stolen code remains the code's own lifetime and GoTrue's
+// per-IP ceiling, both of which live in the hosted project's configuration and
+// not in this file.
 //
 // THE ORDER INSIDE THE HANDLER IS LOAD-BEARING, and it is the phone's order for
 // the phone's reason (`resetPasswordWithCode`, apps/mobile/src/auth/session-store.ts):
@@ -95,6 +106,7 @@ import { LnButton } from "@/components/ui/Button";
 import { LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
 import { createClient } from "@/lib/supabase/client";
 import { useActionNavigate } from "@/lib/ui/use-action-redirect";
+import { destroyRecoverySession } from "@/src/modules/auth/application/password-reset/destroy-recovery-session";
 import { revokeOtherSessions } from "@/src/modules/auth/application/password-reset/revoke-other-sessions";
 import {
   MIN_PASSWORD_LENGTH,
@@ -255,7 +267,13 @@ export function ResetCodeStep({
       // auth cookies `verifyOtp` wrote. `scope: "local"` and not "global": the
       // person's other devices did nothing wrong, and the password did not
       // change, so there is nothing to revoke them for.
-      await auth.signOut({ scope: "local" }).catch(() => undefined);
+      //
+      // It goes through `destroyRecoverySession` rather than calling `signOut`
+      // here because `signOut` RETURNS its error instead of throwing, and returns
+      // it WITHOUT having cleared anything — on exactly the network failure that
+      // most likely caused `updateUser` to fail a line ago. That module makes the
+      // local clear unconditional; read its header before simplifying this back.
+      await destroyRecoverySession(auth);
       setWorking(false);
       setCodeError(RESET_CODE_MESSAGES.update_failed);
       return;
