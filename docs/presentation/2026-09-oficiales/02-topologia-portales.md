@@ -60,7 +60,7 @@ El detalle por ruta y el inventario de páginas están en
    datos**, nunca la conexión propia del servidor.
 
 Tamaño del árbol: <!-- fact:pages -->262<!-- /fact --> páginas,
-<!-- fact:route_handlers -->86<!-- /fact --> manejadores de ruta y apenas
+<!-- fact:route_handlers -->88<!-- /fact --> manejadores de ruta y apenas
 <!-- fact:layouts -->11<!-- /fact --> capas de entrada. Esa proporción es el
 argumento: el control está concentrado en las capas de entrada, no repartido
 entre las páginas que protege.
@@ -166,7 +166,7 @@ graph TB
   `c10f4ff03`.
 - **Sin verificar.** El comportamiento del cerrojo en la base de datos que está
   corriendo: el número de tablas con cerrojo declarado
-  (<!-- fact:rls_enabled_tables -->55<!-- /fact -->) se cuenta sobre el código
+  (<!-- fact:rls_enabled_tables -->56<!-- /fact -->) se cuenta sobre el código
   SQL del repositorio, no sobre el catálogo vivo. La única autoridad sobre lo
   que está realmente activo son las pruebas de `__tests__/rls`, que no corrieron
   para armar esta lámina.
