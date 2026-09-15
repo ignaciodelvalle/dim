@@ -1,23 +1,39 @@
 // @vitest-environment jsdom
 //
-// The web's six-digit recovery code step (PO decision 2026-09-13: ONE method,
-// the code, on both surfaces; 2026-09-15: redeemed from the BROWSER).
+// The web's six-digit recovery step (PO decision 2026-09-13: ONE method, the
+// code, on both surfaces; 2026-09-15: redeemed from the BROWSER, and the new
+// password is set in the SAME submit).
+//
+// WHY THIS FILE GREW A SECOND HALF
+// ---------------------------------------------------------------------------
+// Redeeming the code mints a real cookie session, and while the password lived
+// on a separate page nothing obliged anybody to continue: possession of the code
+// alone was a complete web login, and a support-impersonation phone call was
+// enough to get it. The fix was structural — the step that could be abandoned no
+// longer exists — so the assertions that protect it are about ORDER and about
+// what happens on the way out, not about a guard somebody could delete.
 //
 // TWO HALVES, TESTED TWO WAYS, and the split is the point of the component's own
 // split. `ResetCodeStepView` is pure presentation, so its states render to a
-// STRING with no hooks at all. `ResetCodeStep` owns the redemption, and there is
+// STRING with no hooks at all. `ResetCodeStep` owns the whole reset, and there is
 // no server action left to assert against — the security properties now live in
-// what this component does with `verifyOtp`, so they are exercised through a
-// real submit against a mocked `@/lib/supabase/client`.
+// what this component does with `verifyOtp`, `updateUser` and `signOut`, so they
+// are exercised through a real submit against a mocked `@/lib/supabase/client`.
 //
 // The assertions that carry weight, and that would go red if the protection were
 // removed rather than merely restated:
+//   · A REFUSED PASSWORD NEVER REACHES `verifyOtp`. The code is single-use, so
+//     validating after redemption would burn a good code on a typo. This is the
+//     phone's assertion (`session-store-password-reset.test.ts`) on the web.
+//   · A FAILED `updateUser` DROPS THE SESSION. No recovery session may outlive
+//     the handler that created it — that is the window this change closed.
 //   · a wrong code, an expired code and an unknown address produce the SAME
 //     sentence — the anti-enumeration property;
-//   · the typed code reaches `verifyOtp` and NOTHING else: not the DOM, not the
-//     navigation, not the resend action;
+//   · the typed code and the typed password reach `verifyOtp` / `updateUser` and
+//     NOTHING else: not the DOM, not the navigation, not the resend action;
 //   · a resolved-but-sessionless answer is a failure, not a success;
-//   · success leaves through a FULL document navigation to /recuperar/actualizar.
+//   · success revokes every OTHER session and leaves through a FULL document
+//     navigation.
 
 import "@testing-library/jest-dom/vitest";
 
@@ -32,9 +48,13 @@ const { resendAction } = vi.hoisted(() => ({
 }));
 vi.mock("@/app/actions/password-reset", () => ({ requestPasswordResetAction: resendAction }));
 
-const { verifyOtp } = vi.hoisted(() => ({ verifyOtp: vi.fn() }));
+const { verifyOtp, updateUser, signOut } = vi.hoisted(() => ({
+  verifyOtp: vi.fn(),
+  updateUser: vi.fn(),
+  signOut: vi.fn(),
+}));
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ auth: { verifyOtp } }),
+  createClient: () => ({ auth: { verifyOtp, updateUser, signOut } }),
 }));
 
 // `useActionNavigate` performs a real `window.location.assign`, which jsdom
@@ -48,13 +68,18 @@ vi.mock("@/lib/ui/use-action-redirect", () => ({
 
 import {
   RESET_CODE_MESSAGES,
+  RESET_DONE_MESSAGE,
   ResetCodeStep,
   ResetCodeStepView,
 } from "@/app/(auth)/recuperar/ResetCodeStep";
+import { NEW_PASSWORD_MESSAGES } from "@/src/modules/auth/domain/new-password-rules";
 
 const NOTICE =
   "Si existe una cuenta con ese correo, te enviamos un código de 6 dígitos. Revisá también tu carpeta de spam.";
 const noop = () => {};
+
+/** A password that satisfies both shared rules, so the code path is the one under test. */
+const GOOD_PASSWORD = "perrita-nueva-2026";
 
 /** GoTrue's answer to a wrong code, an expired one, a spent one and an unknown address alike. */
 const GOTRUE_OTP_REFUSAL = {
@@ -69,8 +94,10 @@ function render(overrides: Partial<Parameters<typeof ResetCodeStepView>[0]> = {}
       email="ana@mimar.ar"
       notice={NOTICE}
       codeError={null}
-      onSubmitCode={noop}
-      codePending={false}
+      passwordError={null}
+      done={false}
+      onSubmit={noop}
+      pending={false}
       resendError={null}
       resendAction={noop}
       resendPending={false}
@@ -80,26 +107,43 @@ function render(overrides: Partial<Parameters<typeof ResetCodeStepView>[0]> = {}
   );
 }
 
-/** The markup of the first <form>, i.e. the code form. */
-function codeForm(html: string): string {
+/** The markup of the first <form>, i.e. the reset form. */
+function resetForm(html: string): string {
   const start = html.indexOf("<form");
   return html.slice(start, html.indexOf("</form>", start));
 }
 
 describe("ResetCodeStepView", () => {
-  it("renders the neutral notice and a code field with a submit INSIDE the code form", () => {
+  it("asks for the code AND the new password on ONE form, with one submit", () => {
+    // THE SHAPE IS THE FIX. If these three ever land on two forms again, the
+    // window between redeeming and setting the password is back.
     const html = render();
     expect(html).toContain(NOTICE);
-    const form = codeForm(html);
+    const form = resetForm(html);
     expect(form).toContain('name="code"');
     expect(form).toContain('autoComplete="one-time-code"');
     expect(form).toContain('inputMode="numeric"');
+    expect(form).toContain('name="password"');
+    expect(form).toContain('name="confirmPassword"');
     expect(form).toContain('type="submit"');
-    expect(form).toContain("Verificar código");
+    expect(form).toContain("Cambiar contraseña");
+  });
+
+  it("marks both password boxes as new-password and offers to reveal them", () => {
+    const form = resetForm(render());
+    expect(form.match(/autoComplete="new-password"/g)).toHaveLength(2);
+    // The repo's password affordance (LnPasswordInput), not a bare input.
+    expect(form).toContain("Mostrar contraseña");
+  });
+
+  it("never sends the person to a second page to finish the reset", () => {
+    // The abandonable step is gone; nothing here may link back to it.
+    expect(render()).not.toContain("/recuperar/actualizar");
   });
 
   it("never caps the code length (GoTrue owns otp_length)", () => {
-    expect(codeForm(render())).not.toMatch(/maxlength/i);
+    const form = resetForm(render());
+    expect(form).not.toMatch(/maxlength/i);
   });
 
   it("offers a resend that posts the same address, and a way back to change it", () => {
@@ -113,21 +157,26 @@ describe("ResetCodeStepView", () => {
   it("shows the invalid-or-expired sentence on the code field when the code is refused", () => {
     const html = render({ codeError: RESET_CODE_MESSAGES.invalid_code });
     expect(html).toContain(RESET_CODE_MESSAGES.invalid_code);
-    expect(codeForm(html)).toContain('aria-invalid="true"');
+    expect(resetForm(html)).toContain('aria-invalid="true"');
   });
 
-  it("shows a resend refusal (rate limit) without hiding the code field", () => {
+  it("shows a password rule on the password field, not on the code field", () => {
+    const html = render({ passwordError: NEW_PASSWORD_MESSAGES.mismatch });
+    expect(html).toContain(NEW_PASSWORD_MESSAGES.mismatch);
+  });
+
+  it("shows a resend refusal (rate limit) without hiding the reset form", () => {
     const html = render({
       resendError: "Demasiados intentos. Esperá un momento y volvé a probar.",
     });
     expect(html).toContain("Demasiados intentos");
     expect(html).toContain('role="alert"');
-    expect(codeForm(html)).toContain('name="code"');
+    expect(resetForm(html)).toContain('name="code"');
   });
 
-  it("disables the submit and says so while verifying (and while navigating away)", () => {
-    const form = codeForm(render({ codePending: true }));
-    expect(form).toContain("Verificando...");
+  it("disables the submit and says so while working (and while navigating away)", () => {
+    const form = resetForm(render({ pending: true }));
+    expect(form).toContain("Guardando...");
     expect(form).toContain("disabled");
   });
 
@@ -137,21 +186,38 @@ describe("ResetCodeStepView", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ResetCodeStep — the browser redemption
+// ResetCodeStep — the browser redemption AND the password change, one handler
 // ---------------------------------------------------------------------------
 
-/** Mount the step and submit `code` through the real form. */
-async function submitCode(code: string, email = "ana@mimar.ar") {
+/** Mount the step and submit the whole form. */
+function submitReset({
+  code,
+  password = GOOD_PASSWORD,
+  confirmPassword = password,
+  email = "ana@mimar.ar",
+}: {
+  code: string;
+  password?: string;
+  confirmPassword?: string;
+  email?: string;
+}) {
   renderDom(<ResetCodeStep email={email} notice={NOTICE} onChangeEmail={noop} />);
-  const field = screen.getByLabelText(/Código/i);
-  fireEvent.change(field, { target: { value: code } });
-  fireEvent.submit(field.closest("form") as HTMLFormElement);
-  return field as HTMLInputElement;
+  const codeField = screen.getByLabelText(/Código/i) as HTMLInputElement;
+  const passwordField = screen.getByLabelText(/Nueva contraseña/i) as HTMLInputElement;
+  const confirmField = screen.getByLabelText(/Repetir contraseña/i) as HTMLInputElement;
+  fireEvent.change(codeField, { target: { value: code } });
+  fireEvent.change(passwordField, { target: { value: password } });
+  fireEvent.change(confirmField, { target: { value: confirmPassword } });
+  fireEvent.submit(codeField.closest("form") as HTMLFormElement);
+  return { codeField, passwordField, confirmField };
 }
 
-/** Whatever sentence the step is currently showing about the code, if any. */
+/** Whatever sentence the step is currently showing, if any. */
 function shownError(): string | null {
-  for (const sentence of Object.values(RESET_CODE_MESSAGES)) {
+  for (const sentence of [
+    ...Object.values(RESET_CODE_MESSAGES),
+    ...Object.values(NEW_PASSWORD_MESSAGES),
+  ]) {
     if (screen.queryByText(sentence)) return sentence;
   }
   return null;
@@ -159,18 +225,95 @@ function shownError(): string | null {
 
 beforeEach(() => {
   verifyOtp.mockReset();
+  updateUser.mockReset();
+  signOut.mockReset();
+  signOut.mockResolvedValue({ error: null });
   navigate.mockReset();
   resendAction.mockClear();
 });
 
 afterEach(cleanup);
 
-describe("ResetCodeStep (browser redemption)", () => {
-  it("redeems the code against the browser client and navigates to /recuperar/actualizar", async () => {
+describe("ResetCodeStep — the password is checked BEFORE the code is spent", () => {
+  // THE assertion of this file, and the phone's
+  // (`session-store-password-reset.test.ts`): a recovery code is single-use and
+  // `verifyOtp` consumes it, so a local rule that could have been checked for
+  // free must never cost somebody a code.
+  it.each([
+    ["a password below the minimum", "corta", "corta", NEW_PASSWORD_MESSAGES.too_short],
+    [
+      "a confirmation that does not match",
+      GOOD_PASSWORD,
+      `${GOOD_PASSWORD}x`,
+      NEW_PASSWORD_MESSAGES.mismatch,
+    ],
+  ])("never calls verifyOtp for %s", async (_label, password, confirmPassword, sentence) => {
+    submitReset({ code: "123456", password, confirmPassword });
+
+    await waitFor(() => expect(shownError()).toBe(sentence));
+    // The code is NOT burnt.
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("tells somebody who typed the same short password twice about the LENGTH", () => {
+    // Both rules fail at once; the honest one is the one they can act on.
+    submitReset({ code: "123456", password: "corta", confirmPassword: "corta" });
+    expect(screen.getByText(NEW_PASSWORD_MESSAGES.too_short)).toBeInTheDocument();
+  });
+
+  it("asks for the code when the field is blank, without calling GoTrue", async () => {
+    submitReset({ code: "   " });
+
+    await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.missing_code));
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
+});
+
+describe("ResetCodeStep — a recovery session never outlives the handler", () => {
+  it("drops the session verifyOtp stored when updateUser fails", async () => {
     verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockResolvedValue({ data: {}, error: { message: "Password is too weak" } });
+    submitReset({ code: "123456" });
+
+    await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.update_failed));
+    // By now `verifyOtp` has written live auth cookies. Leaving them is the exact
+    // window this change closed: an error on screen and a signed-in browser.
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+    // And nothing pretends the reset half-worked.
+    expect(signOut).not.toHaveBeenCalledWith({ scope: "others" });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("drops the session when updateUser THROWS, too", async () => {
+    // auth-js rethrows anything that is not an AuthError — a network failure, a
+    // cookie write that threw. Unwrapped it would leave the session standing.
+    verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockRejectedValue(new Error("fetch failed"));
+    submitReset({ code: "123456" });
+
+    await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.update_failed));
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("does not sign out on a refused code — there was no session to drop", async () => {
+    verifyOtp.mockResolvedValue({ data: { session: null }, error: GOTRUE_OTP_REFUSAL });
+    submitReset({ code: "000000" });
+
+    await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.invalid_code));
+    expect(signOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("ResetCodeStep (browser redemption)", () => {
+  it("redeems the code, sets the password, revokes other sessions and navigates", async () => {
+    verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockResolvedValue({ data: { user: { id: "u" } }, error: null });
     // Pasted from a mail client, hence the space: whitespace is removed, the
     // address is the one the request step echoed back.
-    await submitCode("123 456");
+    submitReset({ code: "123 456" });
 
     await waitFor(() =>
       expect(verifyOtp).toHaveBeenCalledWith({
@@ -179,18 +322,36 @@ describe("ResetCodeStep (browser redemption)", () => {
         type: "recovery",
       }),
     );
-    // A FULL document navigation, not a router push: the next page is rendered
-    // by the SERVER and needs the cookies verifyOtp just wrote.
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/recuperar/actualizar"));
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ password: GOOD_PASSWORD }));
+    // MED-5: a reset is the canonical response to a compromised account, so any
+    // session an attacker minted before it must die. "others", never "global" —
+    // the person who just recovered stays signed in.
+    await waitFor(() => expect(signOut).toHaveBeenCalledWith({ scope: "others" }));
+    // A FULL document navigation, not a router push.
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/iniciar-sesion"));
+    expect(shownError()).toBeNull();
+    expect(screen.getByText(RESET_DONE_MESSAGE)).toBeInTheDocument();
+  });
+
+  it("still succeeds when revoking the other sessions fails", async () => {
+    // The password is ALREADY changed. Reporting a failed reset here would send
+    // somebody to ask for a second code with the new password in their hands.
+    verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockResolvedValue({ data: {}, error: null });
+    signOut.mockRejectedValue(new Error("network"));
+    submitReset({ code: "123456" });
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/iniciar-sesion"));
     expect(shownError()).toBeNull();
   });
 
-  it("keeps the button busy through the navigation, so a second tap is impossible", async () => {
+  it("keeps the button busy through the navigation, so a second submit is impossible", async () => {
     verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
-    await submitCode("123456");
+    updateUser.mockResolvedValue({ data: {}, error: null });
+    submitReset({ code: "123456" });
 
     await waitFor(() => expect(navigate).toHaveBeenCalled());
-    const button = screen.getByRole("button", { name: /Verificando/i });
+    const button = screen.getByRole("button", { name: /Guardando/i });
     expect(button).toBeDisabled();
   });
 
@@ -207,44 +368,59 @@ describe("ResetCodeStep (browser redemption)", () => {
     ],
   ])("shows the one neutral sentence for %s", async (_label, error, code) => {
     verifyOtp.mockResolvedValue({ data: { session: null }, error });
-    await submitCode(code);
+    submitReset({ code });
 
     await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.invalid_code));
+    expect(updateUser).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
 
   it("treats a resolved answer with no session as a failure, not a success", async () => {
-    // GoTrue said nothing was wrong and handed over no session: there would be
-    // nothing for /recuperar/actualizar to read. Same sentence as a refused code.
+    // GoTrue said nothing was wrong and handed over no session: there would be no
+    // session to change a password with. Same sentence as a refused code.
     verifyOtp.mockResolvedValue({ data: { session: null }, error: null });
-    await submitCode("123456");
+    submitReset({ code: "123456" });
 
     await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.invalid_code));
+    expect(updateUser).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it("never lets the code reach the DOM, the navigation or the resend action", async () => {
+  it("never lets the code or the password reach the DOM, the navigation or the resend", async () => {
     verifyOtp.mockResolvedValue({ data: { session: null }, error: GOTRUE_OTP_REFUSAL });
-    const field = await submitCode("987654");
+    const { codeField, passwordField, confirmField } = submitReset({
+      code: "987654",
+      password: "secreto-de-ana-2026",
+    });
 
     await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.invalid_code));
-    // The box still holds what the person typed — that is the DOM's own value,
+    // The boxes still hold what the person typed — that is the DOM's own value,
     // not something React re-rendered from state. Everything the component
     // WROTE is checked below.
-    expect(field.value).toBe("987654");
-    field.value = "";
+    expect(codeField.value).toBe("987654");
+    expect(passwordField.value).toBe("secreto-de-ana-2026");
+    codeField.value = "";
+    passwordField.value = "";
+    confirmField.value = "";
     expect(document.body.innerHTML).not.toContain("987654");
-    // verifyOtp is the only thing that ever sees it.
+    expect(document.body.innerHTML).not.toContain("secreto-de-ana-2026");
+    // `verifyOtp` is the only thing that ever saw the code, and it saw it alone —
+    // the password is not in that call.
     expect(verifyOtp).toHaveBeenCalledOnce();
+    expect(JSON.stringify(verifyOtp.mock.calls)).not.toContain("secreto-de-ana-2026");
     expect(navigate).not.toHaveBeenCalled();
     expect(resendAction).not.toHaveBeenCalled();
   });
 
-  it("asks for the code when the field is blank, without calling GoTrue", async () => {
-    await submitCode("   ");
+  it("keeps the code out of updateUser on the success path", async () => {
+    verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockResolvedValue({ data: {}, error: null });
+    submitReset({ code: "424242", password: "otra-clave-larga-2026" });
 
-    await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.missing_code));
-    expect(verifyOtp).not.toHaveBeenCalled();
+    await waitFor(() => expect(updateUser).toHaveBeenCalled());
+    expect(JSON.stringify(updateUser.mock.calls)).not.toContain("424242");
+    // Nor in the navigation: the destination is a bare path.
+    expect(navigate).toHaveBeenCalledWith("/iniciar-sesion");
   });
 
   it("maps GoTrue's own rate limit to the rate-limit sentence, not to a code verdict", async () => {
@@ -252,14 +428,14 @@ describe("ResetCodeStep (browser redemption)", () => {
       data: { session: null },
       error: { message: "rate limit", code: "over_request_rate_limit", status: 429 },
     });
-    await submitCode("123456");
+    submitReset({ code: "123456" });
 
     await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.rate_limited));
   });
 
   it("reports an unavailable provider without blaming the code", async () => {
     verifyOtp.mockRejectedValue(new Error("fetch failed"));
-    await submitCode("123456");
+    submitReset({ code: "123456" });
 
     await waitFor(() => expect(shownError()).toBe(RESET_CODE_MESSAGES.unavailable));
     expect(navigate).not.toHaveBeenCalled();

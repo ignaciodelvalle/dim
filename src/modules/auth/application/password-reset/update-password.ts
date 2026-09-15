@@ -1,14 +1,21 @@
 // Use-case: updatePasswordAction — re-verifies recovery session, validates password strength,
 // then calls supabase.auth.updateUser({ password }).
 //
-// Runs inside a valid recovery session (established by the six-digit code at
-// /recuperar, redeemed in the BROWSER against GoTrue — see ResetCodeStep.tsx —
-// or by the legacy recovery link → auth/callback → /recuperar/actualizar). The
-// page verifies the session before rendering the form; this action re-verifies
-// to prevent direct POST abuse.
+// Runs inside a valid recovery session. Since 2026-09-15 that session comes from
+// the LEGACY RECOVERY LINK and only from it (mail link → /auth/callback →
+// /recuperar/actualizar): the six-digit code no longer lands here, because
+// `ResetCodeStep` redeems it and sets the password in the same submit, so no
+// step exists between the two for anybody to abandon. This route stays because a
+// mail client, a forwarded message or an edited template can still deliver a
+// link and no code, and a person holding one has no other way through.
+//
+// The page verifies the session before rendering the form; this action
+// re-verifies to prevent direct POST abuse.
 
 import { createClient } from "@/lib/supabase/server";
+import { validateNewPassword } from "@/src/modules/auth/domain/new-password-rules";
 
+import { revokeOtherSessions } from "./revoke-other-sessions";
 import type { UpdatePasswordState } from "./types";
 
 export async function updatePasswordAction(
@@ -34,13 +41,11 @@ export async function updatePasswordAction(
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-  // Same strength rule as signupAction (app/actions/auth.ts).
-  if (password.length < 8) {
-    return { error: "La contraseña debe tener al menos 8 caracteres." };
-  }
-  if (password !== confirmPassword) {
-    return { error: "Las contraseñas no coinciden." };
-  }
+  // The same two rules `ResetCodeStep` applies in the browser and the phone
+  // applies in `resetPasswordWithCode`, from the one module that owns them —
+  // see `new-password-rules.ts` for why they stopped living here.
+  const passwordProblem = validateNewPassword(password, confirmPassword);
+  if (passwordProblem) return { error: passwordProblem };
 
   const { error } = await supabase.auth.updateUser({ password });
 
@@ -48,19 +53,10 @@ export async function updatePasswordAction(
     return { error: `No se pudo actualizar la contraseña: ${error.message}` };
   }
 
-  // Revoke every OTHER session (audit 28-#MED-5). A reset is the canonical
-  // response to a compromised account, so any pre-existing attacker session
-  // (JWT + refresh token minted before this reset) must die. scope:"others"
-  // revokes all sessions EXCEPT the current recovery session, so the legitimate
-  // user who just reset stays authenticated and the success UX is preserved —
-  // a global sign-out would drop them too. Best-effort: the password is already
-  // changed, so a transient sign-out failure must not surface as a hard error;
-  // we log and still report success.
-  try {
-    await supabase.auth.signOut({ scope: "others" });
-  } catch (signOutError) {
-    console.warn("[update-password] Failed to revoke other sessions (non-fatal):", signOutError);
-  }
+  // Revoke every OTHER session (audit 28-#MED-5). Shared with the code step,
+  // which reaches the same posture from the browser — see
+  // `revoke-other-sessions.ts` for the scope and the best-effort reasoning.
+  await revokeOtherSessions(supabase.auth);
 
   return { error: null, ok: true };
 }

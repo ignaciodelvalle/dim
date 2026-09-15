@@ -1,9 +1,40 @@
 "use client";
 
 // The web's code step of password recovery (PO decision 2026-09-13: ONE method,
-// the six-digit code, on both surfaces). Mirrors the phone's `RecuperarScreen`
-// redeem step, minus the password fields: on the web the code buys a recovery
-// session and `/recuperar/actualizar` — unchanged — sets the new password.
+// the six-digit code, on both surfaces). It now mirrors the phone's
+// `RecuperarScreen` redeem step COMPLETELY — code, new password and confirmation
+// on one form, both operations inside one handler.
+//
+// WHY THE PASSWORD FIELDS ARE HERE AND NOT ON /recuperar/actualizar
+// ---------------------------------------------------------------------------
+// This is a security fix, not a layout preference. Redeeming the code mints a
+// REAL cookie session, and until 2026-09-15 nothing obliged the person to
+// continue: `/recuperar/actualizar` was a separate page they could simply
+// navigate away from. So possession of the code alone was a complete web login.
+// The attack is a phone call — somebody posing as miMAR support triggers the
+// reset, asks the victim to read back "the 6-digit verification code we just
+// sent", enters address plus code here, and walks away from the password form
+// into `/inicio` with a live session. Because the password never changed,
+// `signOut({ scope: "others" })` never ran, and the victim got no signal at all.
+//
+// The fix is structural rather than a guard, a marker or a middleware fence:
+// after this change there is no user-visible step between redeeming the code and
+// setting the password, so there is nothing left to abandon. A guard would have
+// had to decide what "abandoned" means; removing the window does not.
+//
+// THE ORDER INSIDE THE HANDLER IS LOAD-BEARING, and it is the phone's order for
+// the phone's reason (`resetPasswordWithCode`, apps/mobile/src/auth/session-store.ts):
+// a recovery code is SINGLE-USE and `verifyOtp` consumes it, so the two local
+// password rules — which cost nothing — run BEFORE it. Validating afterwards
+// burns a good code on a typo in the confirmation box and sends the person back
+// to an endpoint that allows their address five mails an hour.
+//
+// AND A FAILED `updateUser` DROPS THE SESSION IMMEDIATELY, exactly as the phone
+// does (`session-store-password-reset.test.ts`, "drops the session verifyOtp
+// stored when updateUser fails"). By then `verifyOtp` has already written live
+// auth cookies; leaving them would recreate the very window this change closes,
+// only worse, because the screen is showing an error while the browser is signed
+// in. A recovery session must never outlive the handler that created it.
 //
 // WHY THE CODE IS REDEEMED FROM THE BROWSER AND NOT FROM A SERVER ACTION
 // ---------------------------------------------------------------------------
@@ -21,10 +52,10 @@
 // managed because it no longer exists.
 //
 // `createClient()` here is `createBrowserClient` from `@supabase/ssr`, which
-// writes the auth cookies to `document.cookie`. That is the load-bearing detail:
-// a successful `verifyOtp` leaves the recovery session in the SAME cookie jar
-// the server reads through `@/lib/supabase/server`, so `/recuperar/actualizar`
-// and `updatePasswordAction` see it on the next request without any change.
+// writes the auth cookies to `document.cookie`. That is still the load-bearing
+// detail, for a smaller job than before: `updateUser` and `signOut` need the
+// session `verifyOtp` just stored, and the FULL document navigation at the end
+// needs the server to see the cookies of the account we just recovered.
 //
 // WHAT WENT AWAY WITH THE SERVER ACTION, AND WHY THAT IS NOT A REGRESSION
 // ---------------------------------------------------------------------------
@@ -47,8 +78,9 @@
 // one the phone shows. The other refusals (blank field, provider over its own
 // limit, provider unavailable) are about the request, never the account.
 //
-// THE CODE IS NEVER LOGGED, never echoed back into the DOM and never put in a
-// URL: it goes to `verifyOtp` and nowhere else.
+// THE CODE AND THE PASSWORD ARE NEVER LOGGED, never echoed back into the DOM and
+// never put in a URL: the code goes to `verifyOtp`, the password goes to
+// `updateUser`, and neither goes anywhere else.
 //
 // "Pedir otro código" stays a SERVER action, deliberately. That half is
 // genuinely ours — our server is the one asking GoTrue to send mail — so it
@@ -60,26 +92,44 @@ import {
   requestPasswordResetAction,
 } from "@/app/actions/password-reset";
 import { LnButton } from "@/components/ui/Button";
-import { LnField, LnInput } from "@/components/ui/Field";
+import { LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
 import { createClient } from "@/lib/supabase/client";
 import { useActionNavigate } from "@/lib/ui/use-action-redirect";
+import { revokeOtherSessions } from "@/src/modules/auth/application/password-reset/revoke-other-sessions";
+import {
+  MIN_PASSWORD_LENGTH,
+  validateNewPassword,
+} from "@/src/modules/auth/domain/new-password-rules";
 import { type FormEvent, useActionState, useState } from "react";
 
 const initialResendState: PasswordResetRequestState = { message: null, error: null };
 
-/** Where a redeemed code lands. A full document navigation — see below. */
-const REDEEMED_DESTINATION = "/recuperar/actualizar";
+/**
+ * Where a finished reset lands. The login screen, like `/recuperar/actualizar`
+ * has always done — a FULL document navigation, see below. The session the reset
+ * leaves behind is the person's own and the login page will route them onward by
+ * role; what matters here is that the document leaves.
+ */
+const RESET_DESTINATION = "/iniciar-sesion";
+
+/** The sentence shown while the document is on its way out. `/recuperar/actualizar`'s own. */
+export const RESET_DONE_MESSAGE = "Contraseña actualizada. Redirigiendo...";
 
 /**
- * Every sentence this step can show for a refused code. `invalid_code` is the
- * neutral one the four indistinguishable causes share; the other two are about
- * the provider, never about the account.
+ * Every sentence this step can show about the CODE. `invalid_code` is the
+ * neutral one the four indistinguishable causes share; the others are about the
+ * provider or the flow, never about the account. What it can say about the
+ * PASSWORD comes from `new-password-rules.ts`, shared with the two other callers.
  */
 export const RESET_CODE_MESSAGES = {
   missing_code: "Ingresá el código de 6 dígitos que te enviamos por correo.",
   rate_limited: "Demasiados intentos. Esperá unos minutos y volvé a probar.",
   invalid_code: "El código no es válido o ya venció. Pedí uno nuevo y volvé a intentar.",
   unavailable: "No pudimos verificar el código en este momento. Probá de nuevo en unos minutos.",
+  // The phone's sentence, for the phone's situation: the code is spent and the
+  // password did not change, so the only way forward is a new code. It sits on
+  // the code field because that is where the remedy is.
+  update_failed: "No pudimos cambiar la contraseña. Pedí un código nuevo y volvé a intentar.",
 } as const;
 
 /**
@@ -117,61 +167,110 @@ export function ResetCodeStep({
   onChangeEmail: () => void;
 }) {
   const [codeError, setCodeError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [working, setWorking] = useState(false);
   const [resendState, resendAction, resendPending] = useActionState(
     requestPasswordResetAction,
     initialResendState,
   );
   // NAV CONTRACT N3, imperative half: `useActionNavigate` performs a FULL
   // document navigation, which is what makes the next page render on the server
-  // with the cookies `verifyOtp` just wrote. A client-side router push would
-  // reuse the RSC payload this document already has and reach
-  // `/recuperar/actualizar` without them. `navigating` never comes back down,
-  // so the button stays in its loading state until the document leaves.
+  // with the cookies this handler just settled. A client-side router push would
+  // reuse the RSC payload this document already has and arrive without them.
+  // `navigating` never comes back down, so the button stays in its loading state
+  // until the document leaves.
   const [navigate, navigating] = useActionNavigate();
 
-  async function onSubmitCode(event: FormEvent<HTMLFormElement>) {
-    // The browser must NOT post this form: there is no longer a server action
-    // behind it, and a native post would put the code in a request we do not
-    // handle. JavaScript is required for this step by design (PO 2026-09-15) —
-    // the redemption has to happen from the person's own IP to be worth doing.
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    // The browser must NOT post this form: there is no server action behind it,
+    // and a native post would put the code AND the new password in a request we
+    // do not handle. JavaScript is required for this step by design
+    // (PO 2026-09-15) — the redemption has to happen from the person's own IP to
+    // be worth doing.
     event.preventDefault();
-    const code = normalizeRecoveryCode(String(new FormData(event.currentTarget).get("code") ?? ""));
+    const fields = new FormData(event.currentTarget);
+    const code = normalizeRecoveryCode(String(fields.get("code") ?? ""));
+    const password = String(fields.get("password") ?? "");
+    const confirmPassword = String(fields.get("confirmPassword") ?? "");
+
     if (!code) {
+      setPasswordError(null);
       setCodeError(RESET_CODE_MESSAGES.missing_code);
+      return;
+    }
+    // BEFORE `verifyOtp`, always. See the header: the code is single-use and
+    // these two rules are free, so a typo in the confirmation box must not cost
+    // the person a code.
+    const passwordProblem = validateNewPassword(password, confirmPassword);
+    if (passwordProblem) {
+      setCodeError(null);
+      setPasswordError(passwordProblem);
       return;
     }
 
     setCodeError(null);
-    setVerifying(true);
+    setPasswordError(null);
+    setWorking(true);
 
-    let answer: Awaited<ReturnType<ReturnType<typeof createClient>["auth"]["verifyOtp"]>>;
+    const auth = createClient().auth;
+
+    let redeemed: Awaited<ReturnType<typeof auth.verifyOtp>>;
     try {
-      answer = await createClient().auth.verifyOtp({ email, token: code, type: "recovery" });
+      redeemed = await auth.verifyOtp({ email, token: code, type: "recovery" });
     } catch {
       // auth-js rethrows anything that is not an AuthError (a network failure, a
       // cookie write that threw). Nothing about the code or the account.
-      setVerifying(false);
+      setWorking(false);
       setCodeError(RESET_CODE_MESSAGES.unavailable);
       return;
     }
 
-    if (answer.error) {
-      setVerifying(false);
-      setCodeError(messageForProviderError(answer.error));
+    if (redeemed.error) {
+      setWorking(false);
+      setCodeError(messageForProviderError(redeemed.error));
       return;
     }
-    // No error and no session is not a success: there is nothing for
-    // `/recuperar/actualizar` to read. Same sentence as a refused code.
-    if (!answer.data.session) {
-      setVerifying(false);
+    // No error and no session is not a success: there is no session to change a
+    // password with. Same sentence as a refused code.
+    if (!redeemed.data.session) {
+      setWorking(false);
       setCodeError(RESET_CODE_MESSAGES.invalid_code);
       return;
     }
 
-    // Deliberately NOT clearing `verifying`: the document is on its way out and
-    // a button that came back to life over the old page invites a second tap.
-    navigate(REDEEMED_DESTINATION);
+    // From here on a LIVE recovery session exists in this browser's cookie jar,
+    // and every exit below must either finish the reset or destroy it.
+    let updated: Awaited<ReturnType<typeof auth.updateUser>> | null = null;
+    let threw = false;
+    try {
+      updated = await auth.updateUser({ password });
+    } catch {
+      threw = true;
+    }
+
+    if (threw || updated?.error) {
+      // DROP THE SESSION. The phone calls `clearSession()` here; the browser's
+      // equivalent is a local sign-out, which revokes THIS session and clears the
+      // auth cookies `verifyOtp` wrote. `scope: "local"` and not "global": the
+      // person's other devices did nothing wrong, and the password did not
+      // change, so there is nothing to revoke them for.
+      await auth.signOut({ scope: "local" }).catch(() => undefined);
+      setWorking(false);
+      setCodeError(RESET_CODE_MESSAGES.update_failed);
+      return;
+    }
+
+    // MED-5: the reset is the canonical response to a compromised account, so
+    // every session minted before it dies. Best-effort and shared with
+    // `updatePasswordAction` — see `revoke-other-sessions.ts`.
+    await revokeOtherSessions(auth);
+
+    // Deliberately NOT clearing `working`: the document is on its way out and a
+    // button that came back to life over the old page invites a second submit,
+    // which would spend a code that no longer exists.
+    setDone(true);
+    navigate(RESET_DESTINATION);
   }
 
   return (
@@ -179,8 +278,10 @@ export function ResetCodeStep({
       email={email}
       notice={resendState.message ?? notice}
       codeError={codeError}
-      onSubmitCode={onSubmitCode}
-      codePending={verifying || navigating}
+      passwordError={passwordError}
+      done={done}
+      onSubmit={onSubmit}
+      pending={working || navigating}
       resendError={resendState.error}
       resendAction={resendAction}
       resendPending={resendPending}
@@ -194,8 +295,10 @@ export function ResetCodeStepView({
   email,
   notice,
   codeError,
-  onSubmitCode,
-  codePending,
+  passwordError,
+  done,
+  onSubmit,
+  pending,
   resendError,
   resendAction,
   resendPending,
@@ -204,8 +307,10 @@ export function ResetCodeStepView({
   email: string;
   notice: string;
   codeError: string | null;
-  onSubmitCode: (event: FormEvent<HTMLFormElement>) => void;
-  codePending: boolean;
+  passwordError: string | null;
+  done: boolean;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  pending: boolean;
   resendError: string | null;
   resendAction: (formData: FormData) => void;
   resendPending: boolean;
@@ -217,7 +322,7 @@ export function ResetCodeStepView({
         {notice}
       </output>
 
-      <form onSubmit={onSubmitCode} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-4">
         <LnField
           label="Código"
           required
@@ -243,8 +348,47 @@ export function ResetCodeStepView({
           )}
         </LnField>
 
-        <LnButton type="submit" block size="lg" loading={codePending}>
-          {codePending ? "Verificando..." : "Verificar código"}
+        {/* The password pair, with `/recuperar/actualizar`'s own labels and hint —
+            same surface, same words. `new-password` on both, so a manager offers
+            to store the one it is about to become. */}
+        <LnField
+          label="Nueva contraseña"
+          required
+          hint={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres.`}
+          error={passwordError ?? undefined}
+        >
+          {({ id, describedBy, invalid }) => (
+            <LnPasswordInput
+              id={id}
+              name="password"
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </LnField>
+        <LnField label="Repetir contraseña" required>
+          {({ id, describedBy, invalid }) => (
+            <LnPasswordInput
+              id={id}
+              name="confirmPassword"
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+              required
+              aria-describedby={describedBy}
+              invalid={invalid}
+            />
+          )}
+        </LnField>
+
+        {done && (
+          <output className="block text-sm text-[var(--color-ln-ok)]">{RESET_DONE_MESSAGE}</output>
+        )}
+
+        <LnButton type="submit" block size="lg" loading={pending}>
+          {pending ? "Guardando..." : "Cambiar contraseña"}
         </LnButton>
       </form>
 
