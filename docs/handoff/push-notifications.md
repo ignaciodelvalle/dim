@@ -148,9 +148,20 @@ conflict with `device_id`. If a second person signs in on the same phone, the ro
 flips to them and the first person stops receiving pushes on that device. That is correct
 — the device's lock screen belongs to whoever is signed in.
 
-**RLS**: mirror `push_subscriptions` exactly (migration `0152`, lines 69-94). SELECT,
-INSERT and UPDATE restricted to `user_id = auth.uid()`. **No DELETE policy at all** — rows
-are soft-revoked, and hard deletion happens only server-side.
+**RLS**: **SELECT-only**, `user_id = auth.uid()`. No INSERT, UPDATE or DELETE policy at
+all — every write goes through `POST /api/v1/me/push-targets`, which runs over Drizzle
+(BYPASSRLS) behind `requireLiveUser`, the api-v1 rate limits and zod validation.
+
+This paragraph first said "mirror `push_subscriptions` exactly (migration `0152`)" and
+that was **wrong**, so it is corrected here rather than quietly dropped. 0152's owner
+INSERT/UPDATE pair is the OLDER direction — the repo moved the other way in `0163`
+(ownerships), `0211` (profiles) and `0212` (pet_events), and `0169`/`0189` were born
+SELECT-only. Copying it here would have let a client write the row directly through
+PostgREST with its own JWT, so a token belonging to an erased or deactivated account
+could re-insert a delivery target or clear its own `revoked_at`. `auth.uid()` answers
+"who is this JWT", never "is this account still live". The row carries the Expo delivery
+token, which is a credential: whoever holds it can push to that device. See the AUTHZ /
+RLS header of `db/migrations/0222_push_targets.sql` for the writer enumeration.
 
 **Erasure**: `erase_subject_data()` must hard-delete from `push_targets` the same way it
 does from `push_subscriptions`. That RPC is redefined wholesale by each migration that

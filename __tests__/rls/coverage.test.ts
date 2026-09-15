@@ -120,12 +120,14 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // revoked_at update; rows go via profiles CASCADE only).
   "push_subscriptions",
   // Native push targets (migration 0222): the phone's sibling of the row above,
-  // and the same posture for the same reasons — owner-only SELECT/INSERT/UPDATE
-  // (user_id = auth.uid()), NO DELETE policy, because revocation is a soft
-  // revoked_at update and the only hard delete is the art. 16 erasure running
-  // as SECURITY DEFINER. Carries the Expo delivery token, which is a
-  // credential: anybody holding it can push to that device, so a row reachable
-  // by the wrong reader is not a privacy footnote.
+  // but NOT its policy shape — SELECT-own only (user_id = auth.uid()), zero
+  // write policies, like pet_tags (0169) and pet_caretaker_grants (0189) below.
+  // Registration, the last_used_at bump, the soft revoke and the purge are all
+  // server-side over Drizzle (BYPASSRLS); the art. 16 erasure is SECURITY
+  // DEFINER. 0152's owner-INSERT/UPDATE pair is the older direction, not the
+  // model — 0163/0211/0212 are. The row carries the Expo delivery token, which
+  // is a credential: anybody holding it can push to that device, so neither a
+  // wrong reader nor a client-side writer is a privacy footnote.
   "push_targets",
   // Physical tags (migration 0169): SELECT-own policy only (activator or
   // current owner of the linked pet, TO authenticated); zero write policies —

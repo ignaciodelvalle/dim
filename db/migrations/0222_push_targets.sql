@@ -39,15 +39,50 @@
 -- owner and the first person stops receiving pushes there. A lock screen
 -- belongs to whoever is signed in on that device, not to whoever was first.
 --
--- AUTHZ / RLS
--- -----------
--- Mirrors 0152 exactly, and for the same reason: Drizzle (service-role) is the
--- primary gate and the policies are the defence-in-depth backstop for any
--- future direct PostgREST surface.
+-- AUTHZ / RLS — SELECT ONLY, AND 0152 IS NOT THE MODEL
+-- ----------------------------------------------------
+-- This table was first written mirroring 0152 (push_subscriptions): owner-only
+-- SELECT, INSERT and UPDATE. That is the OLDER direction, kept on 0152 because
+-- nobody has gone back to narrow it — not a posture this repo still argues for.
+-- The direction it has actually moved in is 0163 (ownerships), 0211 (profiles)
+-- and 0212 (pet_events): enumerate the writers, find that every one of them is
+-- Drizzle over a BYPASSRLS session, and conclude that the correct write policy
+-- is NO write policy. `pet_tags` (0169) and `pet_caretaker_grants` (0189) were
+-- born that way. This table joins them.
 --
---   SELECT / INSERT / UPDATE: owner only (user_id = auth.uid())
---   DELETE: no policy at all — rows are soft-revoked; hard deletion is
---           server-side only (the purge, and erase_subject_data below).
+--   SELECT: owner only (user_id = auth.uid())
+--   INSERT / UPDATE / DELETE: no policy at all — every write is server-side.
+--
+-- WHY DENY-ALL IS THE CORRECT POLICY, NOT A NARROWER ONE
+-- ------------------------------------------------------
+-- Enumerated every writer of `public.push_targets` in the tree (2026-09-15):
+-- lib/infra/push-target-store.ts (the registration upsert, the `last_used_at`
+-- bump, the soft revoke), lib/infra/data-lifecycle.ts (the nightly purge of
+-- revoked rows) and erase_subject_data below. Every one is `db.insert` /
+-- `db.update` / `db.delete` over the Drizzle connection, which is a direct
+-- Postgres session as a BYPASSRLS role — no policy on this table is ever
+-- consulted for them (db/rls.sql). The app never calls PostgREST here: the
+-- phone registers through POST /api/v1/me/push-targets, which is a server route.
+-- The count of legitimate writers that reach this table THROUGH PostgREST is
+-- therefore ZERO.
+--
+-- AND THE ROW IS A CREDENTIAL, which is why the owner-only WITH CHECK is not
+-- good enough on its own. `expo_push_token` is a delivery secret: whoever holds
+-- it can push to that phone. An owner-scoped INSERT/UPDATE pair lets a client
+-- write the row DIRECTLY with its own JWT, bypassing requireLiveUser, the
+-- api-v1-limits rate limits and the zod validation the route enforces — so a
+-- token belonging to an ERASED or DEACTIVATED account could re-insert a
+-- delivery target, or clear its own `revoked_at` and un-revoke one. `auth.uid()`
+-- answers "who is this JWT", never "is this account still live"; only the route
+-- answers the second question. Narrowing to SELECT makes the route the only
+-- writer by construction instead of by convention.
+--
+-- SELECT stays: the phone may want to list its own registered devices, the
+-- policy is correctly scoped (`user_id = auth.uid()`), and the table keeps ≥1
+-- policy so check-rls-coverage.ts stays green without an allowlist entry.
+--
+-- DELETE: no policy, and that half was always right — rows are soft-revoked;
+-- hard deletion is server-side only (the purge, and erase_subject_data below).
 --
 -- SUBJECT RIGHTS (Ley 25.326 arts. 14 and 16)
 -- --------------------------------------------
@@ -116,7 +151,7 @@ CREATE INDEX IF NOT EXISTS push_targets_revoked_at_idx
 
 ALTER TABLE public.push_targets ENABLE ROW LEVEL SECURITY;
 
--- SELECT: owner reads own rows only
+-- SELECT: owner reads own rows only. The ONLY policy this table gets.
 DROP POLICY IF EXISTS "push_targets read by owner" ON public.push_targets;
 CREATE POLICY "push_targets read by owner"
   ON public.push_targets
@@ -124,25 +159,16 @@ CREATE POLICY "push_targets read by owner"
   TO authenticated
   USING (user_id = auth.uid());
 
--- INSERT: owner inserts own rows only
+-- NO INSERT, UPDATE OR DELETE POLICY, on purpose — see the AUTHZ / RLS header.
+-- RLS-enabled with no policy for a command is default-deny for that command, so
+-- every write is refused to `authenticated` through PostgREST and reaches this
+-- table only over the Drizzle (BYPASSRLS) connection, behind the route's
+-- requireLiveUser + rate limits + zod validation. The DROPs are here so a
+-- database that was ever given an earlier draft of this file — which did carry
+-- the 0152-shaped owner INSERT/UPDATE pair — converges on the deny-all shape
+-- instead of silently keeping them; they are no-ops everywhere else.
 DROP POLICY IF EXISTS "push_targets insert by owner" ON public.push_targets;
-CREATE POLICY "push_targets insert by owner"
-  ON public.push_targets
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (user_id = auth.uid());
-
--- UPDATE: owner updates own rows only
 DROP POLICY IF EXISTS "push_targets update by owner" ON public.push_targets;
-CREATE POLICY "push_targets update by owner"
-  ON public.push_targets
-  FOR UPDATE
-  TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
-
--- DELETE: no policy, on purpose. Rows are soft-revoked; hard deletion is
--- server-side only. Same posture as push_subscriptions (0152 line 26).
 
 COMMENT ON TABLE public.push_targets IS
   'Native (Expo) push destinations. Sibling of push_subscriptions (Web Push), not a replacement: one row per app install, keyed on device_id because Expo tokens rotate. Soft-revoked on sign-out or DeviceNotRegistered; hard-deleted by erase_subject_data (Ley 25.326 art. 16) and by the nightly revoked-row purge. See migration 0222.';
