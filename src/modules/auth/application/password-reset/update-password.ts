@@ -1,8 +1,9 @@
 // Use-case: updatePasswordAction — re-verifies recovery session, validates password strength,
 // then calls supabase.auth.updateUser({ password }).
 //
-// Runs inside a valid recovery session (established by the recovery magic link
-// → auth/callback → /recuperar/actualizar). The page verifies the session before
+// Runs inside a valid recovery session (established by the six-digit code at
+// /recuperar → verifyPasswordResetCodeAction, or by the legacy recovery link →
+// auth/callback → /recuperar/actualizar). The page verifies the session before
 // rendering the form; this action re-verifies to prevent direct POST abuse.
 
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +26,7 @@ export async function updatePasswordAction(
   if (userError || !user) {
     return {
       error:
-        "Tu sesión de recuperación expiró o no es válida. Solicitá un nuevo enlace desde la página de inicio de sesión.",
+        "Tu sesión de recuperación expiró o no es válida. Pedí un código nuevo desde la página de recuperación.",
     };
   }
 

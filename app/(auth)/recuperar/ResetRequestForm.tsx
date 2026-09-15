@@ -5,18 +5,33 @@ import {
   requestPasswordResetAction,
 } from "@/app/actions/password-reset";
 import { LnField, LnInput } from "@/components/ui/Field";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+
+import { ResetCodeStep } from "./ResetCodeStep";
 
 const initialState: PasswordResetRequestState = { message: null, error: null };
 
+/**
+ * Two steps on one page, like the phone's `RecuperarScreen`: ask for a code,
+ * then redeem it. The address stays in state so it is not typed twice.
+ *
+ * "Usar otro correo" remounts the flow (`key`), which is the only way to return a
+ * `useActionState` to its initial state.
+ */
 export function ResetRequestForm() {
+  const [attempt, setAttempt] = useState(0);
+  return <ResetRequestFlow key={attempt} onRestart={() => setAttempt((n) => n + 1)} />;
+}
+
+function ResetRequestFlow({ onRestart }: { onRestart: () => void }) {
   const [state, formAction, isPending] = useActionState(requestPasswordResetAction, initialState);
 
+  // SUCCESS IS NOT AN ANSWER ABOUT THE ADDRESS: every accepted request moves on to
+  // the code step with the same sentence, because moving on only for a known
+  // address would be the enumeration oracle.
   if (state.message) {
     return (
-      <output className="block rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3.5 text-md text-[var(--color-ln-ink)]">
-        {state.message}
-      </output>
+      <ResetCodeStep email={state.email ?? ""} notice={state.message} onChangeEmail={onRestart} />
     );
   }
 
@@ -32,6 +47,9 @@ export function ResetRequestForm() {
             required
             aria-describedby={describedBy}
             invalid={invalid}
+            // React 19 resets the form after the action; a refusal echoes the
+            // address back so the reset lands on it instead of wiping it.
+            defaultValue={state.email ?? ""}
           />
         )}
       </LnField>
@@ -41,7 +59,7 @@ export function ResetRequestForm() {
         disabled={isPending}
         className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {isPending ? "Enviando..." : "Enviar enlace de recuperación"}
+        {isPending ? "Enviando..." : "Enviar código"}
       </button>
     </form>
   );

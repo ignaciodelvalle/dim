@@ -8,6 +8,10 @@
 //     - missing email → validation error
 //     - valid email → generic message (regardless of whether account exists)
 //     - Supabase error still returns the same generic message (no leakage)
+//   verifyPasswordResetCodeAction (the web code step, PO decision 2026-09-13):
+//     - wrong code, expired code and no-such-account share ONE sentence
+//     - budgets are spent before GoTrue; rate-limited sends nothing to GoTrue
+//     - success returns the N3 redirect to /recuperar/actualizar
 //   updatePasswordAction:
 //     - no session (getUser returns null) → rejects with expiry message
 //     - session present + short password → validation error
@@ -45,6 +49,7 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
 import { requestPasswordResetAction, updatePasswordAction } from "@/app/actions/password-reset";
 import { RateLimitError } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { verifyPasswordResetCodeAction } from "@/src/modules/auth/actions";
 
 beforeEach(() => {
   mockEnforceRateLimit.mockReset();
@@ -113,6 +118,11 @@ describe("requestPasswordResetAction", () => {
     expect(result.message).toBeTruthy();
     // Must contain the generic 'si existe una cuenta' copy — never 'found' / 'not found'.
     expect(result.message).toMatch(/si existe una cuenta/i);
+    // The mail carries a code now; the web copy must not promise a link.
+    expect(result.message).toMatch(/código/);
+    expect(result.message).not.toMatch(/enlace/i);
+    // The address is echoed so the code step can send it with the code.
+    expect(result.email).toBe("user@example.com");
   });
 
   it("returns the SAME generic message when Supabase returns an error (no account leakage)", async () => {
@@ -125,6 +135,8 @@ describe("requestPasswordResetAction", () => {
     // whether the account exists — the message must be the same generic one.
     expect(result.error).toBeNull();
     expect(result.message).toMatch(/si existe una cuenta/i);
+    // Byte-identical to the account-exists path, echo included.
+    expect(result.email).toBe("nobody@example.com");
   });
 
   it("calls resetPasswordForEmail with the provided email", async () => {
@@ -172,6 +184,171 @@ describe("requestPasswordResetAction", () => {
     expect(result.message).toBeNull();
     // Fail closed: no recovery email is dispatched once the budget is spent.
     expect(resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verifyPasswordResetCodeAction
+// ---------------------------------------------------------------------------
+
+// GoTrue answers every refused recovery code with this exact error — a wrong
+// code, an expired one, a spent one, and a code for an address with no account.
+const GOTRUE_OTP_REFUSAL = {
+  message: "Token has expired or is invalid",
+  code: "otp_expired",
+  status: 403,
+};
+
+function mockVerifyClient(answer: { error?: unknown; session?: unknown } = {}) {
+  const verifyOtp = vi.fn().mockResolvedValue({
+    data: {
+      user: null,
+      session: answer.session === undefined ? { access_token: "a" } : answer.session,
+    },
+    error: answer.error ?? null,
+  });
+  vi.mocked(createClient).mockResolvedValue({ auth: { verifyOtp } } as never);
+  return { verifyOtp };
+}
+
+const INVALID_CODE_SENTENCE =
+  "El código no es válido o ya venció. Pedí uno nuevo y volvé a intentar.";
+
+describe("verifyPasswordResetCodeAction", () => {
+  it("verifies the code as a recovery OTP and returns the redirect to /recuperar/actualizar", async () => {
+    const { verifyOtp } = mockVerifyClient();
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: " ana@mimar.ar ", code: "123 456" }),
+    );
+    // Trimmed address; whitespace removed from a pasted code.
+    expect(verifyOtp).toHaveBeenCalledWith({
+      email: "ana@mimar.ar",
+      token: "123456",
+      type: "recovery",
+    });
+    expect(result).toEqual({ error: null, redirectTo: "/recuperar/actualizar" });
+  });
+
+  it("refuses a wrong code with the invalid-code sentence and no redirect", async () => {
+    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "000000" }),
+    );
+    expect(result.error).toBe(INVALID_CODE_SENTENCE);
+    expect(result.redirectTo).toBeUndefined();
+  });
+
+  it("refuses an expired code with the same sentence (GoTrue cannot tell them apart)", async () => {
+    mockVerifyClient({ error: { ...GOTRUE_OTP_REFUSAL }, session: null });
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "654321" }),
+    );
+    expect(result.error).toBe(INVALID_CODE_SENTENCE);
+    expect(result.redirectTo).toBeUndefined();
+  });
+
+  it("answers an address with NO account byte-identically to a wrong code (anti-enumeration)", async () => {
+    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
+    const known = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "111111" }),
+    );
+    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
+    const unknown = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "nadie@example.com", code: "111111" }),
+    );
+    expect(JSON.stringify(unknown)).toBe(JSON.stringify(known));
+  });
+
+  it("does not treat a missing session as success", async () => {
+    mockVerifyClient({ error: null, session: null });
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "123456" }),
+    );
+    expect(result.error).toBe(INVALID_CODE_SENTENCE);
+    expect(result.redirectTo).toBeUndefined();
+  });
+
+  it("asks for the code when the field is blank, without touching GoTrue or the limiter", async () => {
+    const { verifyOtp } = mockVerifyClient();
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "   " }),
+    );
+    expect(result.error).toMatch(/código de 6 dígitos/);
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("spends a per-IP and a per-email VERIFY budget, distinct from the request buckets", async () => {
+    mockVerifyClient();
+    await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "123456" }),
+    );
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_password_reset_verify_ip",
+      "10.0.0.1",
+      expect.any(Object),
+    );
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_password_reset_verify_email",
+      expect.any(String),
+      expect.any(Object),
+    );
+    // The per-email key is the hash, never the cleartext address.
+    const keys = mockEnforceRateLimit.mock.calls.map((call) => String(call[1]));
+    expect(keys.some((k) => k.includes("ana@mimar.ar"))).toBe(false);
+  });
+
+  it("returns the rate-limit sentence and never calls GoTrue once a budget is spent", async () => {
+    const { verifyOtp } = mockVerifyClient();
+    mockEnforceRateLimit.mockRejectedValueOnce(
+      new RateLimitError(new Date(Date.now() + 60_000), "auth_password_reset_verify_ip"),
+    );
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "123456" }),
+    );
+    expect(result.error).toMatch(/demasiados intentos/i);
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it("maps a GoTrue rate limit to the rate-limit sentence, not to a code verdict", async () => {
+    mockVerifyClient({
+      error: { message: "rate limit", code: "over_request_rate_limit", status: 429 },
+      session: null,
+    });
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "123456" }),
+    );
+    expect(result.error).toMatch(/demasiados intentos/i);
+  });
+
+  it("reports an unavailable provider without blaming the code", async () => {
+    const verifyOtp = vi.fn().mockRejectedValue(new Error("fetch failed"));
+    vi.mocked(createClient).mockResolvedValue({ auth: { verifyOtp } } as never);
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "123456" }),
+    );
+    expect(result.error).toMatch(/no pudimos verificar/i);
+    expect(result.error).not.toBe(INVALID_CODE_SENTENCE);
+  });
+
+  it("never echoes the submitted code back in its state", async () => {
+    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "987654" }),
+    );
+    expect(JSON.stringify(result)).not.toContain("987654");
   });
 });
 

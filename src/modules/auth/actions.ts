@@ -40,7 +40,11 @@ import { createClient } from "@/lib/supabase/server";
 
 import { login } from "./application/login";
 import { requestPasswordReset } from "./application/password-reset/request-password-reset";
-import type { PasswordResetRequestState } from "./application/password-reset/types";
+import type {
+  PasswordResetCodeState,
+  PasswordResetRequestState,
+} from "./application/password-reset/types";
+import { verifyPasswordResetCode } from "./application/password-reset/verify-password-reset-code";
 import { signup } from "./application/signup";
 import type { AuthFormState } from "./application/types";
 
@@ -112,25 +116,51 @@ export async function requestPasswordResetAction(
   _previous: PasswordResetRequestState,
   formData: FormData,
 ): Promise<PasswordResetRequestState> {
+  const email = String(formData.get("email") ?? "").trim();
   const result = await requestPasswordReset(
     {
-      email: String(formData.get("email") ?? ""),
+      email,
       callerIp: callerIp(await headers()),
     },
     { auth: cookieAuth },
   );
 
-  if (!result.ok) return { message: null, error: result.error.message };
+  if (!result.ok) return { message: null, error: result.error.message, email };
 
   // ONE SENTENCE FOR EVERY SUCCESS, and it is the enumeration defence rather
   // than vague copy. The use-case cannot tell this layer whether a mail went out
   // — its success arm has no field for it, on purpose — so there is nothing here
-  // to condition on even if a future edit wanted to. NO email echo, unlike the
-  // two refusing actions above: the form is replaced by this message, so there is
-  // no input left for React 19's reset to wipe.
+  // to condition on even if a future edit wanted to. The email IS echoed, and on
+  // every success alike: the code step that replaces this form sends it back with
+  // the code, because `verifyOtp` needs both. It is what the person typed.
   return {
     message:
-      "Si existe una cuenta con ese correo, te enviamos un enlace para restablecer tu contraseña. Revisá también tu carpeta de spam.",
+      "Si existe una cuenta con ese correo, te enviamos un código de 6 dígitos. Revisá también tu carpeta de spam.",
     error: null,
+    email,
   };
+}
+
+// @no-auth-required: pre-authentication entrypoint — redeeming a mailed recovery code is how a locked-out person gets a session at all
+export async function verifyPasswordResetCodeAction(
+  _previous: PasswordResetCodeState,
+  formData: FormData,
+): Promise<PasswordResetCodeState> {
+  const result = await verifyPasswordResetCode(
+    {
+      email: String(formData.get("email") ?? ""),
+      code: String(formData.get("code") ?? ""),
+      callerIp: callerIp(await headers()),
+    },
+    // The COOKIE client: a successful verifyOtp writes the recovery session into
+    // the SSR jar, which is what /recuperar/actualizar and updatePasswordAction read.
+    { auth: cookieAuth },
+  );
+
+  // No code echo on a refusal, deliberately: the code in the box is the one that
+  // just failed, and it is never carried anywhere it does not have to go.
+  if (!result.ok) return { error: result.error.message };
+
+  // NAV CONTRACT N3: return the destination, never call redirect().
+  return { error: null, redirectTo: "/recuperar/actualizar" };
 }

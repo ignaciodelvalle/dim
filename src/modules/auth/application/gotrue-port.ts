@@ -104,6 +104,22 @@ export type PasswordResetAuthPort = {
 };
 
 /**
+ * What `verifyPasswordResetCode` needs — the web's redemption of the six-digit
+ * recovery code. The web action passes the COOKIE client's `.auth`, so a
+ * successful answer has already written the recovery session into the SSR jar.
+ *
+ * `status` is read (alongside `code`) only to tell provider load or outage apart
+ * from a refused code — never to tell a wrong code from an absent account, which
+ * GoTrue does not distinguish either.
+ */
+export type PasswordResetCodeAuthPort = {
+  verifyOtp(params: { email: string; token: string; type: "recovery" }): Promise<{
+    data: { session: GoTrueSessionLike | null };
+    error: { message: string; code?: string; status?: number } | null;
+  }>;
+};
+
+/**
  * GoTrue's snake_case session → the camelCase `/api/v1` wire shape.
  *
  * `expires_at` is epoch SECONDS and is carried across as such, NOT converted to

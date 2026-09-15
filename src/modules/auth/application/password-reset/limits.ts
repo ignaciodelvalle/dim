@@ -148,3 +148,46 @@ export const PASSWORD_RESET_SIMULTANEOUS_CALLERS = 12;
  * re-deriving `12` will otherwise reach for the only other number in the file.
  */
 export const PASSWORD_RESET_REQUESTS_PER_CALLER_PER_MINUTE = 1;
+
+// ===========================================================================
+// THE REDEMPTION HALF: code guesses on the WEB (verify-password-reset-code.ts)
+// ===========================================================================
+// A different act from the request above, so different buckets — spending a
+// guess must not eat the budget that mails a fresh code, or a person who
+// mistyped twice could no longer ask for a new one.
+//
+// WHY OURS AT ALL. The phone redeems against GoTrue directly, where GoTrue's own
+// `token_verifications` ceiling is keyed on the phone's address. The web redeems
+// from OUR server, so every browser reaches GoTrue from one egress address and
+// that ceiling becomes a pool all web users share. The per-attacker bound on
+// guesses has to be spent here, before GoTrue is touched.
+//
+// PER EMAIL: 5/min · 15/hr — the anchor, and the bucket that bounds guesses
+// against ONE account's code. A legitimate person types one code, perhaps
+// mistypes it once or twice, perhaps asks for another one: 15 an hour is several
+// full retries on top of that. Against a six-digit code (10^6) it caps a
+// targeted guesser at 15 tries per hour per address, and the address can only be
+// sent 5 codes an hour (PASSWORD_RESET_EMAIL_LIMIT). The per-minute window stops
+// a burst from spending the whole hour before the person can react.
+//
+// PER IP: 12 × the per-email anchor in both windows, the same "twelve
+// simultaneous legitimate callers behind one gateway" multiple the request
+// buckets use, and for the same reason — the per-email bucket is where the
+// thinking is, so the IP bucket must stay far enough above it that the email
+// bucket is the binding one for real people behind a carrier NAT. It bounds a
+// spray across many addresses; each guess there succeeds with probability 10^-6.
+
+const VERIFY_GUESSES_PER_EMAIL_PER_MINUTE = 5;
+const VERIFY_GUESSES_PER_EMAIL_PER_HOUR = 15;
+
+/** Per hashed email address — the anchor. Keyed on `emailRateLimitKey(email)`. */
+export const PASSWORD_RESET_VERIFY_EMAIL_LIMIT: RateLimitConfig = {
+  maxPerMinute: VERIFY_GUESSES_PER_EMAIL_PER_MINUTE,
+  maxPerHour: VERIFY_GUESSES_PER_EMAIL_PER_HOUR,
+};
+
+/** Per trusted caller IP — twelve simultaneous callers at the per-email ceiling. */
+export const PASSWORD_RESET_VERIFY_IP_LIMIT: RateLimitConfig = {
+  maxPerMinute: PASSWORD_RESET_SIMULTANEOUS_CALLERS * VERIFY_GUESSES_PER_EMAIL_PER_MINUTE,
+  maxPerHour: PASSWORD_RESET_SIMULTANEOUS_CALLERS * VERIFY_GUESSES_PER_EMAIL_PER_HOUR,
+};
