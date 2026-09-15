@@ -6,9 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { UpdatePasswordForm } from "./UpdatePasswordForm";
 
 // The recovery session is established BEFORE this page: by the six-digit code the
-// mail carries, redeemed at /recuperar (verifyPasswordResetCodeAction → verifyOtp on
-// the cookie client), or by the legacy link through /auth/callback
-// (exchangeCodeForSession). Either way the user lands here authenticated.
+// mail carries, redeemed at /recuperar in the BROWSER (ResetCodeStep.tsx → verifyOtp
+// on the browser client, which writes the auth cookies this page then reads), or by
+// the legacy link through /auth/callback (exchangeCodeForSession). Either way the
+// user lands here authenticated.
 //
 // Security: we verify that a valid session exists (getUser) before rendering the form.
 // Without this check, anyone could GET this URL and see an update-password form that

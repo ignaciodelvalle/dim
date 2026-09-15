@@ -9,13 +9,6 @@ export type PasswordResetRequestState = {
   email?: string;
 };
 
-/** The web's code step: redeem the six-digit recovery code. */
-export type PasswordResetCodeState = {
-  error: string | null;
-  /** Set on success only — the N3 post-action navigation contract. */
-  redirectTo?: string;
-};
-
 export type UpdatePasswordState = {
   error: string | null;
   ok?: boolean;

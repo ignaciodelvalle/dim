@@ -40,11 +40,7 @@ import { createClient } from "@/lib/supabase/server";
 
 import { login } from "./application/login";
 import { requestPasswordReset } from "./application/password-reset/request-password-reset";
-import type {
-  PasswordResetCodeState,
-  PasswordResetRequestState,
-} from "./application/password-reset/types";
-import { verifyPasswordResetCode } from "./application/password-reset/verify-password-reset-code";
+import type { PasswordResetRequestState } from "./application/password-reset/types";
 import { signup } from "./application/signup";
 import type { AuthFormState } from "./application/types";
 
@@ -141,26 +137,10 @@ export async function requestPasswordResetAction(
   };
 }
 
-// @no-auth-required: pre-authentication entrypoint — redeeming a mailed recovery code is how a locked-out person gets a session at all
-export async function verifyPasswordResetCodeAction(
-  _previous: PasswordResetCodeState,
-  formData: FormData,
-): Promise<PasswordResetCodeState> {
-  const result = await verifyPasswordResetCode(
-    {
-      email: String(formData.get("email") ?? ""),
-      code: String(formData.get("code") ?? ""),
-      callerIp: callerIp(await headers()),
-    },
-    // The COOKIE client: a successful verifyOtp writes the recovery session into
-    // the SSR jar, which is what /recuperar/actualizar and updatePasswordAction read.
-    { auth: cookieAuth },
-  );
-
-  // No code echo on a refusal, deliberately: the code in the box is the one that
-  // just failed, and it is never carried anywhere it does not have to go.
-  if (!result.ok) return { error: result.error.message };
-
-  // NAV CONTRACT N3: return the destination, never call redirect().
-  return { error: null, redirectTo: "/recuperar/actualizar" };
-}
+// THE REDEMPTION HALF IS NOT HERE, on purpose. Exchanging the six-digit code for
+// a recovery session happens in the BROWSER (`app/(auth)/recuperar/ResetCodeStep.tsx`)
+// so that GoTrue keys its per-IP `token_verifications` ceiling on the real
+// person's address instead of on this deployment's single egress address — the
+// same way the phone already redeems. The comment at the top of that file has
+// the full reasoning, including why the buckets it used to spend were not
+// protecting anybody.

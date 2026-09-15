@@ -8,18 +8,20 @@
 //     - missing email → validation error
 //     - valid email → generic message (regardless of whether account exists)
 //     - Supabase error still returns the same generic message (no leakage)
-//   verifyPasswordResetCodeAction (the web code step, PO decision 2026-09-13):
-//     - wrong code, expired code and no-such-account share ONE sentence
-//     - budgets are spent before GoTrue; rate-limited sends nothing to GoTrue
-//     - success returns the N3 redirect to /recuperar/actualizar
 //   updatePasswordAction:
 //     - no session (getUser returns null) → rejects with expiry message
 //     - session present + short password → validation error
 //     - session present + mismatched passwords → validation error
 //     - session present + valid passwords → calls updateUser and returns ok
-
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+//
+// The web's CODE step is not here any more. It was, while the six-digit code was
+// redeemed by a server action; it is now redeemed in the browser so that GoTrue
+// keys its per-IP ceiling on the person rather than on our egress, and what the
+// step does is pinned in reset-code-step.test.tsx. The `supabase/config.toml`
+// fence that used to live here — asserting our deployment-wide ceiling stayed
+// under GoTrue's `token_verifications` — went with it and was deliberately NOT
+// replaced: that file is LOCAL DEV ONLY and is never pushed to a hosted project
+// (docs/ops/env-handling.md), so it never said anything about production.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -50,15 +52,8 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
 });
 
 import { requestPasswordResetAction, updatePasswordAction } from "@/app/actions/password-reset";
-import { RateLimitError, emailRateLimitKey } from "@/lib/infra/rate-limit";
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
-import { verifyPasswordResetCodeAction } from "@/src/modules/auth/actions";
-import {
-  MINUTE_WINDOWS_TOUCHED_BY_FIVE_MINUTES,
-  PASSWORD_RESET_VERIFY_GLOBAL_BUCKET,
-  PASSWORD_RESET_VERIFY_GLOBAL_KEY,
-  PASSWORD_RESET_VERIFY_GLOBAL_LIMIT,
-} from "@/src/modules/auth/application/password-reset/limits";
 
 beforeEach(() => {
   mockEnforceRateLimit.mockReset();
@@ -193,258 +188,6 @@ describe("requestPasswordResetAction", () => {
     expect(result.message).toBeNull();
     // Fail closed: no recovery email is dispatched once the budget is spent.
     expect(resetPasswordForEmail).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// verifyPasswordResetCodeAction
-// ---------------------------------------------------------------------------
-
-// GoTrue answers every refused recovery code with this exact error — a wrong
-// code, an expired one, a spent one, and a code for an address with no account.
-const GOTRUE_OTP_REFUSAL = {
-  message: "Token has expired or is invalid",
-  code: "otp_expired",
-  status: 403,
-};
-
-function mockVerifyClient(answer: { error?: unknown; session?: unknown } = {}) {
-  const verifyOtp = vi.fn().mockResolvedValue({
-    data: {
-      user: null,
-      session: answer.session === undefined ? { access_token: "a" } : answer.session,
-    },
-    error: answer.error ?? null,
-  });
-  vi.mocked(createClient).mockResolvedValue({ auth: { verifyOtp } } as never);
-  return { verifyOtp };
-}
-
-const INVALID_CODE_SENTENCE =
-  "El código no es válido o ya venció. Pedí uno nuevo y volvé a intentar.";
-
-describe("verifyPasswordResetCodeAction", () => {
-  it("verifies the code as a recovery OTP and returns the redirect to /recuperar/actualizar", async () => {
-    const { verifyOtp } = mockVerifyClient();
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: " ana@mimar.ar ", code: "123 456" }),
-    );
-    // Trimmed address; whitespace removed from a pasted code.
-    expect(verifyOtp).toHaveBeenCalledWith({
-      email: "ana@mimar.ar",
-      token: "123456",
-      type: "recovery",
-    });
-    expect(result).toEqual({ error: null, redirectTo: "/recuperar/actualizar" });
-  });
-
-  it("refuses a wrong code with the invalid-code sentence and no redirect", async () => {
-    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "000000" }),
-    );
-    expect(result.error).toBe(INVALID_CODE_SENTENCE);
-    expect(result.redirectTo).toBeUndefined();
-  });
-
-  it("refuses an expired code with the same sentence (GoTrue cannot tell them apart)", async () => {
-    mockVerifyClient({ error: { ...GOTRUE_OTP_REFUSAL }, session: null });
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "654321" }),
-    );
-    expect(result.error).toBe(INVALID_CODE_SENTENCE);
-    expect(result.redirectTo).toBeUndefined();
-  });
-
-  it("answers an address with NO account byte-identically to a wrong code (anti-enumeration)", async () => {
-    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
-    const known = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "111111" }),
-    );
-    // A DIFFERENT provider shape for the unknown account. Today's GoTrue answers
-    // both with otp_expired, but if a version ever distinguishes them, the
-    // outward result must still not — so the two inputs here must differ.
-    mockVerifyClient({
-      error: { message: "User not found", code: "user_not_found", status: 404 },
-      session: null,
-    });
-    const unknown = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "nadie@example.com", code: "111111" }),
-    );
-    expect(JSON.stringify(unknown)).toBe(JSON.stringify(known));
-  });
-
-  it("does not treat a missing session as success", async () => {
-    mockVerifyClient({ error: null, session: null });
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "123456" }),
-    );
-    expect(result.error).toBe(INVALID_CODE_SENTENCE);
-    expect(result.redirectTo).toBeUndefined();
-  });
-
-  it("asks for the code when the field is blank, without touching GoTrue or the limiter", async () => {
-    const { verifyOtp } = mockVerifyClient();
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "   " }),
-    );
-    expect(result.error).toMatch(/código de 6 dígitos/);
-    expect(verifyOtp).not.toHaveBeenCalled();
-    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
-  });
-
-  it("spends a per-IP and a per-email VERIFY budget, distinct from the request buckets", async () => {
-    mockVerifyClient();
-    await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "123456" }),
-    );
-    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
-      "auth_password_reset_verify_ip",
-      "10.0.0.1",
-      expect.any(Object),
-    );
-    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
-      "auth_password_reset_verify_email",
-      expect.any(String),
-      expect.any(Object),
-    );
-    // The per-email key is the hash, never the cleartext address — pinned to
-    // the exact value, so a key that silently stopped hashing (or hashed a
-    // different input) fails here rather than reading as "some string".
-    const emailCall = mockEnforceRateLimit.mock.calls.find(
-      (call) => call[0] === "auth_password_reset_verify_email",
-    );
-    expect(emailCall?.[1]).toBe("26ba72be453b0b385827db3b995a6937b41b9a18");
-    expect(emailCall?.[1]).toBe(emailRateLimitKey("ana@mimar.ar"));
-    const keys = mockEnforceRateLimit.mock.calls.map((call) => String(call[1]));
-    expect(keys.some((k) => k.includes("ana@mimar.ar"))).toBe(false);
-  });
-
-  it("derives the SAME per-email key for a mixed-case, padded spelling of the address", async () => {
-    mockVerifyClient();
-    await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "  Ana@MiMAR.ar ", code: "123456" }),
-    );
-    const emailCall = mockEnforceRateLimit.mock.calls.find(
-      (call) => call[0] === "auth_password_reset_verify_email",
-    );
-    // Otherwise a guesser gets a fresh 15/hr per capitalisation of one address.
-    expect(emailCall?.[1]).toBe(emailRateLimitKey("ana@mimar.ar"));
-  });
-
-  it("spends the deployment-wide VERIFY budget last, on one shared key", async () => {
-    mockVerifyClient();
-    await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "123456" }),
-    );
-    const buckets = mockEnforceRateLimit.mock.calls.map((call) => call[0]);
-    expect(buckets).toEqual([
-      "auth_password_reset_verify_ip",
-      "auth_password_reset_verify_email",
-      PASSWORD_RESET_VERIFY_GLOBAL_BUCKET,
-    ]);
-    expect(mockEnforceRateLimit).toHaveBeenLastCalledWith(
-      "auth_password_reset_verify_global",
-      PASSWORD_RESET_VERIFY_GLOBAL_KEY,
-      PASSWORD_RESET_VERIFY_GLOBAL_LIMIT,
-    );
-  });
-
-  it("keeps the global VERIFY ceiling strictly below GoTrue's token_verifications in any 5 minutes", () => {
-    // Every web redemption reaches GoTrue from our egress, so GoTrue's per-IP
-    // ceiling is one pool for all web users. Ours must trip first. Read from
-    // config.toml so lowering the provider's number without lowering ours fails.
-    const toml = readFileSync(join(process.cwd(), "supabase", "config.toml"), "utf8");
-    const rateLimitSection = toml.split(/^\[auth\.rate_limit\]\s*$/m)[1]?.split(/^\[/m)[0] ?? "";
-    const match = rateLimitSection.match(/^token_verifications\s*=\s*(\d+)/m);
-    expect(match, "token_verifications not found under [auth.rate_limit]").not.toBeNull();
-    const gotruePerFiveMinutes = Number(match?.[1]);
-
-    const perMinute = PASSWORD_RESET_VERIFY_GLOBAL_LIMIT.maxPerMinute;
-    expect(perMinute).toBeDefined();
-    const worstCaseInFiveMinutes =
-      MINUTE_WINDOWS_TOUCHED_BY_FIVE_MINUTES * (perMinute ?? Number.POSITIVE_INFINITY);
-    expect(worstCaseInFiveMinutes).toBeLessThan(gotruePerFiveMinutes);
-  });
-
-  it("returns the rate-limit sentence and never calls GoTrue once a budget is spent", async () => {
-    const { verifyOtp } = mockVerifyClient();
-    mockEnforceRateLimit.mockRejectedValueOnce(
-      new RateLimitError(new Date(Date.now() + 60_000), "auth_password_reset_verify_ip"),
-    );
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "123456" }),
-    );
-    expect(result.error).toMatch(/demasiados intentos/i);
-    expect(verifyOtp).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["the per-email budget", "auth_password_reset_verify_email"],
-    ["the deployment-wide budget", "auth_password_reset_verify_global"],
-  ])("never calls GoTrue when %s is spent", async (_label, bucket) => {
-    const { verifyOtp } = mockVerifyClient();
-    mockEnforceRateLimit.mockImplementation(async (endpoint: unknown) => {
-      if (endpoint === bucket) {
-        throw new RateLimitError(new Date(Date.now() + 60_000), String(endpoint));
-      }
-    });
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "123456" }),
-    );
-    // The refusal really came from that bucket, not from an earlier one.
-    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
-      bucket,
-      expect.any(String),
-      expect.any(Object),
-    );
-    expect(result.error).toBe("Demasiados intentos. Esperá unos minutos y volvé a probar.");
-    expect(result.redirectTo).toBeUndefined();
-    expect(verifyOtp).not.toHaveBeenCalled();
-  });
-
-  it("maps a GoTrue rate limit to the rate-limit sentence, not to a code verdict", async () => {
-    mockVerifyClient({
-      error: { message: "rate limit", code: "over_request_rate_limit", status: 429 },
-      session: null,
-    });
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "123456" }),
-    );
-    expect(result.error).toMatch(/demasiados intentos/i);
-  });
-
-  it("reports an unavailable provider without blaming the code", async () => {
-    const verifyOtp = vi.fn().mockRejectedValue(new Error("fetch failed"));
-    vi.mocked(createClient).mockResolvedValue({ auth: { verifyOtp } } as never);
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "123456" }),
-    );
-    expect(result.error).toMatch(/no pudimos verificar/i);
-    expect(result.error).not.toBe(INVALID_CODE_SENTENCE);
-  });
-
-  it("never echoes the submitted code back in its state", async () => {
-    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
-    const result = await verifyPasswordResetCodeAction(
-      { error: null },
-      makeForm({ email: "ana@mimar.ar", code: "987654" }),
-    );
-    expect(JSON.stringify(result)).not.toContain("987654");
   });
 });
 

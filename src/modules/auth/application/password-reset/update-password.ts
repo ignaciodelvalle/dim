@@ -2,9 +2,10 @@
 // then calls supabase.auth.updateUser({ password }).
 //
 // Runs inside a valid recovery session (established by the six-digit code at
-// /recuperar → verifyPasswordResetCodeAction, or by the legacy recovery link →
-// auth/callback → /recuperar/actualizar). The page verifies the session before
-// rendering the form; this action re-verifies to prevent direct POST abuse.
+// /recuperar, redeemed in the BROWSER against GoTrue — see ResetCodeStep.tsx —
+// or by the legacy recovery link → auth/callback → /recuperar/actualizar). The
+// page verifies the session before rendering the form; this action re-verifies
+// to prevent direct POST abuse.
 
 import { createClient } from "@/lib/supabase/server";
 

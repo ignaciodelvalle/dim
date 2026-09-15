@@ -5,14 +5,55 @@
 // redeem step, minus the password fields: on the web the code buys a recovery
 // session and `/recuperar/actualizar` — unchanged — sets the new password.
 //
-// WHAT THIS STEP MUST NEVER SAY: whether the address has an account. It is shown
-// after EVERY accepted request, and every refused code gets one sentence from the
-// server (`verifyPasswordResetCode`), because GoTrue itself cannot tell a wrong
-// code from an expired one or from an address with no account.
+// WHY THE CODE IS REDEEMED FROM THE BROWSER AND NOT FROM A SERVER ACTION
+// ---------------------------------------------------------------------------
+// It used to be a server action, and that is exactly what broke. GoTrue's
+// `token_verifications` ceiling is keyed PER IP ADDRESS (supabase/config.toml,
+// `[auth.rate_limit]`: 30 per 5 minutes). Every web redemption reached GoTrue
+// from the deployment's ONE egress address, so that per-IP ceiling stopped
+// bounding a caller and became a single pool shared by every web user in the
+// country — one burst and nobody could redeem a code for five minutes.
 //
-// "Pedir otro código" posts the SAME request action as the first step, so a
-// resend spends the same two budgets (`auth_password_reset_ip`,
-// `auth_password_reset_email`) and gets the same neutral sentence back.
+// Redeeming here, from the browser, is the structural fix rather than a bigger
+// number: GoTrue then keys the ceiling on the real person's address, exactly as
+// it already does for the phone (`resetPasswordWithCode`,
+// apps/mobile/src/auth/session-store.ts). The shared pool does not need to be
+// managed because it no longer exists.
+//
+// `createClient()` here is `createBrowserClient` from `@supabase/ssr`, which
+// writes the auth cookies to `document.cookie`. That is the load-bearing detail:
+// a successful `verifyOtp` leaves the recovery session in the SAME cookie jar
+// the server reads through `@/lib/supabase/server`, so `/recuperar/actualizar`
+// and `updatePasswordAction` see it on the next request without any change.
+//
+// WHAT WENT AWAY WITH THE SERVER ACTION, AND WHY THAT IS NOT A REGRESSION
+// ---------------------------------------------------------------------------
+// The verify-side per-IP and per-email rate-limit buckets are gone, and a reader
+// arriving here will reasonably suspect protection was deleted. It was not,
+// because those buckets never bounded an attacker: the anon key is PUBLIC — it
+// ships in this very bundle, and the phone already redeems with it — so
+// `/auth/v1/verify` was always reachable directly. Somebody brute-forcing a
+// victim's six-digit code never had to come through our form, so our per-email
+// bucket only ever bounded people who did. The real and only bound on brute
+// force is GoTrue's own per-IP ceiling, and this change makes that ceiling
+// per-attacker instead of per-deployment. We gave up a bucket that bounded
+// nobody and removed a denial of service that bounded everybody.
+//
+// WHAT A REFUSAL MAY NEVER SAY: whether the address has an account. GoTrue
+// answers a wrong code, an expired code, a spent code and a code for an address
+// with no account with the SAME error, so there is no honest way to tell them
+// apart — and telling "no such account" apart would rebuild the enumeration
+// oracle `requestPasswordReset` refuses to be. They share ONE sentence, the same
+// one the phone shows. The other refusals (blank field, provider over its own
+// limit, provider unavailable) are about the request, never the account.
+//
+// THE CODE IS NEVER LOGGED, never echoed back into the DOM and never put in a
+// URL: it goes to `verifyOtp` and nowhere else.
+//
+// "Pedir otro código" stays a SERVER action, deliberately. That half is
+// genuinely ours — our server is the one asking GoTrue to send mail — so it
+// still spends `auth_password_reset_ip` / `auth_password_reset_email` before
+// GoTrue is touched, and gets the same neutral sentence back.
 
 import {
   type PasswordResetRequestState,
@@ -20,15 +61,51 @@ import {
 } from "@/app/actions/password-reset";
 import { LnButton } from "@/components/ui/Button";
 import { LnField, LnInput } from "@/components/ui/Field";
-import { useActionRedirect } from "@/lib/ui/use-action-redirect";
-// Imported from the module's action edge directly rather than grown into the
-// `app/actions/password-reset.ts` shim, which the strangler line budget freezes.
-import { verifyPasswordResetCodeAction } from "@/src/modules/auth/actions";
-import type { PasswordResetCodeState } from "@/src/modules/auth/application/password-reset/types";
-import { useActionState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useActionNavigate } from "@/lib/ui/use-action-redirect";
+import { type FormEvent, useActionState, useState } from "react";
 
-const initialCodeState: PasswordResetCodeState = { error: null };
 const initialResendState: PasswordResetRequestState = { message: null, error: null };
+
+/** Where a redeemed code lands. A full document navigation — see below. */
+const REDEEMED_DESTINATION = "/recuperar/actualizar";
+
+/**
+ * Every sentence this step can show for a refused code. `invalid_code` is the
+ * neutral one the four indistinguishable causes share; the other two are about
+ * the provider, never about the account.
+ */
+export const RESET_CODE_MESSAGES = {
+  missing_code: "Ingresá el código de 6 dígitos que te enviamos por correo.",
+  rate_limited: "Demasiados intentos. Esperá unos minutos y volvé a probar.",
+  invalid_code: "El código no es válido o ya venció. Pedí uno nuevo y volvé a intentar.",
+  unavailable: "No pudimos verificar el código en este momento. Probá de nuevo en unos minutos.",
+} as const;
+
+/**
+ * Whitespace is removed from the code, not just trimmed: a code pasted from a
+ * mail client often arrives as "123 456". Nothing else is normalized and the
+ * LENGTH is not checked — GoTrue owns `otp_length`, and a client that refused a
+ * seven-digit code would break the day that setting changes (the phone's
+ * `CODE_LENGTH` docblock makes the same point).
+ */
+export function normalizeRecoveryCode(raw: string): string {
+  return raw.replace(/\s+/g, "");
+}
+
+/**
+ * A provider refusal that is about load or availability rather than the code.
+ * Anything else — including GoTrue's `otp_expired`, which is what a wrong code,
+ * an expired code, a spent code and an unknown address all produce — collapses
+ * into the one neutral sentence.
+ */
+function messageForProviderError(error: { status?: number; code?: string }): string {
+  if (error.status === 429 || error.code === "over_request_rate_limit") {
+    return RESET_CODE_MESSAGES.rate_limited;
+  }
+  if (error.status === undefined || error.status >= 500) return RESET_CODE_MESSAGES.unavailable;
+  return RESET_CODE_MESSAGES.invalid_code;
+}
 
 export function ResetCodeStep({
   email,
@@ -39,25 +116,71 @@ export function ResetCodeStep({
   notice: string;
   onChangeEmail: () => void;
 }) {
-  const [codeState, codeAction, codePending] = useActionState(
-    verifyPasswordResetCodeAction,
-    initialCodeState,
-  );
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const [resendState, resendAction, resendPending] = useActionState(
     requestPasswordResetAction,
     initialResendState,
   );
-  // N3: the action returns where to go; this performs the full document
-  // navigation, so the next page is rendered with the fresh session cookies.
-  const navigating = useActionRedirect(codeState.redirectTo, codeState);
+  // NAV CONTRACT N3, imperative half: `useActionNavigate` performs a FULL
+  // document navigation, which is what makes the next page render on the server
+  // with the cookies `verifyOtp` just wrote. A client-side router push would
+  // reuse the RSC payload this document already has and reach
+  // `/recuperar/actualizar` without them. `navigating` never comes back down,
+  // so the button stays in its loading state until the document leaves.
+  const [navigate, navigating] = useActionNavigate();
+
+  async function onSubmitCode(event: FormEvent<HTMLFormElement>) {
+    // The browser must NOT post this form: there is no longer a server action
+    // behind it, and a native post would put the code in a request we do not
+    // handle. JavaScript is required for this step by design (PO 2026-09-15) —
+    // the redemption has to happen from the person's own IP to be worth doing.
+    event.preventDefault();
+    const code = normalizeRecoveryCode(String(new FormData(event.currentTarget).get("code") ?? ""));
+    if (!code) {
+      setCodeError(RESET_CODE_MESSAGES.missing_code);
+      return;
+    }
+
+    setCodeError(null);
+    setVerifying(true);
+
+    let answer: Awaited<ReturnType<ReturnType<typeof createClient>["auth"]["verifyOtp"]>>;
+    try {
+      answer = await createClient().auth.verifyOtp({ email, token: code, type: "recovery" });
+    } catch {
+      // auth-js rethrows anything that is not an AuthError (a network failure, a
+      // cookie write that threw). Nothing about the code or the account.
+      setVerifying(false);
+      setCodeError(RESET_CODE_MESSAGES.unavailable);
+      return;
+    }
+
+    if (answer.error) {
+      setVerifying(false);
+      setCodeError(messageForProviderError(answer.error));
+      return;
+    }
+    // No error and no session is not a success: there is nothing for
+    // `/recuperar/actualizar` to read. Same sentence as a refused code.
+    if (!answer.data.session) {
+      setVerifying(false);
+      setCodeError(RESET_CODE_MESSAGES.invalid_code);
+      return;
+    }
+
+    // Deliberately NOT clearing `verifying`: the document is on its way out and
+    // a button that came back to life over the old page invites a second tap.
+    navigate(REDEEMED_DESTINATION);
+  }
 
   return (
     <ResetCodeStepView
       email={email}
       notice={resendState.message ?? notice}
-      codeState={codeState}
-      codeAction={codeAction}
-      codePending={codePending || navigating}
+      codeError={codeError}
+      onSubmitCode={onSubmitCode}
+      codePending={verifying || navigating}
       resendError={resendState.error}
       resendAction={resendAction}
       resendPending={resendPending}
@@ -70,8 +193,8 @@ export function ResetCodeStep({
 export function ResetCodeStepView({
   email,
   notice,
-  codeState,
-  codeAction,
+  codeError,
+  onSubmitCode,
   codePending,
   resendError,
   resendAction,
@@ -80,8 +203,8 @@ export function ResetCodeStepView({
 }: {
   email: string;
   notice: string;
-  codeState: PasswordResetCodeState;
-  codeAction: (formData: FormData) => void;
+  codeError: string | null;
+  onSubmitCode: (event: FormEvent<HTMLFormElement>) => void;
   codePending: boolean;
   resendError: string | null;
   resendAction: (formData: FormData) => void;
@@ -94,13 +217,12 @@ export function ResetCodeStepView({
         {notice}
       </output>
 
-      <form action={codeAction} className="space-y-4">
-        <input type="hidden" name="email" value={email} />
+      <form onSubmit={onSubmitCode} className="space-y-4">
         <LnField
           label="Código"
           required
           hint="El código de 6 dígitos que te llegó por correo."
-          error={codeState.error ?? undefined}
+          error={codeError ?? undefined}
         >
           {({ id, describedBy, invalid }) => (
             <LnInput
