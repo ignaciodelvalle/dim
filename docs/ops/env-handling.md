@@ -142,6 +142,37 @@ on a shared terminal. This is a **Supabase Auth** setting, not an app env var
 | `[auth.sessions].timebox` | `supabase/config.toml` (local Docker stack) | `"8h"` |
 | Session timebox | Remote Supabase dashboard → **Authentication → Sessions** → "Time-box user sessions" | Set to **8 hours** to match local |
 
+### The recovery-code numbers, MEASURED against the hosted project
+
+These three govern how hard it is to brute-force the six-digit password-recovery
+code, and until 2026-09-15 nobody had read the remote side of any of them — the
+app-layer reasoning cited `supabase/config.toml`, which (see below) governs the
+local stack and nothing else. A security review named that as a fence proving
+nothing about production. The PO read the dashboard; the values are recorded here
+so the next person does not have to, and so a drift between the columns is
+visible rather than assumed.
+
+| Setting | Local (`supabase/config.toml`) | Hosted (read 2026-09-15) | Where in the dashboard |
+|---|---|---|---|
+| `otp_length` | `6` | `6` | Auth → Providers → Email |
+| `otp_expiry` | `3600` (1 h) | **`600`** (10 min) — lowered 2026-09-15 | Auth → Providers → Email → "Email OTP Expiration" |
+| `[auth.rate_limit].token_verifications` | `30` per 5 min | `30` per 5 min (360/h) | Auth → Rate Limits |
+
+`token_verifications` is keyed **per IP address**, which is why the web redeems
+the code from the BROWSER rather than from a server action — redeeming
+server-side made that ceiling one pool shared by every web user in the country.
+See `app/(auth)/recuperar/ResetCodeStep.tsx` for the full argument.
+
+**What the numbers buy, stated rather than implied.** A ten-minute code gives one
+IP 60 guesses against 10⁶ possibilities. A 3.000-address residential proxy pool
+gets ~180.000 guesses inside one code's lifetime — roughly a **16%** chance
+against a specific, targeted victim, down from ~66% at the old one-hour expiry.
+That is a mitigation, not a closure: the remaining attack is targeted and
+**noisy** (the attacker must trigger the reset mail, which the victim receives).
+The next lever, if it is ever wanted, is a captcha on the recovery request —
+Supabase supports hCaptcha and Turnstile — not a shorter expiry, since ten
+minutes is already tight for somebody reading the mail on another device.
+
 `supabase/config.toml` drives the **local** stack (`supabase start`) only —
 this project's workflow never runs `supabase config push` against a linked
 remote project (migrations are the only thing pushed remotely, and only
