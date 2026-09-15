@@ -745,6 +745,36 @@ describe("app identity assets", () => {
     expect(typeof imageWidthDp).toBe("number");
     expect(splash.width).toBeGreaterThanOrEqual((imageWidthDp as number) * 4);
 
+    // AND A CEILING, which is what sent the mark back from 200dp to 176dp on
+    // 2026-09-15. The PO reported the loading logo as "circular on its outer
+    // edge, different from the app icon" — and it was the SAME file: since Expo
+    // SDK 52 the Android splash goes through the Android 12 splash-screen API,
+    // which draws the icon inside a CIRCULAR mask showing the inner two thirds
+    // of a 288dp container, i.e. 192dp. An octagon whose corners fall outside
+    // that circle loses them, and a chamfered plaque with its eight corners
+    // shaved reads as a disc.
+    //
+    // The fix is this number and NOT padding in the PNG. Padding is what the
+    // tight-crop assertion below forbids, for the reason it states: transparent
+    // margin baked into the file shrinks the mark inside its own declared width
+    // and forces a compensating number here anyway. So the mark stays flush to
+    // the canvas and we render it smaller.
+    //
+    // 1.082 is geometry, not a guess: a regular octagon measured flat-to-flat at
+    // W has circumradius W / (2·cos 22.5°) = 0.541W, so the circle that contains
+    // it is 1.082W across. 176 × 1.082 = 190.4dp, inside 192 with room for the
+    // resampler's soft edge; 200 needed 216 and was over by 24.
+    //
+    // HONEST ABOUT ITS PROVENANCE: 192 comes from Android's published splash
+    // spec, not from a measurement on a device. It is a floor-and-ceiling pair
+    // now, so if a real phone says otherwise the number moves HERE, with the
+    // observation written next to it — not by quietly repadding the asset.
+    const OCTAGON_CIRCUMSCRIBED_RATIO = 1.082;
+    const ANDROID_12_MASKED_DIAMETER_DP = 192;
+    expect((imageWidthDp as number) * OCTAGON_CIRCUMSCRIBED_RATIO).toBeLessThanOrEqual(
+      ANDROID_12_MASKED_DIAMETER_DP,
+    );
+
     // TIGHT CROP, asserted against the ink rather than declared. expo-splash-
     // screen renders this file at `imageWidth` dp, so transparent padding baked
     // into it would silently shrink the mark inside its own declared width and
