@@ -176,6 +176,39 @@ export const PASSWORD_RESET_REQUESTS_PER_CALLER_PER_MINUTE = 1;
 // thinking is, so the IP bucket must stay far enough above it that the email
 // bucket is the binding one for real people behind a carrier NAT. It bounds a
 // spray across many addresses; each guess there succeeds with probability 10^-6.
+//
+// WHAT THE PER-EMAIL BUCKET GIVES UP, stated rather than hidden. It is keyed on
+// the victim's address, not the attacker's, so anyone who knows an address can
+// spend its 15/hr with garbage codes and lock that person out of WEB recovery for
+// the rest of the hour. Accepted: the alternative (no per-address bound) lets a
+// botnet rotating IPs aim unlimited guesses at one account's code, which is the
+// worse failure. The PHONE path is unaffected — it redeems against GoTrue
+// directly and never spends this bucket — so a locked-out web user still has a
+// way back in.
+//
+// GLOBAL: one deployment-wide bucket, spent LAST, and the only one that exists to
+// protect GoTrue rather than an account. Every web redemption reaches GoTrue from
+// our egress, so GoTrue's per-IP `token_verifications` ceiling
+// (supabase/config.toml `[auth.rate_limit]`: 30 per 5 minutes) is one pool for
+// all web users. Without this bucket, one attacker inside their own per-IP budget
+// (60/min) rotating addresses drains that pool and every web user gets GoTrue's
+// 429 for five minutes. With it, OUR ceiling trips first, the refusal is our own
+// fail-closed sentence, and GoTrue never sees the burst.
+//
+// It does NOT make that shared-pool denial impossible — the same attacker drains
+// this bucket instead — it makes it ours: bounded, observable in
+// `rate_limit_buckets`, and never a 429 from the provider. The per-IP and
+// per-email buckets are spent BEFORE it so a caller already over their own budget
+// does not burn the pool everyone shares (a refused `consumeOrThrow` still counts).
+//
+// THE NUMBER: 4 per minute. The limiter only has fixed minute/hour/day windows,
+// and any 5-minute span touches at most SIX minute windows (a partial one at each
+// end), so the worst case inside any 5 minutes is 6 × 4 = 24 < 30. Five per
+// minute would reach exactly 30 at that boundary — not strictly below. GoTrue's
+// limiter is a token bucket (30 burst, refilled at 30/5min = 6/min), and 4/min
+// sits under its refill rate too, so it never drains in steady state either.
+// `__tests__/password-reset.test.ts` reads config.toml and pins this relation, so
+// lowering `token_verifications` without lowering this fails loudly.
 
 const VERIFY_GUESSES_PER_EMAIL_PER_MINUTE = 5;
 const VERIFY_GUESSES_PER_EMAIL_PER_HOUR = 15;
@@ -190,4 +223,24 @@ export const PASSWORD_RESET_VERIFY_EMAIL_LIMIT: RateLimitConfig = {
 export const PASSWORD_RESET_VERIFY_IP_LIMIT: RateLimitConfig = {
   maxPerMinute: PASSWORD_RESET_SIMULTANEOUS_CALLERS * VERIFY_GUESSES_PER_EMAIL_PER_MINUTE,
   maxPerHour: PASSWORD_RESET_SIMULTANEOUS_CALLERS * VERIFY_GUESSES_PER_EMAIL_PER_HOUR,
+};
+
+/** Bucket name and its single key: one counter for the whole deployment. */
+export const PASSWORD_RESET_VERIFY_GLOBAL_BUCKET = "auth_password_reset_verify_global";
+export const PASSWORD_RESET_VERIFY_GLOBAL_KEY = "deployment";
+
+/**
+ * How many minute windows a 5-minute span can touch. GoTrue measures
+ * `token_verifications` over 5 minutes; our limiter's narrowest window is one
+ * minute, so the worst case is a partial window at each end of four full ones.
+ */
+export const MINUTE_WINDOWS_TOUCHED_BY_FIVE_MINUTES = 6;
+
+/**
+ * Deployment-wide ceiling on web code redemptions, strictly below GoTrue's
+ * `token_verifications` (30 / 5 min, supabase/config.toml): 6 × 4 = 24. See the
+ * header section "GLOBAL" for why it is 4 and not 5.
+ */
+export const PASSWORD_RESET_VERIFY_GLOBAL_LIMIT: RateLimitConfig = {
+  maxPerMinute: 4,
 };

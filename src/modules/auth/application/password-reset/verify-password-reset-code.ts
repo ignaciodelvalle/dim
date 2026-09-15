@@ -1,5 +1,5 @@
 // Use-case: verifyPasswordResetCode — the WEB's redemption half of password
-// recovery. Spend two budgets, then ask GoTrue to exchange the six-digit code
+// recovery. Spend three budgets, then ask GoTrue to exchange the six-digit code
 // mailed by `requestPasswordReset` for a recovery session.
 //
 // WHY THIS EXISTS (PO decision 2026-09-13: ONE method, the code, on both surfaces)
@@ -45,7 +45,13 @@
 import { RateLimitError, emailRateLimitKey, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 import type { PasswordResetCodeAuthPort } from "../gotrue-port";
-import { PASSWORD_RESET_VERIFY_EMAIL_LIMIT, PASSWORD_RESET_VERIFY_IP_LIMIT } from "./limits";
+import {
+  PASSWORD_RESET_VERIFY_EMAIL_LIMIT,
+  PASSWORD_RESET_VERIFY_GLOBAL_BUCKET,
+  PASSWORD_RESET_VERIFY_GLOBAL_KEY,
+  PASSWORD_RESET_VERIFY_GLOBAL_LIMIT,
+  PASSWORD_RESET_VERIFY_IP_LIMIT,
+} from "./limits";
 
 /**
  * Plain-data input. `callerIp` is resolved by the caller from the request
@@ -58,7 +64,7 @@ export type VerifyPasswordResetCodeInput = {
 };
 
 export type VerifyPasswordResetCodeDeps = {
-  /** Built only after validation and both budgets pass. */
+  /** Built only after validation and all three budgets pass. */
   auth: () => Promise<PasswordResetCodeAuthPort>;
 };
 
@@ -114,8 +120,10 @@ export async function verifyPasswordResetCode(
   if (!email) return refuse("missing_email");
   if (!code) return refuse("missing_code");
 
-  // Both budgets before GoTrue. A non-RateLimitError propagates → fail closed:
-  // a limiter that cannot answer must not be read as "allowed".
+  // All three budgets before GoTrue. A non-RateLimitError propagates → fail
+  // closed: a limiter that cannot answer must not be read as "allowed". The
+  // global bucket is LAST so a caller already over their own per-IP or per-email
+  // budget does not burn the pool every web user shares (see ./limits.ts).
   try {
     await enforceRateLimit(
       "auth_password_reset_verify_ip",
@@ -126,6 +134,11 @@ export async function verifyPasswordResetCode(
       "auth_password_reset_verify_email",
       emailRateLimitKey(email),
       PASSWORD_RESET_VERIFY_EMAIL_LIMIT,
+    );
+    await enforceRateLimit(
+      PASSWORD_RESET_VERIFY_GLOBAL_BUCKET,
+      PASSWORD_RESET_VERIFY_GLOBAL_KEY,
+      PASSWORD_RESET_VERIFY_GLOBAL_LIMIT,
     );
   } catch (err) {
     if (err instanceof RateLimitError) return refuse("rate_limited");

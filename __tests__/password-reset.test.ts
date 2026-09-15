@@ -18,6 +18,9 @@
 //     - session present + mismatched passwords → validation error
 //     - session present + valid passwords → calls updateUser and returns ok
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -47,9 +50,15 @@ vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
 });
 
 import { requestPasswordResetAction, updatePasswordAction } from "@/app/actions/password-reset";
-import { RateLimitError } from "@/lib/infra/rate-limit";
+import { RateLimitError, emailRateLimitKey } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { verifyPasswordResetCodeAction } from "@/src/modules/auth/actions";
+import {
+  MINUTE_WINDOWS_TOUCHED_BY_FIVE_MINUTES,
+  PASSWORD_RESET_VERIFY_GLOBAL_BUCKET,
+  PASSWORD_RESET_VERIFY_GLOBAL_KEY,
+  PASSWORD_RESET_VERIFY_GLOBAL_LIMIT,
+} from "@/src/modules/auth/application/password-reset/limits";
 
 beforeEach(() => {
   mockEnforceRateLimit.mockReset();
@@ -256,7 +265,13 @@ describe("verifyPasswordResetCodeAction", () => {
       { error: null },
       makeForm({ email: "ana@mimar.ar", code: "111111" }),
     );
-    mockVerifyClient({ error: GOTRUE_OTP_REFUSAL, session: null });
+    // A DIFFERENT provider shape for the unknown account. Today's GoTrue answers
+    // both with otp_expired, but if a version ever distinguishes them, the
+    // outward result must still not — so the two inputs here must differ.
+    mockVerifyClient({
+      error: { message: "User not found", code: "user_not_found", status: 404 },
+      session: null,
+    });
     const unknown = await verifyPasswordResetCodeAction(
       { error: null },
       makeForm({ email: "nadie@example.com", code: "111111" }),
@@ -301,9 +316,65 @@ describe("verifyPasswordResetCodeAction", () => {
       expect.any(String),
       expect.any(Object),
     );
-    // The per-email key is the hash, never the cleartext address.
+    // The per-email key is the hash, never the cleartext address — pinned to
+    // the exact value, so a key that silently stopped hashing (or hashed a
+    // different input) fails here rather than reading as "some string".
+    const emailCall = mockEnforceRateLimit.mock.calls.find(
+      (call) => call[0] === "auth_password_reset_verify_email",
+    );
+    expect(emailCall?.[1]).toBe("26ba72be453b0b385827db3b995a6937b41b9a18");
+    expect(emailCall?.[1]).toBe(emailRateLimitKey("ana@mimar.ar"));
     const keys = mockEnforceRateLimit.mock.calls.map((call) => String(call[1]));
     expect(keys.some((k) => k.includes("ana@mimar.ar"))).toBe(false);
+  });
+
+  it("derives the SAME per-email key for a mixed-case, padded spelling of the address", async () => {
+    mockVerifyClient();
+    await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "  Ana@MiMAR.ar ", code: "123456" }),
+    );
+    const emailCall = mockEnforceRateLimit.mock.calls.find(
+      (call) => call[0] === "auth_password_reset_verify_email",
+    );
+    // Otherwise a guesser gets a fresh 15/hr per capitalisation of one address.
+    expect(emailCall?.[1]).toBe(emailRateLimitKey("ana@mimar.ar"));
+  });
+
+  it("spends the deployment-wide VERIFY budget last, on one shared key", async () => {
+    mockVerifyClient();
+    await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "123456" }),
+    );
+    const buckets = mockEnforceRateLimit.mock.calls.map((call) => call[0]);
+    expect(buckets).toEqual([
+      "auth_password_reset_verify_ip",
+      "auth_password_reset_verify_email",
+      PASSWORD_RESET_VERIFY_GLOBAL_BUCKET,
+    ]);
+    expect(mockEnforceRateLimit).toHaveBeenLastCalledWith(
+      "auth_password_reset_verify_global",
+      PASSWORD_RESET_VERIFY_GLOBAL_KEY,
+      PASSWORD_RESET_VERIFY_GLOBAL_LIMIT,
+    );
+  });
+
+  it("keeps the global VERIFY ceiling strictly below GoTrue's token_verifications in any 5 minutes", () => {
+    // Every web redemption reaches GoTrue from our egress, so GoTrue's per-IP
+    // ceiling is one pool for all web users. Ours must trip first. Read from
+    // config.toml so lowering the provider's number without lowering ours fails.
+    const toml = readFileSync(join(process.cwd(), "supabase", "config.toml"), "utf8");
+    const rateLimitSection = toml.split(/^\[auth\.rate_limit\]\s*$/m)[1]?.split(/^\[/m)[0] ?? "";
+    const match = rateLimitSection.match(/^token_verifications\s*=\s*(\d+)/m);
+    expect(match, "token_verifications not found under [auth.rate_limit]").not.toBeNull();
+    const gotruePerFiveMinutes = Number(match?.[1]);
+
+    const perMinute = PASSWORD_RESET_VERIFY_GLOBAL_LIMIT.maxPerMinute;
+    expect(perMinute).toBeDefined();
+    const worstCaseInFiveMinutes =
+      MINUTE_WINDOWS_TOUCHED_BY_FIVE_MINUTES * (perMinute ?? Number.POSITIVE_INFINITY);
+    expect(worstCaseInFiveMinutes).toBeLessThan(gotruePerFiveMinutes);
   });
 
   it("returns the rate-limit sentence and never calls GoTrue once a budget is spent", async () => {
@@ -316,6 +387,31 @@ describe("verifyPasswordResetCodeAction", () => {
       makeForm({ email: "ana@mimar.ar", code: "123456" }),
     );
     expect(result.error).toMatch(/demasiados intentos/i);
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["the per-email budget", "auth_password_reset_verify_email"],
+    ["the deployment-wide budget", "auth_password_reset_verify_global"],
+  ])("never calls GoTrue when %s is spent", async (_label, bucket) => {
+    const { verifyOtp } = mockVerifyClient();
+    mockEnforceRateLimit.mockImplementation(async (endpoint: unknown) => {
+      if (endpoint === bucket) {
+        throw new RateLimitError(new Date(Date.now() + 60_000), String(endpoint));
+      }
+    });
+    const result = await verifyPasswordResetCodeAction(
+      { error: null },
+      makeForm({ email: "ana@mimar.ar", code: "123456" }),
+    );
+    // The refusal really came from that bucket, not from an earlier one.
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      bucket,
+      expect.any(String),
+      expect.any(Object),
+    );
+    expect(result.error).toBe("Demasiados intentos. Esperá unos minutos y volvé a probar.");
+    expect(result.redirectTo).toBeUndefined();
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 
