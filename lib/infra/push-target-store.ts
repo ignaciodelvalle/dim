@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db, pushTargets } from "@/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 /**
  * Reads and writes for `push_targets` — the native (Expo) push destinations.
@@ -149,9 +149,99 @@ export async function activePushTargetsForUser(userId: string): Promise<ActivePu
     .where(and(eq(pushTargets.userId, userId), isNull(pushTargets.revokedAt)));
 }
 
-/** Delivery succeeded. Same contract as the web leg's `last_used_at` bump. */
-export async function markPushTargetUsed(id: string): Promise<void> {
-  await db.update(pushTargets).set({ lastUsedAt: new Date() }).where(eq(pushTargets.id, id));
+/**
+ * Delivery was ACCEPTED. Same contract as the web leg's `last_used_at` bump,
+ * plus the receipt id that makes the second half of the send possible.
+ *
+ * "ACCEPTED" AND NOT "DELIVERED", and the distinction is the whole reason the
+ * second argument exists. A `status: "ok"` ticket means Expo took the message,
+ * not that a phone got it — Expo has not talked to FCM or APNs yet. What
+ * happened downstream is in the RECEIPT, fetched later by this id, and that is
+ * where `DeviceNotRegistered` arrives in the ordinary case. Writing the id here
+ * costs nothing: it rides on an UPDATE this function was already making.
+ *
+ * ONE ID PER DEVICE, OVERWRITTEN. Three pushes in an evening leave only the
+ * third id, and that is deliberate — see migration 0223. The signal being
+ * chased is persistent (an uninstalled app does not reinstall itself between
+ * two sends), so the newest receipt answers the same question the older ones
+ * would have, about the most recent attempt.
+ *
+ * `receiptId` IS OPTIONAL so that `last_used_at` keeps its old meaning for any
+ * caller that has no id to offer. Passing none leaves whatever was pending
+ * alone rather than clearing it: a bump is not an answer.
+ */
+export async function markPushTargetUsed(id: string, receiptId?: string): Promise<void> {
+  await db
+    .update(pushTargets)
+    .set(
+      receiptId === undefined
+        ? { lastUsedAt: new Date() }
+        : { lastUsedAt: new Date(), pendingReceiptId: receiptId, pendingReceiptAt: new Date() },
+    )
+    .where(eq(pushTargets.id, id));
+}
+
+/** One device whose receipt has not been read yet. */
+export type PendingReceipt = {
+  targetId: string;
+  receiptId: string;
+  /** When the id was written. `null` only for a row written before 0223. */
+  pendingSince: Date | null;
+};
+
+/**
+ * The reconciliation job's read: devices with a receipt still owed.
+ *
+ * OLDEST FIRST, which is not cosmetic. Expo keeps receipts for roughly 24 hours
+ * and answers nothing for an id past that, so the oldest pending ids are the
+ * ones about to become unanswerable. A job that ran out of budget after a
+ * newest-first scan would lose exactly the rows it could still have learned
+ * something from.
+ *
+ * `limit` IS THE CALLER'S, not a constant here. The job batches under a cron
+ * budget and Expo caps how many ids one request may carry; both of those are
+ * the caller's to know, and a number chosen here would be a third copy of a
+ * limit that can move.
+ */
+export async function pendingPushReceipts(limit: number): Promise<PendingReceipt[]> {
+  const rows = await db
+    .select({
+      id: pushTargets.id,
+      receiptId: pushTargets.pendingReceiptId,
+      pendingSince: pushTargets.pendingReceiptAt,
+    })
+    .from(pushTargets)
+    .where(isNotNull(pushTargets.pendingReceiptId))
+    .orderBy(asc(pushTargets.pendingReceiptAt))
+    .limit(limit);
+  // The `isNotNull` filter is what makes the narrowing true; the map is what
+  // makes the TYPE say so, rather than pushing a `string | null` at the SDK.
+  return rows.flatMap((row) =>
+    row.receiptId === null
+      ? []
+      : [{ targetId: row.id, receiptId: row.receiptId, pendingSince: row.pendingSince }],
+  );
+}
+
+/**
+ * This receipt has been dealt with — answered, or aged out of Expo's retention.
+ *
+ * IT CLEARS RATHER THAN MARKING DONE, because "pending" is expressed as "the
+ * column is set" (migration 0223) and a second state column would be a
+ * duplicate of the same fact with nothing keeping the two in agreement.
+ *
+ * SCOPED BY THE RECEIPT ID AS WELL AS THE ROW, and that is not redundant. A
+ * send that lands WHILE the nightly job is running writes a newer id onto the
+ * same row; clearing by row alone would erase an id that has never been asked
+ * about, and that message's answer — possibly the `DeviceNotRegistered` this
+ * whole path exists for — would be lost with no trace. Matching the id means a
+ * row that moved on is left exactly as it is.
+ */
+export async function clearPendingPushReceipt(targetId: string, receiptId: string): Promise<void> {
+  await db
+    .update(pushTargets)
+    .set({ pendingReceiptId: null, pendingReceiptAt: null })
+    .where(and(eq(pushTargets.id, targetId), eq(pushTargets.pendingReceiptId, receiptId)));
 }
 
 /**

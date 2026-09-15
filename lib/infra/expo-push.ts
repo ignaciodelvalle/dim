@@ -1,13 +1,21 @@
 import "server-only";
 
-import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
+import {
+  Expo,
+  type ExpoPushMessage,
+  type ExpoPushReceipt,
+  type ExpoPushTicket,
+} from "expo-server-sdk";
 
 import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
 
 import { isPushEligible } from "@/lib/infra/push-eligibility";
 import {
+  type PendingReceipt,
   activePushTargetsForUser,
+  clearPendingPushReceipt,
   markPushTargetUsed,
+  pendingPushReceipts,
   revokePushTargetById,
 } from "@/lib/infra/push-target-store";
 import { reportError } from "@/lib/infra/report-error";
@@ -320,7 +328,13 @@ async function reconcileTickets(slice: Addressed[], tickets: ExpoPushTicket[]): 
     if (!target) continue;
 
     if (ticket.status === "ok") {
-      await markPushTargetUsed(target.targetId);
+      // THE RECEIPT ID RIDES ALONG, and this line is the whole reason the send
+      // path knows anything about receipts. `status: "ok"` means Expo ACCEPTED
+      // the message, not that a phone got it — Expo has not talked to FCM or
+      // APNs yet. What happened downstream, `DeviceNotRegistered` above all,
+      // arrives only in the receipt this id fetches, hours later and from a
+      // cron. Dropping it here is what used to make that answer unreachable.
+      await markPushTargetUsed(target.targetId, ticket.id);
       continue;
     }
 
@@ -384,4 +398,160 @@ export async function sendExpoPushForNotifications(rows: ExpoPushCandidateRow[])
     // push leg must never surface to the action that wrote the notification.
     reportError("expo-push/send-all", err);
   }
+}
+
+// ---------------------------------------------------------------------------
+// THE SECOND HALF OF A SEND, WHICH IS NOT ON THE REQUEST PATH
+// ---------------------------------------------------------------------------
+
+/**
+ * How long Expo keeps a receipt. Anything older is unanswerable.
+ *
+ * Expo's documentation says receipts are retained for "at least" 24 hours and
+ * does not promise more, so this is the floor treated as the ceiling. The number
+ * is used only to STOP ASKING: a pending id past this age is cleared rather than
+ * carried forever, because a queue whose head can never be answered is a queue
+ * that eventually contains nothing else.
+ */
+const RECEIPT_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * How many devices one reconciliation run will look at.
+ *
+ * SIZED AGAINST THE CRON BUDGET, not against the corpus. The job runs inside the
+ * daily dispatcher's shared 55 s budget, and the work per device is one entry in
+ * a batched HTTP request plus at most one UPDATE. 1000 is several Expo receipt
+ * requests' worth (the SDK's own chunker decides the actual split) and far more
+ * than a fleet this size produces in a day; a backlog beyond it is drained by
+ * the next night's run, which is exactly the posture every purge in
+ * `data-lifecycle.ts` already takes.
+ */
+const RECEIPT_BATCH_SIZE = 1000;
+
+/** What one reconciliation run did, for the cron row that records it. */
+export type ExpoReceiptReconciliation = {
+  /** Receipt ids Expo answered for. */
+  checked: number;
+  /** Devices revoked because the receipt said the token is dead. */
+  revoked: number;
+  /** Pending ids dropped unasked because Expo no longer holds the receipt. */
+  expired: number;
+};
+
+/**
+ * Ask Expo what actually happened to the messages it accepted, and revoke the
+ * devices whose answer says they are gone.
+ *
+ * WHY THIS EXISTS AT ALL — THE GAP IT CLOSES
+ * ---------------------------------------------------------------------------
+ * `reconcileTickets` above reads the answer Expo gives IMMEDIATELY, and that
+ * answer is only "did Expo accept this message". The answer to "did a phone get
+ * it" is a RECEIPT, fetched afterwards by the id the ticket handed back — and
+ * `DeviceNotRegistered`, the one error that means a delivery address is dead,
+ * arrives there in the ordinary case. Expo has not spoken to FCM or APNs when it
+ * writes a ticket, so it cannot possibly know yet.
+ *
+ * Without this, the revocation the ticket handler already implements was mostly
+ * unreachable: dead rows accumulated in `push_targets` with nothing ever marking
+ * them, `push_targets_user_active_idx` grew with the corpse count, and every
+ * notification for that person paid to address a phone that no longer exists.
+ * What this adds is not a new policy — it is feeding the SAME revocation from
+ * the channel the signal actually arrives on.
+ *
+ * IT RUNS FROM THE NIGHTLY FAN-IN AND NOT FROM A SCHEDULE OF ITS OWN. Nothing a
+ * person sees depends on when a dead token is noticed; only the cost of
+ * addressing it does. The daily dispatcher is where every other periodic
+ * reconciliation in this system already lives — and Vercel's plan allows two
+ * scheduled entries in total, both already spent, so a third schedule was never
+ * an option to weigh.
+ *
+ * NOTHING HERE THROWS, and the reason differs in kind from the send path's. A
+ * throw there would reach the action that wrote a notification; here it would
+ * reach a cron route, which handles it perfectly well. It still does not throw,
+ * because a run that dies halfway leaves its unread ids pending — the correct
+ * resting state, since the next night re-reads them — and a caller that gets a
+ * count is a caller that can record one.
+ */
+export async function reconcileExpoPushReceipts(): Promise<ExpoReceiptReconciliation> {
+  const result: ExpoReceiptReconciliation = { checked: 0, revoked: 0, expired: 0 };
+  if (!isExpoPushEnabled()) return result;
+
+  try {
+    const pending = await pendingPushReceipts(RECEIPT_BATCH_SIZE);
+    if (pending.length === 0) return result;
+
+    // AGED-OUT IDS ARE DROPPED WITHOUT ASKING. Expo answers nothing for a
+    // receipt it no longer holds, so spending a request on one buys an empty
+    // answer and a row that stays pending forever. `pendingPushReceipts` reads
+    // oldest first, so these are at the head of what came back.
+    const cutoff = Date.now() - RECEIPT_RETENTION_MS;
+    const fresh: PendingReceipt[] = [];
+    for (const item of pending) {
+      if (item.pendingSince !== null && item.pendingSince.getTime() < cutoff) {
+        await clearPendingPushReceipt(item.targetId, item.receiptId);
+        result.expired += 1;
+        continue;
+      }
+      fresh.push(item);
+    }
+    if (fresh.length === 0) return result;
+
+    const expo = new Expo({ accessToken: accessToken() });
+    const byReceiptId = new Map(fresh.map((item) => [item.receiptId, item.targetId]));
+    // The SDK's own chunker again, for the SDK's own reason: Expo caps how many
+    // receipt ids one request may carry, and that cap is its to know.
+    const chunks = expo.chunkPushNotificationReceiptIds(fresh.map((item) => item.receiptId));
+
+    for (const chunk of chunks) {
+      let receipts: { [id: string]: ExpoPushReceipt };
+      try {
+        receipts = await expo.getPushNotificationReceiptsAsync(chunk);
+      } catch (err) {
+        // The whole request failed — a network blip, a 5xx from Expo. Nothing
+        // is cleared: these ids are still owed an answer, and the next run asks
+        // again. That retry is the one thing this shape buys over reading
+        // receipts inline, and it costs nothing to keep.
+        reportError("expo-push/receipts", err, { receiptIds: chunk.length });
+        continue;
+      }
+
+      for (const [receiptId, receipt] of Object.entries(receipts)) {
+        const targetId = byReceiptId.get(receiptId);
+        // An id we did not ask about. Unreachable through this SDK, and skipped
+        // rather than trusted: the map is what ties an answer back to a row, and
+        // acting without it would be revoking a device chosen by the response.
+        if (targetId === undefined) continue;
+        result.checked += 1;
+
+        if (receipt.status === "error" && receipt.details?.error === "DeviceNotRegistered") {
+          // THE SAME REVOCATION THE TICKET PATH USES, reached from the channel
+          // the signal actually arrives on. Not reported, for the reason
+          // `reconcileTickets` records: an uninstall is the ordinary end of an
+          // install's life, and logging it would make every one an incident.
+          await revokePushTargetById(targetId);
+          result.revoked += 1;
+        } else if (receipt.status === "error") {
+          // Everything else leaves the row alone and is reported, exactly as on
+          // the ticket path. `MessageTooBig` is about the message;
+          // `InvalidCredentials`, `ProviderError` and `MessageRateExceeded` are
+          // about us or about the store. Revoking somebody's device over any of
+          // them would silence a working phone for a problem that is not its.
+          reportError("expo-push/receipt", new Error(receipt.message), {
+            expoError: receipt.details?.error ?? null,
+            targetId,
+          });
+        }
+
+        // Answered either way — delivered, revoked, or failed for a reason that
+        // is not this device's fault. The id has done its job.
+        await clearPendingPushReceipt(targetId, receiptId);
+      }
+    }
+  } catch (err) {
+    // The reads and the writes. A run that dies here leaves its unread ids
+    // pending, which is the right resting state.
+    reportError("expo-push/receipts-all", err);
+  }
+
+  return result;
 }

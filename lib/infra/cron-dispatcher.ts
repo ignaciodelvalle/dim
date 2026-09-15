@@ -484,6 +484,12 @@ export const DAILY_JOB_ORDER: readonly string[] = [
   "process_eno_queue",
   "drain_outbox",
   "drain_notification_dead_letter",
+  // The delivery drains answer "did we send it"; this one answers "did it land",
+  // which is the question Expo only settles after the fact. It sits with them
+  // rather than with the purges because it is part of a SEND — the half that
+  // could not run on the request path — and because what it produces (a revoked
+  // dead target) is what the retention purge downstream eventually collects.
+  "reconcile_push_receipts",
   // --- expiries / escalations / case closers ---
   "auto_expire_approvals",
   "expire_caretaker_grants",

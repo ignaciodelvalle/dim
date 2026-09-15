@@ -23,7 +23,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db, pushTargets } from "@/db";
 import {
   activePushTargetsForUser,
+  clearPendingPushReceipt,
   markPushTargetUsed,
+  pendingPushReceipts,
   registerPushTarget,
   revokeAllPushTargetsForUser,
   revokePushTarget,
@@ -465,5 +467,116 @@ describe("revokeAllPushTargetsForUser — every device, not just this one", () =
     const active = await activePushTargetsForUser(userA);
     expect(active).toHaveLength(1);
     expect(active[0].expoPushToken).toBe("ExponentPushToken[found-under-the-seat]");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The pending receipt — migration 0223
+//
+// Expo answers a send twice, and only the second answer knows whether a phone
+// got it. `DeviceNotRegistered` arrives in the RECEIPT, fetched later by an id
+// the ticket handed back on the request path; these three functions are how that
+// id survives the gap.
+// ---------------------------------------------------------------------------
+
+describe("the pending receipt id", () => {
+  async function registerShared(): Promise<string> {
+    await registerPushTarget({
+      userId: userA,
+      deviceId: SHARED_DEVICE,
+      expoPushToken: "ExponentPushToken[receipts]",
+      platform: "android",
+    });
+    const [row] = await rowsForSharedDevice();
+    return row.id;
+  }
+
+  it("is written by the same UPDATE that bumps last_used_at", async () => {
+    const id = await registerShared();
+
+    await markPushTargetUsed(id, "receipt-abc");
+
+    const pending = await pendingPushReceipts(10);
+    expect(pending).toEqual([expect.objectContaining({ targetId: id, receiptId: "receipt-abc" })]);
+    const [row] = await rowsForSharedDevice();
+    expect(row.lastUsedAt).not.toBeNull();
+  });
+
+  it("is left alone by a bump that carries no id", async () => {
+    const id = await registerShared();
+    await markPushTargetUsed(id, "receipt-abc");
+
+    await markPushTargetUsed(id);
+
+    // A bump is not an answer. Clearing here would drop an id nobody asked
+    // about, and the receipt it unlocks with it.
+    const pending = await pendingPushReceipts(10);
+    expect(pending.map((p) => p.receiptId)).toEqual(["receipt-abc"]);
+  });
+
+  it("keeps only the newest id for one device", async () => {
+    const id = await registerShared();
+
+    await markPushTargetUsed(id, "receipt-one");
+    await markPushTargetUsed(id, "receipt-two");
+
+    // Deliberate, and argued in migration 0223: DeviceNotRegistered is a
+    // PERSISTENT condition, not an event, so the newest receipt answers the same
+    // question the older one would have — about the most recent attempt.
+    const pending = await pendingPushReceipts(10);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].receiptId).toBe("receipt-two");
+  });
+
+  it("clears only when the id still matches", async () => {
+    const id = await registerShared();
+    await markPushTargetUsed(id, "receipt-old");
+
+    // A send that lands WHILE the nightly job is running writes a newer id onto
+    // the same row. Clearing by row alone would erase an id nobody has asked
+    // about — possibly carrying the DeviceNotRegistered this path exists for.
+    await markPushTargetUsed(id, "receipt-new");
+    await clearPendingPushReceipt(id, "receipt-old");
+
+    const pending = await pendingPushReceipts(10);
+    expect(pending.map((p) => p.receiptId)).toEqual(["receipt-new"]);
+  });
+
+  it("clears both columns together, so the queue is one fact", async () => {
+    const id = await registerShared();
+    await markPushTargetUsed(id, "receipt-abc");
+
+    await clearPendingPushReceipt(id, "receipt-abc");
+
+    expect(await pendingPushReceipts(10)).toHaveLength(0);
+    const rows = await db
+      .select({
+        pendingReceiptId: pushTargets.pendingReceiptId,
+        pendingReceiptAt: pushTargets.pendingReceiptAt,
+      })
+      .from(pushTargets)
+      .where(eq(pushTargets.id, id));
+    expect(rows[0].pendingReceiptId).toBeNull();
+    expect(rows[0].pendingReceiptAt).toBeNull();
+  });
+
+  it("returns a REVOKED device's pending receipt too", async () => {
+    // Not an oversight. A row is revoked on the way out of a sign-out, and its
+    // last receipt may still be the one that says the token itself is dead.
+    // Filtering the queue by `revoked_at IS NULL` would discard exactly the
+    // answers worth having, and the revocation is idempotent anyway.
+    const id = await registerShared();
+    await markPushTargetUsed(id, "receipt-abc");
+    await revokePushTarget(userA, SHARED_DEVICE);
+
+    expect((await pendingPushReceipts(10)).map((p) => p.targetId)).toContain(id);
+  });
+
+  it("respects the batch limit", async () => {
+    const id = await registerShared();
+    await markPushTargetUsed(id, "receipt-abc");
+
+    expect(await pendingPushReceipts(0)).toHaveLength(0);
+    expect(await pendingPushReceipts(1)).toHaveLength(1);
   });
 });

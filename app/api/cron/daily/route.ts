@@ -66,6 +66,7 @@ import { GET as postAdoptionCheckin } from "../post-adoption-checkin/route";
 import { GET as processEnoQueue } from "../process-eno-queue/route";
 import { GET as purgeScanEvents } from "../purge-scan-events/route";
 import { GET as reconcilePetStatus } from "../reconcile-pet-status/route";
+import { GET as reconcilePushReceipts } from "../reconcile-push-receipts/route";
 import { GET as vaccineDue } from "../vaccine-due/route";
 
 export const dynamic = "force-dynamic";
@@ -87,6 +88,7 @@ const HANDLERS: Record<string, (req: NextRequest) => Promise<Response>> = {
   materialize_slots: materializeSlots,
   business_rules_reeval: businessRulesReeval,
   reconcile_pet_status: reconcilePetStatus,
+  reconcile_push_receipts: reconcilePushReceipts,
   vaccine_due: vaccineDue,
   post_adoption_checkin: postAdoptionCheckin,
   evaluate_alerts: evaluateAlerts,

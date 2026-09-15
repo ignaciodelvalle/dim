@@ -115,6 +115,8 @@ const CEILING_EXEMPT: Readonly<Record<string, string>> = {
   close_rabies_observations:
     "keyset page + resume cursor (afterId) bounds the work by ROWS; withCronRun only records the run",
   drain_notification_dead_letter: "bounded by BATCH_SIZE = 200 rows per invocation, not by clock",
+  reconcile_push_receipts:
+    "bounded by RECEIPT_BATCH_SIZE = 1000 rows read once per invocation, not by clock; no keyset loop",
 };
 
 const srcCache = new Map<string, string>();

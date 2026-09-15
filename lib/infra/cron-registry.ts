@@ -137,6 +137,11 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   { cronName: "process_eno_queue", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   { cronName: "purge_scan_events", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   { cronName: "reconcile_pet_status", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  {
+    cronName: "reconcile_push_receipts",
+    maxStalenessMs: DAILY_STALENESS_MS,
+    runsVia: "daily",
+  },
   // Standalone scheduled job — its own vercel.json cron (NOT in DAILY_JOB_ORDER;
   // see the STANDALONE SCHEDULED JOB note above).
   { cronName: "refresh_cube", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "refresh_cube" },
@@ -180,6 +185,7 @@ const CRON_DISPLAY_LABELS: Record<string, string> = {
   reconcile_pet_status: "Reconciliación de estados de mascotas",
   // Standalone scheduled job (own vercel.json cron 0 3 * * * + 300s function;
   // registered in CRON_REGISTRY above). Surfaces on /admin/sistema like any row.
+  reconcile_push_receipts: "Conciliación de entregas push",
   refresh_cube: "Actualización del cubo de análisis",
   vaccine_due: "Recordatorio de vacunas por vencer",
 };

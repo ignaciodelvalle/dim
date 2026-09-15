@@ -26,6 +26,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 const sendPushNotificationsAsyncMock = vi.fn();
+const getPushNotificationReceiptsAsyncMock = vi.fn();
 
 vi.mock("expo-server-sdk", () => {
   class FakeExpo {
@@ -37,6 +38,15 @@ vi.mock("expo-server-sdk", () => {
     }
     sendPushNotificationsAsync(messages: unknown[]) {
       return sendPushNotificationsAsyncMock(messages);
+    }
+    // The receipt half. Chunked the same way and for the same reason: one chunk
+    // here, because splitting is the SDK's business and the code under test is
+    // only required to consume whatever it is handed.
+    chunkPushNotificationReceiptIds(ids: unknown[]): unknown[][] {
+      return ids.length === 0 ? [] : [ids];
+    }
+    getPushNotificationReceiptsAsync(ids: unknown[]) {
+      return getPushNotificationReceiptsAsyncMock(ids);
     }
   }
   return { Expo: FakeExpo };
@@ -60,24 +70,47 @@ vi.mock("@/lib/infra/report-error", () => ({
 let mockTargets: Array<{ id: string; expoPushToken: string }> = [];
 let lookupShouldThrow = false;
 const markedUsed: string[] = [];
+/** Every (target, receipt id) pair a successful ticket recorded. */
+const recordedReceipts: Array<{ targetId: string; receiptId: string | undefined }> = [];
 const revokedIds: string[] = [];
+/** What `pendingPushReceipts` will answer, and the limit it was asked for. */
+let mockPending: Array<{ targetId: string; receiptId: string; pendingSince: Date | null }> = [];
+const pendingLimits: number[] = [];
+const clearedReceipts: Array<{ targetId: string; receiptId: string }> = [];
 
 vi.mock("@/lib/infra/push-target-store", () => ({
-  activePushTargetsForUser: async () => {
+  // THE USER ID IS ASSERTED, not discarded. This stub used to be
+  // `async () => mockTargets`, which answers the same list for every caller —
+  // so an implementation that looked up the WRONG person's devices, or that
+  // passed no id at all, passed every test in this file. A stub that drops its
+  // arguments can only prove a function was reached.
+  activePushTargetsForUser: async (userId: string) => {
+    if (typeof userId !== "string" || userId.length === 0) {
+      throw new Error(`activePushTargetsForUser called with no user id: ${String(userId)}`);
+    }
+    if (userId !== USER_ID) return [];
     if (lookupShouldThrow) throw new Error("db unavailable");
     return mockTargets;
   },
-  markPushTargetUsed: async (id: string) => {
+  markPushTargetUsed: async (id: string, receiptId?: string) => {
     markedUsed.push(id);
+    recordedReceipts.push({ targetId: id, receiptId });
   },
   revokePushTargetById: async (id: string) => {
     revokedIds.push(id);
+  },
+  pendingPushReceipts: async (limit: number) => {
+    pendingLimits.push(limit);
+    return mockPending;
+  },
+  clearPendingPushReceipt: async (targetId: string, receiptId: string) => {
+    clearedReceipts.push({ targetId, receiptId });
   },
 }));
 
 import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
 
-import { sendExpoPushForNotifications } from "@/lib/infra/expo-push";
+import { reconcileExpoPushReceipts, sendExpoPushForNotifications } from "@/lib/infra/expo-push";
 
 const USER_ID = "user-0000-0000-0000-000000000001";
 const URGENT = { userId: USER_ID, severity: "urgent" as const, title: "Hallazgo" };
@@ -96,6 +129,11 @@ beforeEach(() => {
   markedUsed.length = 0;
   revokedIds.length = 0;
   sendPushNotificationsAsyncMock.mockReset().mockResolvedValue([{ status: "ok", id: "receipt-1" }]);
+  getPushNotificationReceiptsAsyncMock.mockReset().mockResolvedValue({});
+  recordedReceipts.length = 0;
+  mockPending = [];
+  pendingLimits.length = 0;
+  clearedReceipts.length = 0;
   reportErrorMock.mockReset();
 });
 
@@ -453,5 +491,210 @@ describe("sendExpoPushForNotifications — failure containment", () => {
     await expect(sendExpoPushForNotifications([URGENT])).resolves.toBeUndefined();
     expect(reportErrorMock).toHaveBeenCalledTimes(1);
     expect(reportErrorMock.mock.calls[0][0]).toBe("expo-push/send-all");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE SECOND HALF OF A SEND — receipts
+//
+// A ticket says whether EXPO accepted the message. A receipt says what FCM and
+// APNs did with it, and that is where `DeviceNotRegistered` arrives in the
+// ordinary case, because Expo has not spoken to either store when it writes the
+// ticket. Reading only tickets meant the revocation path existed and was almost
+// never reached: dead rows accumulated forever and every send paid to address a
+// phone that no longer exists.
+// ---------------------------------------------------------------------------
+
+/** Roughly an hour old: inside Expo's ~24h retention. */
+function recently(): Date {
+  return new Date(Date.now() - 60 * 60 * 1000);
+}
+
+describe("the ticket records the receipt id", () => {
+  it("carries the id a successful ticket handed back", async () => {
+    enableExpo();
+    mockTargets = [target("t1")];
+    sendPushNotificationsAsyncMock.mockResolvedValueOnce([{ status: "ok", id: "receipt-abc" }]);
+
+    await sendExpoPushForNotifications([URGENT]);
+
+    // Without this the receipt is unreachable: the id exists only in the ticket,
+    // on the request path, and the answer it unlocks is not ready for minutes.
+    expect(recordedReceipts).toEqual([{ targetId: "t1", receiptId: "receipt-abc" }]);
+  });
+
+  it("records nothing for a device the ticket refused", async () => {
+    enableExpo();
+    mockTargets = [target("gone")];
+    sendPushNotificationsAsyncMock.mockResolvedValueOnce([
+      { status: "error", message: "not registered", details: { error: "DeviceNotRegistered" } },
+    ]);
+
+    await sendExpoPushForNotifications([URGENT]);
+
+    // There is no receipt to wait for, and the row is already revoked.
+    expect(recordedReceipts).toHaveLength(0);
+    expect(revokedIds).toEqual(["gone"]);
+  });
+});
+
+describe("reconcileExpoPushReceipts", () => {
+  it("no-ops without EXPO_ACCESS_TOKEN, and does not even read the queue", async () => {
+    mockPending = [{ targetId: "t1", receiptId: "r1", pendingSince: recently() }];
+
+    await expect(reconcileExpoPushReceipts()).resolves.toEqual({
+      checked: 0,
+      revoked: 0,
+      expired: 0,
+    });
+    expect(pendingLimits).toHaveLength(0);
+  });
+
+  it("revokes the device whose receipt says the token is dead", async () => {
+    enableExpo();
+    mockPending = [
+      { targetId: "alive", receiptId: "r-alive", pendingSince: recently() },
+      { targetId: "dead", receiptId: "r-dead", pendingSince: recently() },
+    ];
+    getPushNotificationReceiptsAsyncMock.mockResolvedValueOnce({
+      "r-alive": { status: "ok" },
+      "r-dead": {
+        status: "error",
+        message: "not registered",
+        details: { error: "DeviceNotRegistered" },
+      },
+    });
+
+    const result = await reconcileExpoPushReceipts();
+
+    // THE WHOLE POINT: the same revocation the ticket path performs, reached
+    // from the channel the signal actually arrives on.
+    expect(revokedIds).toEqual(["dead"]);
+    expect(result).toEqual({ checked: 2, revoked: 1, expired: 0 });
+    // An uninstall is the ordinary end of an install's life, not an incident.
+    expect(reportErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("clears the pending id either way, so a row is asked about once", async () => {
+    enableExpo();
+    mockPending = [
+      { targetId: "alive", receiptId: "r-alive", pendingSince: recently() },
+      { targetId: "dead", receiptId: "r-dead", pendingSince: recently() },
+    ];
+    getPushNotificationReceiptsAsyncMock.mockResolvedValueOnce({
+      "r-alive": { status: "ok" },
+      "r-dead": {
+        status: "error",
+        message: "gone",
+        details: { error: "DeviceNotRegistered" },
+      },
+    });
+
+    await reconcileExpoPushReceipts();
+
+    expect(clearedReceipts).toEqual([
+      { targetId: "alive", receiptId: "r-alive" },
+      { targetId: "dead", receiptId: "r-dead" },
+    ]);
+  });
+
+  it("clears by RECEIPT id as well as row, so a newer send is not erased", async () => {
+    // A push that lands while this job is running writes a newer id onto the
+    // same row. The store's UPDATE matches on the id for that reason, and the
+    // call has to carry it — asserted here because the alternative is silent:
+    // an id nobody ever asked about, dropped with its answer.
+    enableExpo();
+    mockPending = [{ targetId: "t1", receiptId: "r-old", pendingSince: recently() }];
+    getPushNotificationReceiptsAsyncMock.mockResolvedValueOnce({ "r-old": { status: "ok" } });
+
+    await reconcileExpoPushReceipts();
+
+    expect(clearedReceipts).toEqual([{ targetId: "t1", receiptId: "r-old" }]);
+  });
+
+  it("does NOT revoke over a failure that is not the device's fault", async () => {
+    enableExpo();
+    mockPending = [{ targetId: "t1", receiptId: "r1", pendingSince: recently() }];
+    getPushNotificationReceiptsAsyncMock.mockResolvedValueOnce({
+      r1: { status: "error", message: "bad creds", details: { error: "InvalidCredentials" } },
+    });
+
+    const result = await reconcileExpoPushReceipts();
+
+    // Same rule the ticket path states: revoking somebody's working phone
+    // because OUR credential expired is the worst reading of a server problem.
+    expect(revokedIds).toHaveLength(0);
+    expect(result.revoked).toBe(0);
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    expect(reportErrorMock.mock.calls[0][0]).toBe("expo-push/receipt");
+  });
+
+  it("drops an id Expo can no longer answer for, without spending a request", async () => {
+    enableExpo();
+    // Two days old. Expo keeps receipts for roughly one, so asking buys an empty
+    // answer and a row that stays pending forever.
+    mockPending = [
+      {
+        targetId: "stale",
+        receiptId: "r-stale",
+        pendingSince: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      },
+    ];
+
+    const result = await reconcileExpoPushReceipts();
+
+    expect(getPushNotificationReceiptsAsyncMock).not.toHaveBeenCalled();
+    expect(clearedReceipts).toEqual([{ targetId: "stale", receiptId: "r-stale" }]);
+    expect(result).toEqual({ checked: 0, revoked: 0, expired: 1 });
+  });
+
+  it("keeps the ids pending when the whole request fails", async () => {
+    enableExpo();
+    mockPending = [{ targetId: "t1", receiptId: "r1", pendingSince: recently() }];
+    getPushNotificationReceiptsAsyncMock.mockRejectedValueOnce(new Error("network down"));
+
+    const result = await reconcileExpoPushReceipts();
+
+    // Nothing cleared and nothing revoked: these ids are still owed an answer,
+    // and the next run asks again. That retry is the one thing this shape buys
+    // over reading receipts inline, and losing it would be losing the feature.
+    expect(clearedReceipts).toHaveLength(0);
+    expect(revokedIds).toHaveLength(0);
+    expect(result).toEqual({ checked: 0, revoked: 0, expired: 0 });
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    expect(reportErrorMock.mock.calls[0][0]).toBe("expo-push/receipts");
+  });
+
+  it("ignores an answer for an id it never asked about", async () => {
+    enableExpo();
+    mockPending = [{ targetId: "t1", receiptId: "r1", pendingSince: recently() }];
+    getPushNotificationReceiptsAsyncMock.mockResolvedValueOnce({
+      r1: { status: "ok" },
+      "r-somebody-elses": {
+        status: "error",
+        message: "gone",
+        details: { error: "DeviceNotRegistered" },
+      },
+    });
+
+    const result = await reconcileExpoPushReceipts();
+
+    // The map from receipt id to row is what ties an answer to a device. Acting
+    // without it would be revoking a device chosen by the response body.
+    expect(revokedIds).toHaveLength(0);
+    expect(result.checked).toBe(1);
+  });
+
+  it("asks for a bounded batch rather than the whole table", async () => {
+    enableExpo();
+    mockPending = [];
+
+    await reconcileExpoPushReceipts();
+
+    expect(pendingLimits).toHaveLength(1);
+    expect(pendingLimits[0]).toBeGreaterThan(0);
+    // The job runs inside the daily dispatcher's shared 55 s budget; an
+    // unbounded read is how one job starves the twenty-three others.
+    expect(pendingLimits[0]).toBeLessThanOrEqual(1000);
   });
 });

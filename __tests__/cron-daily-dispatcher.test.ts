@@ -210,10 +210,13 @@ describe("dispatchJobs", () => {
   });
 
   it("DAILY_JOB_ORDER covers the whole fleet without duplicates", () => {
-    // Guards the SSOT list itself: 23 jobs, all unique.
+    // Guards the SSOT list itself: 24 jobs, all unique.
+    // 23 -> 24 on 2026-09-15 with reconcile-push-receipts: the second half of a
+    // native push send, which cannot run on the request path because Expo does
+    // not know the answer yet (see the route's header).
     // 22 -> 23 on 2026-08-19 with expire-caretaker-grants (custodia-temporal C6).
-    expect(DAILY_JOB_ORDER.length).toBe(23);
-    expect(new Set(DAILY_JOB_ORDER).size).toBe(23);
+    expect(DAILY_JOB_ORDER.length).toBe(24);
+    expect(new Set(DAILY_JOB_ORDER).size).toBe(24);
   });
 
   it("C-b: cron_health runs FIRST — the deliberate reversal", () => {

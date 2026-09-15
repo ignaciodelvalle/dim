@@ -1821,6 +1821,17 @@ export const pushTargets = pgTable(
     // Soft revocation: sign-out, or Expo answered DeviceNotRegistered. Hard
     // deletion happens only server-side (the purge) or via the profiles cascade.
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // The Expo receipt id from the last message this device ACCEPTED, awaiting
+    // reconciliation (migration 0223). `DeviceNotRegistered` — the one signal
+    // that says a delivery address is dead — mostly arrives in the RECEIPT and
+    // not in the ticket, because Expo has not talked to FCM or APNs yet when it
+    // writes the ticket. This is how the nightly job finds the row an answer
+    // belongs to. Cleared once read, or once it has aged past Expo's ~24h.
+    pendingReceiptId: text("pending_receipt_id"),
+    // When that id was written. Only the AGE is ever read: Expo answers nothing
+    // for a receipt id older than roughly a day, so an aged-out id is cleared
+    // unasked rather than re-queried nightly forever.
+    pendingReceiptAt: timestamp("pending_receipt_at", { withTimezone: true }),
   },
   (table) => ({
     // Send-path index: all active targets for one user. Mirrors
@@ -1835,6 +1846,14 @@ export const pushTargets = pgTable(
     revokedAtIdx: index("push_targets_revoked_at_idx")
       .on(table.revokedAt)
       .where(sql`${table.revokedAt} IS NOT NULL`),
+    // The reconciliation job's read: every device with a receipt still owed,
+    // oldest first. Partial on the PENDING population for the same reason the
+    // one above is partial on the revoked one — at any moment almost every row
+    // has nothing outstanding, and a full index would be maintained on every
+    // send to answer a question about a handful.
+    pendingReceiptIdx: index("push_targets_pending_receipt_idx")
+      .on(table.pendingReceiptAt)
+      .where(sql`${table.pendingReceiptId} IS NOT NULL`),
     // Expo brokers to exactly two stores. The constraint is here rather than in
     // a comment because a third value would be a typo, not a feature.
     platformValid: check(
