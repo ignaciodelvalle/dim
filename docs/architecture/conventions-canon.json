@@ -7861,7 +7861,7 @@
         "docs/mobile/eas-build-profiles.md#what-guards-it-now"
       ],
       "enforcer": [
-        "apps/mobile/src/release/release-config.test.ts:1296"
+        "apps/mobile/src/release/release-config.test.ts:1326"
       ],
       "enforcementKind": "jest",
       "wired": "test:verified",
