@@ -156,9 +156,35 @@ export function Body({
   );
 }
 
-/** Something the reader has to act on. Never used for anything merely emphatic. */
+/**
+ * Something the reader has to act on. Never used for anything merely emphatic.
+ *
+ * AND THEREFORE ANNOUNCED. This is the primitive that renders "Esta mascota
+ * está reportada como perdida." on the credential screen, and until 2026-09-16
+ * it was the only notice in this file that said nothing to a screen reader —
+ * `ErrorNotice` and `StaleNotice`, two functions below, both carry the props
+ * and both argue their live-region choice in a docblock. The one named `Alert`
+ * was not an alert.
+ *
+ * What that cost: a blind person showing this credential, or a blind finder who
+ * scanned the QR, heard the animal's identity read out and never heard that it
+ * is lost — the single highest-stakes sentence the product has.
+ *
+ * `assertive` and not `polite`, by this file's own rule: `StaleNotice` is polite
+ * because "the person did not lose anything, so this must not interrupt". Here
+ * they did, and it must.
+ *
+ * The props go ON the Text rather than on a wrapping View — which is how the
+ * siblings do it — because those wrap several children and this renders one.
+ * A container added only to carry two attributes is a layout change nobody
+ * asked for.
+ */
 export function Alert({ children }: { children: ReactNode }) {
-  return <Text style={styles.alert}>{children}</Text>;
+  return (
+    <Text accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.alert}>
+      {children}
+    </Text>
+  );
 }
 
 /** A refusal that explains itself. See the header. */

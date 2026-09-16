@@ -13,7 +13,7 @@ const mockOpenURL = jest.fn<(url: string) => Promise<unknown>>().mockResolvedVal
 
 jest.mock("expo-linking", () => ({ openURL: (url: string) => mockOpenURL(url) }));
 
-import { ContactRow } from "./components";
+import { Alert, ContactRow, ErrorNotice, StaleNotice } from "./components";
 
 // The mock is module-scoped, so without this every `toHaveBeenCalledWith`
 // assertion below is satisfied by ANY earlier test's press. That is not
@@ -106,5 +106,64 @@ describe("unlinkable value", () => {
     render(<ContactRow label="Contacto" value="abc / def" />);
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.getByText("abc / def")).toBeOnTheScreen();
+  });
+});
+
+// The three notices of this file, asserted together ON PURPOSE.
+//
+// `Alert` shipped without a screen-reader role while `ErrorNotice` and
+// `StaleNotice` — its neighbours, whose docblocks each argue their live-region
+// choice — had one. Nothing noticed, because nothing asked. What it cost is in
+// `Alert`'s docblock: the credential's "Esta mascota está reportada como
+// perdida." was silent to the person most likely to need it read aloud.
+//
+// Testing the three as a SET rather than fixing the one is the point. A test
+// that pins only `Alert` leaves the next notice added to this file free to
+// repeat the omission; this one states the file's rule — a notice announces
+// itself — and any new silent notice added beside them is a visible gap in a
+// table somebody is already reading.
+describe("the notices announce themselves", () => {
+  it("gives Alert an assertive alert role — it is what the credential says is lost", () => {
+    render(<Alert>Esta mascota está reportada como perdida.</Alert>);
+    const alert = screen.getByRole("alert");
+    expect(alert).toBeOnTheScreen();
+    expect(alert.props.accessibilityLiveRegion).toBe("assertive");
+  });
+
+  // The two siblings are queried by walking the tree, NOT with getByRole.
+  //
+  // That is not a convenience: `getByRole` cannot see them, and the reason is
+  // worth writing down. Both wrap their children in a `View` carrying
+  // `accessibilityRole="alert"`, and a React Native `View` is not an
+  // accessibility element unless it also carries `accessible` — so the testing
+  // library refuses the match. `Alert` above IS found, because a `Text` is
+  // accessible by default.
+  //
+  // Whether that means the siblings' ROLE fails to reach iOS is a question a
+  // real device answers and this file must not pretend to. Android's live
+  // region works either way. So these two pin the thing that is certainly
+  // true and certainly load-bearing — that one interrupts and the other does
+  // not — and leave the platform claim to somebody holding a phone.
+  const liveRegionOf = (tree: unknown): unknown => {
+    const node = tree as { props?: Record<string, unknown>; children?: unknown[] };
+    if (node?.props?.accessibilityRole === "alert") return node.props.accessibilityLiveRegion;
+    for (const child of node?.children ?? []) {
+      const found = liveRegionOf(child);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
+
+  it("keeps ErrorNotice assertive — the read failed and there is nothing under it", () => {
+    const tree = render(<ErrorNotice message="No hay conexión." />).toJSON();
+    expect(liveRegionOf(tree)).toBe("assertive");
+  });
+
+  it("keeps StaleNotice POLITE — nothing was lost, so it must not interrupt", () => {
+    const tree = render(<StaleNotice message="No pudimos actualizar." />).toJSON();
+    // Not a copy of the line above: the distinction between the two is the whole
+    // reason both exist, and a change that made this one assertive would be a
+    // regression a same-value assertion could never see.
+    expect(liveRegionOf(tree)).toBe("polite");
   });
 });
