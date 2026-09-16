@@ -1,0 +1,192 @@
+name: Authz audit (staging)
+
+# Nightly READ-ONLY audit of the authorization posture of the STAGING database:
+# RLS coverage, tenant/jurisdiction scoping, and subject-rights coverage — the
+# three fences that `pnpm verify` already runs, pointed at the database real
+# people use instead of the one CI rebuilds from migrations.
+#
+# WHY THIS EXISTS, AND IT IS NOT REDUNDANT WITH `verify`
+# ---------------------------------------------------------------------------
+# Every authz fence in this repo judges a LOCAL database built from
+# `db/migrations/`, and `scripts/check-rls-coverage.ts:49` says so: auditing a
+# remote one is deliberate and needs `--allow-remote`. So CI proves that the
+# MIGRATIONS describe a safe posture. It proves nothing about the posture the
+# live database actually has.
+#
+# Those two are not the same thing here, and that is measured rather than
+# feared: `scripts/ops/staging-rls-remediation.sql` exists, which means staging
+# has been hand-patched outside the migration chain at least once. Combined with
+# the rule this repo learned the hard way — a `DROP POLICY` by name reports
+# success while doing nothing when the environment diverged — a policy dropped
+# from the Supabase SQL editor during an incident would leave `pnpm verify`
+# green forever, and the next reader would conclude production is clean.
+#
+# WHAT IT DOES NOT COVER, said here rather than implied by silence:
+#   · `lint:storage-policies` (scripts/check-storage-write-policies.ts) is NOT
+#     run. It does not accept `--allow-remote`, so pointing it at staging is not
+#     available today. The storage write grants it freezes are a declared open
+#     hole (its FROZEN_WRITE_GRANTS block); this workflow does not watch them.
+#     Teaching that script the flag is the work that would close the gap.
+#   · The web's own authorization (guards, scoping predicates) is static and is
+#     already covered by `verify` on every push. This job asks the DATABASE.
+#
+# Requires the STAGING_DATABASE_URL secret (the Session-pooler string, see
+# docs/ops/staging-deploy.md) — provisioning it is Ignacio-gated. The job SKIPS
+# with a notice when the secret is absent, so merging this is safe before the
+# secret exists. A skipped run is NOT a passing audit, and the `audited` output
+# below is what keeps the alert job from reading it as one.
+#
+# Cron is UTC: 09:30 UTC = 06:30 in Argentina (UTC-3, no DST) — half an hour
+# after db-doctor-staging, so a morning reader gets the ledger verdict and the
+# authz verdict together and the two jobs never contend for the same pooler.
+#
+# THE SCHEDULED-FENCE RULE (see scripts/check-scheduled-fence-refs.ts)
+# ---------------------------------------------------------------------------
+# A `schedule:` event fires from, and checks out, the DEFAULT branch. These
+# fences compare declarations IN THE TREE (RLS_REQUIRED, the subject-rights
+# registers) against the live catalog, so both sides must come from the branch
+# staging deploys — `main` since 2026-09-01. The literal below is deliberate:
+# `${{ vars.X }}` resolves to the empty string when unset, and an empty `ref:`
+# falls back to the default branch with no signal. `pnpm lint:sched-refs` names
+# this file if that branch is ever renamed.
+on:
+  schedule:
+    - cron: "30 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Published so the alert job can tell "the audit passed" from "there was no
+    # audit". Both look like `success` in `needs.audit.result`, and one of them
+    # is not evidence of anything — the same trap db-doctor-staging.yml records
+    # having fallen into, where a guard-skipped run CLOSED the open alert with
+    # "Green again" every night while auditing nothing.
+    outputs:
+      audited: ${{ steps.guard.outputs.run }}
+    steps:
+      - name: Gate on STAGING_DATABASE_URL secret
+        id: guard
+        # Step-level and not a job-level `if:` because `secrets` is not in the
+        # context available there. The fact has to be carried out by hand.
+        env:
+          HAS_SECRET: ${{ secrets.STAGING_DATABASE_URL != '' }}
+        run: |
+          if [ "$HAS_SECRET" != "true" ]; then
+            echo "::notice::STAGING_DATABASE_URL not set — skipping the authz audit. This run audits NOTHING; it is not a passing audit."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          # The branch staging is deployed from — NOT the default branch this
+          # schedule fires on. See the header.
+          ref: main
+
+      - name: Setup pnpm
+        if: steps.guard.outputs.run == 'true'
+        # No `version:` input on purpose: the version comes from `packageManager`
+        # in the root package.json, and this action FAILS when both are set and
+        # the strings differ.
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # The three run as SEPARATE steps, not as one `&&` chain, so a red in the
+      # first still lets the other two report. A chain would answer "RLS is
+      # broken" and stay silent about whether scoping and subject rights also
+      # are — and on the one night this job matters, that is the whole question.
+      # `continue-on-error` plus an explicit verdict step is how all three
+      # verdicts reach one conclusion.
+      - name: RLS coverage against staging (read-only)
+        if: steps.guard.outputs.run == 'true'
+        id: rls
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm lint:rls -- --allow-remote
+
+      - name: Tenant and jurisdiction scoping against staging (read-only)
+        if: steps.guard.outputs.run == 'true'
+        id: scope
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm lint:scope-authz -- --allow-remote
+
+      - name: Subject-rights coverage against staging (read-only)
+        if: steps.guard.outputs.run == 'true'
+        id: rights
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm lint:subject-rights -- --allow-remote
+
+      # `continue-on-error` marks a failed step `success` at the job level, so
+      # without this the job would go green on three reds. Each outcome is named
+      # in the summary because "the authz audit failed" is not actionable and
+      # "scoping failed, RLS and subject rights passed" is.
+      - name: Verdict
+        if: steps.guard.outputs.run == 'true'
+        env:
+          RLS: ${{ steps.rls.outcome }}
+          SCOPE: ${{ steps.scope.outcome }}
+          RIGHTS: ${{ steps.rights.outcome }}
+        run: |
+          echo "RLS coverage        : $RLS"
+          echo "Scoping             : $SCOPE"
+          echo "Subject rights      : $RIGHTS"
+          echo "storage policies    : not run — check-storage-write-policies.ts has no --allow-remote (see header)"
+          if [ "$RLS" != "success" ] || [ "$SCOPE" != "success" ] || [ "$RIGHTS" != "success" ]; then
+            echo "::error::The live staging database diverges from what the tree declares. A red here is NOT a code defect — it means the database was changed outside the migration chain."
+            exit 1
+          fi
+          echo "All three authz fences agree with the live database."
+
+  # A guard-skipped audit reports `success`. The `audited:` input is the third
+  # state: a run that did not audit neither opens nor closes the alert.
+  alert:
+    name: Alert on a red streak
+    needs: audit
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Local composite actions resolve from the checked-out tree, so this
+          # job needs the same pin as the one above.
+          ref: main
+
+      - name: Open or update the alert issue
+        uses: ./.github/actions/red-streak-alert
+        with:
+          workflow: authz-audit-staging.yml
+          outcome: ${{ needs.audit.result }}
+          # "" when the audit job died before its guard step ever ran. That is
+          # NOT "true", so a success carrying it would not close the alert.
+          audited: ${{ needs.audit.outputs.audited }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[nightly] Authz audit (staging) is failing"
