@@ -107,10 +107,17 @@ const variants: Record<OpButtonVariant, string> = {
   ghost:
     "bg-[var(--color-ln-op-card)] text-[var(--color-ln-op-ink)] border-[var(--color-ln-op-line)] " +
     "hover:bg-[var(--color-ln-op-stripe)]",
+  // Darken, do not fade — the operator half of the change made to LnButton, and
+  // the reasoning is written beside the tokens in app/globals.css rather than
+  // repeated here. The number that matters on this surface: `ok` under
+  // `opacity-90` measured 4.44:1, under the AA floor, on the button that closes
+  // a case.
   danger:
     "bg-[var(--color-ln-op-danger)] text-white border-[var(--color-ln-op-danger)] " +
-    "hover:opacity-90",
-  ok: "bg-[var(--color-ln-op-ok)] text-white border-[var(--color-ln-op-ok)] hover:opacity-90",
+    "hover:bg-[var(--color-ln-op-danger-700)] hover:border-[var(--color-ln-op-danger-700)]",
+  ok:
+    "bg-[var(--color-ln-op-ok)] text-white border-[var(--color-ln-op-ok)] " +
+    "hover:bg-[var(--color-ln-op-ok-700)] hover:border-[var(--color-ln-op-ok-700)]",
 };
 
 function Spinner() {

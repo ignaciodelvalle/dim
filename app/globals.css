@@ -98,6 +98,24 @@
      white-on-ok improves to 5.68 for the solid chips. */
   --color-ln-ok: #2b7449;
   --color-ln-warn: #96600e; /* darkened from #b0771a — 5.28:1 on white (was 3.82:1, WCAG AA fail) */
+
+  /* THE HOVER TRIO — the filled variants' pressed/hover fill, so they darken
+     instead of fading. `primary` already had one (--color-ln-azul-700); `seal`,
+     `ok` and `warn` did not, and the absence is why LnButton fell back to
+     `hover:opacity-90` on exactly those three.
+     Opacity fades the ELEMENT: the white label lightens toward the page along
+     with the fill, so hover LOWERS contrast on the controls that carry the most
+     consequence. Measured on #fbfaf5 — seal 6.61 → 5.39, ok 5.68 → 4.63, and
+     warn 5.28 → 4.35, which is UNDER the 4.5:1 AA floor. The comment one line
+     above records that warn was darkened on purpose to clear that floor; the
+     hover was quietly undoing that work.
+     Derived with the ratio the one existing pair already chose (azul #0e5a99 →
+     azul-700 #0a4576, ≈0.76 per channel) rather than picked by eye, so the five
+     filled variants darken by the same amount. All three RISE: 9.44, 8.35 and
+     7.86 on white. */
+  --color-ln-seal-700: #7b2c21;
+  --color-ln-ok-700: #215837;
+  --color-ln-warn-700: #72490b;
   --color-ln-err: #c0392b;
   --color-ln-rosa: #b5497e;
   --color-ln-violeta: #6b4ea8; /* medication / violeta tone */
@@ -426,6 +444,19 @@
   --color-ln-op-ok: #1e7a3e;
   --color-ln-op-ok-bg: #e5f4eb;
   --color-ln-op-ok-bd: #c2e2cd;
+
+  /* OpButton's hover fills, the operator half of the trio declared beside
+     --color-ln-seal-700 in the citizen block above; the reasoning lives there
+     and is not repeated. Measured on the operator card (#ffffff): danger
+     6.57 → 5.66 under opacity-90 and ok 5.37 → 4.44, which is under the AA
+     floor — the same shape as the citizen `warn`, on the button an operator
+     presses to close a case. Darkened they read 9.48 and 7.94.
+     NOT declared in @dim/contract/tokens: no `--color-ln-op-*` token is, because
+     the operator skin has no native counterpart. The citizen trio is, because
+     its sibling --color-ln-azul-700 is. Following the split the repo already
+     made rather than inventing a third rule. */
+  --color-ln-op-danger-700: #8b1515;
+  --color-ln-op-ok-700: #175d2f;
   --color-ln-op-viol: #6a4c93;
   --color-ln-op-viol-bg: #ece5f5;
   --color-ln-op-viol-bd: #d8c9ec;

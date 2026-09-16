@@ -78,10 +78,22 @@ export const LN_CSS_TOKENS = {
   "--color-ln-line-strong": "#cfc8b8",
 
   "--color-ln-seal": "#a23a2c",
+  // The hover fills of the filled button variants, siblings of the
+  // `--color-ln-azul-700` above. They are here, and not only in globals.css,
+  // for the same reason that one is: this map is the half the parity fence
+  // compares, and a hover colour that lives on only one side is exactly the
+  // divergence `check-design-token-parity.ts` was built after.
+  // Why they exist at all: `hover:opacity-90` fades the white label with the
+  // fill, so hover LOWERED contrast on the most consequential controls —
+  // measured, warn fell to 4.35:1, under the AA floor it had been darkened to
+  // clear. See the block beside them in app/globals.css.
+  "--color-ln-seal-700": "#7b2c21",
   "--color-ln-ok": "#2b7449",
+  "--color-ln-ok-700": "#215837",
   "--color-ln-ok-bg": "#e8f3ec",
   "--color-ln-ok-100": "#c8e2d2",
   "--color-ln-warn": "#96600e",
+  "--color-ln-warn-700": "#72490b",
   "--color-ln-warn-025": "#fdf6ea",
   "--color-ln-warn-100": "#f0dcb4",
   "--color-ln-err": "#c0392b",

@@ -83,12 +83,26 @@ const variants: Record<LnButtonVariant, string> = {
   primary:
     "bg-[var(--color-ln-azul)] text-white border-[var(--color-ln-azul)] " +
     "hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
-  seal: "bg-[var(--color-ln-seal)] text-white border-[var(--color-ln-seal)] " + "hover:opacity-90",
+  // The three filled variants below hover by DARKENING, like `primary` — not by
+  // fading. `hover:opacity-90` was never a design choice: it is what these three
+  // fell back to because no `-700` token existed for them, and it fades the
+  // white label along with the fill. Measured on the page ground: seal
+  // 6.61 → 5.39, ok 5.68 → 4.63, warn 5.28 → 4.35 — the last one UNDER the
+  // 4.5:1 AA floor that `--color-ln-warn`'s own comment records being darkened
+  // to clear. Hover was undoing that work, on "Confirmar", "Marcar perdida" and
+  // the other controls a person thinks twice before pressing.
+  seal:
+    "bg-[var(--color-ln-seal)] text-white border-[var(--color-ln-seal)] " +
+    "hover:bg-[var(--color-ln-seal-700)] hover:border-[var(--color-ln-seal-700)]",
   ghost:
     "bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] border-[var(--color-ln-line-strong)] " +
     "hover:bg-[var(--color-ln-stripe)]",
-  ok: "bg-[var(--color-ln-ok)] text-white border-[var(--color-ln-ok)] " + "hover:opacity-90",
-  warn: "bg-[var(--color-ln-warn)] text-white border-[var(--color-ln-warn)] " + "hover:opacity-90",
+  ok:
+    "bg-[var(--color-ln-ok)] text-white border-[var(--color-ln-ok)] " +
+    "hover:bg-[var(--color-ln-ok-700)] hover:border-[var(--color-ln-ok-700)]",
+  warn:
+    "bg-[var(--color-ln-warn)] text-white border-[var(--color-ln-warn)] " +
+    "hover:bg-[var(--color-ln-warn-700)] hover:border-[var(--color-ln-warn-700)]",
 };
 
 function Spinner() {
