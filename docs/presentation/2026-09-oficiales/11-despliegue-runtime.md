@@ -54,7 +54,7 @@ sube si pasan. Ninguna migración viaja por el primero.
   controles automáticos— más la suite de <!-- fact:vitest_files -->1526<!-- /fact -->
   archivos de prueba, corrida por un verificador que desconfía del código de
   salida en las dos direcciones (`scripts/run-verified-suite.ts`). En la nube
-  hay <!-- fact:ci_workflows -->7<!-- /fact --> flujos de integración continua.
+  hay <!-- fact:ci_workflows -->8<!-- /fact --> flujos de integración continua.
 - **El código se publica solo.** Enviar un cambio a la rama principal dispara un
   despliegue de producción por la integración de la nube con el repositorio.
   Verificado el 2026-09-02 contra la interfaz de programación del proveedor: el

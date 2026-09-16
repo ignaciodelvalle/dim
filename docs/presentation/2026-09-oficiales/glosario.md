@@ -292,7 +292,7 @@ reemplaza por gris, y **ninguna se ablanda con un "en desarrollo" simpático**.
 |---|---|---|---|
 | `pnpm verify` | Cadena de verificación | <!-- fact:verify_fences -->69<!-- /fact --> guardas automatizadas. **Nunca "compuerta de calidad" ni "reglas automáticas"**: eran tres nombres para la misma cosa | acuñada |
 | `pnpm test:verified` | Suite verificada | Desconfía del código de salida de la suite en las dos direcciones (`scripts/run-verified-suite.ts`) | acuñada |
-| `.github/workflows` | Integración continua | <!-- fact:ci_workflows -->7<!-- /fact --> flujos | acuñada |
+| `.github/workflows` | Integración continua | <!-- fact:ci_workflows -->8<!-- /fact --> flujos | acuñada |
 | `e2e` | Recorrido de navegador | <!-- fact:e2e_specs -->45<!-- /fact --> recorridos. Compuerta **aparte**, nocturna, hoy en rojo | acuñada |
 | `docs/reviews/2026-09-fresh/README.md` | Auditoría 2026-09 · Lentes ejecutados · Lentes diferidos | Los lentes diferidos van rayados: no dibujarlos como cobertura | acuñada |
 | refutación adversarial | Refutadores independientes · Revisión con contexto fresco | Quien revisa no escribió el código. Es lo que encontró el hallazgo crítico de la auditoría | acuñada |

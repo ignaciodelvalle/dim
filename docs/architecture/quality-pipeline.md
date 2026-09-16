@@ -216,7 +216,7 @@ backlog.
 
 ## 6. CI workflows
 
-<!-- fact:ci_workflows -->7<!-- /fact --> files under `.github/workflows/*.yml`:
+<!-- fact:ci_workflows -->8<!-- /fact --> files under `.github/workflows/*.yml`:
 
 | Workflow | Trigger | What it runs |
 |---|---|---|

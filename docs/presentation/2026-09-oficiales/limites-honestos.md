@@ -388,7 +388,7 @@ general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
   la corrida nocturna sabemos exactamente cuál: el refugio de prueba se quedó sin
   ninguna custodia viva. No es la aplicación fallando; es el dato sembrado."
   Hay <!-- fact:e2e_specs -->45<!-- /fact --> recorridos de navegador y
-  <!-- fact:ci_workflows -->7<!-- /fact --> flujos de integración continua.
+  <!-- fact:ci_workflows -->8<!-- /fact --> flujos de integración continua.
 
 ### D.6 — La aplicación Android no está en la tienda
 
