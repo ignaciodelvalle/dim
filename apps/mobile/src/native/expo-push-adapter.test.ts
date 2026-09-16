@@ -85,7 +85,7 @@ jest.mock("expo-constants", () => ({
   },
 }));
 
-import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
+import { PUSH_ANDROID_CHANNEL_ID, PUSH_ANDROID_HEALTH_CHANNEL_ID } from "@dim/contract/input";
 import { Platform } from "react-native";
 
 import {
@@ -483,12 +483,15 @@ describe("the foreground presentation", () => {
 // ---------------------------------------------------------------------------
 
 describe("ensureNotificationChannel", () => {
-  it("creates the channel the SERVER addresses, at default importance", async () => {
+  it("creates the ordinary channel the SERVER addresses, at default importance", async () => {
     await withPlatform("android", async () => {
       await expoPush.ensureNotificationChannel();
     });
 
-    expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(1);
+    // TWO channels since 2026-09-16 (PO). On Android the channel is the unit a
+    // person silences, so one channel for everything left them one switch:
+    // silencing sighting notices took the rabies alerts with it.
+    expect(mockSetNotificationChannelAsync).toHaveBeenCalledTimes(2);
     const [channelId, config] = mockSetNotificationChannelAsync.mock.calls[0] as [
       string,
       { name: string; description: string; importance: number },
@@ -503,11 +506,55 @@ describe("ensureNotificationChannel", () => {
     // literal and why raising it means a new channel id.
     expect(config.importance).toBe(5);
     // es-AR, because these are the two strings Android shows in the system
-    // settings screen where somebody turns this category off.
-    expect(config.name).toBe("Avisos urgentes");
+    // settings screen where somebody turns this category off. RENAMED when the
+    // health channel was split out: a switch labelled "Avisos urgentes" that no
+    // longer controls the urgent ones is a label that lies.
+    expect(config.name).toBe("Avisos de tus mascotas");
     expect(config.description).toBe(
-      "Hallazgos, avistajes y avisos de salud que no pueden esperar.",
+      "Hallazgos, avistajes, transferencias y cuidados. Suenan una vez y esperan en la bandeja.",
     );
+  });
+
+  it("creates the health channel at HIGH, which is the one place HIGH is spent", async () => {
+    await withPlatform("android", async () => {
+      await expoPush.ensureNotificationChannel();
+    });
+
+    const [channelId, config] = mockSetNotificationChannelAsync.mock.calls[1] as [
+      string,
+      { name: string; description: string; importance: number },
+    ];
+    expect(channelId).toBe(PUSH_ANDROID_HEALTH_CHANNEL_ID);
+    // HIGH is 6, NOT 4, and the number is worth a sentence because the obvious
+    // guess is wrong. `Notifications.AndroidImportance` is EXPO's enum and it is
+    // offset from Android's own: Expo counts UNKNOWN 0, UNSPECIFIED 1, NONE 2,
+    // MIN 3, LOW 4, DEFAULT 5, HIGH 6, MAX 7, while Android's NotificationManager
+    // counts IMPORTANCE_DEFAULT as 3 and IMPORTANCE_HIGH as 4. Reading 4 off the
+    // Android docs and pinning it here asserts LOW while the code says HIGH, and
+    // every other assertion in this block would still pass. (Confirmed against a
+    // real device on 2026-09-16: `dumpsys notification` reported mImportance=3
+    // for the channel this file creates at Expo's 5.)
+    //
+    // Pinned against a literal for the same reason the 5 above is: immutable
+    // once created, so this number is permanent per install.
+    expect(config.importance).toBe(6);
+    expect(config.name).toBe("Urgencias sanitarias");
+    expect(config.description).toBe(
+      "Rabia y brotes. Interrumpen porque hay un plazo legal corriendo.",
+    );
+  });
+
+  it("the two channels are DISTINCT ids — one config cannot silently become the other", async () => {
+    // The mutation this kills: pointing both `setNotificationChannelAsync` calls
+    // at the same id. Android would upsert the second over the first, the person
+    // would see one switch again, and every assertion above would still pass
+    // because each one reads its own call.
+    expect(PUSH_ANDROID_CHANNEL_ID).not.toBe(PUSH_ANDROID_HEALTH_CHANNEL_ID);
+    await withPlatform("android", async () => {
+      await expoPush.ensureNotificationChannel();
+    });
+    const ids = mockSetNotificationChannelAsync.mock.calls.map((call) => call[0]);
+    expect(new Set(ids).size).toBe(2);
   });
 
   it("does nothing at all on iOS, where channels do not exist", async () => {

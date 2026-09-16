@@ -325,11 +325,21 @@ describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)"
     ]);
 
     const message = sentMessage();
-    expect(message.title).toBe("miMAR");
-    expect(message.body).toBe("Tenés un aviso nuevo");
+    // The CATEGORY is named, the row's own strings are not (PO decision
+    // 2026-09-16). "miMAR · Tenés un aviso nuevo" said nothing under a line
+    // where the OS had already written "miMAR"; this says what happened
+    // without saying who it happened to.
+    expect(message.title).toBe("Alguien tiene a tu mascota");
+    expect(message.body).toBe("Abrí miMAR para ver los detalles");
+    // THE PROPERTY THIS TEST IS ACTUALLY FOR, unchanged and widened: nothing
+    // anybody TYPED reaches the lock screen. The three below were here before;
+    // the pet's name is new, and it is the one the allowlist's own docblock
+    // argues hardest about — a name is a free-text field with no content
+    // validation, so it is exactly what must not travel.
     expect(JSON.stringify(message)).not.toContain("Laura");
     expect(JSON.stringify(message)).not.toContain("11-5555-4444");
     expect(JSON.stringify(message)).not.toContain("Belgrano");
+    expect(JSON.stringify(message)).not.toContain("Pampa");
     // The deep link survives: the app opens the right screen and fetches the
     // real content over an authenticated request.
     expect(message.data).toEqual({ url: "/mis-mascotas/DIM-PAMP-0001" });
@@ -363,11 +373,15 @@ describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)"
     expect(sentMessage().body).toBe("Tenés un aviso nuevo");
   });
 
-  it("genericises pet_sighting, which is eligible to push but not safe to render", async () => {
+  it("names the CATEGORY for pet_sighting, and still renders none of its content", async () => {
     // The one type the eligibility filter names by hand is NOT on the
     // lock-screen allowlist: its body carries the finder's name and contact
     // (src/modules/pets/application/sighting/report-pet-sighting.ts:318-330).
-    // Push-eligible and lock-screen-safe are two different questions.
+    // Push-eligible and lock-screen-safe are two different questions, and a
+    // third one joined them in 2026-09-16: a type can have a STATIC sentence
+    // written for it here without being allowed to render its own. "Alguien
+    // vio" and "alguien tiene" must not read alike — one means somebody saw
+    // the animal, the other means somebody has it.
     enableExpo();
     mockTargets = [target("t1")];
 
@@ -381,8 +395,11 @@ describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)"
       },
     ]);
 
-    expect(sentMessage().title).toBe("miMAR");
-    expect(sentMessage().body).toBe("Tenés un aviso nuevo");
+    expect(sentMessage().title).toBe("Alguien vio a tu mascota");
+    expect(sentMessage().body).toBe("Abrí miMAR para ver los detalles");
+    expect(JSON.stringify(sentMessage())).not.toContain("Laura");
+    expect(JSON.stringify(sentMessage())).not.toContain("11-5555-4444");
+    expect(JSON.stringify(sentMessage())).not.toContain("Pampa");
   });
 
   // -------------------------------------------------------------------------
@@ -508,7 +525,12 @@ describe("sendExpoPushForNotifications — lock-screen PII (Ley 25.326 art. 12)"
     expect(sentMessage().collapseId).toBe(
       expectedCollapseKey(`event:evt-1:${USER_ID}:pet_in_possession`),
     );
-    expect(sentMessage().title).toBe("miMAR");
+    // Still genericised: the title is this type's STATIC category sentence, not
+    // the row's own "Alguien tiene a Pampa". The two properties stay
+    // independent, which is what this test is for.
+    expect(sentMessage().title).toBe("Alguien tiene a tu mascota");
+    expect(JSON.stringify(sentMessage())).not.toContain("Pampa");
+    expect(JSON.stringify(sentMessage())).not.toContain("Laura");
   });
 
   it("does NOT ship the dedupe key's text — not the category, not the user id", async () => {

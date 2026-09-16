@@ -9,7 +9,7 @@ import {
   type ExpoPushTicket,
 } from "expo-server-sdk";
 
-import { PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
+import { PUSH_ANDROID_CHANNEL_ID, PUSH_ANDROID_HEALTH_CHANNEL_ID } from "@dim/contract/input";
 
 import { isPushEligible } from "@/lib/infra/push-eligibility";
 import {
@@ -253,6 +253,76 @@ const GENERIC_PUSH_TITLE = "miMAR";
 const GENERIC_PUSH_BODY = "Tenés un aviso nuevo";
 
 /**
+ * A STATIC SENTENCE PER TYPE, for a lock screen that says WHAT happened without
+ * saying WHO it happened to.
+ *
+ * WHY THIS IS NOT A HOLE IN THE ALLOWLIST ABOVE. That list decides which rows
+ * render VERBATIM — the server's own title and body, which interpolate a pet's
+ * name, a person, an address. The rule it enforces is that nothing somebody
+ * TYPED may reach a lock screen, and these strings are not typed by anybody:
+ * they are written here, they take no arguments, and adding a type to this map
+ * cannot leak a field because there is no field. A type may appear here and
+ * stay off the allowlist, which is exactly the common case.
+ *
+ * WHY IT IS WORTH THE TROUBLE (PO decision 2026-09-16, after reading his own
+ * lock screen on a real phone). The fallback said "miMAR · Tenés un aviso
+ * nuevo" under a row where Android had already written "miMAR" — the brand
+ * twice, and no information. The notification that prompted it was somebody
+ * reporting they had found his lost animal, which is the most urgent message
+ * this product sends, rendered indistinguishable from every other. A person who
+ * cannot tell an urgent notice from a routine one at a glance opens neither.
+ *
+ * "Encontraron a tu mascota" names a CATEGORY. It does not identify the animal,
+ * the place, or the person, so a stranger glancing at the phone learns that its
+ * owner has a pet — which the app's own icon on that screen already told them.
+ *
+ * EACH ENTRY NAMES THE WRITER IT WAS READ AGAINST, the same discipline the
+ * allowlist above holds itself to. A type with no entry falls back to
+ * GENERIC_PUSH_BODY: the map grows one verified reading at a time, and an
+ * unread type is never guessed at. It is deliberately NOT exhaustive over the
+ * 152 notification types — most never reach a citizen's phone.
+ */
+/** The second line when the title already carries the category. Says where to
+ * go, not what happened — the "what" is one line up. */
+const GENERIC_PUSH_BODY_HINT = "Abrí miMAR para ver los detalles";
+
+/**
+ * Which types ride the interrupting channel.
+ *
+ * DELIBERATELY THE SAME TWO AS THE LOCK-SCREEN ALLOWLIST, and the coincidence is
+ * not one: both lists ask a version of "is this a public-health message whose
+ * content was written by us rather than typed by somebody". A type earns a place
+ * here by having a deadline a person can miss, not by feeling important — the
+ * rabies observation has a legal window, the outbreak signal is what a health
+ * authority acts on. Everything else can wait on the shade.
+ *
+ * SAME DISCIPLINE AS ITS NEIGHBOURS: the set grows one verified reading at a
+ * time. A type not listed lands on the ordinary channel, which is the closed
+ * default.
+ */
+const HEALTH_CHANNEL_NOTIFICATION_TYPES: ReadonlySet<string> = new Set([
+  "rabies_observation_escalation_owner",
+  "outbreak_signal_detected",
+]);
+
+const GENERIC_BODY_BY_TYPE: ReadonlyMap<string, string> = new Map([
+  // app/(public)/p/[publicToken]/encontre/action.ts — title is
+  // `Alguien tiene a ${pet.name}`, or the URGENTE variant when the finder
+  // flagged that the animal needs a vet. Both collapse to the same category:
+  // somebody physically has the animal. The urgency survives on unlock.
+  ["pet_in_possession", "Alguien tiene a tu mascota"],
+
+  // src/modules/pets/application/sighting/report-pet-sighting.ts:402 —
+  // `Avistaje de ${pet.name}`. A sighting is not possession, and the two must
+  // not read alike: one means somebody saw it, the other means somebody has it.
+  ["pet_sighting", "Alguien vio a tu mascota"],
+
+  // src/modules/transfers/application/initiate-pet-transfer.ts:165 —
+  // `Te ofrecen la titularidad de ${pet.name}`.
+  ["pet_transfer_received", "Te ofrecen la titularidad de una mascota"],
+]);
+
+/**
  * How much of the digest rides on the wire.
  *
  * 32 hex characters is 128 bits, which is far past the point where two distinct
@@ -322,10 +392,24 @@ function messageFor(token: string, row: ExpoPushCandidateRow): ExpoPushMessage {
   // nothing, which is exactly the case the closed default is for.
   const verbatim = LOCK_SCREEN_SAFE_NOTIFICATION_TYPES.has(row.notificationType ?? "");
 
+  // The typed sentence for this category, when one has been written and
+  // verified. `null` means "not in the map", which is the closed default.
+  const categoryBody = GENERIC_BODY_BY_TYPE.get(row.notificationType ?? "") ?? null;
+
   return {
     to: token,
-    title: verbatim ? row.title : GENERIC_PUSH_TITLE,
-    body: verbatim ? (row.body ?? undefined) : GENERIC_PUSH_BODY,
+    // THE TITLE STOPS SAYING "miMAR" WHEN THERE IS SOMETHING BETTER TO SAY.
+    // Android and iOS both print the app's name above the notification already,
+    // so a title of "miMAR" spent the most legible line on a word the person
+    // had just read. With a category sentence it carries the sentence; with
+    // nothing to say it falls back to the brand, which is still better than an
+    // empty line.
+    title: verbatim ? row.title : (categoryBody ?? GENERIC_PUSH_TITLE),
+    body: verbatim
+      ? (row.body ?? undefined)
+      : categoryBody
+        ? GENERIC_PUSH_BODY_HINT
+        : GENERIC_PUSH_BODY,
     // The deep link the notification opens, carried as data rather than in the
     // body: the OS renders title and body, the app reads this when the person
     // taps.
@@ -361,7 +445,9 @@ function messageFor(token: string, row: ExpoPushCandidateRow): ExpoPushMessage {
     // person's own override of it survives.
     //
     // iOS ignores the field.
-    channelId: PUSH_ANDROID_CHANNEL_ID,
+    channelId: HEALTH_CHANNEL_NOTIFICATION_TYPES.has(row.notificationType ?? "")
+      ? PUSH_ANDROID_HEALTH_CHANNEL_ID
+      : PUSH_ANDROID_CHANNEL_ID,
     // NO `priority`, and that is a decision rather than an omission. Expo's
     // default maps to a normal-priority push, which Android's Doze can defer —
     // and these rows are urgent by definition, so "high" is tempting. It is

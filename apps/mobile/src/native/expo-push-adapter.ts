@@ -55,7 +55,11 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
-import { EXPO_PUSH_TOKEN_PREFIX, PUSH_ANDROID_CHANNEL_ID } from "@dim/contract/input";
+import {
+  EXPO_PUSH_TOKEN_PREFIX,
+  PUSH_ANDROID_CHANNEL_ID,
+  PUSH_ANDROID_HEALTH_CHANNEL_ID,
+} from "@dim/contract/input";
 
 import type { PushPermissionResult, PushPort, PushTap, PushTokenResult } from "./push-port";
 
@@ -175,8 +179,17 @@ export const expoPush: PushPort = {
  * names the CATEGORY rather than the product: the person is already inside an
  * app called miMAR and does not need to be told so again.
  */
-const ANDROID_CHANNEL_NAME = "Avisos urgentes";
-const ANDROID_CHANNEL_DESCRIPTION = "Hallazgos, avistajes y avisos de salud que no pueden esperar.";
+// RENAMED 2026-09-16, and a rename is honoured by Android where a change of
+// importance is not: this channel stopped carrying the health urgencies, so
+// calling it "Avisos urgentes" would have left the person a switch whose label
+// promised the one thing it no longer controls.
+const ANDROID_CHANNEL_NAME = "Avisos de tus mascotas";
+const ANDROID_CHANNEL_DESCRIPTION =
+  "Hallazgos, avistajes, transferencias y cuidados. Suenan una vez y esperan en la bandeja.";
+
+const ANDROID_HEALTH_CHANNEL_NAME = "Urgencias sanitarias";
+const ANDROID_HEALTH_CHANNEL_DESCRIPTION =
+  "Rabia y brotes. Interrumpen porque hay un plazo legal corriendo.";
 
 /**
  * Create (or converge) the Android channel every message is addressed to.
@@ -209,6 +222,20 @@ async function ensureNotificationChannel(): Promise<void> {
     name: ANDROID_CHANNEL_NAME,
     description: ANDROID_CHANNEL_DESCRIPTION,
     importance: Notifications.AndroidImportance.DEFAULT,
+  });
+  // THE SECOND CHANNEL, AND THE ONE PLACE `HIGH` IS SPENT. Everything in the
+  // docblock above about importance being immutable applies here too, which is
+  // why this one is born at the level it needs rather than raised later: a
+  // rabies observation escalating has a legal clock running, and a message that
+  // waits politely on the shade is a message that failed.
+  //
+  // Two channels is also what gives the person a real choice. With one, somebody
+  // tired of sighting notices could only silence everything, health alerts
+  // included — a trade nobody chose, which fell out of there being one switch.
+  await Notifications.setNotificationChannelAsync(PUSH_ANDROID_HEALTH_CHANNEL_ID, {
+    name: ANDROID_HEALTH_CHANNEL_NAME,
+    description: ANDROID_HEALTH_CHANNEL_DESCRIPTION,
+    importance: Notifications.AndroidImportance.HIGH,
   });
 }
 

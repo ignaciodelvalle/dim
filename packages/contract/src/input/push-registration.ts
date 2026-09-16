@@ -141,6 +141,30 @@ export const EXPO_PUSH_TOKEN_PREFIX = "ExponentPushToken[";
 export const PUSH_ANDROID_CHANNEL_ID = "avisos-v1";
 
 /**
+ * The second channel: public-health urgencies, and nothing else.
+ *
+ * WHY TWO (PO decision 2026-09-16). On Android the CHANNEL is the unit a person
+ * silences, so one channel for everything means one switch for everything:
+ * somebody tired of sighting notices can only turn off the lot, and takes the
+ * rabies alerts with them. That is the wrong trade to force on anybody, and it
+ * was not a trade anyone chose — it fell out of there being a single channel.
+ *
+ * IT IS THE ONE PLACE `HIGH` IS JUSTIFIED. The argument in this file's sibling
+ * (`lib/infra/expo-push.ts`) for leaving everything at DEFAULT is that two legs
+ * disagreeing about what is urgent is worse than both being conservative. That
+ * argument holds for the notices, and it stops holding for a rabies observation
+ * escalating: a message whose whole content is "a health authority needs you to
+ * act now" that waits politely on the shade is a message that failed. So this
+ * channel peeks and the other does not, and the difference is legible to the
+ * person in their own system settings rather than buried in a payload.
+ *
+ * SAME VERSIONING RULE, for the same reason: importance is immutable once the
+ * channel exists, so a future change of mind ships as `salud-v2` and the app
+ * deletes this one.
+ */
+export const PUSH_ANDROID_HEALTH_CHANNEL_ID = "salud-v1";
+
+/**
  * The longest token this endpoint will take.
  *
  * SAME DISCIPLINE AS `PUSH_APP_VERSION_MAX_LENGTH`, and for the same one-line
