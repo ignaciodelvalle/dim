@@ -1,6 +1,10 @@
 "use client";
 
-import type maplibregl from "maplibre-gl";
+// Namespace type import, not a default import: maplibre-gl v6 is ESM-only
+// and publishes NO default export, so `import type maplibregl from ...` no
+// longer names anything. The namespace carries the same type members, which
+// is what keeps every `maplibregl.Xxx` reference below unchanged.
+import type * as maplibregl from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
 import type { ActiveLayer } from "@/components/panorama/SituationalMap";
@@ -184,7 +188,10 @@ export function CabaInset({
     if (!visible || !containerRef.current) return;
     let cancelled = false;
 
-    import("maplibre-gl").then(({ default: maplibregl }) => {
+    // maplibre-gl v6 is ESM-only and has no default export — the module
+    // namespace itself is what carries `Map`. See CabaInset.test.tsx, whose
+    // mock has to return the same shape.
+    import("maplibre-gl").then((maplibregl) => {
       if (cancelled || !containerRef.current) return;
       const map = new maplibregl.Map({
         container: containerRef.current,

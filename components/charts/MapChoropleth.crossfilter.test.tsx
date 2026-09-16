@@ -64,8 +64,16 @@ class FakePopup {
   remove() {}
 }
 
+// maplibre-gl v6 is ESM-only and publishes NO default export: the component
+// under test binds the module NAMESPACE, so this fake must expose its classes
+// at the TOP level. Nesting them under `default` again would not fail loudly —
+// the component's map constructor would just read `undefined`, which is the worse
+// (Phrased WITHOUT the literal constructor form on purpose: scripts/check-
+// maplibre-locale.ts scans raw source and would read it as a real map here.)
+// failure: a mock that shapes the module wrongly instead of not at all.
 vi.mock("maplibre-gl", () => ({
-  default: { Map: FakeMap, Popup: FakePopup },
+  Map: FakeMap,
+  Popup: FakePopup,
 }));
 
 import { MapChoropleth } from "./MapChoropleth";

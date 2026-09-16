@@ -34,7 +34,11 @@
 // color swatch. The activation button has a visible label AND an
 // aria-describedby pointing at a short explanation of what happens on click.
 
-import type maplibregl from "maplibre-gl";
+// Namespace type import, not a default import: maplibre-gl v6 is ESM-only
+// and publishes NO default export, so `import type maplibregl from ...` no
+// longer names anything. The namespace carries the same type members, which
+// is what keeps every `maplibregl.Xxx` reference below unchanged.
+import type * as maplibregl from "maplibre-gl";
 import { useEffect, useId, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -79,7 +83,10 @@ export function StaticFirstMap({
     let cancelled = false;
 
     (async () => {
-      const { default: ml } = await import("maplibre-gl");
+      // maplibre-gl v6 is ESM-only and has no default export — bind the module
+      // namespace itself rather than destructuring a `default` that no longer
+      // exists.
+      const ml = await import("maplibre-gl");
       if (cancelled || !containerRef.current) return;
 
       map = new ml.Map({

@@ -12,7 +12,11 @@
 // achromatic axis (see viz-scales.ts) — so no-data is separated by FORM, the
 // way k-anon suppression already is with its 45° hatch.
 
-import type maplibregl from "maplibre-gl";
+// Namespace type import, not a default import: maplibre-gl v6 is ESM-only
+// and publishes NO default export, so `import type maplibregl from ...` no
+// longer names anything. The namespace carries the same type members, which
+// is what keeps every `maplibregl.Xxx` reference below unchanged.
+import type * as maplibregl from "maplibre-gl";
 
 import { divisionNoDataFilter } from "@/components/panorama/division-fill";
 import { NO_DATA_IMAGE_ID } from "@/components/panorama/no-data-pattern";

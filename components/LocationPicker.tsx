@@ -62,14 +62,24 @@ export default function LocationPicker({ value, onChange, defaultCenter = null }
     let cancelled = false;
     let mapInstance: MapLibreMap | null = null;
     (async () => {
-      const maplibregl = (await import("maplibre-gl")).default;
+      // maplibre-gl v6 is ESM-only and has no default export — the module
+      // namespace itself carries `Map` and `Marker`.
+      const maplibregl = await import("maplibre-gl");
       if (cancelled || !containerRef.current) return;
       // Read the LATEST value at this moment — the parent may have called
       // setPoint while the import was resolving (e.g. via "Usar mi ubicación"
       // resolving faster than the maplibre chunk fetch).
       const initial = latestValueRef.current;
       const center = initial ?? defaultCenterRef.current ?? DEFAULT_CENTER;
-      mapInstance = new maplibregl.Map({
+      // Bind the map to a `const` and let the outer `let mapInstance` merely
+      // TRACK it for the cleanup function. Everything below then closes over a
+      // value that is non-null by construction. v6's types are strict enough
+      // that TypeScript will not narrow a `let` that two different closures
+      // touch (this async body assigns it, the cleanup reads it), and the
+      // honest fix is to stop asking it to rather than to assert the null
+      // away — which is also what lets the click handler below drop the
+      // `as MapLibreMap` cast it used to need.
+      const map = new maplibregl.Map({
         container: containerRef.current,
         style: {
           version: 8,
@@ -87,7 +97,8 @@ export default function LocationPicker({ value, onChange, defaultCenter = null }
         zoom: initial ? PINNED_ZOOM : defaultCenterRef.current ? BIASED_ZOOM : DEFAULT_ZOOM,
         attributionControl: { compact: true },
       });
-      mapRef.current = mapInstance;
+      mapInstance = map;
+      mapRef.current = map;
 
       function attachDragListener(marker: MapLibreMarker) {
         marker.on("dragend", () => {
@@ -97,19 +108,21 @@ export default function LocationPicker({ value, onChange, defaultCenter = null }
       }
 
       if (initial) {
-        markerRef.current = new maplibregl.Marker({ color: "#dc2626", draggable: true })
+        const marker = new maplibregl.Marker({ color: "#dc2626", draggable: true })
           .setLngLat([initial.lng, initial.lat])
-          .addTo(mapInstance);
-        attachDragListener(markerRef.current);
+          .addTo(map);
+        markerRef.current = marker;
+        attachDragListener(marker);
       }
 
-      mapInstance.on("click", (e) => {
+      map.on("click", (e) => {
         const { lng, lat } = e.lngLat;
         if (!markerRef.current) {
-          markerRef.current = new maplibregl.Marker({ color: "#dc2626", draggable: true })
+          const marker = new maplibregl.Marker({ color: "#dc2626", draggable: true })
             .setLngLat([lng, lat])
-            .addTo(mapInstance as MapLibreMap);
-          attachDragListener(markerRef.current);
+            .addTo(map);
+          markerRef.current = marker;
+          attachDragListener(marker);
         } else {
           markerRef.current.setLngLat([lng, lat]);
         }
@@ -135,7 +148,9 @@ export default function LocationPicker({ value, onChange, defaultCenter = null }
       return;
     }
     (async () => {
-      const maplibregl = (await import("maplibre-gl")).default;
+      // maplibre-gl v6 is ESM-only and has no default export — the module
+      // namespace itself carries `Marker`.
+      const maplibregl = await import("maplibre-gl");
       if (!markerRef.current) {
         const marker = new maplibregl.Marker({ color: "#dc2626", draggable: true })
           .setLngLat([value.lng, value.lat])

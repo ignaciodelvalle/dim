@@ -17,7 +17,11 @@
 // be built, and each overlay degrades on its own terms — suppression to a solid
 // tone, no-data to its existing solid fill.
 
-import type maplibregl from "maplibre-gl";
+// Namespace type import, not a default import: maplibre-gl v6 is ESM-only
+// and publishes NO default export, so `import type maplibregl from ...` no
+// longer names anything. The namespace carries the same type members, which
+// is what keeps every `maplibregl.Xxx` reference below unchanged.
+import type * as maplibregl from "maplibre-gl";
 
 import {
   HATCH_IMAGE_ID,

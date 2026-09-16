@@ -19,7 +19,11 @@
 // resolves to undefined, and MapLibre appends to the top exactly as before —
 // so this only bites when chrome pre-exists.
 
-import type maplibregl from "maplibre-gl";
+// Namespace type import, not a default import: maplibre-gl v6 is ESM-only
+// and publishes NO default export, so `import type maplibregl from ...` no
+// longer names anything. The namespace carries the same type members, which
+// is what keeps every `maplibregl.Xxx` reference below unchanged.
+import type * as maplibregl from "maplibre-gl";
 
 import {
   COLOR_ADMIN_STROKE,

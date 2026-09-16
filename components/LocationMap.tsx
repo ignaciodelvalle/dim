@@ -29,7 +29,9 @@ export default function LocationMap({ lat, lng }: Props) {
     let map: MapLibreMap | null = null;
     let cancelled = false;
     (async () => {
-      const maplibregl = (await import("maplibre-gl")).default;
+      // maplibre-gl v6 is ESM-only and has no default export — the module
+      // namespace itself carries `Map` and `Marker`.
+      const maplibregl = await import("maplibre-gl");
       if (cancelled || !containerRef.current) return;
       map = new maplibregl.Map({
         container: containerRef.current,

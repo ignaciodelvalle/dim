@@ -1,6 +1,6 @@
 "use client";
 
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -482,7 +482,7 @@ export function SituationalMap({
     if (!containerRef.current) return;
     let cancelled = false;
 
-    import("maplibre-gl").then(({ default: maplibregl }) => {
+    import("maplibre-gl").then((maplibregl) => {
       if (cancelled || !containerRef.current) return;
       mlRef.current = maplibregl;
 

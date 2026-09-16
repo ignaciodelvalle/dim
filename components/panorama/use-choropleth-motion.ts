@@ -11,7 +11,11 @@
 // runs inside imperative maplibre handlers that close over their first render,
 // so they read `.current` rather than the reactive value.
 
-import type maplibregl from "maplibre-gl";
+// Namespace type import, not a default import: maplibre-gl v6 is ESM-only
+// and publishes NO default export, so `import type maplibregl from ...` no
+// longer names anything. The namespace carries the same type members, which
+// is what keeps every `maplibregl.Xxx` reference below unchanged.
+import type * as maplibregl from "maplibre-gl";
 import { type RefObject, useEffect, useRef } from "react";
 
 import { DIVISION_FADE_MS, DIVISION_LINE_ID } from "@/components/panorama/situational-map-config";

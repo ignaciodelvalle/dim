@@ -25,7 +25,11 @@ import {
   COLOR_SUPPRESSED,
   RAMP_BLUE,
 } from "@dim/contract/viz";
-import type maplibregl from "maplibre-gl";
+// Namespace type import, not a default import: maplibre-gl v6 is ESM-only
+// and publishes NO default export, so `import type maplibregl from ...` no
+// longer names anything. The namespace carries the same type members, which
+// is what keeps every `maplibregl.Xxx` reference below unchanged.
+import type * as maplibregl from "maplibre-gl";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -389,7 +393,10 @@ export function MapChoropleth({
 
     let cancelled = false;
 
-    import("maplibre-gl").then(({ default: maplibregl }) => {
+    // maplibre-gl v6 is ESM-only and has no default export: the module NAMESPACE
+    // is the thing that carries `Map`, `Marker`, `NavigationControl`, so the
+    // dynamic import resolves straight to it instead of being destructured.
+    import("maplibre-gl").then((maplibregl) => {
       if (cancelled || !mapContainer.current) return;
 
       // Privacy (spec §13.4 mirror): tiles-free basemap — background layer only,
