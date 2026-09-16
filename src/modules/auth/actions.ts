@@ -112,25 +112,35 @@ export async function requestPasswordResetAction(
   _previous: PasswordResetRequestState,
   formData: FormData,
 ): Promise<PasswordResetRequestState> {
+  const email = String(formData.get("email") ?? "").trim();
   const result = await requestPasswordReset(
     {
-      email: String(formData.get("email") ?? ""),
+      email,
       callerIp: callerIp(await headers()),
     },
     { auth: cookieAuth },
   );
 
-  if (!result.ok) return { message: null, error: result.error.message };
+  if (!result.ok) return { message: null, error: result.error.message, email };
 
   // ONE SENTENCE FOR EVERY SUCCESS, and it is the enumeration defence rather
   // than vague copy. The use-case cannot tell this layer whether a mail went out
   // — its success arm has no field for it, on purpose — so there is nothing here
-  // to condition on even if a future edit wanted to. NO email echo, unlike the
-  // two refusing actions above: the form is replaced by this message, so there is
-  // no input left for React 19's reset to wipe.
+  // to condition on even if a future edit wanted to. The email IS echoed, and on
+  // every success alike: the code step that replaces this form sends it back with
+  // the code, because `verifyOtp` needs both. It is what the person typed.
   return {
     message:
-      "Si existe una cuenta con ese correo, te enviamos un enlace para restablecer tu contraseña. Revisá también tu carpeta de spam.",
+      "Si existe una cuenta con ese correo, te enviamos un código de 6 dígitos. Revisá también tu carpeta de spam.",
     error: null,
+    email,
   };
 }
+
+// THE REDEMPTION HALF IS NOT HERE, on purpose. Exchanging the six-digit code for
+// a recovery session happens in the BROWSER (`app/(auth)/recuperar/ResetCodeStep.tsx`)
+// so that GoTrue keys its per-IP `token_verifications` ceiling on the real
+// person's address instead of on this deployment's single egress address — the
+// same way the phone already redeems. The comment at the top of that file has
+// the full reasoning, including why the buckets it used to spend were not
+// protecting anybody.

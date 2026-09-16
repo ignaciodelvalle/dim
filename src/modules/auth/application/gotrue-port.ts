@@ -103,6 +103,14 @@ export type PasswordResetAuthPort = {
   resetPasswordForEmail(email: string, options: { redirectTo: string }): Promise<unknown>;
 };
 
+// NO PORT FOR REDEEMING THE RECOVERY CODE, on purpose. There was one, and it is
+// gone with the server action it served: the web now exchanges the six-digit
+// code from the BROWSER (`app/(auth)/recuperar/ResetCodeStep.tsx`), against the
+// browser client's own `verifyOtp`, so GoTrue keys its per-IP ceiling on the
+// real person rather than on this deployment's egress. A port exists to keep a
+// use-case free of a transport; there is no use-case on this side of that call
+// any more.
+
 /**
  * GoTrue's snake_case session → the camelCase `/api/v1` wire shape.
  *

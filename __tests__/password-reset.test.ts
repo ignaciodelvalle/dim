@@ -13,6 +13,15 @@
 //     - session present + short password → validation error
 //     - session present + mismatched passwords → validation error
 //     - session present + valid passwords → calls updateUser and returns ok
+//
+// The web's CODE step is not here any more. It was, while the six-digit code was
+// redeemed by a server action; it is now redeemed in the browser so that GoTrue
+// keys its per-IP ceiling on the person rather than on our egress, and what the
+// step does is pinned in reset-code-step.test.tsx. The `supabase/config.toml`
+// fence that used to live here — asserting our deployment-wide ceiling stayed
+// under GoTrue's `token_verifications` — went with it and was deliberately NOT
+// replaced: that file is LOCAL DEV ONLY and is never pushed to a hosted project
+// (docs/ops/env-handling.md), so it never said anything about production.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -113,6 +122,11 @@ describe("requestPasswordResetAction", () => {
     expect(result.message).toBeTruthy();
     // Must contain the generic 'si existe una cuenta' copy — never 'found' / 'not found'.
     expect(result.message).toMatch(/si existe una cuenta/i);
+    // The mail carries a code now; the web copy must not promise a link.
+    expect(result.message).toMatch(/código/);
+    expect(result.message).not.toMatch(/enlace/i);
+    // The address is echoed so the code step can send it with the code.
+    expect(result.email).toBe("user@example.com");
   });
 
   it("returns the SAME generic message when Supabase returns an error (no account leakage)", async () => {
@@ -125,6 +139,8 @@ describe("requestPasswordResetAction", () => {
     // whether the account exists — the message must be the same generic one.
     expect(result.error).toBeNull();
     expect(result.message).toMatch(/si existe una cuenta/i);
+    // Byte-identical to the account-exists path, echo included.
+    expect(result.email).toBe("nobody@example.com");
   });
 
   it("calls resetPasswordForEmail with the provided email", async () => {

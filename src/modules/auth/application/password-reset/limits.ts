@@ -148,3 +148,27 @@ export const PASSWORD_RESET_SIMULTANEOUS_CALLERS = 12;
  * re-deriving `12` will otherwise reach for the only other number in the file.
  */
 export const PASSWORD_RESET_REQUESTS_PER_CALLER_PER_MINUTE = 1;
+
+// ===========================================================================
+// THE REDEMPTION HALF IS NOT IN THIS FILE, AND THAT IS NOT AN OMISSION
+// ===========================================================================
+// Everything above bounds the REQUEST — asking GoTrue to send the mail — which
+// really is a call our server makes, so a ceiling of ours belongs in front of it.
+//
+// This file briefly also held buckets for the other half, the code GUESS, back
+// when the web redeemed the six-digit code through a server action. Every such
+// redemption reached GoTrue from ONE egress address, so GoTrue's per-IP
+// `token_verifications` ceiling stopped bounding a caller and became a pool
+// shared by every web user at once; a deployment-wide bucket was added here to
+// own that failure, and it capped web recovery for the whole country while
+// leaving any caller able to hold it in the refused state.
+//
+// The web now redeems from the BROWSER, like the phone
+// (`app/(auth)/recuperar/ResetCodeStep.tsx`). GoTrue keys its ceiling on the real
+// person's address, there is no shared pool left to protect, and the guess
+// buckets went with the server action. Losing them costs nothing an attacker
+// would have paid: the anon key is public — it ships in the browser bundle, and
+// the phone already redeems with it — so `/auth/v1/verify` was always reachable
+// directly and a brute-forcer never had to come through our form. Those buckets
+// bounded people using our own form; GoTrue's per-IP ceiling is the real bound,
+// and this change makes it per-attacker instead of per-deployment.

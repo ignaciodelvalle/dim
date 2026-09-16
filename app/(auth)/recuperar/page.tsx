@@ -24,8 +24,9 @@ export default async function RecuperarPage({
   const { error } = await searchParams;
   // The auth callback bounces a failed code exchange here (native-readiness
   // RN-2 F2) — most often a recovery link opened on a different device than the
-  // one that requested it. Name the cause so the fix is obvious: ask again from
-  // this device.
+  // one that requested it. The LEGACY link path: since 2026-09-13 the mail
+  // carries a six-digit code and this page redeems it, so the way out is to ask
+  // for a code, which works on any device.
   const linkInvalid = error === "enlace_invalido";
 
   return (
@@ -47,7 +48,7 @@ export default async function RecuperarPage({
             Recuperar contraseña
           </h1>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
-            Ingresá tu correo y te enviamos un enlace para crear una nueva contraseña.
+            Ingresá tu correo y te enviamos un código para crear una nueva contraseña.
           </p>
         </div>
         {linkInvalid && (
@@ -55,9 +56,8 @@ export default async function RecuperarPage({
             role="alert"
             className="rounded-[var(--radius-md)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-4 py-3 text-sm text-[var(--color-ln-ink-2)]"
           >
-            <strong className="text-[var(--color-ln-ink)]">Ese enlace no se pudo abrir.</strong> Los
-            enlaces de recuperación funcionan en el mismo dispositivo desde el que los pediste. Pedí
-            uno nuevo acá abajo y abrilo en este dispositivo.
+            <strong className="text-[var(--color-ln-ink)]">Ese enlace no se pudo abrir.</strong>{" "}
+            Pedí un código acá abajo: te llega por correo y lo ingresás en esta misma página.
           </div>
         )}
         <ResetRequestForm />
