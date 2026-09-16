@@ -4,6 +4,7 @@ import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
@@ -43,7 +44,17 @@ export function ReplaceMicrochipForm({
   action: FormAction;
   currentChip: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // Four of the five fields here were DOM-owned, and React 19 resets a
+  // `<form action>` the moment its action settles — a refusal settles it. The
+  // stake is higher on this twin than on the vet one: "Fraude detectado"
+  // REQUIRES a justifying note, so the refusal most likely to fire here is the
+  // one that then threw the justification away and left the date silently back
+  // at today, on a form that still looked filled. `useKeptFields` re-seeds from
+  // the form's own submitted `FormData`; contract in
+  // `__tests__/react19-form-reset-contract.test.tsx`. Twin of the vet form at
+  // app/org/[orgToken]/mascotas/[publicToken]/microchip/reemplazar.
+  const { boundAction: keptAction, kept, keptChecked } = useKeptFields(action);
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
   // N3: the action returns where to go instead of redirect()-ing, because the
   // App Router drops a Server Action's own redirect in production.
   const navigating = useActionRedirect(state.redirectTo, state);
@@ -72,6 +83,7 @@ export function ReplaceMicrochipForm({
               key={r.value}
               name="reason"
               value={r.value}
+              defaultChecked={keptChecked("reason", false, r.value)}
               required
               onChange={() => setSelectedReason(r.value)}
             >
@@ -92,6 +104,7 @@ export function ReplaceMicrochipForm({
           <LnInput
             id={id}
             name="newChipNumber"
+            defaultValue={kept("newChipNumber")}
             type="text"
             placeholder="985141004321456"
             aria-describedby={describedBy}
@@ -105,6 +118,7 @@ export function ReplaceMicrochipForm({
           <LnInput
             id={id}
             name="replacedBy"
+            defaultValue={kept("replacedBy")}
             type="text"
             aria-describedby={describedBy}
             invalid={invalid}
@@ -119,7 +133,7 @@ export function ReplaceMicrochipForm({
             name="replacedAt"
             type="date"
             required
-            defaultValue={today}
+            defaultValue={kept("replacedAt") || today}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -139,6 +153,7 @@ export function ReplaceMicrochipForm({
           <LnTextarea
             id={id}
             name="notes"
+            defaultValue={kept("notes")}
             rows={4}
             required={isFraud}
             maxLength={300}

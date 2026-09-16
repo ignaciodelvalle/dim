@@ -17,6 +17,7 @@ import { LnInput, LnTextarea } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import {
   type SubmitOrgContactState,
   submitOrgContactAction,
@@ -38,8 +39,17 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
 
   const open = searchParams.get("sheet") === "contactar";
 
-  const boundAction = submitOrgContactAction.bind(null, orgToken, "contact");
-  const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  // React 19 resets a `<form action>` once its action settles, and a refusal
+  // settles it: the rate limit this form is explicitly built around ("si no
+  // entra, esperá un rato y volvé a intentar") used to empty all three fields
+  // on its way out, including a 500-character message. The visitor is anonymous
+  // — there is no draft anywhere and no account to come back to. `useKeptFields`
+  // re-seeds from the form's own submitted `FormData`; contract measured in
+  // `__tests__/react19-form-reset-contract.test.tsx`.
+  const { boundAction: keptAction, kept } = useKeptFields(
+    submitOrgContactAction.bind(null, orgToken, "contact"),
+  );
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
 
   // Auto-close 4s after success so the URL clears and the panel reopens
   // cleanly next time. Not blocking — the success copy renders meanwhile.
@@ -112,6 +122,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
               <LnInput
                 id="inquirerName"
                 name="inquirerName"
+                defaultValue={kept("inquirerName")}
                 type="text"
                 maxLength={100}
                 autoComplete="name"
@@ -128,6 +139,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
               <LnInput
                 id="inquirerEmail"
                 name="inquirerEmail"
+                defaultValue={kept("inquirerEmail")}
                 type="email"
                 required
                 maxLength={254}
@@ -149,6 +161,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
               <LnTextarea
                 id="message"
                 name="message"
+                defaultValue={kept("message")}
                 required
                 rows={5}
                 maxLength={500}

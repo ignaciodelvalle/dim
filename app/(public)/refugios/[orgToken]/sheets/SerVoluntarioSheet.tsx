@@ -17,6 +17,7 @@ import { LnTextarea } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import {
   type SubmitOrgContactState,
   submitOrgContactAction,
@@ -36,8 +37,14 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
 
   const open = searchParams.get("sheet") === "ser-voluntario";
 
-  const boundAction = submitOrgContactAction.bind(null, orgToken, "volunteer");
-  const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  // Same loss as ContactarSheet, same shape, same anonymous visitor: React 19
+  // resets a `<form action>` when its action settles, a refusal included, so
+  // the shared rate limit emptied name, email and a 500-character offer to
+  // help. See `__tests__/react19-form-reset-contract.test.tsx`.
+  const { boundAction: keptAction, kept } = useKeptFields(
+    submitOrgContactAction.bind(null, orgToken, "volunteer"),
+  );
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
 
   useEffect(() => {
     if (!state.ok || !open) return;
@@ -81,6 +88,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
               <LnInput
                 id="vol-inquirerName"
                 name="inquirerName"
+                defaultValue={kept("inquirerName")}
                 type="text"
                 maxLength={100}
                 autoComplete="name"
@@ -97,6 +105,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
               <LnInput
                 id="vol-inquirerEmail"
                 name="inquirerEmail"
+                defaultValue={kept("inquirerEmail")}
                 type="email"
                 required
                 maxLength={254}
@@ -116,6 +125,7 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
               <LnTextarea
                 id="vol-message"
                 name="message"
+                defaultValue={kept("message")}
                 required
                 rows={5}
                 maxLength={500}

@@ -18,6 +18,7 @@ import { logoutAndReturnAction } from "@/app/actions/auth";
 import { LocationFields } from "@/components/LocationFields";
 import { DateInputAr } from "@/components/ui/DateInputAr";
 import { TimeInputAr } from "@/components/ui/TimeInputAr";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 
 import { type FinderInPossessionState, reportFinderInPossessionAction } from "./action";
 
@@ -46,8 +47,43 @@ export function FinderInPossessionForm({
   /** Display name of the logged-in session, banner-only — never a form value. */
   sessionDisplayName?: string | null;
 }) {
-  const boundAction = reportFinderInPossessionAction.bind(null, publicToken);
-  const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  // WHAT THE PO REPRODUCED ON A REAL PHONE, 2026-09-16. The text fields below
+  // are controlled and survive React 19's post-action form reset; three things
+  // on this page did not, and the measured contract
+  // (`__tests__/react19-form-reset-contract.test.tsx`) says why each one is a
+  // separate case rather than an oversight:
+  //
+  //   - "¿Cómo está la mascota?" is a REQUIRED radio group with no `checked`,
+  //     so the reset cleared it outright. A finder who missed something else on
+  //     the form came back to a blank answer on the one question that decides
+  //     whether this is an emergency.
+  //   - "Puedo tenerla indefinidamente" WAS controlled, which is not enough for
+  //     a tick: React skips `defaultChecked` whenever `checked` is set, so the
+  //     box fell back to its MOUNT value (unticked) while React state stayed
+  //     true — the box read "no" and the hidden field still sent "yes". Making
+  //     it DOM-owned with a kept default is what puts those two back together;
+  //     `onChange` still drives the state the conditional block reads.
+  //   - The photo is beyond any re-seed (a page may not set a file input), so
+  //     the picked `File` lives in React state and is re-attached to the
+  //     `FormData` when the reset emptied the posted entry — `MinimalNewPetForm`
+  //     already does exactly this for its own photo.
+  //
+  // None of it changes what the form SENDS: a resubmit carries what the first
+  // submit carried.
+  const [photoNowFile, setPhotoNowFile] = useState<File | null>(null);
+  // Only `keptChecked` is pulled: every text field on this form is already
+  // controlled and already safe, and pairing `defaultValue` with `value` is a
+  // React warning, not a belt-and-braces.
+  const { boundAction: keptAction, keptChecked } = useKeptFields(
+    (prev: FinderInPossessionState, formData: FormData) => {
+      const posted = formData.get("photoNow");
+      if (photoNowFile && (!(posted instanceof File) || posted.size === 0)) {
+        formData.set("photoNow", photoNowFile);
+      }
+      return reportFinderInPossessionAction(publicToken, prev, formData);
+    },
+  );
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
 
   // Client-side contact validation state.
   const [clientError, setClientError] = useState<string | null>(null);
@@ -279,6 +315,7 @@ export function FinderInPossessionForm({
                 type="radio"
                 name="petCondition"
                 value={value}
+                defaultChecked={keptChecked("petCondition", false, value)}
                 required
                 className="accent-[var(--color-ln-azul)]"
               />
@@ -297,7 +334,7 @@ export function FinderInPossessionForm({
               type="checkbox"
               name="canKeepIndefiniteToggle"
               className="accent-[var(--color-ln-azul)]"
-              checked={canKeepIndefinite}
+              defaultChecked={keptChecked("canKeepIndefiniteToggle", false)}
               onChange={(e) => handleCanKeepIndefiniteChange(e.target.checked)}
             />
             <input type="hidden" name="canKeepIndefinite" value={String(canKeepIndefinite)} />
@@ -382,8 +419,18 @@ export function FinderInPossessionForm({
               name="photoNow"
               accept="image/*"
               capture="environment"
+              onChange={(e) => setPhotoNowFile(e.target.files?.[0] ?? null)}
               className="w-full text-sm text-[var(--color-ln-ink)]"
             />
+            {/* Said out loud because the control itself cannot say it: after a
+                refused submit the file input is empty again, and without this
+                line the photo looks lost even though it is still going to be
+                sent. */}
+            {photoNowFile && (
+              <p className="text-xs text-[var(--color-ln-ok)]">
+                Foto lista para enviar: {photoNowFile.name}
+              </p>
+            )}
             <p className="text-xs text-[var(--color-ln-faint)]">
               JPG/PNG hasta 5 MB. Ayuda al dueño/a a confirmar que es su mascota.
             </p>

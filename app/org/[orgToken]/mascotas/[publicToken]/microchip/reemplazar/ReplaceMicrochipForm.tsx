@@ -4,6 +4,7 @@ import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
@@ -38,7 +39,17 @@ export function ReplaceMicrochipForm({
   action: FormAction;
   currentChip: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // Four of the five fields here were DOM-owned, and React 19 resets a
+  // `<form action>` the moment its action settles — a refusal settles it. A vet
+  // whose chip number was refused came back to a blank reason, a blank chip, a
+  // blank "realizado por" and blank notes, with the date silently back at today.
+  // That last one is the mean part: a form that LOOKS filled is the one nobody
+  // notices was emptied. `useKeptFields` re-seeds from the form's own submitted
+  // `FormData`; the measured contract is in
+  // `__tests__/react19-form-reset-contract.test.tsx`. Twin of the admin form at
+  // app/admin/observaciones/[publicToken]/microchip/reemplazar — same fix there.
+  const { boundAction: keptAction, kept, keptChecked } = useKeptFields(action);
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
   // N3: the action used to redirect() server-side, a transition the App Router
   // drops in production — the replacement committed and the screen never moved.
   // `navigating` keeps the button busy while the full document load is in
@@ -60,7 +71,13 @@ export function ReplaceMicrochipForm({
         </p>
         <div className="flex flex-col gap-2">
           {VET_REASONS.map((r) => (
-            <LnRadio key={r.value} name="reason" value={r.value} required>
+            <LnRadio
+              key={r.value}
+              name="reason"
+              value={r.value}
+              defaultChecked={keptChecked("reason", false, r.value)}
+              required
+            >
               <span className="space-y-0.5">
                 {r.label}
                 {r.hint && <span className="block text-xs! text-ln-op-mute!">{r.hint}</span>}
@@ -78,6 +95,7 @@ export function ReplaceMicrochipForm({
           <LnInput
             id={id}
             name="newChipNumber"
+            defaultValue={kept("newChipNumber")}
             type="text"
             placeholder="985141004321456"
             aria-describedby={describedBy}
@@ -91,6 +109,7 @@ export function ReplaceMicrochipForm({
           <LnInput
             id={id}
             name="replacedBy"
+            defaultValue={kept("replacedBy")}
             type="text"
             aria-describedby={describedBy}
             invalid={invalid}
@@ -105,7 +124,7 @@ export function ReplaceMicrochipForm({
             name="replacedAt"
             type="date"
             required
-            defaultValue={today}
+            defaultValue={kept("replacedAt") || today}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -117,6 +136,7 @@ export function ReplaceMicrochipForm({
           <LnTextarea
             id={id}
             name="notes"
+            defaultValue={kept("notes")}
             rows={3}
             maxLength={300}
             aria-describedby={describedBy}

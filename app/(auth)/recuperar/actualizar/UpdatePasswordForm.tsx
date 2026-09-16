@@ -2,6 +2,7 @@
 
 import { type UpdatePasswordState, updatePasswordAction } from "@/app/actions/password-reset";
 import { LnField, LnPasswordInput } from "@/components/ui/Field";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
@@ -9,7 +10,34 @@ const initialState: UpdatePasswordState = { error: null };
 
 export function UpdatePasswordForm() {
   const router = useRouter();
-  const [state, formAction, isPending] = useActionState(updatePasswordAction, initialState);
+  // YES, THE PASSWORDS ARE RE-SEEDED, AND THIS IS THE ARGUMENT FOR IT.
+  //
+  // The likeliest refusal on this form is "las contraseñas no coinciden", and
+  // it used to empty BOTH boxes: React 19 resets a `<form action>` when its
+  // action settles, a refusal included, and neither field was controlled. The
+  // person on the other side is already locked out — that is how they got to a
+  // recovery link — and the password they lost is one they invented thirty
+  // seconds ago and have written down nowhere.
+  //
+  // WHY BOTH, NEVER ONE. Seeding only "nueva" and clearing "repetir" is the
+  // tempting halfway house and it is the dangerous option: when the two differ,
+  // the typo may be in the FIRST box, and a person who retypes only the
+  // confirmation to match it ends up with an account whose password is the
+  // typo. Restoring both keeps the mismatch visible, and `LnPasswordInput`'s
+  // reveal toggle is there to find it. Both or neither.
+  //
+  // WHY THIS IS NOT THE THING SignupForm REFUSES TO DO. That form's rule is
+  // "password fields are never echoed/round-tripped", and it is about the
+  // SERVER: an echoed password would ride back in the action's return value,
+  // through the RSC response and into anything that logs action results.
+  // `useKeptFields` never does that — it reads the form's own `FormData` in the
+  // BROWSER and keeps it in a ref. The exposure it adds is the DOM `value`
+  // attribute, which is not new either: React keeps a controlled input's
+  // `defaultValue` in sync, so `LoginForm`'s controlled password has been
+  // sitting in that same attribute since the PO QA #44 fix. Same exposure,
+  // strictly more of the person's work kept.
+  const { boundAction: keptAction, kept } = useKeptFields(updatePasswordAction);
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
 
   // Redirect to login on success so the user starts a fresh session.
   useEffect(() => {
@@ -25,6 +53,7 @@ export function UpdatePasswordForm() {
           <LnPasswordInput
             id={id}
             name="password"
+            defaultValue={kept("password")}
             autoComplete="new-password"
             minLength={8}
             required
@@ -38,6 +67,7 @@ export function UpdatePasswordForm() {
           <LnPasswordInput
             id={id}
             name="confirmPassword"
+            defaultValue={kept("confirmPassword")}
             autoComplete="new-password"
             minLength={8}
             required

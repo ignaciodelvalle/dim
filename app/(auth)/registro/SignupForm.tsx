@@ -7,6 +7,7 @@ import {
   signupAction,
 } from "@/app/actions/auth";
 import { LnCheckbox, LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { useStepFocus } from "@/lib/ui/use-step-focus";
 import { IDENTITY_NAME_MAX_LENGTH } from "@dim/contract/input";
 import Link from "next/link";
@@ -55,7 +56,33 @@ export function SignupForm({
   // step: a visitor who starts at step 1 and advances to step 2 is completing a
   // fresh signup and must still read "Paso 2 de 2".
   const resuming = initialStep === "identity";
-  const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
+  // STEP 1 WAS ONLY HALF FIXED, and the half that was missing is the half that
+  // costs the most. Bug #46 taught this form that React 19 resets a
+  // `<form action>` once the action settles, and it answered by echoing the
+  // EMAIL back through server state. The two passwords and the terms tick were
+  // left to be cleared, so the single likeliest refusal here — "las contraseñas
+  // no coinciden" — wiped both passwords and unticked the box, on a form that
+  // still showed the email and therefore looked mostly intact.
+  //
+  // `useKeptFields` covers what the echo could not. The echo is a SERVER
+  // round-trip and a password must never take one (an echoed secret rides back
+  // in the action's return value, through the RSC response, into anything that
+  // logs it) — this hook instead reads the form's own `FormData` in the BROWSER
+  // and keeps it in a ref, so the secret goes nowhere it was not already. The
+  // full argument, including why both password boxes are restored rather than
+  // one, is written out in `app/(auth)/recuperar/actualizar/UpdatePasswordForm.tsx`.
+  //
+  // THE TERMS TICK IS RESTORED, NOT PRE-TICKED, and the difference is the whole
+  // point: `keptChecked` can only answer "true" for a box the person themselves
+  // ticked on their own submit, in this same mounted form, moments ago — it has
+  // no other source of truth. The acceptance that gets recorded is still the one
+  // in the NEXT submit's `FormData`, and the box remains theirs to untick. A
+  // browser restoring a form on back-navigation does exactly this.
+  const { boundAction: keptSignupAction, kept, keptChecked } = useKeptFields(signupAction);
+  const [authState, authFormAction, authPending] = useActionState(
+    keptSignupAction,
+    initialAuthState,
+  );
   const [identityState, identityFormAction, identityPending] = useActionState(
     completeIdentityAction,
     initialIdentityState,
@@ -248,6 +275,7 @@ export function SignupForm({
               <LnPasswordInput
                 id={id}
                 name="password"
+                defaultValue={kept("password")}
                 autoComplete="new-password"
                 minLength={8}
                 required
@@ -261,6 +289,7 @@ export function SignupForm({
               <LnPasswordInput
                 id={id}
                 name="confirmPassword"
+                defaultValue={kept("confirmPassword")}
                 autoComplete="new-password"
                 minLength={8}
                 required
@@ -270,6 +299,22 @@ export function SignupForm({
             )}
           </LnField>
 
+          {/* NOT RESTORED, and it is the one field on this form deliberately
+              left to be re-ticked. Everything else here is the person's WORK —
+              their name, their mail, the password they composed — and putting
+              work back after a failed submit is a kindness. A consent is not
+              work. It is an affirmative act, and a box the system re-ticks on
+              your behalf is one you did not tick that time.
+              The argument for restoring it was real and was considered: the box
+              only comes back if this same person ticked it on their own submit
+              in this same mounted form, which is what a browser does on back
+              navigation, and the consent actually recorded is still the one in
+              the NEXT submit. That is probably defensible. "Probably
+              defensible" is the wrong standard for consent when the
+              conservative option costs one click on a form somebody fills once
+              in their life.
+              PO-gated if anybody wants it changed: this is a legal posture, not
+              an ergonomics call. */}
           <LnCheckbox id="tosAccepted" name="tosAccepted" required>
             Leí y acepto los{" "}
             <Link

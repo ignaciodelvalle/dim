@@ -11,6 +11,7 @@
 // is not the urgent amber "found" form: no one is being contacted.
 
 import { LnButton } from "@/components/ui/Button";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import type { PublicActionState } from "@/src/modules/pets/application/public/types";
 import { useActionState } from "react";
 import { reportDisputeTipAction } from "./dispute-tip-action";
@@ -18,8 +19,15 @@ import { reportDisputeTipAction } from "./dispute-tip-action";
 const initialState: PublicActionState = { ok: false, error: null };
 
 export function DisputeTipForm({ publicToken }: { publicToken: string }) {
-  const boundAction = reportDisputeTipAction.bind(null, publicToken);
-  const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  // EVERY FIELD HERE WAS LOST ON A VALIDATION ERROR until 2026-09-16, all four
+  // of them, from somebody who is not logged in and has no reason to come back.
+  // React 19 resets a `<form action>` when its action settles — error included —
+  // and none of these were controlled, so the reset emptied the lot. The
+  // measured contract is pinned in `__tests__/react19-form-reset-contract.test.tsx`.
+  const { boundAction: keptAction, kept } = useKeptFields(
+    reportDisputeTipAction.bind(null, publicToken),
+  );
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
 
   if (state.ok) {
     return (
@@ -58,6 +66,7 @@ export function DisputeTipForm({ publicToken }: { publicToken: string }) {
         <textarea
           id="disputeTipInfo"
           name="info"
+          defaultValue={kept("info")}
           rows={3}
           required
           maxLength={1000}
@@ -74,6 +83,7 @@ export function DisputeTipForm({ publicToken }: { publicToken: string }) {
         <input
           id="disputeTipLocation"
           name="locationText"
+          defaultValue={kept("locationText")}
           type="text"
           maxLength={200}
           placeholder="Barrio, calle o punto de referencia"
@@ -88,6 +98,7 @@ export function DisputeTipForm({ publicToken }: { publicToken: string }) {
         <input
           id="disputeTipName"
           name="finderName"
+          defaultValue={kept("finderName")}
           type="text"
           autoComplete="name"
           maxLength={80}
@@ -103,6 +114,7 @@ export function DisputeTipForm({ publicToken }: { publicToken: string }) {
         <input
           id="disputeTipContact"
           name="finderContact"
+          defaultValue={kept("finderContact")}
           type="text"
           inputMode="email"
           autoComplete="email"

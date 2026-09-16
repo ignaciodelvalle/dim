@@ -9,7 +9,17 @@
 // step 1, first/last name on step 2. signupAction / completeIdentityAction
 // echo those non-secret fields back in form state, and the inputs seed
 // `defaultValue` from the echo, so the reset lands on the typed value instead
-// of clearing it. Password fields are never echoed/round-tripped.
+// of clearing it.
+//
+// THE PASSWORDS AND THE TERMS TICK ARE NOW KEPT TOO (2026-09-16), and one of
+// the tests below used to assert the opposite. It was not measuring a rule; it
+// was pinning the half of bug #46 that never got fixed. The rule it looked like
+// it was defending — a password must never be echoed through the SERVER — still
+// holds and is untouched: `AuthFormState` carries no password, and nothing here
+// puts one in it. What changed is that `useKeptFields` re-seeds those fields
+// from the form's own `FormData`, captured in the BROWSER, so a person told
+// "las contraseñas no coinciden" is no longer made to retype both from scratch.
+// The full argument lives in UpdatePasswordForm.tsx.
 //
 // useActionState is stubbed (same technique as pet-sighting-form.test.tsx /
 // finder-in-possession-form.test.tsx) so each step's state is fully
@@ -46,22 +56,46 @@ vi.mock("@/components/LocationFields", () => ({
 }));
 
 import { SignupForm } from "@/app/(auth)/registro/SignupForm";
-import { completeIdentityAction, signupAction } from "@/app/actions/auth";
+import { completeIdentityAction } from "@/app/actions/auth";
 
 const noopAction = () => {};
 
 let authState: AuthFormState = { error: null };
 let identityState: IdentityFormState = { error: null };
 
+// Step 1's action is no longer `signupAction` itself — SignupForm hands
+// useActionState the `useKeptFields` wrapper around it — so the stub cannot
+// discriminate by identity any more, and a test that tried would only be
+// pinning the wrapper. Identity is still checked where it can be (step 2), and
+// the wrapper is CAPTURED, because driving it is the only way to give the hook
+// a submitted `FormData` to keep.
+type BoundAuthAction = (prev: AuthFormState, formData: FormData) => unknown;
+let capturedAuthAction: BoundAuthAction | null = null;
+
 beforeEach(() => {
   authState = { error: null };
   identityState = { error: null };
+  capturedAuthAction = null;
   mockUseActionState.mockImplementation((action: unknown) => {
-    if (action === signupAction) return [authState, noopAction, false];
     if (action === completeIdentityAction) return [identityState, noopAction, false];
-    throw new Error(`unexpected action passed to useActionState: ${String(action)}`);
+    if (typeof action !== "function") {
+      throw new Error(`unexpected action passed to useActionState: ${String(action)}`);
+    }
+    capturedAuthAction = action as BoundAuthAction;
+    return [authState, noopAction, false];
   });
 });
+
+/**
+ * The submit React would have performed: `useKeptFields` captures the form's
+ * own `FormData` on the way into the action, which is what the reset then reads
+ * back. Skipping this and calling `form.reset()` straight away measures nothing
+ * — the hook has been told nothing.
+ */
+function submitThroughKeptFields(form: HTMLFormElement): void {
+  if (capturedAuthAction === null) throw new Error("step 1's action was never handed to the stub");
+  capturedAuthAction({ error: null }, new FormData(form));
+}
 
 afterEach(cleanup);
 
@@ -87,22 +121,69 @@ describe("SignupForm — step 1 (account) field state", () => {
     expect(email.value).toBe("nueva@example.com");
   });
 
-  it("does not echo the password across the reset", () => {
+  it("keeps both passwords, and deliberately does NOT keep the terms tick", () => {
     const view = renderForm();
     const password = view.container.querySelector('input[name="password"]') as HTMLInputElement;
+    const confirm = view.container.querySelector(
+      'input[name="confirmPassword"]',
+    ) as HTMLInputElement;
+    const tos = view.container.querySelector('input[name="tosAccepted"]') as HTMLInputElement;
     const form = view.container.querySelector("form") as HTMLFormElement;
 
+    // Deliberately DIFFERENT, because the refusal this test stands for is
+    // exactly the mismatch — and because restoring both is what lets the person
+    // see which of the two carries the typo. Restoring only the first would let
+    // them "fix" the confirmation to match a password they never meant.
     fireEvent.change(password, { target: { value: "supersecreta" } });
-    expect(password.value).toBe("supersecreta");
+    fireEvent.change(confirm, { target: { value: "supersecretb" } });
+    fireEvent.click(tos);
+    expect(tos.checked).toBe(true);
+    // The tick is about to be measured on the way OUT, not restored. See below.
+
+    submitThroughKeptFields(form);
 
     authState = { error: "Las contraseñas no coinciden.", email: "nueva@example.com" };
     view.rerender(<SignupForm intent={null} returnTo={null} />);
 
     form.reset();
-    // Password is never echoed in AuthFormState — the field has no
-    // defaultValue seeded from server state, so it resets to empty like any
-    // other unmanaged uncontrolled field.
-    expect(password.value).toBe("");
+    expect(password.value).toBe("supersecreta");
+    expect(confirm.value).toBe("supersecretb");
+    // THE TICK IS GONE, ON PURPOSE (PO-gated posture, 2026-09-16). Every other
+    // field on this form holds the person's WORK, and putting work back after a
+    // failed submit is a kindness. A consent is not work: it is an affirmative
+    // act, and a box the system re-ticks on somebody's behalf is a box they did
+    // not tick that time.
+    //
+    // Restoring it was arguable — it would only return for the same person, on
+    // their own submit, in this same mounted form, which is what a browser does
+    // on back-navigation, and the consent actually recorded is still the one in
+    // the NEXT submit's FormData. That is probably defensible, and "probably
+    // defensible" is the wrong standard for consent when the conservative
+    // option costs one click on a form somebody fills once in their life.
+    //
+    // This assertion is therefore a POLICY, not an implementation detail: if it
+    // ever starts failing, somebody has made the system agree to the terms for
+    // a person, and that is a decision for the product owner and not for a
+    // refactor.
+    expect(tos.checked).toBe(false);
+  });
+
+  it("never carries a password in the server-round-tripped form state", () => {
+    // The rule the old "resets to empty" assertion was mistaken for. It is
+    // about the ECHO, not about the field: whatever the action returns crosses
+    // the wire and can be logged, so a secret may not be in it. Re-seeding from
+    // the browser's own FormData does not touch this.
+    const view = renderForm();
+    const form = view.container.querySelector("form") as HTMLFormElement;
+    const password = view.container.querySelector('input[name="password"]') as HTMLInputElement;
+
+    fireEvent.change(password, { target: { value: "supersecreta" } });
+    submitThroughKeptFields(form);
+
+    authState = { error: "Las contraseñas no coinciden.", email: "nueva@example.com" };
+    view.rerender(<SignupForm intent={null} returnTo={null} />);
+
+    expect(JSON.stringify(authState)).not.toContain("supersecreta");
   });
 });
 

@@ -16,6 +16,7 @@ import { LocationFields } from "@/components/LocationFields";
 import { DateInputAr } from "@/components/ui/DateInputAr";
 import { TimeInputAr } from "@/components/ui/TimeInputAr";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { nowLocalDatetimeInAr, sightedWhenQuestion } from "@/lib/utils/format";
 
 import { type SightingActionState, reportPetSightingAction } from "@/app/actions/pet-sighting";
@@ -46,8 +47,31 @@ export function PetSightingForm({
    * neutral default. */
   defaultCenter?: { lat: number; lng: number } | null;
 }) {
-  const boundAction = reportPetSightingAction.bind(null, publicToken);
-  const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  // THE PERSON FILLING THIS IN IS A STRANGER WHO WILL NOT COME BACK. React 19
+  // resets a `<form action>` as soon as its action settles — a validation error
+  // settles it too — and every field below was DOM-owned, so a refusal emptied
+  // the detail, the name, the contact and the photo of somebody who just saw a
+  // lost animal on the street. The measured contract is pinned in
+  // `__tests__/react19-form-reset-contract.test.tsx`; `useKeptFields` re-seeds
+  // the text fields from the form's own submitted `FormData`.
+  //
+  // The PHOTO needs the other half of the remedy: a `<input type="file">` is
+  // beyond any re-seed, because a page is not allowed to set one. So the picked
+  // `File` lives in React state and is re-attached to the `FormData` whenever
+  // the reset emptied the posted entry — the same posture `MinimalNewPetForm`
+  // took for its own photo (PO bug 2026-07-18). Nothing about what this form
+  // SENDS changes: a resubmit simply carries the picture it already carried.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const { boundAction: keptAction, kept } = useKeptFields(
+    (prev: SightingActionState, formData: FormData) => {
+      const posted = formData.get("photo");
+      if (photoFile && (!(posted instanceof File) || posted.size === 0)) {
+        formData.set("photo", photoFile);
+      }
+      return reportPetSightingAction(publicToken, prev, formData);
+    },
+  );
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
   const { key: idempotencyKey } = useIdempotencyKey();
 
   // "¿Cuándo la viste?" is entered as two AUTHOR-OWNED fields (dd/mm/aaaa +
@@ -171,6 +195,7 @@ export function PetSightingForm({
         <textarea
           id="description"
           name="description"
+          defaultValue={kept("description")}
           rows={3}
           maxLength={500}
           placeholder="Color del collar, dirección de paso, hora exacta, comportamiento…"
@@ -194,8 +219,17 @@ export function PetSightingForm({
             name="photo"
             accept="image/*"
             capture="environment"
+            onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
             className="w-full text-sm text-[var(--color-ln-ink)]"
           />
+          {/* Said out loud because the control itself cannot say it: after a
+              refused submit the file input is empty again, and without this line
+              the photo looks lost even though it is still going to be sent. */}
+          {photoFile && (
+            <p className="text-xs text-[var(--color-ln-ok)]">
+              Foto lista para enviar: {photoFile.name}
+            </p>
+          )}
           <p className="text-xs text-[var(--color-ln-faint)]">
             JPG/PNG hasta 5MB. Ayuda muchísimo al dueño a confirmar.
           </p>
@@ -218,6 +252,7 @@ export function PetSightingForm({
             <input
               id="finderName"
               name="finderName"
+              defaultValue={kept("finderName")}
               type="text"
               autoComplete="name"
               maxLength={80}
@@ -237,6 +272,7 @@ export function PetSightingForm({
             <input
               id="finderContact"
               name="finderContact"
+              defaultValue={kept("finderContact")}
               type="text"
               inputMode="email"
               autoComplete="email"

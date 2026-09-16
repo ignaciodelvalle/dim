@@ -1,13 +1,23 @@
 "use client";
 
 import { type PublicActionState, notifyOwnerOfFoundPetAction } from "@/app/actions/public";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { useActionState } from "react";
 
 const initialState: PublicActionState = { ok: false, error: null };
 
 export function FoundPetForm({ publicToken }: { publicToken: string }) {
-  const boundAction = notifyOwnerOfFoundPetAction.bind(null, publicToken);
-  const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  // ALL THREE FIELDS WERE LOST ON A VALIDATION ERROR, which on this form is all
+  // of them: React 19 resets a `<form action>` when its action settles, error
+  // included, and none of these were controlled. The person on the other side
+  // is a stranger holding somebody's lost dog, with no session and no reason to
+  // type it a second time. `useKeptFields` re-seeds from the form's own
+  // submitted `FormData`; the measured contract is in
+  // `__tests__/react19-form-reset-contract.test.tsx`.
+  const { boundAction: keptAction, kept } = useKeptFields(
+    notifyOwnerOfFoundPetAction.bind(null, publicToken),
+  );
+  const [state, formAction, isPending] = useActionState(keptAction, initialState);
 
   if (state.ok) {
     return (
@@ -41,6 +51,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
         <input
           id="finderName"
           name="finderName"
+          defaultValue={kept("finderName")}
           type="text"
           autoComplete="name"
           placeholder="Nombre y apellido"
@@ -60,6 +71,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
         <input
           id="finderContact"
           name="finderContact"
+          defaultValue={kept("finderContact")}
           type="text"
           inputMode="email"
           autoComplete="email"
@@ -79,6 +91,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
         <textarea
           id="message"
           name="message"
+          defaultValue={kept("message")}
           rows={3}
           placeholder="¿Dónde la encontraste? ¿Cómo está?"
           className={inputClass}

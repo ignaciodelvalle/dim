@@ -21,6 +21,7 @@ import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
 import type { ServiceKindDef } from "@/lib/reference/service-kinds";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
 
@@ -39,7 +40,23 @@ export function ServiceOfferingForm({
   ) => Promise<ServiceOfferingFormState>;
   orgToken: string;
 }) {
-  const [state, formAction, isPending] = useActionState(createAction, INITIAL_STATE);
+  // THE WORST OPERATOR-SIDE LOSS WE FOUND: a three-step wizard, every single
+  // field DOM-owned, and React 19 resets a `<form action>` the moment its action
+  // settles — a refusal settles it. One complaint from the server on step 3 took
+  // the type, the name, the description, the duration, the capacity, the price,
+  // both age bounds and the species ticks with it. The wizard stays on step 3,
+  // which is the mean part: the two steps that were just emptied are the two the
+  // operator cannot see, so the only honest way to find out was to walk back.
+  // `useKeptFields` re-seeds each field from the form's own submitted `FormData`
+  // (contract: `__tests__/react19-form-reset-contract.test.tsx`).
+  //
+  // The two that need a fallback ARGUMENT rather than a bare `kept()` are the
+  // ones that ship with a value: `durationMinutes` and `slotCapacity` reset to
+  // 15 and 1, which LOOKS like a filled form and is why this was easy to miss.
+  // `kept(...) || "15"` keeps the seeded default before the first submit and the
+  // operator's own number after it.
+  const { boundAction: keptAction, kept, keptChecked } = useKeptFields(createAction);
+  const [state, formAction, isPending] = useActionState(keptAction, INITIAL_STATE);
   // N3: the action returns where to go and this navigates. It used to
   // redirect() server-side, a transition the App Router drops in production —
   // the write committed and the screen never moved.
@@ -77,7 +94,20 @@ export function ServiceOfferingForm({
             <label htmlFor="serviceKind" className="block text-md font-medium text-ln-op-ink">
               Tipo de servicio <span className="text-ln-op-danger">*</span>
             </label>
-            <LnSelect id="serviceKind" name="serviceKind" required>
+            {/* The `key` is load-bearing, not decoration: a select is restored
+                from its options' `selected` ATTRIBUTE, which react-dom writes
+                only on mount, so a `defaultValue` that changes on an update
+                moves nothing and the reset drops back to the placeholder.
+                Keying on the kept value remounts the select in the settle
+                render and puts the write back on the mount path. Measured in
+                `__tests__/react19-form-reset-contract.test.tsx`. */}
+            <LnSelect
+              key={`serviceKind-${kept("serviceKind")}`}
+              id="serviceKind"
+              name="serviceKind"
+              defaultValue={kept("serviceKind")}
+              required
+            >
               <option value="">— Seleccioná un tipo —</option>
               {serviceKinds.map((k) => (
                 <option key={k.code} value={k.code}>
@@ -94,6 +124,7 @@ export function ServiceOfferingForm({
             <LnInput
               id="displayName"
               name="displayName"
+              defaultValue={kept("displayName")}
               type="text"
               required
               minLength={3}
@@ -109,6 +140,7 @@ export function ServiceOfferingForm({
             <LnTextarea
               id="description"
               name="description"
+              defaultValue={kept("description")}
               maxLength={500}
               rows={3}
               placeholder="Información adicional para quienes reserven el turno."
@@ -139,7 +171,7 @@ export function ServiceOfferingForm({
                 required
                 min={5}
                 max={480}
-                defaultValue={15}
+                defaultValue={kept("durationMinutes") || 15}
               />
             </div>
             <div className="space-y-1">
@@ -153,7 +185,7 @@ export function ServiceOfferingForm({
                 required
                 min={1}
                 max={100}
-                defaultValue={1}
+                defaultValue={kept("slotCapacity") || 1}
               />
             </div>
           </div>
@@ -166,6 +198,7 @@ export function ServiceOfferingForm({
             <LnInput
               id="priceArs"
               name="priceArs"
+              defaultValue={kept("priceArs")}
               type="number"
               min={0}
               step="0.01"
@@ -187,10 +220,22 @@ export function ServiceOfferingForm({
           <div className="space-y-1">
             <span className="block text-md font-medium text-ln-op-ink">Especies elegibles</span>
             <div className="flex gap-4">
-              <LnCheckbox name="eligibilitySpecies" value="dog" defaultChecked>
+              {/* Both boxes share ONE name, so this is the multi-value case the
+                  hook had to learn: `keptChecked` asks "was MY value among the
+                  ones submitted", and the fallback is `true` because both ship
+                  ticked and a pre-submit form must not look untouched. */}
+              <LnCheckbox
+                name="eligibilitySpecies"
+                value="dog"
+                defaultChecked={keptChecked("eligibilitySpecies", true, "dog")}
+              >
                 Perros
               </LnCheckbox>
-              <LnCheckbox name="eligibilitySpecies" value="cat" defaultChecked>
+              <LnCheckbox
+                name="eligibilitySpecies"
+                value="cat"
+                defaultChecked={keptChecked("eligibilitySpecies", true, "cat")}
+              >
                 Gatos
               </LnCheckbox>
             </div>
@@ -207,6 +252,7 @@ export function ServiceOfferingForm({
               <LnInput
                 id="eligibilityAgeMinMonths"
                 name="eligibilityAgeMinMonths"
+                defaultValue={kept("eligibilityAgeMinMonths")}
                 type="number"
                 min={0}
                 max={360}
@@ -223,6 +269,7 @@ export function ServiceOfferingForm({
               <LnInput
                 id="eligibilityAgeMaxMonths"
                 name="eligibilityAgeMaxMonths"
+                defaultValue={kept("eligibilityAgeMaxMonths")}
                 type="number"
                 min={0}
                 max={360}
