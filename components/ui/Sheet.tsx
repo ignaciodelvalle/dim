@@ -248,7 +248,13 @@ export function LnSheetHeader({
           type="button"
           onClick={onClose}
           aria-label="Cerrar"
-          className="grid h-[30px] w-[30px] flex-shrink-0 cursor-pointer place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+          // The box stays 30px because the header's density depends on it; the
+          // TARGET is grown to 44 with a centred pseudo-element, which is what
+          // WCAG 2.5.5 actually measures. Growing the box instead would have
+          // resized every sheet header in the app to fix a thing nobody can see.
+          // The focus ring is new too: this button had none while its twin in
+          // Card.tsx did, so a keyboard user closing a sheet was aiming blind.
+          className="relative grid h-[30px] w-[30px] flex-shrink-0 cursor-pointer place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors after:absolute after:left-1/2 after:top-1/2 after:h-11 after:w-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
         >
           <Icon name="close" size="sm" decorative />
         </button>

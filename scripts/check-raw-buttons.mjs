@@ -406,7 +406,11 @@ const OPERATOR_RADIUS_BASELINE = 18;
 // 2026-07-29: citizen lowered 105 → 104 in the same change — LostFiltersBars
 // raw "Buscar" (danger red, --radius-sm) migrated to LnButton primary, and its
 // "Limpiar" Link to LnButton anchor mode.
-const CITIZEN_RADIUS_BASELINE = 101;
+// 2026-09-16: 101 → 100. LnToggle used to return TWO elements — a layout <div>
+// carrying the row's --radius-sm and a <button> track carrying rounded-full —
+// and the a11y fix collapsed them into one button, because the label had to be
+// inside the control to be tappable. One element, one radius.
+const CITIZEN_RADIUS_BASELINE = 100;
 
 function scanRadii({ label, glob, baseline, scriptName }) {
   const files = globSync(glob, { exclude: (p) => /\.test\.tsx$/.test(p) });

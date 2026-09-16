@@ -202,7 +202,9 @@ export function LnSheet({
               type="button"
               aria-label="Cerrar"
               onClick={onClose}
-              className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+              // 30px box, 44px target — see the twin in Sheet.tsx for why the
+              // box does not simply grow.
+              className="relative grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors after:absolute after:left-1/2 after:top-1/2 after:h-11 after:w-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
             >
               <Icon name="close" size="sm" decorative />
             </button>

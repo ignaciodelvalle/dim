@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 
 /**
  * Libreta Nacional Toggle.
@@ -36,66 +36,93 @@ export function LnToggle({
   inline = false,
 }: LnToggleProps) {
   const trackOn = variant === "amber" ? "bg-[var(--color-ln-warn)]" : "bg-[var(--color-ln-azul)]";
+  // The NAME of the switch is the label, and only the label. The description
+  // sits inside the same button (it has to, so the whole row is one target), and
+  // text inside a button folds into its accessible name — which would have made
+  // this control announce as "Tu teléfono Se publica en el aviso…". Pointing
+  // `aria-labelledby` at the label alone keeps the name short, and
+  // `aria-describedby` gives the description back as a description.
+  //
+  // This is strictly better than what it replaced, where `aria-label={label}`
+  // set the name and the description was never announced at all.
+  const labelId = useId();
+  const descriptionId = useId();
 
-  if (inline) {
-    return (
-      <div className={["flex items-center gap-2.5", className].filter(Boolean).join(" ")}>
-        <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
-        <span className="text-md font-semibold text-[var(--color-ln-ink)]">{label}</span>
-      </div>
-    );
-  }
+  // THE BUTTON WRAPS THE WHOLE ROW, and that one structural decision is what
+  // fixes both defects this component had (a11y audit 2026-09-16):
+  //
+  //  1. The text beside the switch was not a label. It looked like one, and the
+  //     row even carried `cursor-pointer`, but the click handler lived on the
+  //     38x21 track alone — so aiming at the words did nothing. On a phone,
+  //     with the disclosure preferences of a LOST pet, that reads as a control
+  //     that simply refuses to work.
+  //  2. The target was 38x21, under half of WCAG 2.5.5's 44x44 floor.
+  //
+  // The previous shape was a non-semantic <div> wrapping a <button> track. B-4
+  // had already removed the div's handlers, correctly: handlers on a role-less
+  // div is its own violation. But that fix addressed the markup and left the
+  // person unable to hit the thing. Making the row itself the <button> resolves
+  // both at once, with no nested interactive element: the track below is now a
+  // plain <span> that draws state, and the accessible name comes from the
+  // label text it contains rather than a duplicated `aria-label`.
+  // ONE <button>, two shapes. The inline and row variants differ only in their
+  // class string, so they share a single element rather than returning two —
+  // which also keeps `lint:buttons` counting one raw button here instead of two.
+  const rowBase =
+    "cursor-pointer text-left rounded-[var(--radius-sm)] focus-visible:outline-none " +
+    "focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]";
+  const shape = inline
+    ? "flex items-center gap-2.5"
+    : "flex w-full items-start gap-[11px] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-3 py-2.5";
 
-  // B-4: click/key handlers removed from the non-semantic div.
-  // The inner <button role="switch"> (Track) already handles all interaction.
-  // The div is kept purely for layout; pointer-events on the div are benign but
-  // the div is not in the tab order and has no role, so removing the handlers
-  // avoids the "interactive element without role" a11y violation.
-  return (
-    <div
-      className={[
-        "flex cursor-pointer items-start gap-[11px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-3 py-2.5",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
-      <div className="min-w-0 flex-1">
-        <p className="text-md font-semibold leading-tight text-[var(--color-ln-ink)]">{label}</p>
-        {description && (
-          <p className="mt-px text-sm leading-[1.4] text-[var(--color-ln-mute)]">{description}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Internal track + knob
-function Track({
-  checked,
-  trackOn,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  trackOn: string;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-label={label}
-      onClick={(e) => {
-        e.stopPropagation();
-        onChange(!checked);
-      }}
+      aria-labelledby={labelId}
+      aria-describedby={description && !inline ? descriptionId : undefined}
+      onClick={() => onChange(!checked)}
+      className={[rowBase, shape, className].filter(Boolean).join(" ")}
+    >
+      <TrackVisual checked={checked} trackOn={trackOn} />
+      {inline ? (
+        <span id={labelId} className="text-md font-semibold text-[var(--color-ln-ink)]">
+          {label}
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1">
+          <span
+            id={labelId}
+            className="block text-md font-semibold leading-tight text-[var(--color-ln-ink)]"
+          >
+            {label}
+          </span>
+          {description && (
+            <span
+              id={descriptionId}
+              className="mt-px block text-sm leading-[1.4] text-[var(--color-ln-mute)]"
+            >
+              {description}
+            </span>
+          )}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// The track and knob, drawn only. Not interactive: its ancestor <button> is.
+// The 44px floor is met by the row, not by this 38x21 graphic — the `inline`
+// variant is the one case where the row can be short, so it carries a centred
+// pseudo-element that grows the target to 44 without moving the drawing.
+function TrackVisual({ checked, trackOn }: { checked: boolean; trackOn: string }) {
+  return (
+    <span
+      aria-hidden="true"
       className={[
-        "relative mt-px h-[21px] w-[38px] flex-shrink-0 rounded-full transition-colors duration-150",
-        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
+        "relative mt-px block h-[21px] w-[38px] flex-shrink-0 rounded-full transition-colors duration-150",
+        "after:absolute after:left-1/2 after:top-1/2 after:h-11 after:w-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
         checked ? trackOn : "bg-[var(--color-ln-line-strong)]",
       ]
         .filter(Boolean)
@@ -110,7 +137,7 @@ function Track({
           .filter(Boolean)
           .join(" ")}
       />
-    </button>
+    </span>
   );
 }
 

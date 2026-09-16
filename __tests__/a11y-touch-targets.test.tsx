@@ -166,3 +166,86 @@ describe("CitizenTabBar — 44px tab targets", () => {
     expect(altaSeg?.match(/href="([^"]*)"/)?.[1]).toBe("/mis-mascotas/nueva");
   });
 });
+
+// ---------------------------------------------------------------------------
+// The two shared close buttons, and the switch (a11y audit 2026-09-16).
+//
+// WHY THESE WERE MISSED FOR SO LONG, which matters more than the three fixes:
+// this file ENUMERATES components rather than sweeping them. Every block above
+// was added by whoever was fixing that component at the time, so the fence only
+// ever covers what somebody already remembered. LnCard and LnSheet's close
+// buttons have been 30x30 the whole time — in every sheet in the app, including
+// every one used to record an event — and no assertion here had an opinion.
+//
+// The shape of the fix is also worth naming: the boxes stay 30px and the
+// TARGET grows to 44 through a centred pseudo-element, which is what WCAG 2.5.5
+// measures. So the assertion cannot look for `h-11` on the element the way the
+// blocks above do; it looks for the after:-prefixed target. A future component
+// that solves this the other way (by growing the box) will not match, and that
+// is correct — it should get its own case rather than be waved through.
+// ---------------------------------------------------------------------------
+
+// BOTH are sheet headers, and that is the point: `LnSheet` (in Card.tsx) and
+// `LnSheetHeader` (in Sheet.tsx) are two separate implementations of the same
+// header, each with its own copy of the close button. Fixing one and assuming
+// the other followed is exactly how this defect survived.
+import { LnSheet } from "@/components/ui/Card";
+import { LnSheetHeader } from "@/components/ui/Sheet";
+import { LnToggle } from "@/components/ui/Toggle";
+
+const TARGET_44 = ["after:h-11", "after:w-11", "after:-translate-x-1/2", "after:-translate-y-1/2"];
+
+describe("shared close buttons clear 44px (a11y audit 2026-09-16)", () => {
+  it("LnSheet's close button carries a 44px target", () => {
+    const html = renderToStaticMarkup(
+      <LnSheet title="t" onClose={() => {}}>
+        <p>content</p>
+      </LnSheet>,
+    );
+    const button = (html.match(/<button [^>]*aria-label="Cerrar"[^>]*>/) ?? [])[0];
+    expect(button).toBeDefined();
+    for (const cls of TARGET_44) expect(button).toContain(cls);
+  });
+
+  it("LnSheetHeader's close button carries a 44px target AND a focus ring", () => {
+    const html = renderToStaticMarkup(<LnSheetHeader title="t" onClose={() => {}} />);
+    const button = (html.match(/<button [^>]*aria-label="Cerrar"[^>]*>/) ?? [])[0];
+    expect(button).toBeDefined();
+    for (const cls of TARGET_44) expect(button).toContain(cls);
+    // This one had no focus ring while its twin in Card did — a keyboard user
+    // closing a sheet was aiming at something they could not see.
+    expect(button).toContain("focus-visible:ring-[3px]");
+  });
+});
+
+describe("LnToggle — the label is part of the control (a11y audit 2026-09-16)", () => {
+  // The defect was not only size. The text beside the switch LOOKED like a
+  // label and the row even carried `cursor-pointer`, but the handler lived on
+  // the 38x21 track alone, so tapping the words did nothing at all.
+  it("renders one button that CONTAINS the label text", () => {
+    const html = renderToStaticMarkup(
+      <LnToggle checked={false} onChange={() => {}} label="Mostrar mi teléfono" />,
+    );
+    const buttons = html.match(/<button /g) ?? [];
+    expect(buttons.length).toBe(1);
+    expect(html).toContain("Mostrar mi teléfono");
+    // The label sits INSIDE the button, so it names it and is tappable.
+    const inner = html.slice(html.indexOf("<button "), html.lastIndexOf("</button>"));
+    expect(inner).toContain("Mostrar mi teléfono");
+  });
+
+  it("keeps the switch role and state on that one button", () => {
+    const html = renderToStaticMarkup(
+      <LnToggle checked onChange={() => {}} label="Mostrar mi teléfono" />,
+    );
+    expect(html).toContain('role="switch"');
+    expect(html).toContain('aria-checked="true"');
+  });
+
+  it("the inline variant grows its target to 44px", () => {
+    const html = renderToStaticMarkup(
+      <LnToggle inline checked={false} onChange={() => {}} label="Compacto" />,
+    );
+    for (const cls of TARGET_44) expect(html).toContain(cls);
+  });
+});
