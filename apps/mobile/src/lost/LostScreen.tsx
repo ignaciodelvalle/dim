@@ -662,12 +662,34 @@ function MarkLostForm({
         </Body>
       </Card>
 
+      {/* UN PUNTO DE REFERENCIA, NO UNA DIRECCIÓN (decisión del PO 2026-09-16),
+          y el argumento que la sostiene es del PO: para cuando alguien lea
+          esto, el animal YA SE MOVIÓ. El campo no dice dónde está, dice por
+          dónde empezar a buscar, así que la exactitud no compra nada y sí
+          cuesta: es texto libre, sin validar, y si la persona activa la
+          divulgación se publica en la credencial. Alguien que perdió el perro
+          en su cuadra escribe la dirección de su casa sin pensarlo.
+          EL EJEMPLO ES PARTE DE LA MITIGACIÓN. Decía "Plaza San Martín, Santa
+          Rosa": nombraba una localidad, así que invitaba a repetir acá lo que
+          el selector de abajo vuelve a pedir, y el PO leyó los dos campos como
+          el mismo dato pedido dos veces. No lo son (ver el comentario del
+          selector: uno es prosa que lee quien la encuentra, el otro es sobre lo
+          que se rutea el caso), pero el ejemplo los hacía parecer uno.
+          LA LÍNEA DE ABAJO DICE LAS DOS COSAS de una vez, porque separarlas
+          deja a la persona decidiendo con la mitad: que alcanza con una
+          referencia, y que esto puede volverse público. No promete que se
+          publique: el interruptor está más abajo y arranca apagado
+          (consentimiento afirmativo), así que la frase dice "si activás". */}
       <TextField
         label="Dónde la viste por última vez"
         value={draft.locationDescription}
         onChangeText={(v) => set("locationDescription", v)}
-        placeholder="Plaza San Martín, Santa Rosa"
+        placeholder="La plaza, la esquina del kiosco, el portón de casa"
       />
+      <Body>
+        Con un punto de referencia alcanza: para cuando alguien lo lea, ya se movió. Si más abajo
+        activás mostrarlo, este texto se publica en su credencial.
+      </Body>
 
       {/* LA LOCALIDAD DEL HECHO, NO LA DEL ANIMAL. El campo de arriba es prosa
           que lee quien encuentra a la mascota; este es el par sobre el que se
@@ -677,7 +699,16 @@ function MarkLostForm({
           OPCIONAL a propósito: alguien marcando una mascota perdida está
           apurado y asustado, y "no sé exactamente dónde" es una respuesta real
           — el respaldo es una conducta definida, no un agujero. */}
+      {/* `required={false}` EXPLÍCITO, y hace falta decirlo: `LocalityPicker`
+          nace en `required = true`, así que no pasarlo dibujaba el asterisco
+          rojo de obligatorio sobre el campo que el comentario de arriba declara
+          opcional — con la línea de abajo explicando, al mismo tiempo, qué pasa
+          si lo dejás vacío. La pantalla se contradecía a sí misma en tres
+          renglones. Reportado por el PO el 2026-09-16 mirando la app en un
+          teléfono. A quien está asustado y apurado, un asterisco lo manda a
+          buscar el nombre de su localidad en vez de mandar el aviso. */}
       <LocalityPicker
+        required={false}
         provinceCode={draft.provinceCode}
         localityName={draft.localityName}
         onSelect={(selection) => {
