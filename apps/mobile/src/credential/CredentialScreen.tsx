@@ -31,7 +31,7 @@ import type {
   PublicCredentialV1,
 } from "@dim/contract/api";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { publicCredentialPageUrl } from "../config/api";
 import { speciesLabel } from "../pets/species";
@@ -57,6 +57,7 @@ import {
   rabiesVigenciaLabel,
   situationLabel,
 } from "./credential-view-model";
+import { readQrSpotlightPreference, writeQrSpotlightPreference } from "./qr-spotlight-preference";
 import { useQrSpotlight } from "./use-qr-spotlight";
 
 type ScreenState =
@@ -78,7 +79,37 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
   const generation = useRef(0);
   // Awake + bright for as long as this screen is up — the QR is its hero and
   // a dimming, locking screen is how a scan fails mid-conversation.
-  useQrSpotlight();
+  //
+  // The brightness half is now the owner's to refuse (a11y audit 2026-09-16).
+  // It starts on, which is what it always did, and the control in the masthead
+  // turns it off for good on this phone. Reading the stored choice is async, so
+  // the first frames run with the spotlight on; that is the right direction to
+  // be wrong in for the few hundred milliseconds it lasts, because the opposite
+  // would flash the screen DARK and then bright for everyone who never touched
+  // the control.
+  const [spotlight, setSpotlight] = useState(true);
+  useQrSpotlight(spotlight);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readQrSpotlightPreference().then((stored) => {
+      if (!cancelled) setSpotlight(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleSpotlight = useCallback(() => {
+    setSpotlight((current) => {
+      const next = !current;
+      // Applied to state first, persisted after: the screen must obey the tap
+      // even if the write fails. `writeQrSpotlightPreference` swallows its own
+      // errors for the same reason.
+      void writeQrSpotlightPreference(next);
+      return next;
+    });
+  }, []);
 
   const load = useCallback(async () => {
     const mine = ++generation.current;
@@ -133,6 +164,29 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
         <Text selectable style={styles.token}>
           {publicToken}
         </Text>
+        {/* The escape from the spotlight, at the TOP of the screen rather than
+            beside the QR it governs. Someone who opened this with a migraine is
+            not going to scroll past the bright thing to find the way to dim it.
+            `hitSlop` carries the target to the 44px floor without growing the
+            text, which is the platform's own idiom for this. */}
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: spotlight }}
+          accessibilityLabel="Brillo máximo para escanear"
+          accessibilityHint={
+            spotlight
+              ? "Desactiva el brillo máximo en este teléfono"
+              : "Activa el brillo máximo en este teléfono"
+          }
+          hitSlop={12}
+          onPress={toggleSpotlight}
+        >
+          <Text style={styles.spotlightToggle}>
+            {spotlight
+              ? "Brillo máximo activado · Tocá para bajarlo"
+              : "Subir el brillo para escanear"}
+          </Text>
+        </Pressable>
       </View>
 
       {state.phase === "loading" ? (
@@ -447,6 +501,12 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   freshness: { fontFamily: FONTS.sans, fontSize: TYPE.sm, color: COLORS.inkMuted },
+  spotlightToggle: {
+    fontFamily: FONTS.sans,
+    fontSize: TYPE.sm,
+    color: COLORS.inkSoft,
+    textDecorationLine: "underline",
+  },
   offline: {
     backgroundColor: COLORS.warnSurface,
     borderWidth: 1,

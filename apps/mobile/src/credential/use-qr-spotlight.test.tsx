@@ -24,8 +24,8 @@ jest.mock("expo-keep-awake", () => ({
 
 import { useQrSpotlight } from "./use-qr-spotlight";
 
-function Harness() {
-  useQrSpotlight();
+function Harness({ enabled }: { enabled?: boolean }) {
+  useQrSpotlight(enabled);
   return null;
 }
 
@@ -72,5 +72,35 @@ describe("the spotlight", () => {
     await flush();
     expect(() => screen.unmount()).not.toThrow();
     await flush();
+  });
+});
+
+// The escape hatch (a11y audit 2026-09-16). Raising the brightness with no way
+// out made the credential unusable for someone with photophobia: the only way
+// to stop the glare was to leave the screen they were trying to show.
+describe("when the owner has declined the spotlight", () => {
+  it("does not touch the brightness at all", async () => {
+    render(<Harness enabled={false} />);
+    await flush();
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  it("still keeps the screen awake — the refusal is about glare, not locking", async () => {
+    render(<Harness enabled={false} />);
+    await flush();
+    expect(mockKeepAwake).toHaveBeenCalled();
+  });
+
+  it("RESTORES the captured level the moment it is turned off mid-screen", async () => {
+    // The whole point of the control: a tap must undo the glare now, not on
+    // the way out of the screen.
+    const screen = render(<Harness enabled={true} />);
+    await flush();
+    expect(mockSet).toHaveBeenCalledWith(1);
+
+    screen.rerender(<Harness enabled={false} />);
+    await flush();
+    expect(mockSet).toHaveBeenLastCalledWith(0.35);
   });
 });

@@ -23,12 +23,25 @@ import * as Brightness from "expo-brightness";
 import { useKeepAwake } from "expo-keep-awake";
 import { useEffect } from "react";
 
-export function useQrSpotlight(): void {
+/**
+ * @param enabled Whether the owner wants the brightness raised. Defaults to
+ * true, which is the behaviour this hook had before the preference existed.
+ *
+ * KEEP-AWAKE IS NOT PART OF THE CHOICE, deliberately. Turning the spotlight off
+ * is about glare; a screen that locks mid-scan is a different failure and
+ * bothers nobody. So the switch below governs the brightness half only.
+ *
+ * TOGGLING OFF WHILE MOUNTED RESTORES IMMEDIATELY — that is the whole point of
+ * the control, so the effect depends on `enabled` and its cleanup runs on the
+ * way down just as it does on unmount.
+ */
+export function useQrSpotlight(enabled = true): void {
   // Deactivates itself on unmount; separate from the brightness effect
   // because keep-awake has no state to capture or restore.
   useKeepAwake();
 
   useEffect(() => {
+    if (!enabled) return;
     let previous: number | null = null;
     let cancelled = false;
     void (async () => {
@@ -47,5 +60,5 @@ export function useQrSpotlight(): void {
         void Brightness.setBrightnessAsync(previous).catch(() => {});
       }
     };
-  }, []);
+  }, [enabled]);
 }
