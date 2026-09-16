@@ -6537,7 +6537,7 @@
       "wired": "test:verified",
       "status": "ENFORCED",
       "clause": "R1",
-      "statusBasis": "datasets.test.ts:282-320 fails if a province suppressed only in microchip keeps its shared mascotas_activas base in esterilizacion; :390-408 fails when pets-minus-dogs = 4 does not suppress BOTH the superset and the subset base; :452-479 covers the two-link transitive case (perros_ppp in mascotas_activas); :410-450 are the negative controls. Lattice at datasets.ts:440-470.",
+      "statusBasis": "datasets.test.ts:282-320 fails if a province suppressed only in microchip keeps its shared mascotas_activas base in esterilizacion; :390-408 fails when pets-minus-dogs = 4 does not suppress BOTH the superset and the subset base; :452-479 covers the two-link transitive case (perros_ppp in mascotas_activas); :410-450 are the negative controls. Lattice at datasets.ts:443-473.",
       "notes": "The 1-4 difference clause is fixture 9004-9000=4 at datasets.test.ts:370/384. Basis agrees.",
       "confidence": 0.9,
       "verifiedAt": "d7dbf25f7"

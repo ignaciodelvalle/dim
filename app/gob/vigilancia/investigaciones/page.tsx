@@ -129,7 +129,10 @@ export default async function GobInvestigacionesPage({
               {/* C4 (2026-07-22, §S4): unlike the disease-signal panels above
                   this is an internal work queue — investigations are opened
                   by staff, not passively reported in, and the underlying
-                  signal count ("Brotes activos") is already visible
+                  signal count (the outbreak-signal tile, KPI_CATALOG entry
+                  `outbreak_active_signals` — renamed 2026-09-16 once it was
+                  clear it counts a 30-day flow and not a stock of open
+                  outbreaks) is already visible
                   side-by-side on /gob/vigilancia. A real, verified zero:
                   measured-zero. */}
               <LnEmptyState

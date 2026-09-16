@@ -21,6 +21,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeDueInfo, dueDateBadge } from "@/lib/domain/due-state";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
+  OBSERVACIONES_ROW_LIMIT,
   type ObservacionesScope,
   fetchObservaciones,
   parseObservacionEstado,
@@ -178,8 +179,11 @@ export default async function ObservacionesPage({
           contextLines={[
             "miMAR · Observaciones antirrábicas — sin datos de dueño/a: el archivo viaja fuera de pantalla",
             // CSS-8: the export ships exactly the rendered rows, and the query
-            // caps them at OBSERVACIONES_ROW_LIMIT (lib/metrics/observaciones-query.ts).
-            "Máximo 500 filas: el archivo puede estar truncado",
+            // caps them at OBSERVACIONES_ROW_LIMIT. The number is INTERPOLATED,
+            // not typed: a hardcoded 500 beside a constant that can move is a
+            // sentence that lies the day someone raises the cap, and this one
+            // travels inside a file that outlives the screen.
+            `Máximo ${OBSERVACIONES_ROW_LIMIT} filas: el archivo puede estar truncado`,
           ]}
         />
       }

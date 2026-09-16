@@ -205,11 +205,16 @@ export async function fetchDiseaseSummary(
 // ============================================================================
 
 export type VigilanciaMetrics = {
-  /** outbreak_signal events in scope with status='open', last 30 days. */
+  /** outbreak_signal events in scope, last 30 days. There is no status to
+   *  filter on: the event is append-only and carries no close state, so this
+   *  is a 30-day FLOW and resolved signals are still in it. (Corrected
+   *  2026-09-16 — the docblock claimed a status predicate the query never
+   *  had, and the tile's label had grown to match the docblock.) */
   outbreakActiveCount: number;
   /** cases where caseKind='rabies_observation' AND status='open'. */
   rabiesActiveCount: number;
-  /** pets in scope created today (since midnight local time). */
+  /** pets in scope created today, counted from midnight UTC — which is 21:00
+   *  ART of the previous day. See `todayStart` below; the copy says so too. */
   petsRegisteredToday: number;
   /** pet_events where event_type='vaccination_administered' in scope, last 7 days. */
   vaccinationsThisWeek: number;
@@ -296,7 +301,8 @@ export async function fetchVigilanciaMetrics(
   // later moves to AR timezone, change this to use startOf('day', 'America/Argentina/Buenos_Aires').
   const todayStart = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
 
-  // 1. Count open outbreak_signal events from the last 30 days scoped to user.
+  // 1. Count outbreak_signal events from the last 30 days scoped to user.
+  //    NOT "open": there is no open/closed notion on this event.
   const outbreakConditions = [
     eq(petEvents.eventType, "outbreak_signal"),
     gte(petEvents.occurredAt, since30d),
@@ -410,10 +416,15 @@ export async function fetchVigilanciaMetrics(
  * "vs semana anterior" comparison.
  *
  * outbreakActiveCount / rabiesActiveCount are NOT given a matching prev-period
- * fetcher here: both are current OPEN-status snapshots (a stock, not a period
- * flow — reopening/closing shifts the count independent of "when" a signal
- * fired), so a period-over-period delta on them would misrepresent a status
- * change as an activity trend. petsRegisteredToday is a genuine flow but only
+ * fetcher here, but for DIFFERENT reasons, and conflating them is what put a
+ * false "status snapshot" claim on the outbreak count for so long.
+ *   - rabiesActiveCount really is an open-status snapshot (a stock): it reads
+ *     cases with status='open', and reopening/closing shifts it independent of
+ *     when anything fired, so a period delta would read a status change as an
+ *     activity trend.
+ *   - outbreakActiveCount is a 30-day FLOW (see the type above). It gets no
+ *     delta because a 30-day trailing window compared against the previous
+ *     30 days double-counts most of its own rows, not because it is a stock. petsRegisteredToday is a genuine flow but only
  * covers a PARTIAL day-in-progress — comparing it to a full prior day (or a
  * same-hour-yesterday slice) is an inconsistent denominator that reads as a
  * false swing early in the day, so it is skipped too (see the deltaV2-extend

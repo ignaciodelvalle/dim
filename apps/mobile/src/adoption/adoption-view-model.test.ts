@@ -193,6 +193,28 @@ describe("the ficha's health rows", () => {
     expect(vaccines?.note).toBe("Con registros");
   });
 
+  it("says 'Sin registros' when there are none, matching the credential", () => {
+    // The negative case had no coverage when the label changed. It matters
+    // because the three health rows do NOT share one absent-wording: this row
+    // mirrors the public credential ("Sin registros",
+    // app/(public)/p/[publicToken]/page.tsx) while its two siblings say
+    // "Sin dato". Untested, that divergence is one careless edit from becoming
+    // an inconsistency nobody meant.
+    const rows = healthRows(
+      ficha({
+        health: {
+          hasVaccinations: false,
+          isSterilized: false,
+          sterilizedLabel: "Castrada",
+          hasMicrochip: false,
+        },
+      }),
+    );
+    const vaccines = rows.find((r) => r.label === "Vacunación");
+    expect(vaccines?.ok).toBe(false);
+    expect(vaccines?.note).toBe("Sin registros");
+  });
+
   it("never says 'No' about any of the three", () => {
     const notes = healthRows(ficha()).map((r) => r.note);
     expect(notes).not.toContain("No");

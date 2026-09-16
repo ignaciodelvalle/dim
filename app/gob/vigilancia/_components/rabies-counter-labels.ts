@@ -64,8 +64,13 @@ export const RABIES_CASES_KPI_LABEL = KPI_CATALOG.rabies_observation_cases_open.
  * at the other two rabies figures on the same screen and says what each one is
  * for, so the operator never has to guess which number a question is about.
  */
-export const RABIES_CASES_KPI_CAVEAT =
-  "Cuenta EXPEDIENTES abiertos, no animales. El tile «Brecha de escalamiento» de esta misma pantalla cuenta MASCOTAS con una observación en curso hoy (otra fuente, otra población): los dos números pueden no coincidir y ninguno es el veredicto de plazo legal — ese vive en «Cumplimiento del plazo de observación».";
+// The compliance tile's name is INTERPOLATED, not retyped. It was a literal
+// until 2026-09-16, and a rename that same day left this sentence pointing at a
+// tile that no longer existed. The retype fence (`check-metric-labels.ts`) scans
+// {app,components}/**/*.tsx and cannot see a `.ts` file, so nothing went red —
+// and the test below pinned the stale string, so it would not have noticed
+// either. One line up, the same file was already doing this correctly.
+export const RABIES_CASES_KPI_CAVEAT = `Cuenta EXPEDIENTES abiertos, no animales. El tile «Brecha de escalamiento» de esta misma pantalla cuenta MASCOTAS con una observación en curso hoy (otra fuente, otra población): los dos números pueden no coincidir y ninguno es el veredicto de plazo legal — ese vive en «${KPI_CATALOG.rabies_observation_compliance_10d.label}».`;
 
 /**
  * Sub-line for the bite-escalation tile, naming the PET population so it cannot

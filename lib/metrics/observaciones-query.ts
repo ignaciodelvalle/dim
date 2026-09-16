@@ -35,7 +35,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const openObservationClause = () =>
   inArray(pets.rabiesObservationStatus, [...OPEN_OBSERVATION_STATUSES]);
 const RECENT_COMPLETED_WINDOW_DAYS = 30;
-const OBSERVACIONES_ROW_LIMIT = 500;
+export const OBSERVACIONES_ROW_LIMIT = 500;
 
 export type ObservacionesFilters = {
   /** null = default composite view (open OR completed in the last
