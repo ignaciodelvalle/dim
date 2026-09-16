@@ -150,7 +150,7 @@
     "expo-server-sdk": "^7.2.0",
     "lucide-react": "^1.18.0",
     "maplibre-gl": "^5.24.0",
-    "next": "^15.1.0",
+    "next": "^15.5.24",
     "pdf-lib": "^1.17.1",
     "postgres": "^3.4.0",
     "qrcode": "^1.5.4",
