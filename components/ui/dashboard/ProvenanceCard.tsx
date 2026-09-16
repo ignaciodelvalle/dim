@@ -142,7 +142,6 @@ export function ProvenanceCard({
     );
   };
 
-  const sourceLine = descriptor.source?.trim() ? descriptor.source : null;
   const scopeLine = context?.scopeLabel ?? "Según los filtros de la vista actual.";
   const periodLine =
     context?.periodLabel ?? describeWindowBasisEs(descriptor.window, descriptor.basis);
@@ -186,11 +185,29 @@ export function ProvenanceCard({
 
         <dl className="mt-4 space-y-3">
           <Line term="Fórmula">{provenance.formulaEs}</Line>
-          {/* "Fuente" answers the card's own question one step further back
-              than the formula: which tables/events the number is read from.
-              The descriptor curates it; the line is omitted (never faked)
-              when an entry carries no source string. */}
-          {sourceLine && <Line term="Fuente">{sourceLine}</Line>}
+          {/* NO "Fuente" LINE HERE, and the reason is worth keeping because it
+              was tried and reverted on 2026-09-16.
+              A metric-honesty audit observed that the catalog curates a `source`
+              per KPI and that this card, whose whole premise is "¿de dónde sale
+              este número?", never shows it — and called wiring it up a
+              wording-only change. It is not. `descriptor.source` is an
+              ENGINEERING field: "pets (denormalized pregnancy_status column)",
+              "derivado de fetchCrossJurisdictionOutliers vía
+              countAlertedProvinces", "pet_events (VET_ACTIVITY_EVENT_TYPES)".
+              Rendering it puts column names, TS constants and a repo file path
+              in front of a funcionario.
+              The sharpest proof that this is a real boundary and not taste:
+              AdminPoblacionScreen.test.tsx asserts the rendered page never
+              contains "pregnancy_status" (qa-triage-2026-07-23 finding #9). That
+              test still passed with the line in, because OpKpi lazy-mounts this
+              card — so the string was one click away from the screen whose test
+              forbids it.
+              kpi-provenance.ts:1-15 already drew this line: the Fórmula comes
+              from `formulaEs`, curated es-AR prose, and NOT from the catalog,
+              precisely because the catalog's fields are SQL-ish shorthand.
+              A source line belongs on this card. It needs a curated `sourceEs`
+              beside `formulaEs`, where completeness is compiler-enforced — not
+              a passthrough of the engineering string. */}
           <Line term="Alcance">{scopeLine}</Line>
           <Line term="Período / base temporal">
             {periodLine}

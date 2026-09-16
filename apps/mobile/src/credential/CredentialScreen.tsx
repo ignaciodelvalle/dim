@@ -38,7 +38,7 @@ import { speciesLabel } from "../pets/species";
 import { Alert, Body, Card, ContactRow, Loading, Row, Unavailable } from "../ui/components";
 import { FONTS } from "../ui/fonts";
 import { Eyebrow, PrimaryButton, Screen, Title } from "../ui/kit";
-import { COLORS, LEADING, RADIUS, SPACE, TRACKING, TYPE } from "../ui/theme";
+import { COLORS, LEADING, RADIUS, SPACE, TOUCH_TARGET, TRACKING, TYPE } from "../ui/theme";
 import { CredentialQr } from "./CredentialQr";
 import { type CredentialFetchResult, fetchCredential, fetchFailureMessage } from "./credential-api";
 import { readCachedCredential, writeCachedCredential } from "./credential-cache";
@@ -59,6 +59,9 @@ import {
 } from "./credential-view-model";
 import { readQrSpotlightPreference, writeQrSpotlightPreference } from "./qr-spotlight-preference";
 import { useQrSpotlight } from "./use-qr-spotlight";
+
+/** Vertical slop that carries the spotlight control's text to TOUCH_TARGET. */
+const SPOTLIGHT_SLOP = Math.round((TOUCH_TARGET - TYPE.sm * LEADING.sm) / 2);
 
 type ScreenState =
   | { phase: "loading" }
@@ -90,10 +93,27 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
   const [spotlight, setSpotlight] = useState(true);
   useQrSpotlight(spotlight);
 
+  // THE STORED CHOICE MUST NOT OVERWRITE A CHOICE MADE WHILE IT WAS LOADING.
+  // `cancelled` below only guards unmount. Without this ref the sequence that
+  // matters most is the one that breaks: the screen opens, the read is in
+  // flight, and the person — who opened this BECAUSE of the glare — taps
+  // within those few hundred milliseconds. The read then resolves with the old
+  // value and snaps the screen back to full brightness, while the write it
+  // raced has already stored the opposite. From then on the visible state and
+  // the stored state disagree. A control that undoes the user is worse than no
+  // control at all, and this is a control built for someone in discomfort.
+  const spotlightTouched = useRef(false);
+  // Mirrors `spotlight` so `toggleSpotlight` can read the current value without
+  // taking it as a dependency (which would re-create the callback on every
+  // flip) and without reading it from a stale closure.
+  const spotlightRef = useRef(true);
+
   useEffect(() => {
     let cancelled = false;
     void readQrSpotlightPreference().then((stored) => {
-      if (!cancelled) setSpotlight(stored);
+      if (cancelled || spotlightTouched.current) return;
+      spotlightRef.current = stored;
+      setSpotlight(stored);
     });
     return () => {
       cancelled = true;
@@ -101,14 +121,18 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
   }, []);
 
   const toggleSpotlight = useCallback(() => {
-    setSpotlight((current) => {
-      const next = !current;
-      // Applied to state first, persisted after: the screen must obey the tap
-      // even if the write fails. `writeQrSpotlightPreference` swallows its own
-      // errors for the same reason.
-      void writeQrSpotlightPreference(next);
-      return next;
-    });
+    spotlightTouched.current = true;
+    // The write lives HERE and not inside the state updater. React updaters
+    // must be pure, and StrictMode double-invokes them — the write is
+    // idempotent so it did no damage, but a side effect in an updater is the
+    // kind of thing that stops being harmless when someone else edits it.
+    const next = !spotlightRef.current;
+    spotlightRef.current = next;
+    setSpotlight(next);
+    // State first, storage after: the screen obeys the tap even if the write
+    // fails. `writeQrSpotlightPreference` swallows its own errors for the same
+    // reason.
+    void writeQrSpotlightPreference(next);
   }, []);
 
   const load = useCallback(async () => {
@@ -167,8 +191,13 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
         {/* The escape from the spotlight, at the TOP of the screen rather than
             beside the QR it governs. Someone who opened this with a migraine is
             not going to scroll past the bright thing to find the way to dim it.
-            `hitSlop` carries the target to the 44px floor without growing the
-            text, which is the platform's own idiom for this. */}
+            The slop is DERIVED from the floor, not guessed. A hardcoded 12
+            was the first version of this line and it missed: TYPE.sm is 12 and
+            LEADING.sm is 1.4, so the line box is 16.8 and 12+12 lands at 40.8,
+            not 44. `kit.tsx`'s SubtleLink already had the arithmetic; this uses
+            the same shape. The explicit lineHeight matters too — without it RN
+            uses the font's own metrics and the box is smaller than the token
+            says. */}
         <Pressable
           accessibilityRole="switch"
           accessibilityState={{ checked: spotlight }}
@@ -178,7 +207,7 @@ export function CredentialScreen({ publicToken }: { publicToken: string }) {
               ? "Desactiva el brillo máximo en este teléfono"
               : "Activa el brillo máximo en este teléfono"
           }
-          hitSlop={12}
+          hitSlop={{ top: SPOTLIGHT_SLOP, bottom: SPOTLIGHT_SLOP, left: SPACE.sm, right: SPACE.sm }}
           onPress={toggleSpotlight}
         >
           <Text style={styles.spotlightToggle}>
@@ -504,6 +533,7 @@ const styles = StyleSheet.create({
   spotlightToggle: {
     fontFamily: FONTS.sans,
     fontSize: TYPE.sm,
+    lineHeight: TYPE.sm * LEADING.sm,
     color: COLORS.inkSoft,
     textDecorationLine: "underline",
   },

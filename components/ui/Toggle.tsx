@@ -69,7 +69,7 @@ export function LnToggle({
   // class string, so they share a single element rather than returning two —
   // which also keeps `lint:buttons` counting one raw button here instead of two.
   const rowBase =
-    "cursor-pointer text-left rounded-[var(--radius-sm)] focus-visible:outline-none " +
+    "cursor-pointer text-left focus-visible:outline-none " +
     "focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]";
   const shape = inline
     ? "flex items-center gap-2.5"
@@ -83,7 +83,14 @@ export function LnToggle({
       aria-labelledby={labelId}
       aria-describedby={description && !inline ? descriptionId : undefined}
       onClick={() => onChange(!checked)}
-      className={[rowBase, shape, className].filter(Boolean).join(" ")}
+      // The radius is written HERE, in the opening tag, and not folded into
+      // `rowBase` above — `check-raw-buttons.mjs` only walks opening tags, so a
+      // hoisted class string would hide it from the very ratchet that exists to
+      // watch it. This row wears a <button> for accessibility (the label has to
+      // be inside the control to be tappable) while being a switch, not a
+      // button, so it cannot migrate to LnButton the way the rule's remedy
+      // assumes. It is counted, deliberately, rather than made invisible.
+      className={`rounded-[var(--radius-sm)] ${[rowBase, shape, className].filter(Boolean).join(" ")}`}
     >
       <TrackVisual checked={checked} trackOn={trackOn} />
       {inline ? (

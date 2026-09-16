@@ -406,11 +406,19 @@ const OPERATOR_RADIUS_BASELINE = 18;
 // 2026-07-29: citizen lowered 105 → 104 in the same change — LostFiltersBars
 // raw "Buscar" (danger red, --radius-sm) migrated to LnButton primary, and its
 // "Limpiar" Link to LnButton anchor mode.
-// 2026-09-16: 101 → 100. LnToggle used to return TWO elements — a layout <div>
-// carrying the row's --radius-sm and a <button> track carrying rounded-full —
-// and the a11y fix collapsed them into one button, because the label had to be
-// inside the control to be tappable. One element, one radius.
-const CITIZEN_RADIUS_BASELINE = 100;
+// 2026-09-16: stays at 101, and the reason is a correction worth reading.
+// A first pass lowered this to 100 crediting the LnToggle a11y refactor. That
+// attribution was fabricated and a review caught it: RADIUS_TAGS is ["button"]
+// only, so the old layout <div>'s --radius-sm was never counted, and
+// RADIUS_UTILITY excludes the word-bounded `full`, so the old track's
+// rounded-full was not counted either. The refactor's real delta was ZERO;
+// the surface had already drifted to 100 for reasons nobody located, and
+// banking it here would have spent an unrelated gain under a false story.
+// Meanwhile the refactor DID put a --radius-sm on a real <button> for the first
+// time, and the first version hid it inside a hoisted class string where this
+// scanner cannot see it. Toggle.tsx now writes it in the opening tag on
+// purpose, so the count is honest at 101.
+const CITIZEN_RADIUS_BASELINE = 101;
 
 function scanRadii({ label, glob, baseline, scriptName }) {
   const files = globSync(glob, { exclude: (p) => /\.test\.tsx$/.test(p) });
