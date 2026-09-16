@@ -109,16 +109,29 @@ export function alertTone(alert: OwnerPetAlertV1): "err" | "warn" | "neutral" {
 // ---------------------------------------------------------------------------
 
 /**
- * How the viewer holds this animal, in words.
+ * How the viewer holds this animal, in words — or NOTHING, when the viewer is
+ * the titular.
  *
- * Shown because a caretaker or a foster reading this face needs to know WHY
- * some things are missing from it — the arrangements a titular made are not
- * theirs to see, and an unexplained gap reads as a bug.
+ * The line exists because a caretaker or a foster reading this face needs to
+ * know WHY some things are missing from it: the arrangements a titular made are
+ * not theirs to see, and an unexplained gap reads as a bug.
+ *
+ * THAT REASON DOES NOT REACH THE TITULAR, and this is the one case where it
+ * does not. Nothing is missing from their own document, so "Sos el titular"
+ * answers a question they never asked — it is simply true, on every pet they
+ * own, forever, in the most prominent line of the screen. A label that cannot
+ * vary carries no information; it only spends the space above the credential.
+ * PO decision 2026-09-15, and the same call this file's neighbour already made:
+ * the "Ficha del dueño" eyebrow was deleted from `PetDocumentScreen` on
+ * 2026-09-03 for the identical reason, and its tombstone comment is still there.
+ *
+ * `null` and not an empty string: the caller must decide not to RENDER the row,
+ * rather than render an empty one that still occupies its margins.
  */
-export function viewerRoleLabel(role: OwnerPetDetailViewerRole): string {
+export function viewerRoleLabel(role: OwnerPetDetailViewerRole): string | null {
   switch (role) {
     case "owner":
-      return "Sos el titular";
+      return null;
     case "co_owner":
       return "Sos cotitular";
     case "foster":
@@ -467,7 +480,8 @@ export function caseLine(item: OwnerPetCaseV1): string {
 
 export type OwnerFaceView = {
   publicToken: string;
-  viewerLabel: string;
+  /** `null` for a titular reading their own document — see `viewerRoleLabel`. */
+  viewerLabel: string | null;
   /** The raw viewer role — the disabled-row gates key off it (a dead control
    *  has no server to refuse it, so the client mirrors the web's own gates). */
   viewerRole: OwnerPetDetailViewerRole;

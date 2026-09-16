@@ -77,10 +77,24 @@ describe("alerts — copy and tone, never order", () => {
 });
 
 describe("viewerRoleLabel — a holder must know why things are missing", () => {
-  it("distinguishes the titular from every other holder", () => {
-    expect(viewerRoleLabel("owner")).toBe("Sos el titular");
-    expect(viewerRoleLabel("co_owner")).not.toBe(viewerRoleLabel("owner"));
-    expect(viewerRoleLabel("foster")).not.toBe(viewerRoleLabel("caretaker"));
+  // The titular gets NO line. Their document is missing nothing, so the
+  // sentence the line exists to say does not apply to them — see the function's
+  // docblock. Asserted as null rather than as "not the old string", because a
+  // future edit that returned some other always-true phrase would pass the
+  // weaker check and put the noise straight back.
+  it("says nothing at all to the titular", () => {
+    expect(viewerRoleLabel("owner")).toBeNull();
+  });
+
+  it("names every other holder, and never twice the same way", () => {
+    const others = (["co_owner", "foster", "caretaker", "org_member"] as const).map((role) =>
+      viewerRoleLabel(role),
+    );
+    // Each one says something…
+    for (const label of others) expect(label).toBeTruthy();
+    // …and each says something DIFFERENT, which is the whole point of a line
+    // whose job is to explain which gap the reader is looking at.
+    expect(new Set(others).size).toBe(others.length);
     expect(viewerRoleLabel("org_member")).toContain("organización");
   });
 });

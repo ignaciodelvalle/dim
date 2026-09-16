@@ -225,8 +225,14 @@ export function PetDocumentScreen({
             Sanitaria Nacional / Credencial · frente"). */}
         {/* The viewer line — a caretaker or a foster reading this document
             needs to know WHY some things are missing from it; an unexplained
-            gap reads as a bug. */}
-        {view === null ? null : <Text style={styles.viewerLine}>{view.viewerLabel}</Text>}
+            gap reads as a bug. It is ABSENT for a titular, whose document is
+            missing nothing: `viewerRoleLabel` returns null there, and this
+            renders no row at all rather than an empty one that would still
+            spend its margins above the credential. Same call as the eyebrow
+            above. */}
+        {view?.viewerLabel == null ? null : (
+          <Text style={styles.viewerLine}>{view.viewerLabel}</Text>
+        )}
       </View>
 
       <TurningSheet turn={turn}>
