@@ -47,7 +47,11 @@ export function ComoLlegarSheet({ orgDisplayName, latitude, longitude }: Props) 
                 Abrir en Google Maps
               </a>
               <a
-                href={`http://maps.apple.com/?daddr=${coord}`}
+                // https, not http. Apple redirects either way, but the first hop
+                // of the plain one travels in clear carrying the destination
+                // coordinates — and the destination here is a shelter someone is
+                // on their way to.
+                href={`https://maps.apple.com/?daddr=${coord}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-3 text-center text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"

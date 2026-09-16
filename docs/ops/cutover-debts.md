@@ -20,6 +20,21 @@
 - [ ] **Demo accounts must not exist in a real environment.** `govt@`, `govt-local@`,
   `owner@`, `lilian@`, `orgadmin@`, `admin@dim.test` all share `Test1234!`
   (`scripts/seed-test-users.ts:161`), and `admin@dim.test` is a superadmin.
+
+  **Verified 2026-09-16, and the four legs matter together rather than separately.** The
+  repository is `visibility: PUBLIC` and `scripts/seed-test-users.ts` is tracked in it, so the
+  password is not a secret and never was. `admin@dim.test` is role `admin`, `active`, email
+  confirmed, and carries a real `last_sign_in_at` (2026-09-15 16:07) — it is a live superadmin,
+  not a dormant fixture. And `www.mimar.com.ar` resolves to the `dim-staging` Vercel project
+  against Supabase `agnwyifsdxxoznodutgq`, which is the same environment those accounts live in.
+  A published credential, on a superadmin, on a domain anyone can reach.
+
+  **PO decision 2026-09-16: it stays until we stand up production, and we do not touch it now.**
+  The reasoning is that staging is currently the demo environment and the accounts are what make
+  the demos possible; the debt is accepted knowingly, with the shape above written down so the
+  decision can be revisited if the domain's audience changes. Closing this item means, at
+  minimum: the accounts are not seeded into the production project at all, and any that exist in
+  staging after cutover get passwords that are not in the repository.
 - [ ] **A tester's password was set by hand via SQL** (2026-09-13, one closed-test tester — the PO knows which;
   no personal data here), bypassing the password policy and leaked-password check). Ask her to choose her own before
   cutover, or force a reset.
@@ -74,8 +89,10 @@
 
 ## 5. Product gaps that should not ship to the public
 
-- [ ] **Web password recovery** cannot be completed (code-only mail, link-only web flow) —
-  Declared debts in `docs/agents/open-work.md`.
+- [x] **Web password recovery** — closed 2026-09-16. The mail sends a code and the web flow now
+  takes that code, so the two halves match. Redemption moved to the browser, which also removed a
+  denial-of-service shape nobody had noticed: the server-side verify limiter keyed every request
+  in the country under `"deployment"` and capped national recovery at 240 per hour.
 - [ ] **Brightness override** left pinned after the public credential; **hardware back** on the
   pet document — same table.
 
