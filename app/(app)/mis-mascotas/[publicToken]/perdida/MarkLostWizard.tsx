@@ -172,14 +172,32 @@ export function MarkLostWizard({
     // Signal to setPetLostAction to skip the redirect.
     formData.set("noRedirect", "1");
     startTransition(async () => {
-      const result = await action({ error: null }, formData);
+      // A THROW used to escape this transition unhandled: the network dies, the
+      // action rejects, and the wizard showed no error at all while every field
+      // the owner had filled sat there with nothing to click. Only an explicit
+      // `ok` advances to the success screen; every other outcome (error, throw,
+      // or a shape we don't recognise) leaves the form exactly as it is and
+      // says so.
+      let result: Awaited<ReturnType<FormAction>> | undefined;
+      try {
+        result = await action({ error: null }, formData);
+      } catch {
+        setErrorMessage(
+          "No pudimos activar la búsqueda. Revisá tu conexión y volvé a intentar. Lo que cargaste sigue acá.",
+        );
+        return;
+      }
       if (result?.error) {
         setErrorMessage(result.error);
         return;
       }
       if (result?.ok) {
         setSubmitted(true);
+        return;
       }
+      setErrorMessage(
+        "No pudimos activar la búsqueda. Volvé a intentar en un momento. Lo que cargaste sigue acá.",
+      );
     });
   }
 

@@ -248,16 +248,29 @@ export function ApplicationForm({
       return;
     }
     startTransition(async () => {
-      const result = await submitAdoptionApplicationAction({
-        petPublicToken,
-        housingType,
-        otherPets: otherPets.trim() || null,
-        dailyRoutine: dailyRoutine.trim() || null,
-        notes: notes.trim() || null,
-        profileSharingConsent,
-        motivation: motivation.trim() || null,
-        priorPets: priorPets || null,
-      });
+      // A THROW used to escape this transition unhandled: the network dies, the
+      // action rejects, and the applicant saw no error while the three steps of
+      // answers they had just typed sat there with nothing to click. Only a
+      // successful result advances to the success screen; a rejection leaves
+      // every field exactly as it was and says what happened.
+      let result: Awaited<ReturnType<typeof submitAdoptionApplicationAction>>;
+      try {
+        result = await submitAdoptionApplicationAction({
+          petPublicToken,
+          housingType,
+          otherPets: otherPets.trim() || null,
+          dailyRoutine: dailyRoutine.trim() || null,
+          notes: notes.trim() || null,
+          profileSharingConsent,
+          motivation: motivation.trim() || null,
+          priorPets: priorPets || null,
+        });
+      } catch {
+        setError(
+          "No pudimos enviar tu postulación. Revisá tu conexión y volvé a intentar. Lo que escribiste sigue acá.",
+        );
+        return;
+      }
       if ("error" in result) {
         setError(result.error);
         return;
