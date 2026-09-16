@@ -612,12 +612,14 @@ describe("PetDocumentScreen — a failure is never drawn as an absence", () => {
     expect(screen.queryByText("No está preñada.")).toBeNull();
     expect(screen.queryByText("No tiene trámites abiertos.")).toBeNull();
 
-    // THE ONE EXCEPTION: the reminders card is a DOOR (to `/vacunas`), not only
-    // a list, and an empty list of reminders is exactly the moment to schedule
-    // one. It stays, says the web's own empty line, and offers the write.
-    expect(screen.getByText("Recordatorios")).toBeOnTheScreen();
-    expect(screen.getByText("Sin próximas vacunas.")).toBeOnTheScreen();
-    expect(screen.getByText("Programar vacuna")).toBeOnTheScreen();
+    // THE EXCEPTION IS GONE (PO decision 2026-09-16). Reminders used to stay
+    // when empty because the card carried the only door to `/vacunas`; the door
+    // moved into the Más sheet, so this section now follows the same rule as
+    // its three siblings above. The door itself is pinned further down, in the
+    // "reminders door, in the Más sheet" block — including that it survives a
+    // failed read, which is what the old exception really protected.
+    expect(screen.queryByText("Recordatorios")).toBeNull();
+    expect(screen.queryByText("Sin próximas vacunas.")).toBeNull();
 
     // Unavailable: still there, still saying so. A server that could not
     // answer is not an animal with nothing to report.
@@ -1243,30 +1245,60 @@ describe("the credential photo", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The reminders card is a DOOR, and the screen behind it
+// The reminders door lives in the Más sheet, and the screen behind it
 // ---------------------------------------------------------------------------
 //
 // `VacunasScreen` is tested HERE rather than in a file of its own because the
 // count of `apps/mobile/src/**/*.test.tsx` is an architecture fact
 // (`scripts/architecture-facts.ts` → `mobile_jest_files`) with a three-step
 // chain behind it, and because the screen IS this document's reminders section
-// continued: the card below the credential is the way in, and what it offers
-// in each of its three states is the first thing to prove.
+// continued.
+//
+// THE DOOR MOVED on 2026-09-16 (PO). It used to be a button inside the card
+// below the credential, which forced that card to render even with nothing
+// scheduled — a titled box announcing an absence on every healthy animal's
+// document. The tests below moved with it, and they still pin the SAME two
+// properties, because those are what the move had to preserve:
+//   1. the door is reachable, and goes to /vacunas;
+//   2. a reminders read that FAILED cannot take the door with it.
+// The second one is why the row is unconditional rather than gated on the
+// section: the write does not read the list, so a row that vanished on a
+// failed read would be a dead end caused by something unrelated.
 
-describe("PetDocumentScreen — the reminders card offers the write in all three states", () => {
-  it("SOME: with rows on it, offers 'Programar o eliminar' and pushes /vacunas", async () => {
+describe("PetDocumentScreen — the reminders door, in the Más sheet", () => {
+  it("WITH ROWS: the card lists them, and Más carries the way in", async () => {
     render(<PetDocumentScreen publicToken={TOKEN} />);
     await screen.findByText("Pampa");
     expect(screen.getByText("Antirrábica anual")).toBeOnTheScreen();
 
-    fireEvent.press(screen.getByText("Programar o eliminar"));
+    fireEvent.press(screen.getByText("Más"));
+    fireEvent.press(await screen.findByText("Recordatorios de vacunas"));
     expect(mockPush).toHaveBeenCalledWith(vaccineRemindersRoute(TOKEN));
   });
 
-  it("UNKNOWN still offers: a reminders read that FAILED draws its refusal AND the door", async () => {
-    // The dead end this exists against: a card that hid the button because a
-    // read failed tells the person the app cannot schedule a vaccine, when the
-    // truth is that the app could not READ the list. The write needs no list.
+  it("NOTHING SCHEDULED: no card at all, and the door is still there", async () => {
+    // The PO's report, pinned: a healthy animal's document used to be followed
+    // by a titled box whose only content was the news that there is no news.
+    mockFetchOwnerPetDetail.mockResolvedValue({
+      outcome: "ok",
+      payload: payload({ reminders: OK({ items: [], total: 0, truncated: false }) }),
+    });
+    render(<PetDocumentScreen publicToken={TOKEN} />);
+    await screen.findByText("Pampa");
+
+    expect(screen.queryByText("Recordatorios")).toBeNull();
+    expect(screen.queryByText("Sin próximas vacunas.")).toBeNull();
+
+    fireEvent.press(screen.getByText("Más"));
+    fireEvent.press(await screen.findByText("Recordatorios de vacunas"));
+    expect(mockPush).toHaveBeenCalledWith(vaccineRemindersRoute(TOKEN));
+  });
+
+  it("READ FAILED: the refusal is drawn AND the door survives it", async () => {
+    // The dead end this exists against, unchanged by the move: hiding the way
+    // in because a read failed tells the person the app cannot schedule a
+    // vaccine, when the truth is that the app could not READ the list. The
+    // write needs no list.
     mockFetchOwnerPetDetail.mockResolvedValue({
       outcome: "ok",
       payload: payload({ reminders: UNAVAILABLE }),
@@ -1276,11 +1308,13 @@ describe("PetDocumentScreen — the reminders card offers the write in all three
 
     expect(screen.getByText("Recordatorios")).toBeOnTheScreen();
     expect(screen.getByText("No se pudo leer esta sección.")).toBeOnTheScreen();
-    // MUTATION APPLIED: drop `{door}` from RemindersCard's unavailable arm —
-    // the refusal still drawn, the button not. Red here, and ONLY here: the
-    // "renders every unavailable section as its refusal" test above catches
-    // a hidden REFUSAL; this one catches a hidden DOOR, which is the dead end.
-    fireEvent.press(screen.getByText("Programar vacuna"));
+
+    // MUTATION APPLIED: gate the Más row on the reminders section having
+    // loaded. The refusal is still drawn, the row is not. Red here, and ONLY
+    // here: the "renders every unavailable section as its refusal" test above
+    // catches a hidden REFUSAL; this one catches a hidden DOOR.
+    fireEvent.press(screen.getByText("Más"));
+    fireEvent.press(await screen.findByText("Recordatorios de vacunas"));
     expect(mockPush).toHaveBeenCalledWith(vaccineRemindersRoute(TOKEN));
   });
 });

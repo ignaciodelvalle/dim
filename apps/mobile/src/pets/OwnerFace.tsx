@@ -57,8 +57,6 @@ import { FaceDivider, FaceSection, IDENTITY_POKE_OUT } from "./DocumentChromeNat
 import {
   type OwnerFaceGates,
   type OwnerFaceView,
-  REMINDERS_EMPTY_HINT,
-  REMINDERS_EMPTY_LINE,
   type SectionView,
   alertHeadline,
   alertTone,
@@ -72,8 +70,6 @@ import {
   registeredBadgeWord,
   rehomeBannerLine,
   reminderDueLabel,
-  remindersOffer,
-  remindersOfferLabel,
   titularOnlyRowCaption,
   transitBannerLine,
   truncationNote,
@@ -645,6 +641,25 @@ function MoreList({
         label="Credencial pública"
         onPress={() => router.push(publicCredentialRoute(view.publicToken))}
       />
+      {/* THE REMINDERS DOOR, moved here from the card below the document (PO
+            decision 2026-09-16). Both reminder operations — schedule one,
+            delete one that no longer applies — live on `/vacunas`, and this is
+            the only way in. It sits here rather than under an empty card
+            because Más is where somebody looks for an action that is not one
+            of the four on the face, and because a card whose only job was to
+            hold this button still had to draw a title and announce an absence
+            on every healthy animal's document.
+            UNCONDITIONAL, like "Credencial pública" above it. The gates in this
+            list answer "may this person do this"; scheduling a reminder is not
+            gated — `remindersOffer` reads the list only to word the button, and
+            the write does not read the list at all. A row that disappeared when
+            the reminders section failed to load would be a dead end caused by
+            an unrelated read. */}
+      <MoreRow
+        label="Recordatorios de vacunas"
+        accessibilityHint="Programar un recordatorio de vacuna, o eliminar uno que ya no hace falta."
+        onPress={() => router.push(vaccineRemindersRoute(view.publicToken))}
+      />
       {/* LA FOTO — deliberately NOT behind the caretaker gate, matching the
             server's own gate: `POST /pets/{token}/photo` takes any holder
             role, because `titular-only.ts` lists photos among what a
@@ -941,71 +956,53 @@ function Section<T>({
 }
 
 /**
- * THE REMINDERS CARD — the one section below the document that is a DOOR and
- * not only a list, and therefore the one that renders in all three states.
+ * THE REMINDERS CARD — a list, and since 2026-09-16 only a list.
  *
- * The web's "Recordatorios" card offers "+ Programar" whether or not it has
- * rows, and "Eliminar" on each row. This app's writes each live on a route of
- * their own (`asentar`, `mudanza`, `editar`), so both operations live on
- * `/vacunas` and this card is how somebody gets there. That is what breaks the
- * hide-when-empty rule `Section` applies to its siblings: an empty list of
- * reminders is exactly the moment to schedule one, and a card that vanished
- * would take the only affordance with it.
+ * IT USED TO CARRY THE DOOR, and that is why it was the one section exempt
+ * from the hide-when-empty rule its siblings follow: this app's writes each
+ * live on a route of their own, both reminder operations live on `/vacunas`,
+ * and this card held the only button that went there. An empty list of
+ * reminders is exactly the moment to schedule one, so the card could not
+ * vanish without taking the affordance with it.
  *
- * THE UNAVAILABLE ARM STILL OFFERS. The section failing to load says nothing
- * about whether a reminder can be scheduled — the write does not read the list
- * — and a door that closed because a read failed would be a dead end the
- * person cannot see. The refusal is drawn, in its own words, and the button
- * stays under it.
+ * THE DOOR MOVED INTO THE ⋯ Más SHEET (PO decision 2026-09-16), which dissolves
+ * the exemption rather than arguing with it. The PO's report was about weight:
+ * a healthy animal's credential was still followed by a titled box announcing
+ * an absence, which is the exact shape the Avisos strip rule exists to prevent
+ * (AGENTS.md §6, "empty strip → renders nothing"). Más is also where somebody
+ * already looks for an action that is not one of the four on the face, so the
+ * door is more findable there than it was under a card about nothing.
+ *
+ * WHAT DOES NOT CHANGE: the `unavailable` arm still renders. A read that
+ * failed says nothing about whether reminders exist, and a gap where an answer
+ * should be reads as "nothing to report" — the one thing it does not mean.
+ * That is now the only reason this component is not a plain `Section`.
  */
-function RemindersCard({
-  view,
-  publicToken,
-}: {
-  view: OwnerFaceView["reminders"];
-  publicToken: string;
-}) {
-  const router = useRouter();
-  const offer = remindersOffer(view);
-  const door = (
-    <SecondaryButton
-      label={remindersOfferLabel(offer)}
-      accessibilityHint="Programar un recordatorio de vacuna, o eliminar uno que ya no hace falta."
-      onPress={() => router.push(vaccineRemindersRoute(publicToken))}
-    />
-  );
-
+function RemindersCard({ view }: { view: OwnerFaceView["reminders"] }) {
   if (view.state === "unavailable") {
-    return (
-      <View style={styles.stack}>
-        <Unavailable title="Recordatorios" message={view.message} />
-        {door}
-      </View>
-    );
+    return <Unavailable title="Recordatorios" message={view.message} />;
   }
 
   const reminders = view.data;
+  // Nothing scheduled renders NOTHING. The two empty lines this used to draw
+  // (REMINDERS_EMPTY_LINE / REMINDERS_EMPTY_HINT) existed to give the door a
+  // card to sit in; with the door in Más they would be a titled box whose only
+  // content is the news that there is no news.
+  if (reminders.items.length === 0) return null;
+
   const note = truncationNote(reminders.items.length, reminders.total, "recordatorios");
   return (
     <Card title="Recordatorios">
       <View style={styles.stack}>
-        {reminders.items.length === 0 ? (
-          <>
-            <Body>{REMINDERS_EMPTY_LINE}</Body>
-            <Body>{REMINDERS_EMPTY_HINT}</Body>
-          </>
-        ) : (
-          reminders.items.map((reminder) => (
-            <Row
-              key={reminder.reminderId}
-              label={reminder.title}
-              value={reminderDueLabel(reminder.daysUntilDue)}
-            />
-          ))
-        )}
+        {reminders.items.map((reminder) => (
+          <Row
+            key={reminder.reminderId}
+            label={reminder.title}
+            value={reminderDueLabel(reminder.daysUntilDue)}
+          />
+        ))}
         {/* A list that shows some of what exists must SAY so. */}
         {note ? <Body>{note}</Body> : null}
-        {door}
       </View>
     </Card>
   );
@@ -1026,7 +1023,7 @@ export function OwnerExtraSections({ view }: { view: OwnerFaceView }) {
   return (
     <>
       {/* REMINDERS ------------------------------------------------------- */}
-      <RemindersCard view={view.reminders} publicToken={view.publicToken} />
+      <RemindersCard view={view.reminders} />
 
       {/* THE BANNERS ------------------------------------------------------ */}
       {/* The empty test here is NOT symmetric with the others, and the

@@ -220,30 +220,18 @@ export function reminderDueLabel(daysUntilDue: number): string {
 // on the same card — "Programar vacuna" and "Eliminar" — worded as the web
 // words them, validated by the CONTRACT's own schema rather than restated.
 
-/**
- * THE THREE STATES OF "WHAT IS SCHEDULED", kept apart on purpose.
+/* `RemindersOffer`, `remindersOffer` and `remindersOfferLabel` were DELETED on
+ * 2026-09-16 with the door they worded. They existed to label one button — the
+ * card's "Programar vacuna" / "Programar o eliminar" — and to keep `unknown`
+ * apart from `none` so a failed read could not hide that button. The PO moved
+ * the door into the Más sheet, where the row is unconditional and its label is
+ * static, so all three had exactly one consumer left: their own test.
  *
- * `unknown` is NOT `none`. The section can fail to load, and a card that hid
- * the door because a read failed would be a dead end the person cannot see:
- * they would conclude the app cannot schedule a vaccine, when the truth is
- * that the app could not READ the list. The write does not need the list at
- * all, so every one of the three states offers it.
- */
-export type RemindersOffer = "some" | "none" | "unknown";
-
-export function remindersOffer(view: SectionView<OwnerPetRemindersSection>): RemindersOffer {
-  if (view.state === "unavailable") return "unknown";
-  return view.data.items.length === 0 ? "none" : "some";
-}
-
-/**
- * What the face's card offers. With rows on it, the screen behind the button
- * can also delete one, and a label that said only "Programar" would hide the
- * second operation until somebody tapped through.
- */
-export function remindersOfferLabel(offer: RemindersOffer): string {
-  return offer === "some" ? "Programar o eliminar" : "Programar vacuna";
-}
+ * They are removed rather than kept "in case": a function whose only caller is
+ * its test reads as covered code and is dead code, and this repo has paid for
+ * that confusion before. The REASONING survives where it still applies —
+ * RemindersCard's docblock explains why the `unavailable` arm still renders,
+ * which is the same argument `unknown` used to carry. */
 
 /** The web's own empty line on the same card (`PetReminders.tsx`). */
 export const REMINDERS_EMPTY_LINE = "Sin próximas vacunas.";

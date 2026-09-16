@@ -25,8 +25,6 @@ import {
   rehomeBannerLine,
   reminderCancelledMessage,
   reminderDueLabel,
-  remindersOffer,
-  remindersOfferLabel,
   sectionView,
   transitBannerLine,
   truncationNote,
@@ -279,38 +277,6 @@ describe("banners — the two-key public-contact model", () => {
     expect(transitBannerLine(banners({ transit: { canManageFosterActions: false } }))).toContain(
       "web",
     );
-  });
-});
-
-describe("remindersOffer — three states, and unknown is not none", () => {
-  const reminder = {
-    reminderId: "rem-1",
-    title: "Antirrábica anual",
-    dueAt: "2026-10-01T12:00:00.000Z",
-    daysUntilDue: 28,
-    variant: "vacuna",
-    isReportable: true,
-  };
-
-  it("names each state from the section view", () => {
-    expect(
-      remindersOffer({ state: "ok", data: { items: [reminder], total: 1, truncated: false } }),
-    ).toBe("some");
-    expect(remindersOffer({ state: "ok", data: { items: [], total: 0, truncated: false } })).toBe(
-      "none",
-    );
-    expect(remindersOffer({ state: "unavailable", message: SECTION_UNAVAILABLE_MESSAGE })).toBe(
-      "unknown",
-    );
-  });
-
-  it("offers the write in ALL three, and names the second operation only where rows exist", () => {
-    // A door that closed because a read failed would be a dead end the person
-    // cannot see. `unknown` gets the same label as `none`: nothing to delete
-    // that the app can show, but scheduling never needed the list.
-    expect(remindersOfferLabel("some")).toBe("Programar o eliminar");
-    expect(remindersOfferLabel("none")).toBe("Programar vacuna");
-    expect(remindersOfferLabel("unknown")).toBe("Programar vacuna");
   });
 });
 

@@ -218,22 +218,27 @@ export function PetDocumentScreen({
         void load("refresh");
       }, refreshing)}
     >
-      <View style={styles.masthead}>
-        {/* The "Ficha del dueño" eyebrow was deleted on 2026-09-03: an
-            ALL-CAPS mono label floating above the document with no heading
-            under it, saying what the band says two lines lower ("Libreta
-            Sanitaria Nacional / Credencial · frente"). */}
-        {/* The viewer line — a caretaker or a foster reading this document
-            needs to know WHY some things are missing from it; an unexplained
-            gap reads as a bug. It is ABSENT for a titular, whose document is
-            missing nothing: `viewerRoleLabel` returns null there, and this
-            renders no row at all rather than an empty one that would still
-            spend its margins above the credential. Same call as the eyebrow
-            above. */}
-        {view?.viewerLabel == null ? null : (
+      {/* The "Ficha del dueño" eyebrow was deleted on 2026-09-03: an ALL-CAPS
+          mono label floating above the document with no heading under it,
+          saying what the band says two lines lower ("Libreta Sanitaria
+          Nacional / Credencial · frente").
+          The viewer line — a caretaker or a foster reading this document needs
+          to know WHY some things are missing from it; an unexplained gap reads
+          as a bug. It is ABSENT for a titular, whose document is missing
+          nothing: `viewerRoleLabel` returns null there.
+          THE WRAPPER GOES WITH IT, and that is the whole point of this shape.
+          The previous version returned null for the row and kept the <View>,
+          which still spent its own gap and pushed the credential down the
+          screen — a blank band above the document, where the titular used to
+          read a line about themselves they did not need. Reported by the PO on
+          2026-09-16: "empieza un poco más abajo la credencial como si
+          estuviera". An element that renders nothing must also occupy
+          nothing. */}
+      {view?.viewerLabel == null ? null : (
+        <View style={styles.masthead}>
           <Text style={styles.viewerLine}>{view.viewerLabel}</Text>
-        )}
-      </View>
+        </View>
+      )}
 
       <TurningSheet turn={turn}>
         <DocumentChromeNative
