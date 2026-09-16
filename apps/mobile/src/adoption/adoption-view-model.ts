@@ -166,9 +166,13 @@ export function healthRows(
   const { health } = detail;
   return [
     {
-      label: "Vacunación al día",
+      // NOT "al día": hasVaccinations is the presence of a record (see the
+      // docblock above), so one 2019 dose used to render as green "al día" to
+      // an adopter. Mirrors the web's two honest states verbatim
+      // (app/(public)/p/[publicToken]/page.tsx).
+      label: "Vacunación",
       ok: health.hasVaccinations,
-      note: rowNote(health.hasVaccinations),
+      note: health.hasVaccinations ? "Con registros" : "Sin registros",
     },
     { label: "Castración", ok: health.isSterilized, note: rowNote(health.isSterilized) },
     { label: "Microchip miMAR", ok: health.hasMicrochip, note: rowNote(health.hasMicrochip) },

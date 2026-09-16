@@ -630,7 +630,19 @@ export default async function AdoptarFichaPage({
             className="grid grid-cols-1 sm:grid-cols-2 gap-1"
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
-            <HealthRow label="Vacunación al día" ok={hasVaccinations} />
+            {/* "Vacunación al día" was a claim the boolean cannot support: like
+                its two siblings below, `hasVaccinations` is the PRESENCE OF A
+                RECORD, so an animal with one 2019 dose showed a green "al día"
+                to someone deciding whether to adopt. The S1-F13 note below
+                already named this for the absent case and stopped there; the
+                positive case kept the claim. Wording matched to the credential
+                (`app/(public)/p/[publicToken]/page.tsx`), which renders the same
+                field as "Con registros", and to the mobile twin. */}
+            <HealthRow
+              label="Vacunación"
+              ok={hasVaccinations}
+              detail={hasVaccinations ? "Con registros" : undefined}
+            />
             {/* `detail` era `isSterilized ? undefined : undefined` — las dos
                 ramas iguales, o sea codigo muerto. El estado ausente ahora lo
                 dice HealthRow. */}

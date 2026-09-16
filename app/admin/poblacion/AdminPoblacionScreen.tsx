@@ -354,7 +354,7 @@ export async function AdminPoblacionScreen({
 
         {/* KPI 2: Active pregnancies */}
         <OpKpi
-          label="Preñeces activas"
+          label={KPI_CATALOG.active_pregnancies.label}
           value={activePregnancies.toLocaleString("es-AR")}
           // Bug fix (qa-triage-2026-07-23, finding #9): raw enum + column name
           // leaked into operator-facing copy. Localized to match the gob

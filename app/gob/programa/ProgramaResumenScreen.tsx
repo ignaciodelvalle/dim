@@ -582,6 +582,18 @@ export async function ProgramaResumenScreen({
                   {formatTopImpactLine(topImpactSummary, "mandate")}
                 </p>
               )}
+              {/* Denominator honesty (red-team 2026-07-24 #4): the impact
+                  column projects the gap over the ESTIMATED canine population
+                  (census-derived), not the registered padrón — so its
+                  magnitudes dwarf the padrón counts and read as invented
+                  without this label. Duplicated verbatim from the admin twin
+                  (app/admin/programa/page.tsx) on purpose: one shared sentence
+                  is a smaller change than one shared component. */}
+              <p className="text-sm text-ln-op-mute">
+                El impacto proyecta la brecha sobre la población canina <strong>estimada</strong>{" "}
+                (censo INDEC), no sobre el padrón registrado — por eso sus magnitudes superan a las
+                mascotas registradas.
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-md text-ln-op-ink border-collapse">
                   <caption className="sr-only">

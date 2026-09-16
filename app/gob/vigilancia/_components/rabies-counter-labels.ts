@@ -65,7 +65,7 @@ export const RABIES_CASES_KPI_LABEL = KPI_CATALOG.rabies_observation_cases_open.
  * for, so the operator never has to guess which number a question is about.
  */
 export const RABIES_CASES_KPI_CAVEAT =
-  "Cuenta EXPEDIENTES abiertos, no animales. El tile «Brecha de escalamiento» de esta misma pantalla cuenta MASCOTAS con una observación en curso hoy (otra fuente, otra población): los dos números pueden no coincidir y ninguno es el veredicto de plazo legal — ese vive en «Cumplimiento observación 10d».";
+  "Cuenta EXPEDIENTES abiertos, no animales. El tile «Brecha de escalamiento» de esta misma pantalla cuenta MASCOTAS con una observación en curso hoy (otra fuente, otra población): los dos números pueden no coincidir y ninguno es el veredicto de plazo legal — ese vive en «Cumplimiento del plazo de observación».";
 
 /**
  * Sub-line for the bite-escalation tile, naming the PET population so it cannot

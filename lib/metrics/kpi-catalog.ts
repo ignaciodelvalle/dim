@@ -1277,24 +1277,21 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   outbreak_active_signals: {
     id: "outbreak_active_signals",
-    label: "Brotes activos (30 días)",
-    numerator:
-      "COUNT outbreak_signal events with status='open', occurred within the trailing 30 days",
+    label: "Señales de brote (30 días)",
+    numerator: "COUNT outbreak_signal events occurred within the trailing 30 days",
     denominator: "n/a — absolute count",
     source: "pet_events (outbreak_signal)",
     fetcherName: "fetchVigilanciaMetrics (outbreakActiveCount)",
     fetcherPath: "lib/analytics/dashboards/surveillance.ts",
-    cadence:
-      "trailing 30 days ending now — a live open-status snapshot filtered to signals opened within the window",
+    cadence: "trailing 30 days ending now — a flow of signals registered within the window",
     unit: "count",
     suppression: "none",
     caveat:
-      "No delta shown: this is a status snapshot (open/closed), not a period flow — a reopened or newly-closed signal shifts the count independent of 'when' it fired, so a period-over-period comparison would misrepresent a status change as an activity trend (same reasoning documented inline at fetchVigilanciaMetrics' definition site).",
+      "No distingue señales ya resueltas: outbreak_signal no tiene estado de cierre, así que el conteo incluye toda señal registrada en la ventana, esté o no atendida. Es actividad registrada, no brotes vivos.",
     window: "30d",
     species: "n/a",
-    basis: "stock",
-    question:
-      "¿Cuántas señales de brote siguen abiertas ahora mismo, entre las iniciadas en los últimos 30 días?",
+    basis: "flow",
+    question: "¿Cuántas señales de brote se registraron en los últimos 30 días?",
     // No target: there is no legal/programmatic benchmark for "how many
     // active outbreaks are acceptable" — the render site's warn tone on >0
     // is an operational-attention signal, not a target-derived verdict.
@@ -1327,7 +1324,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
   pets_registered_today: {
     id: "pets_registered_today",
     label: "Altas registradas hoy",
-    numerator: "COUNT pets created since local midnight (today, partial day in progress)",
+    numerator: "COUNT pets created since midnight UTC (today, partial day in progress)",
     denominator: "n/a — absolute count",
     source: "pets",
     fetcherName: "fetchVigilanciaMetrics (petsRegisteredToday)",
@@ -1341,7 +1338,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "now",
     species: "all_species",
     basis: "flow",
-    question: "¿Cuántas mascotas se registraron en el sistema desde la medianoche de hoy?",
+    question:
+      "¿Cuántas mascotas se registraron en el sistema desde la medianoche UTC (21:00 ART del día anterior)?",
     semaphore: { paintAgainst: "none" },
   },
 
@@ -1402,7 +1400,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   rabies_observation_compliance_10d: {
     id: "rabies_observation_compliance_10d",
-    label: "Cumplimiento observación rábica (10 días)",
+    label: "Cumplimiento del plazo de observación",
     numerator:
       "COUNT rabies observations (started/ended event pair) that closed within the legal window (10 calendar days by default; jurisdiction-specific via resolveBusinessRule), closed within the ctx period",
     denominator: "COUNT rabies observations closed within the SAME ctx period — null when 0 closed",

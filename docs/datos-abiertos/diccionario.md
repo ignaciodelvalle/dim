@@ -44,8 +44,7 @@ grupos de tamaño ≥ 5, por lo que reconstruir el numerador a partir de
 
 ### 1. `cobertura-antirrabica` — Cobertura de vacunación antirrábica
 
-Porcentaje de perros con vacuna antirrábica vigente por provincia (ventana móvil
-de los últimos 12 meses).
+Porcentaje de perros con vacuna antirrábica vigente por provincia.
 
 | Columna | Tipo | Unidad | Descripción |
 |---|---|---|---|
@@ -54,7 +53,7 @@ de los últimos 12 meses).
 | `perros_registrados` | entero | perros | Población base: perros registrados en la provincia. |
 | `cobertura_antirrabica_pct` | decimal | % (0-100) | Porcentaje de esos perros con vacuna antirrábica vigente. |
 
-- **Cadencia**: instantánea, actualización diaria; ventana móvil de 12 meses.
+- **Cadencia**: actualización diaria. Vigencia según la fecha de próximo refuerzo de la dosis; sin esa fecha, se usa una ventana móvil de 12 meses.
 - **Supresión**: regla de conjuntos de tasa (ver arriba).
 
 ### 2. `cobertura-esterilizacion` — Cobertura de esterilización

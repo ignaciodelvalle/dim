@@ -142,6 +142,7 @@ export function ProvenanceCard({
     );
   };
 
+  const sourceLine = descriptor.source?.trim() ? descriptor.source : null;
   const scopeLine = context?.scopeLabel ?? "Según los filtros de la vista actual.";
   const periodLine =
     context?.periodLabel ?? describeWindowBasisEs(descriptor.window, descriptor.basis);
@@ -185,6 +186,11 @@ export function ProvenanceCard({
 
         <dl className="mt-4 space-y-3">
           <Line term="Fórmula">{provenance.formulaEs}</Line>
+          {/* "Fuente" answers the card's own question one step further back
+              than the formula: which tables/events the number is read from.
+              The descriptor curates it; the line is omitted (never faked)
+              when an entry carries no source string. */}
+          {sourceLine && <Line term="Fuente">{sourceLine}</Line>}
           <Line term="Alcance">{scopeLine}</Line>
           <Line term="Período / base temporal">
             {periodLine}

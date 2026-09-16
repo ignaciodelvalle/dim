@@ -183,11 +183,14 @@ describe("the ficha's health rows", () => {
     expect(castration?.note).toBe("Sin dato");
   });
 
-  it("leaves a confirmed row with nothing extra to say", () => {
+  it("says 'Con registros' for vaccination rather than claiming it is up to date", () => {
+    // hasVaccinations is the PRESENCE OF A RECORD, so "al día" was a claim the
+    // datum cannot support (one 2019 dose rendered green). Mirrors the web's
+    // two states: app/(public)/p/[publicToken]/page.tsx.
     const rows = healthRows(ficha());
-    const vaccines = rows.find((r) => r.label === "Vacunación al día");
+    const vaccines = rows.find((r) => r.label === "Vacunación");
     expect(vaccines?.ok).toBe(true);
-    expect(vaccines?.note).toBeNull();
+    expect(vaccines?.note).toBe("Con registros");
   });
 
   it("never says 'No' about any of the three", () => {

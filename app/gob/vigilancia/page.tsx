@@ -382,15 +382,15 @@ export default async function GobVigilanciaPage({
         className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"
       >
         <OpKpi
-          label="Brotes activos"
+          label={KPI_CATALOG.outbreak_active_signals.label}
           value={formatCount(metrics.outbreakActiveCount)}
           tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
           sparkline={outbreakSparkline.points.map((p) => p.y)}
           href="/gob/vigilancia/brotes"
           info={{
             definition:
-              "Cantidad de señales de brote (outbreak_signal) con estado 'open' en la jurisdicción en los últimos 30 días.",
-            formula: "COUNT(outbreak_signal_opened events, últimos 30d) scoped to jurisdiction",
+              "Señales de brote registradas en la jurisdicción en los últimos 30 días. No distingue señales ya resueltas: el evento no tiene un estado de cierre.",
+            formula: "COUNT(outbreak_signal events, últimos 30d) scoped to jurisdiction",
           }}
           descriptorId="outbreak_active_signals"
         />
@@ -423,8 +423,8 @@ export default async function GobVigilanciaPage({
           value={formatCount(metrics.petsRegisteredToday)}
           info={{
             definition:
-              "Mascotas registradas en el sistema desde las 00:00 hora local de hoy (Arg/Buenos Aires), scoped a la jurisdicción del operador.",
-            formula: "COUNT(pets WHERE created_at >= today midnight ART)",
+              "Mascotas registradas en el sistema desde la medianoche UTC (21:00 ART del día anterior), scoped a la jurisdicción del operador.",
+            formula: "COUNT(pets WHERE created_at >= today midnight UTC)",
           }}
           descriptorId="pets_registered_today"
         />
@@ -495,7 +495,7 @@ export default async function GobVigilanciaPage({
         className="grid grid-cols-2 md:grid-cols-3 gap-3"
       >
         <OpKpi
-          label="Cumplimiento observación 10d"
+          label={KPI_CATALOG.rabies_observation_compliance_10d.label}
           value={rabiesComplianceCopy.value}
           // Painted against the STATUTORY target, per the descriptor's own
           // semaphore.paintAgainst = "target". The previous hand-rolled tone
@@ -514,11 +514,11 @@ export default async function GobVigilanciaPage({
             // jerga interna que un funcionario no puede interpretar. Kept only
             // in code comments below for cross-reference.
             definition:
-              "Porcentaje de observaciones rábicas cerradas dentro del plazo legal de 10 días calendario. Exigido por Ord. CABA 41.831 art. 9 y Decreto 4669/1973 PBA.",
+              "Observaciones cerradas dentro del plazo que fija la normativa de cada jurisdicción (10 días por defecto: Ord. CABA 41.831, Decreto 4669/1973 PBA). La vista nacional usa el plazo por defecto.",
             formula:
-              "rabies_observation_ended con (ended_at − started_at) ≤ 10 días / total cerradas en período",
+              "rabies_observation_ended con (ended_at − started_at) ≤ plazo de la jurisdicción / total cerradas en período",
             caveat:
-              "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo y activan el banner de alerta.",
+              "Las observaciones que superan el plazo de su jurisdicción sin cierre generan un incumplimiento vivo y activan el banner de alerta.",
           }}
           descriptorId="rabies_observation_compliance_10d"
           // valueIsRatio false while a breach is live: rabiesComplianceHeadline

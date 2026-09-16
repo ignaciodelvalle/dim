@@ -533,7 +533,7 @@ export async function PoblacionScreen({
 
         {/* KPI 2: Active pregnancies */}
         <OpKpi
-          label="Preñeces activas"
+          label={KPI_CATALOG.active_pregnancies.label}
           value={activePregnancies.toLocaleString("es-AR")}
           sub="preñez registrada y aún no cerrada"
           tone={activePregnancies > 0 ? "warn" : "neutral"}

@@ -177,6 +177,9 @@ export default async function ObservacionesPage({
           rows={csvRows}
           contextLines={[
             "miMAR · Observaciones antirrábicas — sin datos de dueño/a: el archivo viaja fuera de pantalla",
+            // CSS-8: the export ships exactly the rendered rows, and the query
+            // caps them at OBSERVACIONES_ROW_LIMIT (lib/metrics/observaciones-query.ts).
+            "Máximo 500 filas: el archivo puede estar truncado",
           ]}
         />
       }

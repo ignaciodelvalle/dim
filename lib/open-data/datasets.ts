@@ -108,10 +108,13 @@ export const DATASET_DESCRIPTORS: Record<DatasetId, DatasetDescriptor> = {
   "cobertura-antirrabica": {
     id: "cobertura-antirrabica",
     title: "Cobertura de vacunación antirrábica",
-    summary:
-      "Porcentaje de perros con vacuna antirrábica vigente por provincia (ventana móvil de 12 meses).",
+    summary: "Porcentaje de perros con vacuna antirrábica vigente por provincia.",
     unit: "Una fila por provincia. El grupo protegido son los perros registrados de la provincia.",
-    cadence: "Actualización diaria (instantánea). Ventana móvil de los últimos 12 meses.",
+    // La vigencia la decide rabiesCurrentlyValidCondition (lib/metrics/rabies.ts):
+    // mira next_due_at primero y solo cae a la ventana móvil de 12 meses cuando
+    // esa fecha falta. La metodología publicada decía "12 meses" a secas.
+    cadence:
+      "Actualización diaria. Vigencia según la fecha de próximo refuerzo de la dosis; sin esa fecha, se usa una ventana móvil de 12 meses.",
     columns: [
       COL_PROVINCIA,
       COL_CODIGO_ISO,

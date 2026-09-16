@@ -76,7 +76,9 @@ export const METRIC_LABEL_ALLOWLIST = new Set<string>([
   // app/admin/poblacion/page.tsx vs app/gob/poblacion/page.tsx — same
   // population-control fetchers, national vs jurisdiction-scope wording.
   "Cobertura de esterilización",
-  "Preñeces activas",
+  // "Preñeces activas" removed 2026-09-16: both render sites now take the
+  // catalogued label ("Preñeces en seguimiento") and a getKpiInfo() definition,
+  // so there is no static definition pair left for the scan to compare.
   "Nacimientos registrados",
   "Altas netas registradas",
   // app/admin/programa/page.tsx vs app/gob/programa/page.tsx (+ app/gob/sistema,

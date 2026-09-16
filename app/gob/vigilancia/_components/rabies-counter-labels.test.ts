@@ -60,7 +60,7 @@ describe("rabies counter labels", () => {
     expect(RABIES_CASES_KPI_CAVEAT).toMatch(/expedientes/i);
     expect(RABIES_CASES_KPI_CAVEAT).toMatch(/mascotas/i);
     expect(RABIES_CASES_KPI_CAVEAT).toContain("Brecha de escalamiento");
-    expect(RABIES_CASES_KPI_CAVEAT).toContain("Cumplimiento observación 10d");
+    expect(RABIES_CASES_KPI_CAVEAT).toContain("Cumplimiento del plazo de observación");
     // It must not promise the two counts agree — on live data they do not.
     expect(RABIES_CASES_KPI_CAVEAT).toContain("pueden no coincidir");
   });
