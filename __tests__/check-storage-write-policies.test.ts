@@ -25,12 +25,16 @@ import {
   MIN_WRITE_POLICIES,
   SQL_GLOBS,
   callerFacingWrites,
+  describeConnectionError,
   evaluate,
   inventory,
   isPermissive,
+  liveWriteVerdict,
   normalize,
+  normalizeCatalogPredicate,
   parsePolicy,
   policyStatements,
+  stripOuterParens,
   stripSqlComments,
 } from "@/scripts/check-storage-write-policies";
 
@@ -565,5 +569,466 @@ describe("red controls", () => {
       `${FROZEN_SQL}\ncreate policy "svc" on storage.objects for insert to service_role with check (bucket_id = 'x');`,
     );
     expect(verdict.unfrozen).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The live half - the catalog against the tree
+// ---------------------------------------------------------------------------
+//
+// Offline on purpose, and the split is this repo's own pattern: check-rls-
+// coverage keeps its pure evaluators in a fixture-only file and its catalog
+// assertions in __tests__/rls/, so the evaluator stays testable on a machine
+// with Docker stopped. Everything below is a pure function over literal rows.
+
+describe("normalizeCatalogPredicate - the catalog does not hand back what was typed", () => {
+  // THIS IS THE LOAD-BEARING BLOCK, for a reason that is not obvious: a bug
+  // here does not produce a false green, it produces a fence that reports drift
+  // on a healthy tree every night until somebody switches it off - which is the
+  // same outcome as a false green, arriving later and with more noise.
+
+  it("reduces the catalog's rendering of the two frozen grants to their pinned predicate", () => {
+    // LITERALS, not built from FROZEN_WRITE_GRANTS. A fixture derived from the
+    // constant moves with it, so mutating the constant would kill nothing and
+    // the test would still read as if it were checking something.
+    //
+    // These are what `pg_policies` returns for the two policies db/storage.sql
+    // creates: wrapping parens and an explicit ::text cast, neither of which is
+    // in the source.
+    expect(normalizeCatalogPredicate(null, "(bucket_id = 'pet-photos'::text)")).toBe(
+      "bucket_id = 'pet-photos'",
+    );
+    expect(normalizeCatalogPredicate(null, "(bucket_id = 'event-attachments'::text)")).toBe(
+      "bucket_id = 'event-attachments'",
+    );
+  });
+
+  it("and those reductions are exactly what the frozen set pins", () => {
+    // The bridge assertion: the literals above are only useful if they land on
+    // the pinned text. Widen a frozen predicate and this goes red.
+    expect(normalizeCatalogPredicate(null, "(bucket_id = 'pet-photos'::text)")).toBe(
+      FROZEN_WRITE_GRANTS.pet_photos_authenticated_upload.predicate,
+    );
+    expect(normalizeCatalogPredicate(null, "(bucket_id = 'event-attachments'::text)")).toBe(
+      FROZEN_WRITE_GRANTS.event_attachments_authenticated_upload.predicate,
+    );
+  });
+
+  it("joins using and with check in the parser's order", () => {
+    // An UPDATE policy carries both. The static parser joins its predicate
+    // groups with " and " in source order; if this half joined them the other
+    // way round every UPDATE grant would read as drift.
+    expect(normalizeCatalogPredicate("(bucket_id = 'b'::text)", "(auth.uid() = owner)")).toBe(
+      "bucket_id = 'b' and auth.uid() = owner",
+    );
+  });
+
+  it("an INSERT grant's predicate lives in with_check, and reading only qual would miss it", () => {
+    // Both known holes are INSERT. A scan that read `qual` alone would see them
+    // as having NO predicate - i.e. would report the two measured holes as
+    // something far worse, and be wrong about it.
+    expect(normalizeCatalogPredicate(null, "(bucket_id = 'pet-photos'::text)")).not.toBe("");
+  });
+
+  it("does NOT strip parentheses that belong to the predicate", () => {
+    expect(normalizeCatalogPredicate(null, "((a = 1) or (b = 2))")).toBe("(a = 1) or (b = 2)");
+  });
+
+  it("leaves an unknown cast alone rather than guessing", () => {
+    // Deliberately not a SQL parser. A normaliser that tries to prove two
+    // arbitrary predicates equivalent eventually says yes to two that are not,
+    // and this is the fence that must never do that. A false alarm is the
+    // acceptable direction.
+    expect(normalizeCatalogPredicate(null, "(x = 1::custom_domain)")).toBe("x = 1::custom_domain");
+  });
+
+  it("an absent predicate stays empty - a grant true for everybody", () => {
+    expect(normalizeCatalogPredicate(null, null)).toBe("");
+  });
+
+  it("stripOuterParens is balanced-aware, not a trim", () => {
+    expect(stripOuterParens("((a))")).toBe("a");
+    expect(stripOuterParens("(a) and (b)")).toBe("(a) and (b)");
+    expect(stripOuterParens("(a")).toBe("(a");
+  });
+});
+
+describe("liveWriteVerdict - the catalog judged by the fence's own rule", () => {
+  const declaredPetPhotos = {
+    file: "db/storage.sql",
+    name: "pet_photos_authenticated_upload",
+    kind: "create" as const,
+    command: "insert",
+    roles: ["authenticated"],
+    predicate: "bucket_id = 'pet-photos'",
+  };
+
+  const livePetPhotos = {
+    name: "pet_photos_authenticated_upload",
+    command: "insert",
+    roles: ["authenticated"],
+    qual: null,
+    withCheck: "(bucket_id = 'pet-photos'::text)",
+  };
+
+  it("GREEN: a catalog that agrees with the tree reports nothing", () => {
+    const verdict = liveWriteVerdict([livePetPhotos], [declaredPetPhotos]);
+    expect(verdict.undeclared).toEqual([]);
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.changed).toEqual([]);
+    expect(verdict.liveWrites).toHaveLength(1);
+    expect(verdict.seen).toBe(1);
+  });
+
+  it("THE REGRESSION THAT MATTERS: the deparse shapes that broke the first design", () => {
+    // Measured against the local catalog on 2026-09-17. The first version of
+    // this half compared live text against source text and reported EIGHT
+    // drifted grants on a tree that was correct. These are the two real shapes
+    // it choked on - parentheses around each conjunct, and IN rewritten as
+    // = ANY(ARRAY[...]) with casts, a schema qualification dropped and a
+    // subselect given an alias.
+    //
+    // Both name the caller, so this design counts them and never compares their
+    // text. If somebody later "improves" this into a text comparison again,
+    // this test is what says no.
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "Users can upload own avatar",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck: "(bucket_id = 'avatars') and (auth.uid() = owner)",
+        },
+        {
+          name: "revocations_admin_govt_upload",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck:
+            "(bucket_id = 'revocations') and (exists ( select 1 from profiles p where ((p.id = ( select auth.uid() as uid)) and (p.role = any (array['admin'::user_role, 'govt'::user_role])))))",
+        },
+      ],
+      [
+        {
+          file: "db/migrations/0171_avatars_bucket.sql",
+          name: "Users can upload own avatar",
+          kind: "create" as const,
+          command: "insert",
+          roles: ["authenticated"],
+          predicate: "bucket_id = 'avatars' and auth.uid() = owner",
+        },
+        {
+          file: "db/revocations_storage.sql",
+          name: "revocations_admin_govt_upload",
+          kind: "create" as const,
+          command: "insert",
+          roles: ["authenticated"],
+          predicate:
+            "bucket_id = 'revocations' and exists ( select 1 from public.profiles p where p.id = (select auth.uid()) and p.role in ('admin', 'govt') )",
+        },
+      ],
+    );
+    expect(verdict.undeclared).toEqual([]);
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.changed).toEqual([]);
+    expect(verdict.scoped).toHaveLength(2);
+  });
+
+  it("RED: a caller-facing write grant in the catalog that no file declares", () => {
+    // The defect this whole half exists for. `create policy` typed into a SQL
+    // console leaves no file behind, survives every rebuild of this tree, and
+    // is invisible to every review of it. Fired for real against the local
+    // catalog on 2026-09-17: planted, caught by name, dropped.
+    const verdict = liveWriteVerdict(
+      [
+        livePetPhotos,
+        {
+          name: "hand_applied_upload",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck: "(bucket_id = 'anything'::text)",
+        },
+      ],
+      [declaredPetPhotos],
+    );
+    expect(verdict.undeclared.map((p) => p.name)).toEqual(["hand_applied_upload"]);
+    // And it is caught TWICE, by two independent rules: it is undeclared, and
+    // it cannot name the caller. Either one alone would be enough.
+    expect(verdict.unfrozen.map((p) => p.name)).toEqual(["hand_applied_upload"]);
+  });
+
+  it("RED: a blanket write grant that IS declared but is not one of the frozen two", () => {
+    // The name being in a file is not a defence. A grant that cannot name who
+    // is asking is true for every caller, wherever it was written down.
+    const declaredBlanket = {
+      file: "db/migrations/9999_oops.sql",
+      name: "new_blanket_upload",
+      kind: "create" as const,
+      command: "insert",
+      roles: ["authenticated"],
+      predicate: "bucket_id = 'somewhere'",
+    };
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "new_blanket_upload",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck: "(bucket_id = 'somewhere'::text)",
+        },
+      ],
+      [declaredBlanket],
+    );
+    expect(verdict.undeclared).toEqual([]);
+    expect(verdict.unfrozen.map((p) => p.name)).toEqual(["new_blanket_upload"]);
+  });
+
+  it("RED: a frozen hole widened in the database", () => {
+    // The two frozen grants are load-bearing debts with a ticket on them.
+    // Growing one in place, in a database, without a migration, turns a
+    // measured debt into an unmeasured one.
+    const verdict = liveWriteVerdict(
+      [{ ...livePetPhotos, withCheck: "true" }],
+      [declaredPetPhotos],
+    );
+    expect(verdict.changed).toHaveLength(1);
+    expect(verdict.changed[0]?.livePredicate).toBe("true");
+    expect(verdict.changed[0]?.expected).toBe("bucket_id = 'pet-photos'");
+    expect(verdict.unfrozen).toEqual([]);
+  });
+
+  it("GREEN: a live grant that names the caller is counted, not compared", () => {
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "scoped_upload",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck: "(bucket_id = 'x'::text) and (auth.uid() = owner)",
+        },
+      ],
+      [
+        {
+          file: "db/storage.sql",
+          name: "scoped_upload",
+          kind: "create" as const,
+          command: "insert",
+          roles: ["authenticated"],
+          // Deliberately NOT the same text. It names the caller, so the text is
+          // not the question.
+          predicate: "auth.uid() = owner and bucket_id = 'x'",
+        },
+      ],
+    );
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.changed).toEqual([]);
+    expect(verdict.scoped).toHaveLength(1);
+  });
+
+  it("THE FALSE GREEN THIS FENCE ALMOST SHIPPED: a frozen hole widened with an OR", () => {
+    // Caught in adversarial review, before it was pushed. The first version of
+    // the loop tested for `auth.uid()` BEFORE looking the name up in the frozen
+    // set, which made the pin comparison dead code for any predicate containing
+    // that substring - including the two grants the whole file exists to pin.
+    //
+    // One ALTER in the Supabase SQL editor reopened it, and the widening is not
+    // subtle: `or auth.uid() is not null` takes an INSERT grant from ONE bucket
+    // to EVERY bucket on the instance - revocations, welfare evidence, the
+    // export buckets - while the old order filed it under "names the caller,
+    // leave it alone" and printed a checkmark.
+    //
+    // The asymmetry that made it worse: the STATIC half fails closed on the
+    // same edit (the grant drops out of `permissive`, never reaches `seen`, and
+    // fires `verdict.missing`). The live half failed OPEN on the harder side of
+    // the same rule.
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "event_attachments_authenticated_upload",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck: "((bucket_id = 'event-attachments'::text) OR (auth.uid() IS NOT NULL))",
+        },
+      ],
+      [
+        {
+          file: "db/storage.sql",
+          name: "event_attachments_authenticated_upload",
+          kind: "create" as const,
+          command: "insert",
+          roles: ["authenticated"],
+          predicate: "bucket_id = 'event-attachments'",
+        },
+      ],
+    );
+    expect(verdict.scoped).toEqual([]);
+    expect(verdict.changed).toHaveLength(1);
+    expect(verdict.changed[0]?.expected).toBe(
+      FROZEN_WRITE_GRANTS.event_attachments_authenticated_upload.predicate,
+    );
+  });
+
+  it("RED: a grant that names the caller but NO bucket reaches every bucket on the instance", () => {
+    // The sibling of the hole above. `using (auth.uid() is not null)` says who
+    // is asking and never says where, so it authorises writes into every
+    // bucket. All ten caller-facing write grants this tree declares name their
+    // bucket, so requiring it costs nothing and closes the shape.
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "pet_photos_uploader_update",
+          command: "update",
+          roles: ["authenticated"],
+          qual: "(auth.uid() IS NOT NULL)",
+          withCheck: null,
+        },
+      ],
+      [
+        {
+          file: "db/storage.sql",
+          name: "pet_photos_uploader_update",
+          kind: "create" as const,
+          command: "update",
+          roles: ["authenticated"],
+          predicate: "bucket_id = 'pet-photos' and auth.uid() = owner",
+        },
+      ],
+    );
+    expect(verdict.scoped).toEqual([]);
+    expect(verdict.crossBucket.map((p) => p.name)).toEqual(["pet_photos_uploader_update"]);
+    // Not "undeclared": an ALTER never changes a name, which is exactly why the
+    // name check alone could never have caught this.
+    expect(verdict.undeclared).toEqual([]);
+  });
+
+  it("GREEN: a RESTRICTIVE policy narrows and must never be read as a blanket grant", () => {
+    // `as restrictive ... with check (bucket_id <> 'revocations')` is somebody
+    // CLOSING a hole. It has no auth.uid() and is in no frozen set, so without
+    // the permissive filter the fence would turn the nightly red on a hardening
+    // - and a fence that punishes the right move gets reverted.
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "no_evidence_writes",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck: "(bucket_id <> 'revocations'::text)",
+          permissive: false,
+        },
+      ],
+      [],
+    );
+    expect(verdict.liveWrites).toEqual([]);
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.undeclared).toEqual([]);
+    // Still counted for non-vacuity: the scan did see a row.
+    expect(verdict.seen).toBe(1);
+  });
+
+  it("an absent `permissive` reads as PERMISSIVE, so an unknown row is judged, not waved through", () => {
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "unknown_shape",
+          command: "insert",
+          roles: ["authenticated"],
+          qual: null,
+          withCheck: "(bucket_id = 'x'::text)",
+        },
+      ],
+      [],
+    );
+    expect(verdict.unfrozen.map((p) => p.name)).toEqual(["unknown_shape"]);
+  });
+
+  it("GREEN: a live SELECT policy is not this fence's subject, but still counts", () => {
+    // SELECT stays check-rls-coverage's business. It is counted in `seen`
+    // anyway, because `seen` is the non-vacuity number and a scan that found
+    // only reads still found something.
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "blanket_read",
+          command: "select",
+          roles: ["authenticated"],
+          qual: "(bucket_id = 'x'::text)",
+          withCheck: null,
+        },
+      ],
+      [],
+    );
+    expect(verdict.liveWrites).toEqual([]);
+    expect(verdict.undeclared).toEqual([]);
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.seen).toBe(1);
+  });
+
+  it("GREEN: a service-role-only write grant is not caller-facing", () => {
+    const verdict = liveWriteVerdict(
+      [
+        {
+          name: "svc",
+          command: "insert",
+          roles: ["service_role"],
+          qual: null,
+          withCheck: "(true)",
+        },
+      ],
+      [],
+    );
+    expect(verdict.liveWrites).toEqual([]);
+    expect(verdict.unfrozen).toEqual([]);
+  });
+
+  it("reports a declared name absent from the catalog WITHOUT calling it a failure", () => {
+    // This scan reads `create policy` and `alter policy`, never `drop policy`,
+    // so a grant a later migration dropped is "declared" here and correctly
+    // missing there. It goes in its own list, not in the ones that fail a run.
+    const verdict = liveWriteVerdict([], [declaredPetPhotos]);
+    expect(verdict.absent).toEqual(["pet_photos_authenticated_upload"]);
+    expect(verdict.undeclared).toEqual([]);
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.changed).toEqual([]);
+  });
+
+  it("no vacuity: an empty catalog satisfies every rule here, which is why runCheck fails on seen === 0", () => {
+    // Every assertion above passes trivially against an empty list. The guard
+    // that catches that lives in runCheck, not here - this test exists so
+    // nobody reads the emptiness below as a pass.
+    const verdict = liveWriteVerdict([], []);
+    expect(verdict.seen).toBe(0);
+    expect(verdict.undeclared).toEqual([]);
+    expect(verdict.unfrozen).toEqual([]);
+    expect(verdict.changed).toEqual([]);
+  });
+});
+
+describe("describeConnectionError - a skip that says nothing is a skip nobody investigates", () => {
+  it("prefers the code, because postgres.js raises a connection failure with an EMPTY message", () => {
+    // Measured 2026-09-17 against a closed port: message "", code
+    // "ECONNREFUSED". Reading `message` first printed "could not reach the
+    // database ()" - true, useless, and indistinguishable from a wrong
+    // password or a stopped container.
+    const err = Object.assign(new Error(""), { code: "ECONNREFUSED" });
+    expect(describeConnectionError(err)).toBe("ECONNREFUSED");
+  });
+
+  it("keeps both when both say something", () => {
+    const err = Object.assign(new Error("password authentication failed"), { code: "28P01" });
+    expect(describeConnectionError(err)).toBe("28P01: password authentication failed");
+  });
+
+  it("falls back to the error's name rather than an empty string", () => {
+    expect(describeConnectionError(new Error(""))).toBe("Error");
+  });
+
+  it("survives a throw that is not an Error at all", () => {
+    expect(describeConnectionError("boom")).toBe("boom");
   });
 });

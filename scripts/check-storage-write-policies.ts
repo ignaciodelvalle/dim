@@ -132,6 +132,16 @@
 // Exits 0 when clean; exits 1 naming each offender.
 
 import { globSync, readFileSync } from "node:fs";
+import postgres from "postgres";
+import {
+  DEFAULT_LOCAL_URL,
+  type DbTarget,
+  describeTarget,
+  lines,
+  remoteRemedy,
+  remoteSkipReason,
+  reportSkip,
+} from "./_db-target";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -529,7 +539,449 @@ function listSqlFiles(): string[] {
   return [...seen].sort();
 }
 
-function runCheck(): void {
+// ---------------------------------------------------------------------------
+// THE LIVE HALF - what the CATALOG says, against what the tree declares
+// ---------------------------------------------------------------------------
+//
+// WHY A SECOND HALF AT ALL, when the static one already reads every policy the
+// repo can declare: because it reads every policy the repo CAN declare, and a
+// policy does not have to come from the repo. `create policy` typed into the
+// Supabase SQL editor against staging leaves no file behind. Every fence in
+// this repo that reads `db/**/*.sql` is blind to it, by construction, forever.
+//
+// This repo has already been bitten by the same shape from the other side: a
+// `drop policy` by name reports success and does nothing when the environment
+// was patched by hand, so the migration "applied" and the hole stayed open.
+// Inventory BEFORE, fence AFTER - and this is the fence after.
+//
+// It was also already NAMED as missing, in a workflow that runs every night:
+// `.github/workflows/authz-audit-staging.yml` audits three sibling fences
+// against staging and prints, in its own verdict, "storage policies : not run -
+// check-storage-write-policies.ts has no --allow-remote". That line was a note
+// to whoever came next. This is that work.
+//
+// WHAT THIS HALF DOES NOT DO, and the distinction is the whole design: it does
+// NOT re-run the static rules against a second source. The static half already
+// answers "is a new blanket grant being added to the tree" and answers it
+// before a pull request merges, which is earlier and therefore better. This
+// half answers a question the static one CANNOT ask no matter how good it gets:
+// "is there a caller-facing write grant in that database that nobody wrote
+// down?" A green here is not "the policies are good"; it is "the catalog and
+// the tree agree about which policies exist".
+//
+// WHY IT SKIPS GREEN INSTEAD OF REFUSING RED. This fence is inside `pnpm
+// verify`, which a developer runs with Docker stopped several times a day. The
+// repo has two established contracts for "no database": the verify-chain fences
+// skip and exit 0 (`_db-target.ts`'s `reportSkip`), and `db:doctor`, which is
+// NOT in verify, refuses with exit 2. A fence in verify that refuses would
+// teach everybody to stop running verify. The skip is loud, names the database
+// it would have looked at, and says outright that the run proved nothing about
+// the live catalog - which is the honest form of a check that did not happen.
+
+/** One row of `pg_policies`, narrowed to storage.objects. */
+export type LiveStoragePolicy = {
+  readonly name: string;
+  /** Lower-cased on read, to compare against the parser's own lower-case form. */
+  readonly command: string;
+  readonly roles: readonly string[];
+  readonly qual: string | null;
+  readonly withCheck: string | null;
+  /**
+   * False only for a RESTRICTIVE policy, which NARROWS rather than grants.
+   *
+   * Optional, and absent means permissive - the fail-CLOSED default, because a
+   * row this fence assumes is permissive gets judged, while one it assumes is
+   * restrictive gets waved through. Read from the catalog's `permissive`
+   * column; today no `as restrictive` exists in db/**, so this only matters for
+   * a future hardening, which without it would be reported as a blanket grant
+   * and turn the nightly red on somebody CLOSING a hole.
+   */
+  readonly permissive?: boolean;
+};
+
+/**
+ * `pg_policies` is the VIEW, not `pg_policy` the catalog table, so the columns
+ * are the readable ones (`policyname`, `cmd`, `roles`, `qual`, `with_check`)
+ * rather than `polcmd`/`polroles`. Both `qual` and `with_check` are selected:
+ * an INSERT policy carries its predicate in `with_check` and has no `qual` at
+ * all, so a scan that read only `qual` would see every upload grant in this
+ * repo as having no predicate - i.e. would see the two known holes as
+ * something far worse, and be wrong.
+ */
+export const STORAGE_POLICY_SQL = `
+  select policyname::text  as name,
+         cmd::text         as cmd,
+         permissive::text  as permissive,
+         roles::text[]     as roles,
+         qual,
+         with_check
+  from pg_policies
+  where schemaname = 'storage' and tablename = 'objects'
+  order by policyname
+`;
+
+/**
+ * Strip one or more layers of balanced enclosing parentheses.
+ *
+ * Postgres does not hand back the text that was typed; it hands back its own
+ * deparse of the parsed tree, which wraps predicates in parens the author never
+ * wrote. Known limitation, stated rather than hidden: a string literal
+ * containing an unbalanced parenthesis would confuse the depth count. No
+ * storage predicate in this repo contains one, and a wrong answer here can only
+ * produce a FALSE ALARM (a predicate that fails to match and is reported as
+ * drift), never a false green.
+ */
+export function stripOuterParens(text: string): string {
+  let out = text.trim();
+  while (out.startsWith("(") && out.endsWith(")")) {
+    let depth = 0;
+    let wraps = true;
+    for (let i = 0; i < out.length; i++) {
+      if (out[i] === "(") depth++;
+      else if (out[i] === ")") {
+        depth--;
+        if (depth === 0 && i < out.length - 1) {
+          wraps = false;
+          break;
+        }
+      }
+    }
+    if (!wraps || depth !== 0) break;
+    out = out.slice(1, -1).trim();
+  }
+  return out;
+}
+
+/**
+ * The catalog's rendering of a predicate, reduced to the static side's
+ * comparison form.
+ *
+ * WITHOUT THIS THE FENCE IS A PERMANENT RED, and a permanent red is worse than
+ * no fence: `bucket_id = 'pet-photos'` in db/storage.sql comes back from
+ * `pg_policies` as `(bucket_id = 'pet-photos'::text)`. Same predicate, three
+ * differences - wrapping parens, an explicit cast, and sometimes quoted
+ * identifiers. Comparing those two strings raw reports drift on a tree that is
+ * correct, every single night, until somebody turns the fence off.
+ *
+ * Only the renderings Postgres actually produces are stripped. This is
+ * deliberately NOT a SQL parser: a normaliser that tries to prove two arbitrary
+ * predicates equivalent will eventually say yes to two that are not, and this
+ * fence is the one that must not do that.
+ */
+export function normalizeCatalogPredicate(qual: string | null, withCheck: string | null): string {
+  const parts = [qual, withCheck]
+    .filter((p): p is string => typeof p === "string" && p.trim() !== "")
+    .map((p) =>
+      stripOuterParens(
+        p
+          // `'pet-photos'::text`, `id::uuid` - the deparser's explicit casts.
+          .replace(
+            /::\s*(?:character varying|double precision|timestamp with time zone|timestamp without time zone|text|uuid|bytea|bigint|integer|smallint|numeric|boolean|jsonb|json|date)\b/gi,
+            "",
+          )
+          // `"bucket_id"` - quoting the deparser adds and the author did not.
+          .replace(/"([a-z_][a-z0-9_]*)"/gi, "$1"),
+      ),
+    );
+  // Joined with " and " to match `parsePolicy`, which joins a statement's
+  // `using` and `with check` groups the same way and in the same order.
+  return normalize(parts.join(" and "));
+}
+
+export type LiveVerdict = {
+  /**
+   * A caller-facing write grant in the catalog that NO file in the tree
+   * declares. The defect this whole half exists for: somebody typed `create
+   * policy` into a SQL console and it left no file behind.
+   */
+  undeclared: LiveStoragePolicy[];
+  /**
+   * Live, caller-facing, writes, and CANNOT NAME WHO IS ASKING - the same
+   * definition `isPermissive` applies to the source - and is not one of the two
+   * frozen holes. A blanket write grant sitting in that database.
+   */
+  unfrozen: LiveStoragePolicy[];
+  /**
+   * Names the caller but NOT a bucket, so it reaches every bucket on the
+   * instance. `using (auth.uid() is not null)` is the shape.
+   */
+  crossBucket: LiveStoragePolicy[];
+  /** A frozen hole whose live predicate is not the pinned one. Widened in place. */
+  changed: Array<{ live: LiveStoragePolicy; livePredicate: string; expected: string }>;
+  /**
+   * Declared in the tree, absent from the catalog. REPORTED, NOT FAILED - see
+   * the note in `runCheck`.
+   */
+  absent: string[];
+  /** Caller-facing write policies seen live. */
+  liveWrites: LiveStoragePolicy[];
+  /**
+   * Live caller-facing writes that mention BOTH `auth.uid()` and `bucket_id`.
+   * Counted, never compared - see the header on `liveWriteVerdict` for why, and
+   * for what that leaves uncovered.
+   */
+  scoped: LiveStoragePolicy[];
+  /** Every storage.objects policy of any command. The non-vacuity number. */
+  seen: number;
+};
+
+/**
+ * The catalog, judged by the SAME rule the static half applies to the source.
+ *
+ * THIS WAS DESIGNED TWICE AND THE FIRST DESIGN IS WORTH RECORDING, because it
+ * is the obvious one and it does not work. The first version compared each live
+ * predicate against the text the tree declares, by normalized string equality.
+ * Run against the local catalog on 2026-09-17 it reported EIGHT drifted grants
+ * on a tree that was correct, and zero real findings. Postgres does not hand
+ * back what was typed; it hands back its own deparse of the parsed tree:
+ *
+ *     declared:  bucket_id = 'avatars' and auth.uid() = owner
+ *     catalog:  (bucket_id = 'avatars') and (auth.uid() = owner)
+ *
+ *     declared:  p.role in ('admin', 'govt')
+ *     catalog:   p.role = any (array['admin'::user_role, 'govt'::user_role])
+ *
+ * Seven of the eight were the first shape - parentheses around each conjunct.
+ * The eighth needed IN-to-ANY, schema qualification, and a subselect alias
+ * undone. Chasing them means writing a SQL equivalence prover, and a prover
+ * that gets it wrong in the OTHER direction says two different predicates are
+ * the same, which is the one mistake this fence may not make.
+ *
+ * The tell was in the result itself: the only two grants that did NOT report as
+ * drift were the two frozen ones, whose predicate is a single term with no
+ * `and` and therefore no inner parens. Textual comparison works for exactly the
+ * trivial case and fails everywhere else.
+ *
+ * SO THE RULE HERE IS THE FENCE'S OWN THESIS, not a new one. `isPermissive`
+ * already says that a policy which cannot say `auth.uid()` is a property of the
+ * OBJECT and true for everybody. That test is a substring, immune to every
+ * deparse difference above. A live grant that names the caller is counted and
+ * left alone; a live grant that does not must be one of the two frozen holes,
+ * with the pinned predicate - and those predicates are precisely the trivial
+ * ones that normalize cleanly.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT CATCH, stated so nobody reads the green as
+ * more than it is. A NON-FROZEN policy that keeps both `auth.uid()` and a
+ * `bucket_id` and is widened some other way - `p.role in ('admin','govt')`
+ * quietly becoming `p.role is not null` - passes here. Catching that needs the
+ * prover this function refuses to be, and the honest place for it is a
+ * migration's own assertion, next to the change, not a fence guessing after the
+ * fact.
+ *
+ * The TWO FROZEN grants are not in that gap: their predicate is compared to its
+ * pin on every run, whatever it contains. That is the fix for a false green
+ * this file shipped in review and not in production - the first version checked
+ * for `auth.uid()` before the frozen lookup, which made the comparison dead
+ * code exactly where it mattered most.
+ *
+ * And one limit that is easy to misread as covered: `undeclared` is a NAME
+ * test. `alter policy` never changes a name, and an ALTER is this repo's normal
+ * idiom for changing a predicate - 80 of them live in `db/`. So the name check
+ * can never see a widening; the predicate rules above are the only thing that
+ * can, which is why their order is load-bearing.
+ */
+export function liveWriteVerdict(
+  live: readonly LiveStoragePolicy[],
+  declared: readonly StoragePolicy[],
+): LiveVerdict {
+  const liveWrites = live.filter(
+    (p) =>
+      WRITE_COMMANDS.has(p.command) &&
+      p.roles.some((r) => CALLER_ROLES.has(r)) &&
+      // A RESTRICTIVE policy cannot grant anything - it only narrows what a
+      // permissive one already allows - so judging it by the rules below would
+      // report somebody CLOSING a hole as opening one.
+      p.permissive !== false,
+  );
+
+  // Names only. A name the tree never mentions is the hand-applied grant, and
+  // no amount of deparse difference can disguise a name.
+  //
+  // AND A NAME IS ALL IT IS, which is worth saying out loud because it bounds
+  // the check: `alter policy` never changes a name, and this repo's normal
+  // idiom for changing a predicate IS an ALTER - 80 of them live in `db/`, and
+  // the static half has a thirty-line section and a red control about exactly
+  // that evasion. So `undeclared` cannot see a widening; the two loops below
+  // are what has to.
+  const declaredNames = new Set(declared.map((p) => p.name));
+  const undeclared = liveWrites.filter((p) => !declaredNames.has(p.name));
+
+  const unfrozen: LiveStoragePolicy[] = [];
+  const crossBucket: LiveStoragePolicy[] = [];
+  const changed: LiveVerdict["changed"] = [];
+  const scoped: LiveStoragePolicy[] = [];
+
+  for (const policy of liveWrites) {
+    const predicate = normalizeCatalogPredicate(policy.qual, policy.withCheck);
+
+    // THE FROZEN LOOKUP COMES FIRST, AND THE ORDER IS THE WHOLE POINT.
+    //
+    // The first version of this loop checked for `auth.uid()` before checking
+    // the frozen set, which made the comparison below DEAD CODE for any
+    // predicate containing that substring - including the two grants this
+    // entire file exists to pin. One ALTER reopened it:
+    //
+    //     alter policy "event_attachments_authenticated_upload" on storage.objects
+    //       with check (bucket_id = 'event-attachments' or auth.uid() is not null);
+    //
+    // That widens an INSERT grant from one bucket to EVERY bucket - revocations,
+    // welfare evidence, the export buckets - and the old order filed it under
+    // "names the caller, leave it alone" and printed a checkmark. Caught in
+    // adversarial review before this shipped, not in production.
+    //
+    // The asymmetry that made it worse: the STATIC half fails closed on the
+    // same edit. A frozen grant that gains `auth.uid()` drops out of
+    // `permissive`, never reaches `seen`, and fires `verdict.missing`. The live
+    // half had no counterpart and failed OPEN, silently, on the harder-to-see
+    // side of the same rule.
+    //
+    // It costs nothing in false alarms: the file's own argument is that the two
+    // pinned predicates are the trivial ones that normalize cleanly, and the
+    // measurement backs it - they were the ONLY two grants the abandoned
+    // text-comparison design did not report as drift.
+    const frozen = FROZEN_WRITE_GRANTS[policy.name];
+    if (frozen !== undefined) {
+      const expected = normalize(frozen.predicate);
+      if (predicate !== expected) {
+        changed.push({ live: policy, livePredicate: predicate, expected });
+      }
+      continue;
+    }
+
+    // Not frozen, so it has to clear BOTH bars.
+    //
+    // `auth.uid()` says it can name WHO is asking. `bucket_id` says it can name
+    // WHERE - and without that a grant reaches every bucket on the instance
+    // whatever else its predicate says. All ten caller-facing write grants this
+    // tree declares name their bucket (db/storage.sql, db/revocations_storage.sql,
+    // db/migrations/0171), so requiring it costs nothing today and closes the
+    // sibling of the hole above: `using (auth.uid() is not null)` names the
+    // caller and authorises every object in the instance.
+    const namesCaller = predicate.includes("auth.uid()");
+    const namesBucket = predicate.includes("bucket_id");
+    if (namesCaller && namesBucket) {
+      scoped.push(policy);
+    } else if (namesCaller) {
+      crossBucket.push(policy);
+    } else {
+      unfrozen.push(policy);
+    }
+  }
+
+  const liveNames = new Set(live.map((p) => p.name));
+  const absent = [
+    ...new Set(
+      callerFacingWrites(declared)
+        .map((d) => d.name)
+        .filter((name) => !liveNames.has(name)),
+    ),
+  ].sort();
+
+  return {
+    undeclared,
+    unfrozen,
+    crossBucket,
+    changed,
+    absent,
+    liveWrites,
+    scoped,
+    seen: live.length,
+  };
+}
+
+/** Read the catalog. Returns null when the database could not be reached. */
+/**
+ * A connection failure in a form an operator can act on.
+ *
+ * Exported so the offline test can pin the empty-message case: a skip message
+ * that says nothing is a skip nobody investigates.
+ */
+export function describeConnectionError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const code = (err as { code?: unknown }).code;
+  const parts = [typeof code === "string" ? code : "", err.message].filter((p) => p !== "");
+  return parts.length > 0 ? parts.join(": ") : err.name;
+}
+
+type RawPolicyRow = {
+  name: string;
+  cmd: string;
+  permissive: string | null;
+  roles: string[] | null;
+  qual: string | null;
+  with_check: string | null;
+};
+
+async function fetchLivePolicies(
+  rawUrl: string,
+  target: DbTarget,
+  allowRemote: boolean,
+): Promise<LiveStoragePolicy[] | null> {
+  const sql = postgres(rawUrl, { max: 1, connect_timeout: 5, onnotice: () => {} });
+  let rows: RawPolicyRow[];
+  // ONLY THE QUERY IS INSIDE THE TRY, and the narrowing is deliberate. When the
+  // row mapping was in here too, a renamed pg_policies column or a null `cmd`
+  // came out as "could not reach the database" and exited 0 - a defect wearing
+  // an outage's clothes, on the one fence whose job is to notice. Mapping now
+  // throws past this and reaches the CLI handler, which exits 1.
+  try {
+    rows = (await sql.unsafe(STORAGE_POLICY_SQL)) as unknown as RawPolicyRow[];
+  } catch (err) {
+    // AN EXPLICIT --allow-remote MAKES THIS RED, and that is the whole
+    // difference between the two callers. A developer with Docker stopped never
+    // passes the flag: they get the skip, verify stays green, nobody is taught
+    // to ignore it. The nightly staging job DOES pass it - it was told to audit
+    // that database - so a run that connected to nothing is a failed audit, not
+    // a pass. Without this the workflow's verdict prints "all four authz fences
+    // agree with the live database" over a connection that never happened.
+    if (allowRemote) {
+      console.error(
+        lines(
+          "",
+          "\u2717 check-storage-write-policies: --allow-remote was passed and the database could not be read.",
+          `  Database looked at: ${target.label}`,
+          `  ${describeConnectionError(err)}`,
+          "  This run was told to audit that catalog and did not. Reporting it as a pass would",
+          "  claim an audit that never happened.",
+        ),
+      );
+      await sql.end({ timeout: 1 }).catch(() => {});
+      process.exit(1);
+    }
+    reportSkip({
+      fence: "check-storage-write-policies",
+      // `code` BEFORE `message`, and it is not a preference: postgres.js raises
+      // a connection failure with an EMPTY message and the reason in `code`, so
+      // reading `message` first prints "could not reach the database ()" and
+      // tells an operator nothing about whether the stack is down, the port is
+      // wrong, or the password is stale. Measured 2026-09-17 against a closed
+      // port: message "", code "ECONNREFUSED".
+      reason: `could not reach the database (${describeConnectionError(err)}).`,
+      target,
+      skipped:
+        "  The STATIC half ran and its verdict above stands. What did NOT run: the comparison\n  against the live catalog, so this run says nothing about whether that database carries a\n  write grant nobody wrote down.",
+      remedy: lines(
+        "  Start the local stack with pnpm db:start, or set DATABASE_URL to a reachable database.",
+        "  A DB-less CI box is not a failure - but this run proved nothing about the live catalog.",
+      ),
+    });
+    await sql.end({ timeout: 1 }).catch(() => {});
+    return null;
+  }
+  await sql.end({ timeout: 1 }).catch(() => {});
+
+  return rows.map((r) => ({
+    name: r.name,
+    command: r.cmd.toLowerCase(),
+    // Absent or unrecognised reads as PERMISSIVE - see the field's doc.
+    permissive: (r.permissive ?? "").toUpperCase() !== "RESTRICTIVE",
+    roles: (r.roles ?? []).map((role) => role.toLowerCase()),
+    qual: r.qual,
+    withCheck: r.with_check,
+  }));
+}
+
+export async function runCheck(argv: string[] = []): Promise<void> {
   const files = listSqlFiles();
   const { policies, unparseable, statementCounts } = inventory(files);
   const verdict = evaluate(policies, unparseable);
@@ -643,6 +1095,134 @@ function runCheck(): void {
   console.log(
     `✓ storage write-policy tripwire — ${verdict.writes.length} caller-facing write policy/policies across ${files.length} SQL file(s) (${statementCounts.create} create + ${statementCounts.alter} alter policy statements read); ${verdict.permissive.length} bucket-name-only, all frozen and unchanged (${Object.keys(FROZEN_WRITE_GRANTS).join(", ")}).`,
   );
+
+  // --- the live half -------------------------------------------------------
+  // Runs AFTER the static verdict, never instead of it. The static half is the
+  // one that blocks a pull request; nothing about a database should be able to
+  // stop it from reporting.
+  const allowRemote = argv.includes("--allow-remote");
+  const rawUrl = process.env.DATABASE_URL ?? DEFAULT_LOCAL_URL;
+  const target = describeTarget(rawUrl);
+
+  const remoteSkip = remoteSkipReason(target, allowRemote);
+  if (remoteSkip !== null) {
+    reportSkip({
+      fence: "check-storage-write-policies",
+      reason: remoteSkip,
+      target,
+      skipped:
+        "  The STATIC half ran and its verdict above stands. What did NOT run: the comparison\n  against the live catalog.",
+      remedy: remoteRemedy("reads pg_policies for storage.objects"),
+    });
+    return;
+  }
+
+  const live = await fetchLivePolicies(rawUrl, target, allowRemote);
+  if (live === null) return;
+
+  const liveVerdict = liveWriteVerdict(live, policies);
+  const liveProblems: string[] = [];
+
+  // NON-VACUITY, and it is not decoration. Every other number below is a
+  // comparison against this list; an empty list makes all of them agree
+  // perfectly and print a checkmark. storage.objects has policies in every
+  // environment this fence is pointed at, so zero means the query is wrong or
+  // the stack is not seeded - either way the run judged nothing.
+  if (liveVerdict.seen === 0) {
+    console.error(
+      lines(
+        "",
+        "\u2717 check-storage-write-policies: the catalog reports ZERO policies on storage.objects.",
+        `  Database looked at: ${target.label}`,
+        "  Every comparison below would pass against an empty list, so this is not a green:",
+        "  either the stack is not seeded (pnpm db:bootstrap) or STORAGE_POLICY_SQL no longer",
+        "  matches this Postgres version's pg_policies view.",
+      ),
+    );
+    process.exit(1);
+  }
+
+  for (const policy of liveVerdict.undeclared) {
+    liveProblems.push(
+      lines(
+        `UNDECLARED caller-facing write grant live on storage.objects: "${policy.name}"`,
+        `  command: ${policy.command}   roles: ${policy.roles.join(", ")}`,
+        `  predicate: ${normalizeCatalogPredicate(policy.qual, policy.withCheck) || "(none - true for everybody)"}`,
+        "  No file under db/*.sql or db/migrations/*.sql declares a policy by this name.",
+        "  A grant that exists in the database and in no migration was applied by hand. It will",
+        "  survive every rebuild of this tree and be invisible to every review of it.",
+      ),
+    );
+  }
+
+  for (const policy of liveVerdict.unfrozen) {
+    liveProblems.push(
+      lines(
+        `BLANKET write grant live on storage.objects: "${policy.name}"`,
+        `  command: ${policy.command}   roles: ${policy.roles.join(", ")}`,
+        `  predicate: ${normalizeCatalogPredicate(policy.qual, policy.withCheck) || "(none - true for everybody)"}`,
+        "  It cannot name who is asking, so it is true for every caller and every object in",
+        "  that bucket, and it is not one of the two grants this fence freezes.",
+      ),
+    );
+  }
+
+  for (const policy of liveVerdict.crossBucket) {
+    liveProblems.push(
+      lines(
+        `CROSS-BUCKET write grant live on storage.objects: "${policy.name}"`,
+        `  command: ${policy.command}   roles: ${policy.roles.join(", ")}`,
+        `  predicate: ${normalizeCatalogPredicate(policy.qual, policy.withCheck)}`,
+        "  It names who is asking but never names a bucket, so it authorises writes into EVERY",
+        "  bucket on the instance - revocations, welfare evidence, the export buckets.",
+      ),
+    );
+  }
+
+  for (const { live: policy, livePredicate, expected } of liveVerdict.changed) {
+    liveProblems.push(
+      lines(
+        `FROZEN grant widened in the database: "${policy.name}"`,
+        `  live:   ${livePredicate || "(none - true for everybody)"}`,
+        `  pinned: ${expected}`,
+        "  These two are the known holes and they are load-bearing. Growing one in place, in a",
+        "  database, without a migration, is how a measured debt becomes an unmeasured one.",
+      ),
+    );
+  }
+
+  if (liveProblems.length > 0) {
+    console.error(
+      lines(
+        "",
+        "\u2717 storage write-policy tripwire FAILED against the live catalog",
+        `  Database looked at: ${target.label}`,
+        "",
+        liveProblems.join("\n\n"),
+        "",
+        "  This is NOT a code defect. It means that database carries storage write grants the",
+        "  migration chain does not account for. Fix it in the database, then write the migration",
+        "  that makes the tree say so - in that order, because the hole is open right now.",
+      ),
+    );
+    process.exit(1);
+  }
+
+  // `absent` is REPORTED AND NOT FAILED, deliberately, and the reason is worth
+  // the three lines: this scan reads `create policy` and `alter policy` and does
+  // NOT read `drop policy`. A policy created in an early migration and dropped
+  // in a later one is therefore "declared" here and correctly missing from the
+  // catalog. Failing on that would put this fence in the red on a healthy tree
+  // every night, and a fence that cries wolf gets switched off. The count is
+  // printed so a human reading the nightly summary still sees it.
+  const absentNote =
+    liveVerdict.absent.length > 0
+      ? `; ${liveVerdict.absent.length} declared name(s) not in the catalog (${liveVerdict.absent.join(", ")}) - expected for any grant a later migration dropped, since this scan does not read \`drop policy\``
+      : "";
+
+  console.log(
+    `\u2713 live catalog \u2014 ${liveVerdict.liveWrites.length} caller-facing write policy/policies on storage.objects out of ${liveVerdict.seen} total. ${liveVerdict.scoped.length} mention both auth.uid() and bucket_id (counted, NOT compared - see the header on liveWriteVerdict for what that does not prove); ${Object.keys(FROZEN_WRITE_GRANTS).length} are the frozen grants and match their pinned predicate exactly; every name is declared somewhere in this tree (${target.label})${absentNote}.`,
+  );
 }
 
 // Only run when invoked as a CLI; importing from tests must not exit.
@@ -651,4 +1231,9 @@ const isMain =
   (process.argv[1].endsWith("check-storage-write-policies.ts") ||
     process.argv[1].endsWith("check-storage-write-policies.js"));
 
-if (isMain) runCheck();
+if (isMain) {
+  runCheck(process.argv.slice(2)).catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
