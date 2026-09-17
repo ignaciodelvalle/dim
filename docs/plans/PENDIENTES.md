@@ -478,6 +478,33 @@ abajo con su razón técnica cada uno.
 
 ## 📋 Registro de decisiones del PO (no es cola — es memoria)
 
+### 2026-09-17
+
+- **L-22 — `microchip_remediation` se cierra a mano.** `manualCloseAllowed: true`;
+  el operador lo cierra desde el detalle genérico con un motivo. **Y una decisión
+  que casi fue la contraria**: el PO se inclinaba por retirar el tipo, y preguntó
+  si tenía uso real. Lo tiene, y está vivo — `microchip_replaced` con razón
+  `fraud_detected` o `duplicate_detected` lo abre (`lib/infra/case-attachment.ts`),
+  las dos razones son seleccionables hoy en el formulario de admin y en el de la
+  organización veterinaria, hay una notificación push propia
+  (`microchip_fraud_detected`) y un cuadro en `/gob/usuarios` que cuenta los
+  reemplazos por fraude y por duplicado de los últimos 12 meses. **Las cero filas
+  no dicen que sobre: dicen que nadie declaró fraude de microchip todavía**, que
+  es el estado deseable de un camino de fraude. El argumento que mantiene el
+  cierre manual apagado en brotes —no darle una segunda puerta más débil a un
+  expediente legalmente sensible— no alcanza a una remediación administrativa.
+- **#41 — el detalle de caso gana escalar y asentar nota, en los 12 tipos.** No
+  gana cerrar: el cierre se queda donde cada ciclo de vida ya lo declara. Dos
+  verbos uniformes valen igual para cualquier tipo y no obligan a inventar doce
+  semánticas de cierre, así que la página muerta deja de serlo para todos los
+  tipos en una entrega. El diseño del cierre queda libre para su propia decisión.
+- **Sink de errores del cliente: Sentry.** El motivo que decide no es la
+  comparación de features sino que el proveedor **ya está en juego**: `@sentry/cli`
+  corre en los builds de EAS para subir los sourcemaps del móvil. Elegirlo para el
+  cliente web unifica en una cuenta y un acuerdo de tratamiento de datos, en vez
+  de sumar un segundo proveedor y dos lugares donde mirar. Ver
+  `docs/architecture/client-error-sink-pending-decision.md`.
+
 ### Ratificadas 2026-08-05
 
 - **D4 (HEIC)**: se difiere entero, con la ventana de exposición del GPS

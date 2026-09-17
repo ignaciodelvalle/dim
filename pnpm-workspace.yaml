@@ -83,7 +83,7 @@ virtualStoreDirMaxLength: 60
 # ===========================================================================
 # overrides — versiones parcheadas para dependencias TRANSITIVAS
 # ===========================================================================
-# Ninguno de estos seis es una dependencia directa: los seis llegan arrastrados
+# Ninguno de estos siete es una dependencia directa: los siete llegan arrastrados
 # y sus padres fijan una version con una vulnerabilidad abierta, asi que
 # `pnpm update` no los alcanza (medido: no movio ninguno).
 #
@@ -101,27 +101,64 @@ virtualStoreDirMaxLength: 60
 #             formateador de salida de builds de Expo. El CVE es agotamiento de
 #             CPU parseando YAML; explotarlo pide un YAML hostil en este mismo
 #             repositorio.
-# VITE NO ESTA EN ESTA LISTA, y la ausencia es deliberada y medida. Lo trae
-# vitest, y un override de `^8.0.16` NO SURTE EFECTO: pnpm 11.1.1 lo registra en
-# el lockfile y sigue resolviendo 8.0.13, con override puesto y con
-# `pnpm update vite -r` encima (que ademas movio 40 lineas del lockfile sin
-# tocar vite). No se por que, y declarar un override que no hace nada es peor
-# que no declararlo: el archivo afirmaria algo falso.
+#   esbuild — la linea 0.28 la traen tsx y vite. El aviso es lectura de archivos
+#             arbitraria desde el servidor de desarrollo de esbuild sobre
+#             Windows; 0.28.0 -> 0.28.2 es un parche. La clave lleva version
+#             (`esbuild@0.28`) a proposito: el arbol tiene otras dos lineas de
+#             esbuild y ninguna de las dos debe moverse por esto.
+#   tar     — la trae el CLI de supabase para desempaquetar sus binarios. Dos
+#             avisos: confusion de tipos numericos PAX (cuelga el parser) y un
+#             diferencial de interpretacion que permite contrabandear archivos.
+#             7.5.13 -> 7.5.22 se queda dentro de la misma minor.
 #
-# Que se pierde mientras tanto, dicho entero: el CVE es un bypass de
-# `server.fs.deny` en el servidor de DESARROLLO sobre Windows. No hay vite en
-# produccion — ni en el build ni en el runtime de la web ni en el movil.
+# ===========================================================================
+# VITE NO ESTA EN ESTA LISTA, Y NO ES PORQUE NO SE ARREGLE
+# ===========================================================================
+# Su aviso era la ultima "alta" abierta del repositorio. Esta cerrado — pero
+# NO con un override, porque sobre vite un override no surte efecto. Eso ya
+# estaba medido; lo que faltaba era la causa, y la causa cambia el arreglo:
 #
-# Donde corresponde arreglarlo: con el bump de vitest (PR #790, abierto), que
-# es quien fija el rango. Perseguirlo con un override significa pelearle a la
-# resolucion del corredor de pruebas del que depende toda la verificacion de
-# este repo, para cerrar un agujero que no toca a ninguna persona usuaria.
+# vite es una PEER dependency de @vitejs/plugin-react, de vitest y de
+# @vitest/mocker. pnpm 11.1.1 aplica el override al RANGO DECLARADO — el
+# lockfile muestra `vite: ^8.0.16` dentro de los peerDependencies de
+# @vitejs/plugin-react — pero NO vuelve a resolver un peer ya resuelto para
+# satisfacer el rango que acaba de reescribir. Queda 8.0.13, violando el rango
+# que el propio override escribio. Un override ahi es una afirmacion falsa con
+# forma de arreglo, y por eso se saco de la lista en vez de dejarlo puesto.
 #
-# Se arreglan los seis igual: la distincion cambia que se verifica con cuanto
-# cuidado, no si se arregla.
+# EL ARREGLO ES DECLARARLO DIRECTO. `vite` es ahora devDependency de la raiz en
+# `~8.0.16`. Deja de ser un peer que nadie eligio y pasa a ser una version que
+# este repo elige — que es lo que era de hecho, porque toda su verificacion
+# corre sobre el bundler de vitest. El rango es `~` y no `^` a proposito: con
+# `^` pnpm resolvia 8.3.0, dos minors de cambio sin relacion con el aviso
+# dentro de la herramienta que compila cada test. `~` toma el parche que cierra
+# el aviso y nada mas. Medido: el arbol tiene UNA sola copia, 8.0.16.
+#
+# CORRECCION A LO QUE AFIRMABA ESTE MISMO ARCHIVO, que es la parte que importa
+# para la proxima vez: decia que el arreglo llegaba con el bump de vitest del
+# PR #790, "que es quien fija el rango". Las dos mitades eran falsas. Vitest
+# 4.1.11 declara `^6.0.0 || ^7.0.0 || ^8.0.0`, o sea no fija nada; y la rama del
+# PR, medida, sigue resolviendo 8.0.13. Mergear #790 no habria cerrado el aviso.
+# La leccion es la de siempre en este archivo: razonar correctamente sobre la
+# propiedad equivocada. "Quien lo trae" no es "quien lo fija".
+#
+# ===========================================================================
+# LO QUE QUEDA ABIERTO A PROPOSITO
+# ===========================================================================
+#   esbuild 0.18.20 — llega por @esbuild-kit/core-utils <- @esbuild-kit/esm-loader
+#     <- drizzle-kit. El aviso (<= 0.24.2) es del modo `serve` de esbuild, que
+#     drizzle-kit no usa: lo usa para transpilar archivos de configuracion. Ir
+#     de 0.18 a 0.25 atraviesa siete minors dentro de un paquete ABANDONADO
+#     (@esbuild-kit se fusiono en tsx) para cerrar un camino que no se ejecuta.
+#     Se cierra solo el dia que drizzle-kit suelte esm-loader.
+#
+# Se arreglan igual los que se pueden. La distincion de arriba cambia cuanto
+# cuidado merece verificar cada uno, no si se arregla.
 overrides:
   sharp: ^0.35.4
   undici: ^7.29.0
   postcss: ^8.5.26
   js-yaml@3: ^3.15.2
   js-yaml@4: ^4.3.2
+  esbuild@0.28: ^0.28.1
+  tar: ^7.5.18
