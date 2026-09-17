@@ -868,7 +868,7 @@ export default async function GobiernoDashboardPage({
                 "Sin datos en el período"
               )
             }
-            sparkline={rabiesVaxTrend.points.map((p) => p.y)}
+            sparkline={rabiesVaxTrend.points}
             // F9 (2026-08-01): was /gob/analytics — a generic destination that
             // does not render this KPI at all. What it DOES render is
             // rabies_vaccination_rate_all_species, the deliberately-distinct
@@ -891,7 +891,7 @@ export default async function GobiernoDashboardPage({
                 ? { value: sterilizations.deltaPct, period: "vs mes ant." }
                 : undefined
             }
-            sparkline={sterilizationTrend.points.map((p) => p.y)}
+            sparkline={sterilizationTrend.points}
             // Dual-lens disclosure (T1): vet-signed portion alongside the
             // declared count (omitted at 0 events — no lens over nothing).
             sub={
@@ -929,7 +929,7 @@ export default async function GobiernoDashboardPage({
                   }
                 : undefined
             }
-            sparkline={bitesTrend.points.map((p) => p.y)}
+            sparkline={bitesTrend.points}
             sub={
               bitesPer10k.percapitaEligible
                 ? `${formatCount(bitesPer10k.reports)} reportes`
@@ -964,7 +964,7 @@ export default async function GobiernoDashboardPage({
                   }
                 : undefined
             }
-            sparkline={zoonosisTrend.points.map((p) => p.y)}
+            sparkline={zoonosisTrend.points}
             sub="observaciones en curso"
             href="/gob/vigilancia"
             info={getKpiInfo("open_rabies_observations")}

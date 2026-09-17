@@ -17,6 +17,10 @@ function row(
   metric: OutlierRow["metric"],
   rate: number,
   target: number,
+  // The base the rate was divided by (OutlierRow.denominator). This module only
+  // normalizes and averages RATES, so the value is irrelevant to every
+  // assertion below — it has to be present and >= K_ANON_MIN, and that is all.
+  denominator = 100,
 ): OutlierRow {
   return {
     province,
@@ -25,6 +29,7 @@ function row(
     target,
     gap: Math.round((target - rate) * 10) / 10,
     isOutlier: rate < target,
+    denominator,
   };
 }
 

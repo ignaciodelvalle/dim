@@ -158,12 +158,22 @@ export type PanoramaKpi = {
   /** Period-over-period delta — only on window-sensitive KPIs (map-QOL). */
   delta?: KpiDelta;
   /**
-   * v+1 rail: inline sparkline series (chronological values, no keys/labels) —
+   * v+1 rail: inline sparkline series (chronological buckets, no keys/labels) —
    * fed straight into OpKpi's `sparkline` prop. Only set on the window-sensitive
    * KPIs with a matching trend fetcher in lib/metrics/trends (cobertura,
    * mordeduras, zoonosis). Same visual language as /gob home's KPI tiles.
+   *
+   * SUPPRESSED ≠ ZERO: this used to be `number[]`, built with
+   * `trend.points.map((p) => p.y)`, and that projection silently dropped the
+   * `suppressed` flag that `suppressSmallBuckets` puts on a k-anon-masked
+   * bucket — so a masked 1..k-1 bucket (carried as `y: 0`) drew as a dip to the
+   * floor with nothing saying so. The whole point now travels.
+   *
+   * Declared STRUCTURALLY rather than by importing OpKpi's `SparklinePoint`:
+   * this is the application layer and it must not depend on a React component.
+   * The shape is the contract; the assignment is checked at the render site.
    */
-  sparkline?: number[];
+  sparkline?: Array<{ y: number; suppressed?: true }>;
   /**
    * Overrides the sparkline's a11y description when what it PLOTS differs
    * from the tile's headline metric — e.g. `cobertura`'s headline is a
@@ -748,7 +758,7 @@ export async function getPanoramaKpis(
       // Enrichment guards: a rejected prior-window / trend fetcher drops the delta
       // / sparkline adornment rather than the whole tile (per-tile degradation).
       delta: priorCoverage ? deltaOf(coverage.current, priorCoverage.current, "pts") : undefined,
-      sparkline: rabiesVaxTrend ? rabiesVaxTrend.points.map((p) => p.y) : undefined,
+      sparkline: rabiesVaxTrend ? rabiesVaxTrend.points : undefined,
       // Honesty fix (Panorama audit): the headline is a % coverage RATE, but the
       // sparkline plots per-bucket vaccination VOLUME — say so, not "Cobertura".
       sparklineLabel: "vacunación antirrábica registrada (volumen, no el % de cobertura)",
@@ -912,7 +922,7 @@ export async function getPanoramaKpis(
       source: "govt-home-kpis.fetchBitesPer10k",
       delta:
         bites.percapitaEligible && priorBites ? deltaOf(bites.rate, priorBites.rate) : undefined,
-      sparkline: bitesTrend ? bitesTrend.points.map((p) => p.y) : undefined,
+      sparkline: bitesTrend ? bitesTrend.points : undefined,
       // Honesty label (dataviz review 2026-07-23): when the headline is the
       // per-10k RATE, the sparkline still plots raw report COUNTS
       // (fetchBitesTrend applies no census denominator) — same class as the
@@ -955,7 +965,7 @@ export async function getPanoramaKpis(
       source: "repository.loadZoonosisSignalScopeTotal",
       delta:
         priorZoonosisSignals != null ? deltaOf(zoonosisSignals, priorZoonosisSignals) : undefined,
-      sparkline: zoonosisTrend ? zoonosisTrend.points.map((p) => p.y) : undefined,
+      sparkline: zoonosisTrend ? zoonosisTrend.points : undefined,
       info: {
         definition:
           "PRIMARIO: señales de zoonosis (eventos outbreak_signal) registradas en el período y alcance seleccionados — la MISMA población que dibuja el mapa y lista Registros; se mueve con la línea de tiempo. SECUNDARIO (activas hoy): total de señales zoonóticas activas de estado actual: mascotas con observación rábica en curso + casos bite_incident abiertos (deduplicados) + leptospirosis/hidatidosis de los últimos 30 días — un stock que no depende del período.",

@@ -211,7 +211,7 @@ describe("program-health — tsc shape contracts (no DB)", () => {
     expect(typeof shape.completenessPct).toBe("number");
   });
 
-  it("OutlierRow type contract: has province, metric, rate, target, gap, isOutlier", () => {
+  it("OutlierRow type contract: province, metric, rate, target, gap, isOutlier, denominator", () => {
     const shape = {
       province: "Buenos Aires",
       metric: "rabies" as const,
@@ -219,9 +219,18 @@ describe("program-health — tsc shape contracts (no DB)", () => {
       target: 80,
       gap: 15,
       isOutlier: true,
+      // The base the rate was divided by. It rides along so a consumer can
+      // multiply the gap by the population that gap is a fraction of, instead
+      // of reaching for whatever population is nearby — which is what the two
+      // programa screens did, applying a CANINE census estimate to two
+      // ALL-SPECIES metrics (metric-honesty audit, PO 2026-09-16).
+      denominator: 400,
     } satisfies OutlierRow;
     expect(shape.isOutlier).toBe(true);
     expect(shape.gap).toBe(shape.target - shape.rate);
+    // 65% of 400 dogs are vaccinated; the target is 80%. The gap the impact
+    // column reports is therefore (80-65)/100 * 400 = 60 real registered dogs.
+    expect(Math.round(((shape.target - shape.rate) / 100) * shape.denominator)).toBe(60);
   });
 
   it("OutlierRow metric union covers exactly {rabies, sterilization, microchip}", () => {

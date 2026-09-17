@@ -333,7 +333,7 @@ export default async function GobMortalidadPage({
             // posture as PanoramaKpiTile's never-valence delta).
             hasDeaths && deathsDelta ? { ...deathsDelta, valence: "neutral" as const } : undefined
           }
-          sparkline={deathSparkline.points.map((p) => p.y)}
+          sparkline={deathSparkline.points}
           info={{
             definition:
               "Total de eventos death_recorded registrados en el período y jurisdicción seleccionados.",

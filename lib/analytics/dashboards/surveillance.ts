@@ -16,6 +16,8 @@ import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { suppressSmallCells } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
+import { parseArDateStartOfDay } from "@/lib/utils/date-input-ar";
+import { isoDateInAr } from "@/lib/utils/format";
 import { EPIDEMIOLOGICAL_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 import { aggregateRowsByDepartment } from "../subregion-aggregate";
 import type { SubregionCaseCount } from "../subregion-redaction";
@@ -213,8 +215,10 @@ export type VigilanciaMetrics = {
   outbreakActiveCount: number;
   /** cases where caseKind='rabies_observation' AND status='open'. */
   rabiesActiveCount: number;
-  /** pets in scope created today, counted from midnight UTC — which is 21:00
-   *  ART of the previous day. See `todayStart` below; the copy says so too. */
+  /** pets in scope created today, counted from 00:00 of the ARGENTINE calendar
+   *  day (metric-honesty audit, PO 2026-09-16 — this used to be midnight UTC,
+   *  i.e. 21:00 ART of the previous day, so the tile carried three hours of
+   *  yesterday every evening). See `todayStart` below; the copy says so too. */
   petsRegisteredToday: number;
   /** pet_events where event_type='vaccination_administered' in scope, last 7 days. */
   vaccinationsThisWeek: number;
@@ -297,9 +301,36 @@ export async function fetchVigilanciaMetrics(
   const now = Date.now();
   const since30d = new Date(now - 30 * DAY_MS);
   const since7d = new Date(now - 7 * DAY_MS);
-  // "Today" starts at midnight UTC to match server-side time. If the project
-  // later moves to AR timezone, change this to use startOf('day', 'America/Argentina/Buenos_Aires').
-  const todayStart = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  // "Hoy" is the ARGENTINE calendar day (metric-honesty audit, PO 2026-09-16).
+  //
+  // This line used to build midnight UTC, with a comment inviting exactly this
+  // change. Midnight UTC is 21:00 ART of the PREVIOUS day, so every evening
+  // between 21:00 and 24:00 the "Altas registradas hoy" tile silently carried
+  // three hours of yesterday — and an operator reading it at 22:00 got a number
+  // that could not be reconciled with anything they would call "hoy".
+  //
+  // Composed from the two canonical helpers rather than rebuilt here:
+  // `isoDateInAr` decides WHICH Argentine calendar day it is (Intl pinned to
+  // AR_TIME_ZONE inside lib/utils/format.ts, the one module allowed raw Intl),
+  // and `parseArDateStartOfDay` turns that day into its FIRST instant. Both are
+  // already unit-tested; a third spelling of "start of the Argentine day" here
+  // would be the second source of truth this repo keeps paying for.
+  //
+  // ON DST, because the offset inside `parseArDateStartOfDay` is an assumption
+  // and assumptions deserve an expiry note: Argentina has observed no DST since
+  // 2009 and sits at UTC-3 year-round, which is why that helper can hardcode
+  // `-03:00`. If Argentina ever reintroduces DST, the day-selection half here is
+  // ALREADY correct (it goes through the IANA zone), and the only wrong half
+  // would be the fixed offset — which lives in ONE place, `date-input-ar.ts`.
+  // Fix it there; do not add a zone-aware branch at this call site, or the next
+  // window built from the helper will still be an hour off on switch days while
+  // this one is right.
+  //
+  // The `??` fallback is unreachable and stays for the type, mirroring the same
+  // pattern (and the same reasoning) in app/api/v1/me/caretaker-grants/commands.ts:
+  // `isoDateInAr` emits en-CA "YYYY-MM-DD", which is exactly the shape
+  // `parseArDateStartOfDay` accepts, so it never answers null here.
+  const todayStart = parseArDateStartOfDay(isoDateInAr(new Date(now))) ?? new Date(now);
 
   // 1. Count outbreak_signal events from the last 30 days scoped to user.
   //    NOT "open": there is no open/closed notion on this event.

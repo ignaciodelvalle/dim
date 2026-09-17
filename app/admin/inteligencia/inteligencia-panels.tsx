@@ -32,13 +32,13 @@ import {
 import { computeJurisdictionIndex } from "@/lib/analytics/territorial-index";
 import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import {
-  NO_CENSUS_NOTE,
+  NO_POPULATION_NOTE,
   TARGETS,
   type fetchCrossJurisdictionOutliers,
   formatImpactUnits,
   totalImpactByJurisdiction,
 } from "@/lib/metrics";
-import { estimateDogPopulation, type getCensusPopulationsCached } from "@/lib/metrics/census";
+
 import { KPI_CATALOG, type KpiId } from "@/lib/metrics/kpi-catalog";
 import { formatDateShort, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
@@ -59,11 +59,15 @@ export type IntelSearchParams = {
 };
 
 type OutlierRows = Awaited<ReturnType<typeof fetchCrossJurisdictionOutliers>>;
-type CensusPopulations = Awaited<ReturnType<typeof getCensusPopulationsCached>>;
 type PolicyRows = Awaited<ReturnType<typeof fetchPolicyOutcomes>>;
 type Quality = Awaited<ReturnType<typeof fetchProvinceDataQuality>>;
 
-export type IndexLoad = Promise<AnalyticsLoad<[OutlierRows, CensusPopulations]>>;
+// Was `[OutlierRows, CensusPopulations]`. The census half existed only to feed
+// `estimateDogPopulation` into the impact column, which was the wrong
+// denominator for two of the three metrics it multiplied (metric-honesty audit,
+// PO 2026-09-16); with the impact now counted over each row's own measured
+// denominator, nothing on this screen reads the census at all.
+export type IndexLoad = Promise<AnalyticsLoad<OutlierRows>>;
 export type PolicyLoad = Promise<AnalyticsLoad<PolicyRows>>;
 export type QualityLoad = Promise<AnalyticsLoad<Quality>>;
 
@@ -226,7 +230,7 @@ export async function IntelIndexKpis({ load }: { load: IndexLoad }) {
       </>
     );
   }
-  const [outlierRows] = result.value;
+  const outlierRows = result.value;
   const indexRows = computeJurisdictionIndex(outlierRows);
   const nationalAvg =
     indexRows.length > 0
@@ -360,19 +364,26 @@ export async function IntelIndexPanel({
       </div>
     );
   }
-  const [outlierRows, censusPopulations] = result.value;
+  const outlierRows = result.value;
   const indexRows = computeJurisdictionIndex(outlierRows);
 
-  // PO-interview decision 2, item 1 — same gap×población lens as /gob/programa
+  // PO-interview decision 2, item 1 — same gap x población lens as /gob/programa
   // + /admin/programa, applied to the territorial index's own composite: a
   // second sort so "which province matters most" is answerable here too,
   // without displacing the index's own score-based ranking as the default.
+  //
+  // `population` is each row's OWN measured denominator (metric-honesty audit,
+  // PO 2026-09-16). It used to be `estimateDogPopulation(censusPopulations[...])`
+  // for all three metrics, and this screen SUMS the three per province — so the
+  // sum added an all-species chip gap and an all-species esterilización gap,
+  // both scaled by a canine population, to a genuinely canine antirrábica gap.
+  // Three numbers on two different scales in one total.
   const impactTotals = totalImpactByJurisdiction(
     outlierRows.map((row) => ({
       ...row,
       jurisdiction: row.province,
       coverage: row.rate,
-      population: estimateDogPopulation(censusPopulations[row.province] ?? 0),
+      population: row.denominator,
     })),
   );
   const impactByProvince = new Map<string, number | null>(
@@ -380,14 +391,14 @@ export async function IntelIndexPanel({
   );
   // Map.get() already returns `undefined` for a province with no gap at all
   // (never registered in impactTotals) — NEVER collapse that into the SAME
-  // `null` totalImpactByJurisdiction uses for "gap exists, no census row".
+  // `null` totalImpactByJurisdiction uses for "gap exists, no population".
   // Those are two different honest states (see the table's legend below).
   const indexRowsWithImpact = indexRows.map((row) => ({
     ...row,
     impact: impactByProvince.get(row.province),
   }));
   const sortByImpact = sp.ordenar === "impacto";
-  // Impact-sorted view: known-impact rows desc, then unknown (no census/no
+  // Impact-sorted view: known-impact rows desc, then unknown (no population/no
   // gap) rows at the end, alphabetically — same guard posture as
   // lib/metrics/impact-ranking.ts's rankByImpact, applied here to a list that
   // ALREADY carries a score/rank from computeJurisdictionIndex (never
@@ -460,8 +471,8 @@ export async function IntelIndexPanel({
           <div className="overflow-x-auto">
             <table className="w-full text-md text-ln-op-ink border-collapse">
               <caption className="sr-only">
-                Ranking de provincias por {sortByImpact ? "impacto estimado" : "índice compuesto"}{" "}
-                de cumplimiento de metas, de mayor a menor.
+                Ranking de provincias por {sortByImpact ? "impacto" : "índice compuesto"} de
+                cumplimiento de metas, de mayor a menor.
               </caption>
               <thead>
                 <tr className="border-b border-ln-op-line">
@@ -532,7 +543,7 @@ export async function IntelIndexPanel({
                       {row.impact === undefined
                         ? "—"
                         : row.impact === null
-                          ? NO_CENSUS_NOTE
+                          ? NO_POPULATION_NOTE
                           : `~${formatImpactUnits(row.impact)}`}
                     </td>
                   </tr>
@@ -540,10 +551,12 @@ export async function IntelIndexPanel({
               </tbody>
             </table>
             <p className="mt-2 text-xs text-ln-op-mute">
-              Impacto = estimación de mascotas sin cobertura (gap × población canina estimada),
-              sumada entre las tres métricas de la provincia. «{NO_CENSUS_NOTE}» = sin fila de censo
-              INDEC para esa provincia; — = provincia sin brecha (cumple las tres metas). Índice =
-              promedio con pesos iguales del cumplimiento de metas: antirrábica (
+              Impacto = registros del padrón sin cobertura (brecha × la base con la que se calcula
+              cada cobertura: mascotas activas en chip y esterilización, perros activos en
+              antirrábica), sumado entre las tres métricas de la provincia. Es un piso medido, no
+              una proyección sobre la población estimada del territorio. «{NO_POPULATION_NOTE}» =
+              sin base de cálculo para esa provincia; — = provincia sin brecha (cumple las tres
+              metas). Índice = promedio con pesos iguales del cumplimiento de metas: antirrábica (
               {TARGETS.RABIES_COVERAGE_PCT}%), esterilización ({TARGETS.STERILIZATION_COVERAGE_PCT}
               %) y chip ({TARGETS.MICROCHIP_PENETRATION_PCT}%). * = índice parcial (2 de 3
               componentes; antirrábica omitida cuando hay menos de 5 perros). Provincias con menos

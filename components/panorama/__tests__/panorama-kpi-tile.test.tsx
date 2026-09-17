@@ -32,7 +32,11 @@ const COBERTURA_KPI: PanoramaKpi = {
   href: "/gob/programa?vista=resumen#gob-programa-outliers-titulo",
   source: "govt-home-kpis.fetchRabiesCoverage",
   info: { definition: "def" },
-  sparkline: [60, 65, 68, 70, 72],
+  // Un punto entero por bucket, no sólo el número: el flag `suppressed` que
+  // pone suppressSmallBuckets viaja con él (metric-honesty audit, PO 2026-09-16).
+  // La proyección `.map((p) => p.y)` que había antes en get-panorama-kpis.ts lo
+  // borraba, y un bucket enmascarado se dibujaba como una caída al piso.
+  sparkline: [{ y: 60 }, { y: 65 }, { y: 68 }, { y: 70 }, { y: 72 }],
   delta: { pct: 12, unit: "pct", direction: "up", label: "+12% vs período anterior" },
 };
 

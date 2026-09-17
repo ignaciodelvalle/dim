@@ -1324,13 +1324,14 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
   pets_registered_today: {
     id: "pets_registered_today",
     label: "Altas registradas hoy",
-    numerator: "COUNT pets created since midnight UTC (today, partial day in progress)",
+    numerator:
+      "COUNT pets created since 00:00 ART today (Argentine calendar day, partial day in progress)",
     denominator: "n/a — absolute count",
     source: "pets",
     fetcherName: "fetchVigilanciaMetrics (petsRegisteredToday)",
     fetcherPath: "lib/analytics/dashboards/surveillance.ts",
     cadence:
-      "since midnight UTC today — a partial, still-accumulating day, not a completed 24h window",
+      "since 00:00 ART today (Argentina is UTC-3 year-round, no DST) — a partial, still-accumulating day, not a completed 24h window",
     unit: "count",
     suppression: "none",
     caveat:
@@ -1339,7 +1340,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     species: "all_species",
     basis: "flow",
     question:
-      "¿Cuántas mascotas se registraron en el sistema desde la medianoche UTC (21:00 ART del día anterior)?",
+      "¿Cuántas mascotas se registraron en el sistema desde la medianoche argentina (00:00 ART de hoy)?",
     semaphore: { paintAgainst: "none" },
   },
 

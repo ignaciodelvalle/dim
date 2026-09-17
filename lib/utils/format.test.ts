@@ -22,6 +22,7 @@ import {
   formatDiasAgo,
   formatPercent,
   formatRate,
+  isoDateInAr,
   notificationTypeLabel,
   nowLocalDatetimeInAr,
   parseArDatetimeLocal,
@@ -527,6 +528,60 @@ describe("parseArDateStartOfDay / parseArDateEndOfDay", () => {
     expect(parseArDateStartOfDay("")).toBeNull();
     expect(parseArDateEndOfDay("15/09/2026")).toBeNull();
     expect(parseArDateStartOfDay("2026-13-45")).toBeNull();
+  });
+});
+
+// The "Altas registradas hoy" window (`todayStart` in
+// lib/analytics/dashboards/surveillance.ts) is built by COMPOSING these two
+// helpers — `isoDateInAr` picks the Argentine calendar day, `parseArDateStartOfDay`
+// turns it into that day's first instant — and the composition is the part that
+// needed pinning: each half was already correct on its own while the call site
+// was wrong.
+//
+// Before the metric-honesty fix (PO 2026-09-16) that call site anchored on
+// midnight UTC, and the interesting part is that it was wrong in BOTH
+// directions depending on the hour. During the Argentine day it began at 21:00
+// ART of YESTERDAY and over-counted by three hours, which is the failure the
+// audit named. But between 21:00 and 24:00 ART the UTC date has already rolled
+// over, so the window jumped forward to 21:00 ART of TODAY — and a tile
+// labelled "hoy" showed only the last few hours, dropping the whole working day
+// it claimed to summarise. The second case is the one nobody would have caught
+// by reading the code in the morning.
+describe("start of the Argentine day containing an instant (the 'hoy' window)", () => {
+  /** The pre-fix rule, kept here as the thing the new one must differ from. */
+  const utcMidnightStart = (instant: Date) =>
+    new Date(`${instant.toISOString().slice(0, 10)}T00:00:00Z`);
+  const arDayStart = (instant: Date) => parseArDateStartOfDay(isoDateInAr(instant));
+
+  it("during the Argentine day, starts at 00:00 ART and not at 21:00 ART of yesterday", () => {
+    const instant = new Date("2026-09-16T14:00:00.000Z"); // 11:00 ART on the 16th
+    expect(isoDateInAr(instant)).toBe("2026-09-16");
+    expect(arDayStart(instant)?.toISOString()).toBe("2026-09-16T03:00:00.000Z");
+    // The over-count, as a number: the old window opened three hours earlier.
+    expect(utcMidnightStart(instant).toISOString()).toBe("2026-09-16T00:00:00.000Z");
+  });
+
+  it("after 21:00 ART, still starts at 00:00 ART of the SAME Argentine day", () => {
+    const instant = new Date("2026-09-17T01:00:00.000Z"); // 22:00 ART on the 16th
+    expect(isoDateInAr(instant)).toBe("2026-09-16");
+    expect(arDayStart(instant)?.toISOString()).toBe("2026-09-16T03:00:00.000Z");
+    // The collapse, as a number: the old window opened at 21:00 ART on the 16th,
+    // one hour before this instant, so "hoy" covered one hour of the 16th.
+    expect(utcMidnightStart(instant).toISOString()).toBe("2026-09-17T00:00:00.000Z");
+  });
+
+  it("never opens in the future relative to the instant it describes", () => {
+    // Includes both sides of the 03:00Z seam, where the Argentine day rolls over.
+    for (const iso of [
+      "2026-09-16T00:00:00.000Z",
+      "2026-09-16T02:59:59.999Z",
+      "2026-09-16T03:00:00.000Z",
+      "2026-09-17T01:00:00.000Z",
+    ]) {
+      const instant = new Date(iso);
+      const start = arDayStart(instant) as Date;
+      expect(start.getTime()).toBeLessThanOrEqual(instant.getTime());
+    }
   });
 });
 

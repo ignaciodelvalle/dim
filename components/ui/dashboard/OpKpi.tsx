@@ -19,6 +19,14 @@ import {
   shouldSuppressDelta,
 } from "@/lib/metrics/presentation-guards";
 import { formatDelta, formatPercent, pluralizeEs } from "@/lib/utils/format";
+// Type-only, así que se borra en compilación y NO crea un ciclo con el dynamic
+// import de más abajo (que sigue siendo la única arista en runtime, y la razón
+// por la que recharts no entra al bundle de cada tile).
+import type { SparklinePoint } from "./OpKpiSparkline";
+
+// Re-exported so a call site can name the shape without reaching past OpKpi into
+// its lazily-loaded chart module.
+export type { SparklinePoint };
 
 /**
  * OpKpi v2 — backward-compatible KPI tile with optional new props.
@@ -167,9 +175,19 @@ type Props = {
   /**
    * Mini-serie de puntos para el sparkline inline (últimos N períodos).
    * Se renderiza como un AreaChart sin ejes, sin tooltip, altura fija 32px.
-   * No requiere keys ni labels — solo los valores numéricos en orden cronológico.
+   * No requiere keys ni labels — sólo los valores en orden cronológico.
+   *
+   * DOS ESCRITURAS, y la segunda es la que importa. Un `number[]` sigue siendo
+   * válido para una serie que no pasa por k-anonimato (p. ej. el sparkline de
+   * turnos de campañas). Pero cualquier serie que venga de un trend
+   * (`SingleSeriesTrend`) debe pasarse ENTERA — `sparkline={trend.points}`, no
+   * `trend.points.map((p) => p.y)`. Ese `.map` era la fuga: proyectaba a
+   * `number[]` y borraba el flag `suppressed`, así que un bucket enmascarado
+   * (1..k-1, transportado como 0) se dibujaba como una caída al piso en doce
+   * tiles, sin ninguna de las declaraciones "N períodos ocultos (privacidad)"
+   * que las tarjetas grandes de tendencia sí muestran. Suprimido ≠ cero.
    */
-  sparkline?: number[];
+  sparkline?: readonly number[] | readonly SparklinePoint[];
 
   /**
    * Si se provee, el KPI muestra un link "Ver detalle →" que lleva a la lista
@@ -498,6 +516,47 @@ const Sparkline = dynamic(() => import("./OpKpiSparkline").then((m) => m.OpKpiSp
   loading: () => <div className="mt-2 h-8 w-full" aria-hidden="true" />,
 });
 
+/**
+ * Normaliza las dos escrituras del prop `sparkline` a la forma que consume el
+ * gráfico. Un punto de trend trae además `x` (la etiqueta del bucket); se
+ * descarta acá para que el hijo reciba exactamente lo que plotea y nada más.
+ */
+function toSparklinePoints(
+  series: readonly number[] | readonly SparklinePoint[],
+): SparklinePoint[] {
+  return series.map((p) => {
+    if (typeof p === "number") return { y: p };
+    return p.suppressed ? { y: p.y, suppressed: true } : { y: p.y };
+  });
+}
+
+/**
+ * El sparkline más su declaración de privacidad.
+ *
+ * Extraído por la misma razón que `resolveOpKpiContract` más abajo: OpKpi vive
+ * pegado al presupuesto de complejidad cognitiva del linter, y la rama de la
+ * declaración fue justo el token que lo pasaba de 25 a 26. Acá además el conteo
+ * de buckets enmascarados nace al lado de los puntos que describe, así que no
+ * hay forma de que se desincronice de ellos.
+ */
+function SparklineBlock({ points, tone }: { points: SparklinePoint[]; tone: Tone }) {
+  if (points.length < 2) return null;
+  const masked = points.filter((p) => p.suppressed).length;
+  return (
+    <>
+      <Sparkline points={points} tone={tone} />
+      {/* La declaración que existía en las tarjetas grandes de tendencia y NO
+          acá, que es precisamente donde el hueco se ve menos: 32px de alto, sin
+          ejes y sin tooltip. El texto es el canal honesto. */}
+      {masked > 0 && (
+        <p className="mt-1 text-xs text-ln-op-mute">
+          {masked} {pluralizeEs(masked, "período oculto", "períodos ocultos")} (privacidad)
+        </p>
+      )}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // C1 metric-contract resolution (extracted — keeps OpKpi's own cognitive
 // complexity under the lint budget; this function owns ALL of the
@@ -725,6 +784,8 @@ export function OpKpi({
   const { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant, deltaImplausible } =
     resolveOpKpiContract(descriptorId, guardInput, rawValue, rawTone, rawDeltaV2, rawInfo);
 
+  const sparklinePoints = sparkline ? toSparklinePoints(sparkline) : undefined;
+
   const cardCls = [
     "flex flex-col rounded-[var(--radius-md)] border p-[14px_16px]",
     "min-h-[112px] no-underline text-inherit",
@@ -789,7 +850,7 @@ export function OpKpi({
       {guardNote && <p className="mt-1 text-xs text-ln-op-mute">{guardNote}</p>}
 
       {/* Sparkline (v2) */}
-      {sparkline && sparkline.length >= 2 && <Sparkline values={sparkline} tone={tone} />}
+      {sparklinePoints && <SparklineBlock points={sparklinePoints} tone={tone} />}
 
       {/* Progress bar */}
       {bar !== undefined && (

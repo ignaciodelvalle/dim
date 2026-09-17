@@ -101,6 +101,15 @@ function KpiCard({
   temporalFrameActive: boolean;
   dimmed?: boolean;
 }) {
+  // SUPRIMIDO ≠ CERO (metric-honesty audit, PO 2026-09-16). Un bucket
+  // enmascarado por k-anonimato viaja como `y: 0` con el flag `suppressed`;
+  // ploteado como número sería el MÍNIMO de la serie y se pegaría al piso del
+  // recuadro, indistinguible de una semana en la que no pasó nada. `null`
+  // rompe la línea, y la leyenda de abajo dice cuántos huecos hay: un hueco sin
+  // explicación se lee como un dato que falta, no como uno protegido.
+  const sparkPoints = kpi.sparkline?.map((p) => (p.suppressed ? null : p.y));
+  const sparkMasked = kpi.sparkline?.filter((p) => p.suppressed).length ?? 0;
+
   return (
     <li
       // #49 item 1: floating chrome must read over ANY basemap — opaque fill.
@@ -133,15 +142,24 @@ function KpiCard({
         <span className="min-w-0 flex-1 truncate text-xs text-ln-op-mute">
           {shortKpiLabel(presetId, kpi.id, kpi.label)}
         </span>
-        {kpi.sparkline && kpi.sparkline.length > 1 && (
+        {sparkPoints && sparkPoints.length > 1 && (
           <Sparkline
-            points={kpi.sparkline}
+            points={sparkPoints}
             width={64}
             height={18}
-            ariaLabel={`Tendencia de ${kpi.sparklineLabel ?? shortKpiLabel(presetId, kpi.id, kpi.label)}`}
+            ariaLabel={`Tendencia de ${kpi.sparklineLabel ?? shortKpiLabel(presetId, kpi.id, kpi.label)}${
+              sparkMasked > 0
+                ? `. ${sparkMasked} ${sparkMasked === 1 ? "período oculto" : "períodos ocultos"} por privacidad: la línea se corta, no baja a cero`
+                : ""
+            }`}
           />
         )}
       </div>
+      {sparkMasked > 0 && (
+        <span className="text-xs italic text-ln-op-faint">
+          {sparkMasked} {sparkMasked === 1 ? "período oculto" : "períodos ocultos"} (privacidad)
+        </span>
+      )}
       {/* C2a: an indicator whose subject layer is NOT painted — say so plainly so
           the number never reads as if it described the current map. */}
       {dimmed && (

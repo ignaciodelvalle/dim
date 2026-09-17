@@ -18,22 +18,45 @@
 // -------
 //   impact = (target − coverage) / 100 × population
 //
-// `population` is whatever population the CALLER supplies for that row (e.g.
-// the census-derived estimated canine population from lib/metrics/census.ts's
-// estimateDogPopulation — see the render-site wiring in app/gob/programa and
-// app/admin/programa). This module does not fetch or estimate population
-// itself — it only ranks rows the caller has already resolved a coverage,
-// target, and (possibly null) population for.
+// `population` is whatever population the CALLER supplies for that row, and the
+// ONE rule about it is that it must be the population the row's GAP is a
+// fraction of. Every caller today passes `OutlierRow.denominator` — the measured
+// base that row's own rate was divided by (active pets for microchip and
+// esterilización, active DOGS for antirrábica).
+//
+// IT USED TO BE `estimateDogPopulation(censusPopulations[province])` FOR ALL
+// THREE METRICS, and on two of them that was a category error: a CANINE
+// population multiplied by an ALL-SPECIES gap fraction, rendered in the cell as
+// "~N mascotas sin chip" off a denominator with no cats in it (metric-honesty
+// audit, PO 2026-09-16).
+//
+// The repair was to stop mixing universes, NOT to look for a better estimate.
+// No all-species pet-population estimate exists in this system, and minting a
+// "mascotas por habitante" factor would have swapped one documented assumption
+// for an undocumented one — of exactly the kind OPS/PANAFTOSA discourages even
+// for dogs (see the ESTIMATED_DOGS_PER_INHABITANT docblock in census.ts).
+//
+// WHAT THAT COSTS, said plainly: impact is now "how many REGISTERED animals must
+// still be covered to reach the target" — a measured floor — not a projection
+// onto the territory's estimated population. It is smaller, it is exact, it
+// carries no assumption, and every metric is on ONE scale, which is the only
+// condition under which sorting rows against each other means anything. A
+// per-metric mix (canine estimate for antirrábica, padrón count for the other
+// two) would have been the worse repair for precisely that reason.
+//
+// This module does not fetch or estimate population itself — it only ranks rows
+// the caller has already resolved a coverage, target, and (possibly null)
+// population for.
 //
 // HONESTY GUARDS (in the engine, not the callers)
 // ------------------------------------------------
 //   - already-met (coverage >= target): EXCLUDED entirely — a met target is
 //     evidence, not a gap to rank (same principle as forecastToTarget's "met"
 //     branch and briefing-alerts.ts's tone==="ok" exclusion).
-//   - no population (no census row for that jurisdiction): the row is kept
-//     (it may still be genuinely below target) but ranked LAST, with
-//     `impact: null` — NEVER a fabricated score. Callers render "sin dato
-//     censal" for these rows, never a "0" or an invented number.
+//   - no population for that jurisdiction: the row is kept (it may still be
+//     genuinely below target) but ranked LAST, with `impact: null` — NEVER a
+//     fabricated score. Callers render NO_POPULATION_NOTE for these rows, never
+//     a "0" or an invented number.
 //   - rounding: impact is always Math.round()'d — a real headcount, never a
 //     decimal "~14.3 perros".
 //
@@ -48,9 +71,15 @@ export type ImpactRankable = {
   /** Programme target (0–100), from lib/metrics/targets.ts's TARGETS. */
   target: number;
   /**
-   * Estimated population this jurisdiction's gap applies to (e.g. estimated
-   * canine population from census.ts's estimateDogPopulation). `null` when no
-   * census row exists for this jurisdiction — NEVER a fabricated number.
+   * The population THIS ROW'S GAP IS A FRACTION OF — not "a population for
+   * this jurisdiction". The distinction is the whole point: a gap computed over
+   * all active pets may only be multiplied by a count of all active pets, and a
+   * dog-only gap only by a count of dogs. Callers pass `OutlierRow.denominator`,
+   * the measured base the rate was divided by.
+   *
+   * `null` when no such population is available — NEVER a fabricated number, and
+   * never a population of a different universe that happens to be at hand. That
+   * substitution is the defect this field's docblock was rewritten for.
    */
   population: number | null;
 };
@@ -58,10 +87,10 @@ export type ImpactRankable = {
 /** An `ImpactRankable` row plus the computed rank + impact. */
 export type ImpactRow<T extends ImpactRankable = ImpactRankable> = T & {
   /**
-   * Estimated real-world units uncovered: round((target − coverage) / 100 ×
-   * population). `null` exactly when `population` was null (no census row) —
-   * the row is still returned (ranked last), never silently dropped or given
-   * an invented number.
+   * Units still uncovered: round((target − coverage) / 100 × population), in
+   * whatever unit `population` counts. `null` exactly when `population` was
+   * null — the row is still returned (ranked last), never silently dropped or
+   * given an invented number.
    */
   impact: number | null;
   /** 1-based rank within the returned list — impact desc, unknowns last. */
@@ -75,11 +104,11 @@ export function isImpactMet(row: Pick<ImpactRankable, "coverage" | "target">): b
 
 /**
  * (target − coverage) / 100 × population, rounded to the nearest whole unit —
- * the honest "estimated units uncovered" figure. Returns `null` when
- * `population` is unknown/non-positive (no census row) — never a fabricated
- * estimate. Callers MUST have already excluded met rows (isImpactMet) before
- * calling this — it does not itself guard against a negative (already-met)
- * gap.
+ * the honest "units still uncovered" figure, in whatever unit `population`
+ * counts. Returns `null` when `population` is unknown/non-positive — never a
+ * fabricated estimate. Callers MUST have already excluded met rows
+ * (isImpactMet) before calling this — it does not itself guard against a
+ * negative (already-met) gap.
  */
 export function computeImpact(
   row: Pick<ImpactRankable, "coverage" | "target" | "population">,
@@ -92,9 +121,9 @@ export function computeImpact(
 }
 
 /**
- * Rank rows by estimated real-world impact, descending. Already-met rows are
- * dropped entirely. Rows with no population estimate are kept but sorted to
- * the end (alphabetically among themselves), each carrying `impact: null`.
+ * Rank rows by impact, descending. Already-met rows are dropped entirely. Rows
+ * with no population are kept but sorted to the end (alphabetically among
+ * themselves), each carrying `impact: null`.
  *
  * Generic over `T` so callers can pass richer row shapes (e.g. OutlierRow +
  * a resolved `population` field) and get them back with `impact`/`rank`
@@ -122,8 +151,13 @@ export function rankByImpact<T extends ImpactRankable>(rows: readonly T[]): Impa
 export type ImpactTotal = {
   jurisdiction: string;
   /** Sum of `computeImpact` across this jurisdiction's below-target rows.
-   *  `null` when NONE of its rows had a population estimate (never a summed
-   *  fabrication out of all-null inputs). */
+   *  `null` when NONE of its rows had a population (never a summed fabrication
+   *  out of all-null inputs).
+   *
+   *  Summing across metrics is only legitimate because every row now carries a
+   *  population in the SAME unit family (registered animals). It was not, while
+   *  antirrábica's gap rode an estimated canine population and the other two
+   *  rode the same canine estimate under an all-species gap. */
   impact: number | null;
 };
 
@@ -217,9 +251,16 @@ export function formatImpactUnits(units: number): string {
   return AR_INTEGER_FORMAT.format(units);
 }
 
-/** The note a row with `impact: null` must render — NEVER a "0" or a dash
- *  that could be misread as "no gap". */
-export const NO_CENSUS_NOTE = "sin dato censal";
+/**
+ * The note a row with `impact: null` must render — NEVER a "0" or a dash that
+ * could be misread as "no gap".
+ *
+ * It read "sin dato censal" while every caller derived its population from the
+ * INDEC census. They no longer do (they pass the metric's own measured
+ * denominator), so naming the census would have explained an absence by
+ * pointing at a table that has nothing to do with it.
+ */
+export const NO_POPULATION_NOTE = "sin población de referencia";
 
 /**
  * The scope this line is computed OVER — decides the label's honesty

@@ -166,6 +166,31 @@ export type OutlierRow = {
   gap: number;
   /** True when rate < target (province is below benchmark). */
   isOutlier: boolean;
+  /**
+   * The population `rate` was divided by, in THIS province: active pets for
+   * microchip/sterilization (all species), active DOGS for rabies. A measured
+   * count from the same aggregate, never an estimate.
+   *
+   * WHY IT TRAVELS (metric-honesty audit, PO 2026-09-16). It used not to, and
+   * the impact-ranking render sites had to supply a population from somewhere
+   * else — both of them reached for `estimateDogPopulation(censusPopulations[p])`,
+   * i.e. INDEC's human census × a CANINE ratio, and applied it to all three
+   * rows. For `rabies` that is coherent (a dog gap over a dog population). For
+   * the other two it is a category error: the gap fraction is all-species and
+   * the population is dogs only, and the cell then printed "~N mascotas sin
+   * chip" off a denominator that contains no cats.
+   *
+   * Sending the rate's OWN base along is what lets a consumer multiply a gap by
+   * the population that gap is actually a fraction of. It also removes an
+   * assumption rather than replacing it with another: `ESTIMATED_DOGS_PER_INHABITANT`
+   * is, in census.ts's own words, "an explicit ASSUMPTION, not a measured
+   * national figure" extrapolated from CABA and of a kind OPS/PANAFTOSA
+   * "explicitly discourages", while this number is simply counted.
+   *
+   * Always >= K_ANON_MIN for a row that exists (the guards below skip smaller
+   * provinces), so a consumer never divides by or ranks on a tiny base.
+   */
+  denominator: number;
 };
 
 export type PiiOversightRow = {
@@ -429,6 +454,7 @@ export async function fetchCrossJurisdictionOutliers(
       target: TARGETS.MICROCHIP_PENETRATION_PCT,
       gap: Math.round((TARGETS.MICROCHIP_PENETRATION_PCT - chipRate) * 10) / 10,
       isOutlier: chipRate < TARGETS.MICROCHIP_PENETRATION_PCT,
+      denominator: totalPets,
     });
 
     // Sterilization metric (denominator: all active pets).
@@ -440,6 +466,7 @@ export async function fetchCrossJurisdictionOutliers(
       target: TARGETS.STERILIZATION_COVERAGE_PCT,
       gap: Math.round((TARGETS.STERILIZATION_COVERAGE_PCT - sterilRate) * 10) / 10,
       isOutlier: sterilRate < TARGETS.STERILIZATION_COVERAGE_PCT,
+      denominator: totalPets,
     });
 
     // Rabies vaccination metric (denominator: active dogs only; skip if < K_ANON_MIN dogs).
@@ -452,6 +479,7 @@ export async function fetchCrossJurisdictionOutliers(
         target: TARGETS.RABIES_COVERAGE_PCT,
         gap: Math.round((TARGETS.RABIES_COVERAGE_PCT - rabiesRate) * 10) / 10,
         isOutlier: rabiesRate < TARGETS.RABIES_COVERAGE_PCT,
+        denominator: totalDogs,
       });
     }
   }

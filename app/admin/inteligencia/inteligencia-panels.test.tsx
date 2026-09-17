@@ -39,7 +39,7 @@ const EMPTY_QUALITY: ProvinceDataQualityResult = {
 describe("panel independence — one degraded panel never drags the others", () => {
   it("index panel renders its card while the policy panel times out", async () => {
     const indexHtml = renderToStaticMarkup(
-      await IntelIndexPanel({ load: ok<[never[], Record<string, number>]>([[], {}]), sp: {} }),
+      await IntelIndexPanel({ load: ok<never[]>([]), sp: {} }),
     );
     const policyHtml = renderToStaticMarkup(await IntelPolicyPanel({ load: timedOut(), sp: {} }));
 
@@ -210,34 +210,39 @@ describe("es-AR decimal formatting (T4.16)", () => {
   it("índice compuesto table renders each component rate with the comma decimal", async () => {
     const html = renderToStaticMarkup(
       await IntelIndexPanel({
+        // The load used to be a [rows, censusPopulations] tuple. The census
+        // half only fed the impact column's canine population estimate, and
+        // that estimate was the wrong denominator for two of these three
+        // metrics (metric-honesty audit, PO 2026-09-16); the impact is now
+        // counted over each row's own `denominator`, so the tuple is gone.
         load: ok([
-          [
-            {
-              province: "Córdoba",
-              metric: "rabies",
-              rate: 41.3,
-              target: 80,
-              gap: 38.7,
-              isOutlier: true,
-            },
-            {
-              province: "Córdoba",
-              metric: "sterilization",
-              rate: 62.5,
-              target: 70,
-              gap: 7.5,
-              isOutlier: true,
-            },
-            {
-              province: "Córdoba",
-              metric: "microchip",
-              rate: 15,
-              target: 50,
-              gap: 35,
-              isOutlier: true,
-            },
-          ],
-          {},
+          {
+            province: "Córdoba",
+            metric: "rabies",
+            rate: 41.3,
+            target: 80,
+            gap: 38.7,
+            isOutlier: true,
+            denominator: 300,
+          },
+          {
+            province: "Córdoba",
+            metric: "sterilization",
+            rate: 62.5,
+            target: 70,
+            gap: 7.5,
+            isOutlier: true,
+            denominator: 800,
+          },
+          {
+            province: "Córdoba",
+            metric: "microchip",
+            rate: 15,
+            target: 50,
+            gap: 35,
+            isOutlier: true,
+            denominator: 800,
+          },
         ]),
         sp: {},
       }),

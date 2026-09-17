@@ -170,7 +170,8 @@ export const KPI_PROVENANCE: Record<KpiId, KpiProvenance> = {
       "Expedientes de mordedura abiertos o escalados, al momento de la consulta (cuenta expedientes, no mascotas en observación).",
   },
   pets_registered_today: {
-    formulaEs: "Mascotas dadas de alta desde la medianoche de hoy (día en curso, parcial).",
+    formulaEs:
+      "Mascotas dadas de alta desde las 00:00 de hoy, hora argentina (día en curso, parcial).",
   },
   vaccinations_weekly: {
     formulaEs:

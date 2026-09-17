@@ -143,3 +143,54 @@ describe("OpKpi — Fase 0 full-prop contract", () => {
     expect(html).toContain("var(--color-st-err-bg)");
   });
 });
+
+// SUPPRESSED ≠ ZERO on a KPI tile (metric-honesty audit, PO 2026-09-16).
+//
+// The "N períodos ocultos (privacidad)" disclosure existed on the big trend
+// CARDS and nowhere near the tiles the sparklines live in — and the tile is the
+// worse place to omit it: 32px tall, no axes, no tooltip, so a masked bucket
+// drawn at the floor looks exactly like a quiet week and there is nothing to
+// hover for the truth. Every call site fed OpKpi a bare `number[]` built with
+// `.points.map((p) => p.y)`, a projection that structurally cannot carry the
+// flag, so the tile could not have disclosed it even if it wanted to.
+//
+// The sparkline itself is `next/dynamic({ ssr: false })` and renders nothing
+// under renderToStaticMarkup — which is precisely why the disclosure is a
+// sibling of the chart and not inside it.
+describe("OpKpi — a k-anon-masked sparkline bucket is disclosed, not silently drawn", () => {
+  it("discloses the masked periods when the series carries the flag", () => {
+    const html = renderToStaticMarkup(
+      <OpKpi
+        label="Mordeduras"
+        value={37}
+        sparkline={[{ y: 9 }, { y: 0, suppressed: true }, { y: 11 }, { y: 0, suppressed: true }]}
+      />,
+    );
+    expect(html).toContain("2 períodos ocultos (privacidad)");
+  });
+
+  it("uses the singular for a single masked period", () => {
+    const html = renderToStaticMarkup(
+      <OpKpi label="Mordeduras" value={37} sparkline={[{ y: 9 }, { y: 0, suppressed: true }]} />,
+    );
+    expect(html).toContain("1 período oculto (privacidad)");
+    expect(html).not.toContain("períodos ocultos");
+  });
+
+  it("says nothing when nothing was masked — a true zero is not a mask", () => {
+    // The guard against overreach: a genuine 0 bucket is a real measurement and
+    // must never acquire a privacy note it did not earn.
+    const html = renderToStaticMarkup(
+      <OpKpi label="Mordeduras" value={20} sparkline={[{ y: 9 }, { y: 0 }, { y: 11 }]} />,
+    );
+    expect(html).not.toContain("(privacidad)");
+  });
+
+  it("still accepts a plain number[] for series that never pass through k-anon", () => {
+    // e.g. the campañas turnos sparkline — no suppression, no disclosure.
+    const html = renderToStaticMarkup(
+      <OpKpi label="Turnos" value={120} sparkline={[10, 20, 30]} />,
+    );
+    expect(html).not.toContain("(privacidad)");
+  });
+});

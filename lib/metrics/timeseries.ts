@@ -60,6 +60,29 @@ export type StackedPoint = {
   x: string;
   /** One numeric value per series key. Missing series default to 0. */
   values: Record<string, number>;
+  /**
+   * SUPPRESSED ≠ ZERO, per (bucket, series) CELL.
+   *
+   * `suppressSmallStackedCells` masks a 1..k-1 cell to `values[key] = 0` and
+   * used to return only an AGGREGATE `suppressedCount` — so the individual cell
+   * was structurally indistinguishable from a measured zero the moment it left
+   * this module. `/gob/mortalidad`'s "Ver datos" fallback table then printed a
+   * plain `0` for a month that really had 1..4 rabies deaths, under a card
+   * header that simultaneously disclosed "N celdas ocultas (privacidad)": two
+   * renderings of one fact, one of them a false epidemiological claim.
+   *
+   * This is the per-cell twin of the flag `suppressSmallBuckets` already puts on
+   * single-series points (see `SingleSeriesTrend` in ./trends.ts), and it exists
+   * for the same reason: the aggregate count tells a reader that SOMETHING was
+   * hidden, never WHICH cell, so no renderer could tell a masked cell from a
+   * real one.
+   *
+   * Keyed by series key; only masked keys are present. Absent (the common case)
+   * means nothing in this bucket was masked. The numeric `values` stay 0 on
+   * purpose — every existing numeric consumer keeps working unchanged, and the
+   * flag is what lets an honest renderer say "oculto (privacidad)" instead.
+   */
+  suppressed?: Record<string, true>;
 };
 
 /** The shape a stacked time-series chart consumes. */
@@ -296,6 +319,15 @@ export function suppressSmallBuckets(
  *
  * Each (bucket, series) cell with a small non-zero count is masked to 0 and
  * tallied. Same rule as the single-series variant, applied per cell.
+ *
+ * Each masked cell is ALSO flagged on its point's `suppressed` map — see the
+ * `StackedPoint.suppressed` docblock for why the aggregate count alone was not
+ * enough. `values[key]` deliberately stays 0 (numeric consumers unchanged); the
+ * flag is the channel a renderer uses to write "oculto (privacidad)" instead of
+ * publishing a zero nobody measured.
+ *
+ * 0-counts are never masked here either — a genuine zero is a non-identifying
+ * signal the operator needs.
  */
 export function suppressSmallStackedCells(
   series: StackedSeries,
@@ -304,16 +336,23 @@ export function suppressSmallStackedCells(
   let suppressedCount = 0;
   const points = series.points.map((p) => {
     const values: Record<string, number> = {};
+    let suppressed: Record<string, true> | undefined;
     for (const key of series.seriesKeys) {
       const v = p.values[key] ?? 0;
       if (v > 0 && v < k) {
         suppressedCount += 1;
         values[key] = 0;
+        // Built lazily so an unmasked bucket carries no empty object — the
+        // renderers below branch on `p.suppressed?.[key]`, and an always-present
+        // `{}` would read as "this point participates in suppression" to anyone
+        // debugging the payload.
+        suppressed ??= {};
+        suppressed[key] = true;
       } else {
         values[key] = v;
       }
     }
-    return { x: p.x, values };
+    return suppressed ? { x: p.x, values, suppressed } : { x: p.x, values };
   });
   return { series: { seriesKeys: series.seriesKeys, points }, suppressedCount };
 }

@@ -19,8 +19,28 @@ import { ChartSizingBox } from "@/components/charts/ChartSizingBox";
 
 type Tone = "neutral" | "danger" | "warn" | "ok" | "blue";
 
-export function OpKpiSparkline({ values, tone }: { values: number[]; tone: Tone }) {
-  if (values.length < 2) return null;
+/**
+ * One plotted period of a KPI sparkline.
+ *
+ * SUPPRESSED ≠ ZERO, and this type is where that survives the trip to the tile.
+ * `suppressSmallBuckets` masks a 1..k-1 bucket to `y: 0` AND flags it, but every
+ * sparkline call site used to hand OpKpi a bare `number[]` built with
+ * `.points.map((p) => p.y)` — a projection that structurally CANNOT carry the
+ * flag. The masked bucket then drew as a dip to the floor on twelve KPI tiles,
+ * and the "N períodos ocultos (privacidad)" disclosure that the big trend cards
+ * render was nowhere near them: the reader of the tile had no way to know that
+ * the trough was a privacy mask rather than a week nothing happened. Fed a
+ * whole `SingleSeriesTrend["points"]` array, the flag rides along for free.
+ */
+export type SparklinePoint = {
+  /** Plotted value. A masked bucket carries 0 here (numeric consumers unchanged). */
+  y: number;
+  /** True when this bucket is a k-anonymity mask, not a measurement. */
+  suppressed?: true;
+};
+
+export function OpKpiSparkline({ points, tone }: { points: SparklinePoint[]; tone: Tone }) {
+  if (points.length < 2) return null;
 
   const strokeColor =
     tone === "ok"
@@ -33,7 +53,13 @@ export function OpKpiSparkline({ values, tone }: { values: number[]; tone: Tone 
             ? "#2171b5"
             : "#6b7280";
 
-  const chartData = values.map((v, i) => ({ i, v }));
+  // A masked bucket plots as `null`, so recharts breaks the area instead of
+  // drawing a dip to zero — the same treatment TimeSeriesChart gives a masked
+  // point on the big trend cards, and for the same reason: a trough the reader
+  // cannot distinguish from a real one is a claim we never measured. The gap is
+  // deliberately subtle at 32px; the tile's own "N períodos ocultos
+  // (privacidad)" line underneath is what carries the meaning.
+  const chartData = points.map((p, i) => ({ i, v: p.suppressed ? null : p.y }));
 
   return (
     // #15: use the shared ChartSizingBox (inline width/height) so recharts'

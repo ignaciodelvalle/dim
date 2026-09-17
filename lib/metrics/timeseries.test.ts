@@ -265,6 +265,9 @@ describe("suppressSmallStackedCells (multi-series k-anon)", () => {
     expect(suppressedCount).toBe(2);
     const w2 = series.points.find((p) => p.x === "W02");
     const w3 = series.points.find((p) => p.x === "W03");
+    // The masked value STAYS 0 — deliberate, and identical to the single-series
+    // rule: every numeric consumer keeps working. What was missing, and what the
+    // next test pins, is the flag that says the 0 is a mask and not a count.
     expect(w2?.values).toEqual({ natural: 10, disease: 0 });
     expect(w3?.values).toEqual({ natural: 0, disease: 7 });
   });
@@ -299,5 +302,44 @@ describe("suppressed≠zero (dataviz review 2026-07-23 #6)", () => {
     expect(points[0].suppressed).toBeUndefined(); // a true zero is never masked
     expect(points[1]).toEqual({ x: "b", y: 0, suppressed: true });
     expect(points[2].suppressed).toBeUndefined();
+  });
+
+  // The stacked path survived the 2026-07-23 fix for two months because its flag
+  // would have had to live INSIDE the point (a map keyed by series), so nothing
+  // about the signature looked incomplete while it was missing. The cost was
+  // /gob/mortalidad's "Ver datos" table printing 0 for a month with 1..4 rabies
+  // deaths — under a header that already said "N celdas ocultas (privacidad)".
+  it("flags masked CELLS per (bucket, series), not just an aggregate count", () => {
+    const pivoted = pivotStackedSeries([
+      { bucketStart: "2026-01-05", bucketLabel: "W02", seriesKey: "natural", count: 10 },
+      { bucketStart: "2026-01-05", bucketLabel: "W02", seriesKey: "disease", count: 2 },
+      { bucketStart: "2026-01-12", bucketLabel: "W03", seriesKey: "natural", count: 9 },
+      { bucketStart: "2026-01-12", bucketLabel: "W03", seriesKey: "disease", count: 7 },
+    ]);
+    const { series } = suppressSmallStackedCells(pivoted, 5);
+    const w2 = series.points.find((p) => p.x === "W02");
+    const w3 = series.points.find((p) => p.x === "W03");
+
+    // Only the masked key is present — the renderer asks `suppressed?.[key]`.
+    expect(w2?.suppressed).toEqual({ disease: true });
+    expect(w2?.suppressed?.natural).toBeUndefined();
+    // A bucket with nothing masked carries NO map at all, so an empty object in
+    // a payload never reads as "this bucket participates in suppression".
+    expect(w3?.suppressed).toBeUndefined();
+  });
+
+  it("never masks a genuine zero cell in a stacked series", () => {
+    // A cause absent from a bucket is 0-filled by pivotStackedSeries. A zero is
+    // non-identifying and is the signal the operator most needs to see.
+    const pivoted = pivotStackedSeries([
+      { bucketStart: "2026-01-05", bucketLabel: "W02", seriesKey: "natural", count: 10 },
+      { bucketStart: "2026-01-12", bucketLabel: "W03", seriesKey: "natural", count: 8 },
+      { bucketStart: "2026-01-12", bucketLabel: "W03", seriesKey: "disease", count: 6 },
+    ]);
+    const { series, suppressedCount } = suppressSmallStackedCells(pivoted, 5);
+    const w2 = series.points.find((p) => p.x === "W02");
+    expect(w2?.values.disease).toBe(0);
+    expect(w2?.suppressed).toBeUndefined();
+    expect(suppressedCount).toBe(0);
   });
 });

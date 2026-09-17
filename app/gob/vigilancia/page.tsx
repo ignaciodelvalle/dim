@@ -385,7 +385,7 @@ export default async function GobVigilanciaPage({
           label={KPI_CATALOG.outbreak_active_signals.label}
           value={formatCount(metrics.outbreakActiveCount)}
           tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
-          sparkline={outbreakSparkline.points.map((p) => p.y)}
+          sparkline={outbreakSparkline.points}
           href="/gob/vigilancia/brotes"
           info={{
             definition:
@@ -404,7 +404,7 @@ export default async function GobVigilanciaPage({
           label={RABIES_CASES_KPI_LABEL}
           value={formatCount(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
-          sparkline={rabiesSparkline.points.map((p) => p.y)}
+          sparkline={rabiesSparkline.points}
           // Jumps to the compliance card (panelComplianceId), not the disease-
           // signals card (panelRabiesId) — that card is per-disease SIGNAL
           // counts, not rabies-observation detail. The compliance card is
@@ -423,8 +423,8 @@ export default async function GobVigilanciaPage({
           value={formatCount(metrics.petsRegisteredToday)}
           info={{
             definition:
-              "Mascotas registradas en el sistema desde la medianoche UTC (21:00 ART del día anterior), scoped a la jurisdicción del operador.",
-            formula: "COUNT(pets WHERE created_at >= today midnight UTC)",
+              "Mascotas registradas en el sistema desde la medianoche argentina (00:00 ART de hoy), scoped a la jurisdicción del operador.",
+            formula: "COUNT(pets WHERE created_at >= hoy 00:00 ART)",
           }}
           descriptorId="pets_registered_today"
         />
@@ -433,7 +433,7 @@ export default async function GobVigilanciaPage({
           value={formatCount(metrics.vaccinationsThisWeek)}
           tone="ok"
           deltaV2={metrics.vaccinationsThisWeek > 0 ? (vaccinationsDelta ?? undefined) : undefined}
-          sparkline={vacSparkline.points.map((p) => p.y)}
+          sparkline={vacSparkline.points}
           info={{
             definition:
               "Eventos vaccination_administered registrados en los últimos 7 días en la jurisdicción del operador.",
