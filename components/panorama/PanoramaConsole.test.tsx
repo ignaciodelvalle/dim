@@ -242,7 +242,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
     const pushSpy = vi.spyOn(window.history, "pushState");
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     expect(pushSpy).toHaveBeenCalledTimes(1);
     // The URL updated in place — same document, no navigation.
@@ -259,7 +259,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     expect(routerPush).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
@@ -270,7 +270,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     await waitFor(() => {
       const layerCalls = fetchMock.mock.calls
@@ -297,7 +297,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     const raw = window.localStorage.getItem("panorama:board:v1");
     expect(raw).not.toBeNull();
@@ -634,7 +634,7 @@ describe("PanoramaConsole — D1 metric selector (merged Cumplimiento vista)", (
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     openVista();
     expect(screen.queryByRole("radiogroup", { name: "Métrica" })).not.toBeInTheDocument();
@@ -896,7 +896,7 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
 
     // Commit preset A, then preset B — two history entries.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     const urlAfterA = `${window.location.pathname}${window.location.search}`;
     expect(new URLSearchParams(window.location.search).get("preset")).toBe("brotes-activos");
 
@@ -923,7 +923,7 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
     // (all preset-driven) follow the reverted URL instead of staying on B.
     expect(new URLSearchParams(window.location.search).get("preset")).toBe("brotes-activos");
     openVista();
-    expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: /Señales de brote/ })).toHaveAttribute(
       "aria-checked",
       "true",
     );
@@ -939,7 +939,7 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
 
     // Preset A at its default window (90d)…
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     // …then the operator customizes the period to 12m — a shallow replace that
     // keeps preset=A in the URL (the period picker's commit shape).
     act(() => {
@@ -966,7 +966,7 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
 
     // Preset A is active again…
     openVista();
-    expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: /Señales de brote/ })).toHaveAttribute(
       "aria-checked",
       "true",
     );
@@ -1013,7 +1013,7 @@ describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3
     setUrl("/gob/panorama?period=3y");
     renderConsole();
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     // Drain the preset's own 90d layer burst so the assertions below see only the
     // período change's fetches.
     await waitFor(() => {
@@ -1141,9 +1141,9 @@ describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3
     fireEvent.click(screen.getByRole("button", { name: "30 días" }));
     expect(screen.queryByText(/El período volvió a/)).not.toBeInTheDocument();
 
-    // …then switches vista (Brotes activos defaults to 90d) → the reset speaks.
+    // …then switches vista (Señales de brote defaults to 90d) → the reset speaks.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     expect(screen.getByText("El período volvió a 90 días con la vista.")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Descartar aviso de período" }));
@@ -1155,7 +1155,7 @@ describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3
     renderConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     expect(screen.queryByText(/El período volvió a/)).not.toBeInTheDocument();
   });
 
@@ -1627,17 +1627,17 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     renderRedesignConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     openVista();
-    expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: /Señales de brote/ })).toHaveAttribute(
       "aria-checked",
       "true",
     );
     // Both the parent's duplicated "VISTA" headline + question line AND the
     // per-card description were removed — the preset's question never renders.
     expect(
-      screen.queryByText("¿Dónde hay brotes activos sobre huecos de vacunación?"),
+      screen.queryByText("¿Dónde se registran señales de brote sobre huecos de vacunación?"),
     ).not.toBeInTheDocument();
   });
 });
@@ -1665,7 +1665,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     // → the scrubber stays active (zoonosis reproduces) but must state plainly
     // that the cobertura fill does not move with the fecha de corte.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     expect(
       screen.queryByText(/La reproducción temporal necesita una capa de eventos activa/),
@@ -1716,7 +1716,7 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
     renderRedesignConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 1 });
   });
@@ -1726,9 +1726,9 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
     renderRedesignConsole();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
 
     expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 2 });
   });
@@ -1740,7 +1740,7 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
     // bienestar is a locality-level drill-down preset — deliberately framing-less
     // (design-QA 2026-07-04: only national-overview presets frame the country).
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
 
@@ -1959,7 +1959,7 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
 
     // Two clicks inside the 200ms debounce window: only the LAST preset fetches.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     openVista();
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
@@ -1985,7 +1985,7 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
 
     // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
 
     // Burst B (cumplimiento) supersedes A's cobertura fetch.
@@ -2109,7 +2109,7 @@ describe("PanoramaConsole — derived aggregation level (A2: province by default
     renderConsole();
     // Activate a province-baseline preset with a choropleth base (cobertura).
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
     });
@@ -2134,7 +2134,7 @@ describe("PanoramaConsole — derived aggregation level (A2: province by default
     renderConsole();
     // A choropleth base (cobertura) is active — the metric that fills the departments.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
     });
@@ -2161,7 +2161,7 @@ describe("PanoramaConsole — derived aggregation level (A2: province by default
   it("keeps PROVINCE at national scope while the camera stays below Z_LOCALITY", async () => {
     renderConsole();
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
     });
@@ -2192,7 +2192,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
 
     // brotes-activos: base cobertura (non-temporal) + signal zoonosis (temporal).
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     // Task #38 v3: the layer catalog is the Filtro rail panel — FiltroPanel
     // renders the checkbox rows directly (LayerPanel is no longer mounted). P3.6:
     // no Simple/Detalle toggle; full detail always shows.
@@ -2305,7 +2305,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     await openTimeline();
 
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
     });
@@ -2339,7 +2339,7 @@ describe("PanoramaConsole — province-level scrub paints the as-of frame (CRITI
     // brotes-activos at national scope → province is the derived level; zoonosis
     // (temporal) is active.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
     });
@@ -2387,7 +2387,7 @@ describe("PanoramaConsole — province-level scrub paints the as-of frame (CRITI
     renderRedesignConsole();
     await openTimeline();
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
     });
@@ -2412,7 +2412,7 @@ describe("PanoramaConsole — bivariate is honest under a scrub (CRITICAL-2)", (
     // brotes-activos + province level + cobertura & zoonosis active → the encoding
     // toggle is offered.
     openVista();
-    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Señales de brote/ }));
     const bivariateBtn = await screen.findByRole("button", {
       name: "Intensidad de reporte (bivariado)",
     });

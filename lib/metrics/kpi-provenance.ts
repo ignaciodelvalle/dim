@@ -163,7 +163,8 @@ export const KPI_PROVENANCE: Record<KpiId, KpiProvenance> = {
       "Dos conteos independientes mostrados en par: mordeduras reportadas en los últimos 12 meses junto a observaciones rábicas abiertas ahora — no es una fracción.",
   },
   outbreak_active_signals: {
-    formulaEs: "Señales de brote aún abiertas, entre las iniciadas en los últimos 30 días.",
+    formulaEs:
+      "Señales de brote registradas en los últimos 30 días (cuenta avisos emitidos dentro de la ventana, no señales 'abiertas': una señal no tiene estado que se cierre).",
   },
   rabies_observation_cases_open: {
     formulaEs:

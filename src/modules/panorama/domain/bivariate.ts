@@ -1,6 +1,6 @@
 // Bivariate choropleth domain — the "riesgo-brotes" encoding (task #63).
 //
-// The "Brotes activos" preset stacks a rabies-COVERAGE choropleth (cobertura,
+// The "Señales de brote" preset stacks a rabies-COVERAGE choropleth (cobertura,
 // a rate) under a ZOONOSIS-signal overlay. The operator's real question is the
 // INTERSECTION: where is coverage LOW and the signal HIGH? A bivariate choropleth
 // answers it directly — coverage terciles × signal terciles = a 3×3 class matrix,
@@ -344,7 +344,7 @@ export function bivariateRefusalReason(
   // THIRD refusal reason (2026-07-25). Both axes can pass the checks above and
   // the JOIN still come back almost entirely hatched, because suppression
   // propagates per unit from either input at the grain the map paints. Live on
-  // "Brotes activos": the province-grain signal is healthy (24 cells, 2
+  // "Señales de brote": the province-grain signal is healthy (24 cells, 2
   // suppressed) but the rendered cross ran at DEPARTMENT grain, where zoonosis
   // is so thinly spread that only 11 of 1.983 departments clear k=5 — 0,6%,
   // and no window fixes it (measured at 90d/1y/2y/3y). The operator saw the

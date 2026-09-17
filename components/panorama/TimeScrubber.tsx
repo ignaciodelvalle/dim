@@ -677,7 +677,7 @@ function TimeScrubberImpl({
               as if the whole map were as-of-t. */}
           {currentStateBaseLabel && (
             <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-1.5 text-xs text-ln-op-mute">
-              {/* H3 (cowork QA): in Brotes activos the base metric ({label}) is a
+              {/* H3 (cowork QA): in Señales de brote the base metric ({label}) is a
                   current-state stock, so the operator read the whole timeline as
                   "dead". Clarify that the scrubber DOES reproduce the temporal
                   overlays (señales); only the base metric stays fixed. */}

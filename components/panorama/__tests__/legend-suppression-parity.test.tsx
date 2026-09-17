@@ -116,7 +116,7 @@ function bivariateLayer(cells: BivariateCell[]): ActiveLayer {
   return {
     id: "brotes",
     color: "#e15759",
-    label: "Brotes activos",
+    label: "Señales de brote",
     geomType: "choropleth",
     level: "province",
     features: provinceFC(cells.map((c) => ({ provinceCode: c.provinceCode, value: null }))),

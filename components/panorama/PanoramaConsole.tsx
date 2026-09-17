@@ -2217,13 +2217,13 @@ export function PanoramaConsole({
   }, [activePresetId, activeMetricOption]);
 
   // task #63: the bivariate "riesgo-brotes" encoding is OFFERED only for the
-  // "Brotes activos" preset at province framing with both inputs active — the
+  // "Señales de brote" preset at province framing with both inputs active — the
   // gate for the toggle UI + the caption override under the map.
   // P2: eligibility now reads the shared REGISTRY predicate (the same one
   // capabilitiesFor exposes as `allowedControls.bivariateEligible`) — NO preset
   // id string. It is satisfied by a rate-with-target base (the coverage axis)
   // crossed with an active signal (the outbreak axis) at province framing; the
-  // "Brotes activos" preset SATISFIES it (cobertura × zoonosis) without being named.
+  // "Señales de brote" preset SATISFIES it (cobertura × zoonosis) without being named.
   const bivariateEligible = bivariateEligibleFor(
     PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
     level,
@@ -4026,7 +4026,7 @@ export function PanoramaConsole({
     };
   }, [mapLayers, graduatedScale, bivariateActive]);
 
-  // task #63: bivariate encoding toggle — offered ONLY on "Brotes activos" at
+  // task #63: bivariate encoding toggle — offered ONLY on "Señales de brote" at
   // province framing (both inputs active). A map ENCODING switch (how the two
   // layers are drawn), not a data toggle. ARCHETYPE A: relocated from above the
   // map into the monitoring rail so the geography leads the fold. The segment

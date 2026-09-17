@@ -443,7 +443,7 @@ export default async function GobVigilanciaPage({
           guardInput={{ priorBase: prevVaccinationsWeek }}
         />
         {/* Clickable KPI tile (v1 `href` — wraps the whole tile in an <a>,
-            same pattern as "Brotes activos" above): replaces the former
+            same pattern as "Señales de brote" above): replaces the former
             standalone "Investigaciones" CTA button. Reads as one of the
             strip's tiles and drills into the same investigations route on
             click. This is a live stock (cases currently under active

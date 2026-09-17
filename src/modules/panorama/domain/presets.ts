@@ -189,8 +189,8 @@ export type PanoramaPreset = {
 export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
   {
     id: "brotes-activos",
-    label: "Brotes activos",
-    description: "¿Dónde hay brotes activos sobre huecos de vacunación?",
+    label: "Señales de brote",
+    description: "¿Dónde se registran señales de brote sobre huecos de vacunación?",
     // base: cobertura (rate choropleth) — exact fit: vaccination gaps vs. outbreak signals.
     base: "cobertura",
     // signal: zoonosis (outbreak_signals proportional symbols over the choropleth).
@@ -208,7 +208,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     metrics: ["cobertura", "zoonosis", "mordeduras"],
     // P5: the "Intensidad de reporte (bivariado)" toggle (renamed from "Riesgo
     // (bivariado)" — C2, 2026-07-22) is a display encoding WITHIN this
-    // vista — selecting it keeps the badge on "Brotes activos" and round-trips
+    // vista — selecting it keeps the badge on "Señales de brote" and round-trips
     // the URL (?encoding=bivariate) so a shared link reproduces the view.
     encodings: ["bivariate"],
   },

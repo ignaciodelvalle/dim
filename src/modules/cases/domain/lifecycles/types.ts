@@ -84,8 +84,31 @@ export interface CaseLifecycle {
    * Added for `rehome_request` (rehome-by-titular): with `terminalEvents: []`
    * and `manualCloseAllowed: false` the detail told org members to escalate a
    * request only they could answer. Leave it unset where the policy really is
-   * unwritten (microchip_remediation, outbreak_investigation) — the generic
-   * sentence there is the honest one.
+   * unwritten (microchip_remediation) — the generic sentence there is the
+   * honest one.
+   *
+   * NOT for a kind closed by hand on ITS OWN screen — that is
+   * `dedicatedCloseProse` below. This one says "the parties close it"; that one
+   * says "you close it, elsewhere".
    */
   actionCloseProse?: string;
+
+  /**
+   * For a kind whose close IS a manual act, but lives on a dedicated screen
+   * instead of the generic case-detail button: the es-AR clause naming where
+   * and how, in the shape "no se cierra desde acá: {dedicatedCloseProse}".
+   *
+   * Added for `outbreak_investigation` on 2026-09-17, correcting a false
+   * statement shown to sanitary authorities. Reading `terminalEvents: []` plus
+   * `manualCloseAllowed: false` and concluding "no closing path exists" is the
+   * inference this field exists to stop: the flags are both correct, and the
+   * close exists anyway. `manualCloseAllowed` stays false ON PURPOSE there,
+   * because the dedicated close is STRICTER than the generic one it would open
+   * — turning the flag on to "fix" the message would add a weaker second door
+   * to a legally sensitive act.
+   *
+   * So the rule: two false flags do not add up to an absent capability. Before
+   * telling an operator that a policy is unwritten, look for the screen.
+   */
+  dedicatedCloseProse?: string;
 }
