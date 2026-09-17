@@ -93,7 +93,7 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
             "Cobertura antirrábica (perros, 12m)",
             "Zoonosis / señales",
           ],
-          "vista": "Brotes activos",
+          "vista": "Señales de brote",
         },
         {
           "kpis": [

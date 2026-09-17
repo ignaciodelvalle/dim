@@ -203,7 +203,7 @@ funciona si las dos láminas incómodas están donde se ven.
   honesto, la pantalla lo dice en vez de dibujar un porcentaje.
 - **Hechos.**
   - Descriptores en el catálogo de indicadores:
-    <!-- fact:kpi_descriptors -->86<!-- /fact -->.
+    <!-- fact:kpi_descriptors -->87<!-- /fact -->.
 - **Respaldo.**
   - `lib/metrics/kpi-catalog.ts` — el catálogo: cada entrada con su definición, su
     fuente y su meta.
@@ -424,10 +424,10 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->69<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1527<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1528<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
-    <!-- fact:mobile_jest_files -->111<!-- /fact -->.
+    <!-- fact:mobile_jest_files -->113<!-- /fact -->.
   - Flujos de integración continua: <!-- fact:ci_workflows -->8<!-- /fact -->.
   - Reglas del canon de convenciones que algo hace cumplir:
     <!-- fact:canon_enforced -->179<!-- /fact --> de

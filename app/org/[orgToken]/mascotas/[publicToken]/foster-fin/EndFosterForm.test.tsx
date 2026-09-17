@@ -99,3 +99,38 @@ describe("EndFosterForm — closing a foster stay is gated behind a modal", () =
     expect(screen.queryByRole("button", { name: "Confirmar" })).toBeNull();
   });
 });
+
+describe("EndFosterForm - an error settle must not reassign WHO ended the stay", () => {
+  // React 19 resets a `<form action>` when the action settles, ERROR INCLUDED,
+  // and a radio group falls back to whichever option carries `defaultChecked`.
+  // Here that is `shelter`. So an operator who recorded that the FOSTER family
+  // ended the arrangement gets it quietly reassigned to the organisation, on an
+  // event this form's own header calls immutable.
+  //
+  // Nobody re-reads a radio after an error; they read the error and press the
+  // button again. That is what makes a wrong default worse than a blank one.
+  it("keeps `endedBy` on the option the operator chose", async () => {
+    endFosterAction.mockResolvedValue({ error: "No se pudo cerrar el alojamiento." });
+    render(<EndFosterForm {...props} />);
+
+    const form = document.querySelector("form") as HTMLFormElement;
+    const chosen = Array.from(form.querySelectorAll('input[name="endedBy"]')) as HTMLInputElement[];
+    const notShelter = chosen.find((r) => r.value !== "shelter");
+    expect(notShelter, "the radio group must offer something other than 'shelter'").toBeTruthy();
+
+    fireEvent.click(notShelter as HTMLInputElement);
+    expect((notShelter as HTMLInputElement).checked).toBe(true);
+
+    // `requestSubmit()`, not `fireEvent.submit`: only a real submit runs React
+    // 19's form-action path, and without it the reset under test never happens
+    // and this assertion passes having judged nothing.
+    form.requestSubmit();
+    await waitFor(() => expect(endFosterAction).toHaveBeenCalled());
+    await screen.findByText(/No se pudo cerrar el alojamiento/i);
+
+    // Re-queried from the live DOM on purpose: state was never what was lost.
+    const after = Array.from(form.querySelectorAll('input[name="endedBy"]')) as HTMLInputElement[];
+    const ticked = after.find((r) => r.checked);
+    expect(ticked?.value).toBe((notShelter as HTMLInputElement).value);
+  });
+});

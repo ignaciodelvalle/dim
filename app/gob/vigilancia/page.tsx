@@ -385,7 +385,7 @@ export default async function GobVigilanciaPage({
           label={KPI_CATALOG.outbreak_active_signals.label}
           value={formatCount(metrics.outbreakActiveCount)}
           tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
-          sparkline={outbreakSparkline.points.map((p) => p.y)}
+          sparkline={outbreakSparkline.points}
           href="/gob/vigilancia/brotes"
           info={{
             definition:
@@ -404,7 +404,7 @@ export default async function GobVigilanciaPage({
           label={RABIES_CASES_KPI_LABEL}
           value={formatCount(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
-          sparkline={rabiesSparkline.points.map((p) => p.y)}
+          sparkline={rabiesSparkline.points}
           // Jumps to the compliance card (panelComplianceId), not the disease-
           // signals card (panelRabiesId) — that card is per-disease SIGNAL
           // counts, not rabies-observation detail. The compliance card is
@@ -423,8 +423,8 @@ export default async function GobVigilanciaPage({
           value={formatCount(metrics.petsRegisteredToday)}
           info={{
             definition:
-              "Mascotas registradas en el sistema desde la medianoche UTC (21:00 ART del día anterior), scoped a la jurisdicción del operador.",
-            formula: "COUNT(pets WHERE created_at >= today midnight UTC)",
+              "Mascotas registradas en el sistema desde la medianoche argentina (00:00 ART de hoy), scoped a la jurisdicción del operador.",
+            formula: "COUNT(pets WHERE created_at >= hoy 00:00 ART)",
           }}
           descriptorId="pets_registered_today"
         />
@@ -433,7 +433,7 @@ export default async function GobVigilanciaPage({
           value={formatCount(metrics.vaccinationsThisWeek)}
           tone="ok"
           deltaV2={metrics.vaccinationsThisWeek > 0 ? (vaccinationsDelta ?? undefined) : undefined}
-          sparkline={vacSparkline.points.map((p) => p.y)}
+          sparkline={vacSparkline.points}
           info={{
             definition:
               "Eventos vaccination_administered registrados en los últimos 7 días en la jurisdicción del operador.",
@@ -443,7 +443,7 @@ export default async function GobVigilanciaPage({
           guardInput={{ priorBase: prevVaccinationsWeek }}
         />
         {/* Clickable KPI tile (v1 `href` — wraps the whole tile in an <a>,
-            same pattern as "Brotes activos" above): replaces the former
+            same pattern as "Señales de brote" above): replaces the former
             standalone "Investigaciones" CTA button. Reads as one of the
             strip's tiles and drills into the same investigations route on
             click. This is a live stock (cases currently under active
@@ -460,6 +460,44 @@ export default async function GobVigilanciaPage({
               "COUNT(cases WHERE caseKind='outbreak_investigation' AND status IN ('open','escalated'))",
           }}
           descriptorId="outbreak_investigations_active"
+        />
+        {/* THE COUNTERWEIGHT TO THE TILE ABOVE, and it ships with it rather
+            than after it.
+
+            Pointing this screen at the expediente (PO decision 2026-09-17) is
+            the honest move: an investigation is opened by a person and closed
+            by a person, with a required reason and a final report, so it is a
+            real stock in a way a signal never was. But it trades one silence
+            for another. A ZERO up there means two different things - nothing
+            is happening, or nobody looked - and on the seeded database those
+            are not hypothetical: 2137 signals, 0 investigations, 0 case
+            events. The tile above, alone, would have answered "no pasa nada"
+            to that.
+
+            SAME SHAPE AS THE BITE TILE BELOW, deliberately. That one exists
+            because a jurisdiction can show 0 open rabies observations while
+            carrying hundreds of unescalated bite reports; this one exists
+            because it can show 0 investigations while carrying every signal
+            it ever received. Same epistemic phrasing ("la ausencia de X no
+            implica ausencia de Y"), same pairing, same refusal to turn a
+            count of ATTENTION into a claim about RISK.
+
+            TONE STAYS NEUTRAL on purpose. A signal with no investigation is
+            not a finding - most isolated signals do not warrant one. Painting
+            it amber would be the same overclaiming this screen spent 2026-09
+            removing. */}
+        <OpKpi
+          label={KPI_CATALOG.outbreak_signals_untriaged.label}
+          value={formatCount(metrics.untriagedSignalCount)}
+          tone="neutral"
+          href="/gob/vigilancia/brotes"
+          info={{
+            definition:
+              "Se\u00f1ales de brote de los \u00faltimos 30 d\u00edas que no tienen ning\u00fan expediente de investigaci\u00f3n vinculado. Se lee CONTRA el n\u00famero de arriba: la ausencia de investigaciones abiertas no implica ausencia de se\u00f1ales sin mirar.",
+            formula:
+              "COUNT(outbreak_signal, \u00faltimos 30d) WHERE NOT EXISTS (case_events entry_type='signal_link')",
+          }}
+          descriptorId="outbreak_signals_untriaged"
         />
         {/* C1 (2026-07-22, §3g / red-team #6): the escalation gap — a
             jurisdiction can show 0 open rabies observations while carrying

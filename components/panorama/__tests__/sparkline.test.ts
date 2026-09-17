@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { sparklinePath } from "../Sparkline";
+import { sparklinePath, sparklineSegments } from "../Sparkline";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -90,5 +90,49 @@ describe("sparklinePath", () => {
     // [0, 5, 10] → y for value=5 should be exactly height/2
     const pts = parsePoints(sparklinePath([0, 5, 10], 100, 20));
     expect(pts[1][1]).toBe(10); // height/2
+  });
+});
+
+// A masked bucket (k-anonimato) carries y: 0 and a `suppressed` flag. Drawn as
+// the number 0 it becomes the series MINIMUM and pins to the bottom of the box —
+// a trough a reader cannot tell from a week where nothing happened. The caller
+// hands the bucket over as `null` and the line breaks instead.
+describe("sparklineSegments — a masked bucket is a HOLE, never a floor value", () => {
+  it("splits the line around a hole instead of dipping through it", () => {
+    const segments = sparklineSegments([8, 9, null, 9, 8], 100, 20);
+    expect(segments).toHaveLength(2);
+    expect(parsePoints(segments[0])).toHaveLength(2);
+    expect(parsePoints(segments[1])).toHaveLength(2);
+  });
+
+  it("keeps the hole's x slot, so the time base is not compressed", () => {
+    // 5 buckets over width=100 → x = 0, 25, 50, 75, 100. The masked third
+    // bucket owns x=50 and nobody else may take it: closing the gap would slide
+    // every later bucket left and quietly redraw WHEN things happened.
+    const segments = sparklineSegments([8, 9, null, 9, 8], 100, 20);
+    expect(parsePoints(segments[0]).map(([x]) => x)).toEqual([0, 25]);
+    expect(parsePoints(segments[1]).map(([x]) => x)).toEqual([75, 100]);
+  });
+
+  it("scales over the PLOTTED values only — a hole is not a zero in the range", () => {
+    // Were the hole read as 0, min would be 0 and the two 8s would sit high in
+    // the box. With only 8 and 9 plotted, 8 is the floor and 9 the ceiling.
+    const [first] = sparklineSegments([8, 9, null], 100, 20);
+    const ys = parsePoints(first).map(([, y]) => y);
+    expect(ys[0]).toBe(20); // 8 → bottom
+    expect(ys[1]).toBe(0); // 9 → top
+  });
+
+  it("returns no segments when every bucket is masked", () => {
+    // The caller renders its dashed placeholder — an all-masked series has no
+    // shape to show, and inventing one would be the original defect at scale.
+    expect(sparklineSegments([null, null, null], 100, 20)).toEqual([]);
+  });
+
+  it("is byte-identical to sparklinePath for a hole-free series", () => {
+    // The guard that lets sparklinePath keep its narrow signature and its own
+    // suite: one segment in, one string out, unchanged.
+    const values = [3, 1, 4, 1, 5];
+    expect(sparklineSegments(values, 120, 32)).toEqual([sparklinePath(values, 120, 32)]);
   });
 });

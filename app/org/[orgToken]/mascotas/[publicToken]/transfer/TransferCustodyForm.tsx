@@ -3,6 +3,7 @@
 import { LnField, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import {
   type TransferCustodyFormState,
   transferCustodyAction,
@@ -26,7 +27,15 @@ export function TransferCustodyForm({
   destinations: DestinationOption[];
 }) {
   const action = transferCustodyAction.bind(null, orgToken, publicToken);
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // A RESET HERE CHANGES THE LEGAL RELATIONSHIP, not just the form. React 19
+  // resets a `<form action>` when the action settles, error included; a radio
+  // group goes back to whichever option carries `defaultChecked`, which here is
+  // "Custodia temporal". An operator who deliberately picked "Dueño/a
+  // permanente" — a sanctuary placement, a decomiso with no rehoming — gets it
+  // flipped back under them, and the second submit records the other thing.
+  // The destination org is lost outright for the same reason.
+  const { boundAction, kept, keptChecked } = useKeptFields(action);
+  const [state, formAction, isPending] = useActionState(boundAction, initialState);
   // N3: the action returns where to go and this navigates. It used to
   // redirect() server-side, a transition the App Router drops in production —
   // the write committed and the screen never moved.
@@ -49,7 +58,8 @@ export function TransferCustodyForm({
               id={id}
               name="destinationOrgId"
               required
-              defaultValue=""
+              key={`destinationOrgId-${kept("destinationOrgId")}`}
+              defaultValue={kept("destinationOrgId")}
               aria-describedby={describedBy}
               invalid={invalid}
             >
@@ -72,7 +82,7 @@ export function TransferCustodyForm({
               type="radio"
               name="newRole"
               value="shelter_custody"
-              defaultChecked
+              defaultChecked={keptChecked("newRole", true, "shelter_custody")}
               className="mt-1"
             />
             <span>
@@ -83,7 +93,13 @@ export function TransferCustodyForm({
             </span>
           </label>
           <label className="flex items-start gap-2">
-            <input type="radio" name="newRole" value="owner" className="mt-1" />
+            <input
+              type="radio"
+              name="newRole"
+              value="owner"
+              defaultChecked={keptChecked("newRole", false, "owner")}
+              className="mt-1"
+            />
             <span>
               <span className="block text-md font-medium text-ln-op-ink">Dueño/a permanente</span>
               <span className="block text-sm text-ln-op-mute">

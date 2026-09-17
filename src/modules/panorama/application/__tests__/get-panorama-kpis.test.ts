@@ -911,9 +911,26 @@ describe("getPanoramaKpis", () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
 
-    expect(byId.cobertura.sparkline).toEqual([10, 14]);
-    expect(byId.mordeduras.sparkline).toEqual([3, 5]);
-    expect(byId.zoonosis.sparkline).toEqual([1, 2]);
+    // THE WHOLE POINT TRAVELS, not just its `y`. These three assertions used to
+    // read `toEqual([10, 14])` and so on, and that shape was not merely an
+    // implementation detail being over-pinned: it was pinning the defect. The
+    // DTO built its series with `trend.points.map((p) => p.y)`, a projection
+    // that structurally cannot carry the `suppressed` flag `suppressSmallBuckets`
+    // puts on a k-anon-masked bucket, so a masked bucket (transported as `y: 0`)
+    // reached the tile as an indistinguishable zero and drew a dip to the floor
+    // (metric-honesty audit, PO 2026-09-16). See the masked case below.
+    expect(byId.cobertura.sparkline).toEqual([
+      { x: "ene", y: 10 },
+      { x: "feb", y: 14 },
+    ]);
+    expect(byId.mordeduras.sparkline).toEqual([
+      { x: "ene", y: 3 },
+      { x: "feb", y: 5 },
+    ]);
+    expect(byId.zoonosis.sparkline).toEqual([
+      { x: "ene", y: 1 },
+      { x: "feb", y: 2 },
+    ]);
     // Non-window-sensitive KPIs never get a sparkline (no matching trend).
     expect(byId.esterilizacion.sparkline).toBeUndefined();
     expect(byId.perdidas.sparkline).toBeUndefined();
@@ -924,6 +941,32 @@ describe("getPanoramaKpis", () => {
     expect(fetchRabiesVaccinationTrend).toHaveBeenCalledTimes(1);
     expect(fetchBitesTrend).toHaveBeenCalledTimes(1);
     expect(fetchKpiTrend).toHaveBeenCalledWith("rabies_observation_started", expect.anything());
+  });
+
+  it("carries a k-anon-masked bucket's flag into the sparkline instead of a bare 0", () => {
+    // SUPPRESSED != ZERO. A bucket with 1..k-1 observations is masked to y: 0
+    // and flagged; the tile needs the flag to draw a gap and to disclose "N
+    // períodos ocultos (privacidad)". Without it the tile can only draw the 0,
+    // which on a 32px sparkline with no axes and no tooltip reads exactly like a
+    // period in which nothing happened.
+    vi.mocked(fetchBitesTrend).mockResolvedValue({
+      granularity: "month",
+      points: [
+        { x: "ene", y: 9 },
+        { x: "feb", y: 0, suppressed: true },
+        { x: "mar", y: 11 },
+      ],
+      suppressedCount: 1,
+    });
+
+    return getPanoramaKpis({ role: "admin" }, [], period).then(({ kpis }) => {
+      const mordeduras = kpis.find((k) => k.id === "mordeduras");
+      expect(mordeduras?.sparkline).toEqual([
+        { x: "ene", y: 9 },
+        { x: "feb", y: 0, suppressed: true },
+        { x: "mar", y: 11 },
+      ]);
+    });
   });
 
   // ---------------------------------------------------------------------------

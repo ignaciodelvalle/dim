@@ -90,13 +90,33 @@ export function OutbreakSignalRow({ signal, highlighted = false }: OutbreakSigna
           {timeAgo(signal.detectedAt)}
         </time>
       </Link>
+      {/* THE ROW USED TO OFFER "abrir investigación" ON EVERY SIGNAL, including
+          the ones somebody had already investigated - it had no way to know.
+          An operator working a feed of hundreds could open a second expediente
+          for a signal that already had one, and nothing on screen would stop
+          them or even hint at it.
+
+          The link is read through the `signal_link` case event that
+          `openOutbreakInvestigation` writes as its own entry type, so this is
+          the same fact the investigation itself records, not a guess. A signal
+          with no link is genuinely untriaged - which is also what the
+          "Señales sin investigación" tile counts, from the same clause. */}
       <div className="px-1 pb-2">
-        <Link
-          href={`/gob/vigilancia/investigaciones/nuevo?diseaseCode=${signal.diseaseCode}&signalId=${signal.signalEventId}`}
-          className="text-sm text-ln-op-azul hover:underline"
-        >
-          Abrir investigación →
-        </Link>
+        {signal.investigation ? (
+          <Link
+            href={`/gob/vigilancia/investigaciones/${signal.investigation.publicCode}`}
+            className="text-sm text-ln-op-mute hover:underline"
+          >
+            Ver investigación {signal.investigation.publicCode} →
+          </Link>
+        ) : (
+          <Link
+            href={`/gob/vigilancia/investigaciones/nuevo?diseaseCode=${signal.diseaseCode}&signalId=${signal.signalEventId}`}
+            className="text-sm text-ln-op-azul hover:underline"
+          >
+            Abrir investigación →
+          </Link>
+        )}
       </div>
     </li>
   );

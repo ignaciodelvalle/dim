@@ -35,13 +35,28 @@ export const outbreakInvestigationLifecycle: CaseLifecycle = {
       eventType: "outbreak_signal",
     },
   ],
-  // NO terminal events — and `manualCloseAllowed` below is false, so this kind
-  // has NO closing path at all today. The previous comment said "closed manually
-  // via case action", which stopped being true when #41 shipped the manual close
-  // gated on `manualCloseAllowed` (2026-08-10). It matters more here than in
-  // microchip_remediation: an outbreak investigation is legally sensitive and
-  // may run for weeks, so an operator WILL eventually want to close one. See
-  // L-22 in docs/plans/PENDIENTES.md.
+  // NO terminal events, and `manualCloseAllowed` below is deliberately false —
+  // but this kind IS closable, by a path that does not go through either of
+  // those two flags, and the previous comment here was wrong to read them as
+  // "no closing path at all today".
+  //
+  // The real close is `closeInvestigation`
+  // (src/modules/surveillance/application/outbreak-investigation.ts), reached
+  // from `closeInvestigationAction` and from two buttons in
+  // app/gob/vigilancia/investigaciones/[caseCode]/InvestigationActions.tsx.
+  // It is STRICTER than the generic case close #41 shipped, which is the whole
+  // reason `manualCloseAllowed` stays false: the generic one takes a reason and
+  // closes, while this one demands an `outcome` (resolved | dismissed), a reason
+  // of at least ten characters, and — for `resolved` — a final epidemiological
+  // report, then writes `case_closed` plus a distinct audit row per outcome in
+  // one transaction, jurisdiction-scoped. Turning `manualCloseAllowed` on would
+  // open a second, weaker door to the same act on a legally sensitive
+  // expediente. Leave it off.
+  //
+  // What is genuinely absent is a close on the SIGNAL. `outbreak_signal` has no
+  // open/closed notion and needs none to make a stock countable: the stock is
+  // `outbreak_investigations_active` (KPI_CATALOG, basis "stock"), which counts
+  // the cases a person opened and a person closed.
   terminalEvents: [],
   // No auto-close cron — outbreak investigations are legally sensitive and
   // may run for weeks (ENO pipeline spec marks brote cron as v2 out-of-scope).
@@ -51,5 +66,10 @@ export const outbreakInvestigationLifecycle: CaseLifecycle = {
   // Nadie documentó una política de cierre manual para este kind.  no
   // es una prohibición decidida: es la ausencia de una decisión escrita.
   manualCloseAllowed: false,
+  // Machine-readable, not a comment: `availableCaseActions` reads this so the
+  // generic case detail sends the operator to the screen that closes it instead
+  // of asking them to request a policy that is already written.
+  dedicatedCloseProse:
+    "lo cierra la autoridad sanitaria desde la pantalla de la investigación, eligiendo si se resolvió o se descarta, con un motivo y — cuando se resuelve — un informe epidemiológico final.",
   reopenAllowed: false,
 };

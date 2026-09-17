@@ -30,7 +30,7 @@ describe("derivePreset", () => {
   });
 
   it("derives HONESTLY to another preset when a chip swap lands on its config", () => {
-    // Start on "Brotes activos" ([cobertura, zoonosis]); toggling zoonosis OFF
+    // Start on "Señales de brote" ([cobertura, zoonosis]); toggling zoonosis OFF
     // lands on [cobertura] — which IS "cumplimiento"'s exact config. The badge
     // must follow truthfully, not cling to the old preset or force null.
     expect(derivePreset(["cobertura"], null, PANORAMA_PRESETS)).toBe("cumplimiento");
@@ -40,7 +40,7 @@ describe("derivePreset", () => {
 
   it("P5: a preset-DECLARED encoding stays on the preset; an un-owned one is personalizada", () => {
     // brotes-activos declares encodings:["bivariate"] — the "Riesgo" toggle is a
-    // display encoding WITHIN the vista, so the badge stays "Brotes activos" and
+    // display encoding WITHIN the vista, so the badge stays "Señales de brote" and
     // the ?encoding=bivariate deep-link derives honestly.
     expect(derivePreset(["cobertura", "zoonosis"], "bivariate", PANORAMA_PRESETS)).toBe(
       "brotes-activos",

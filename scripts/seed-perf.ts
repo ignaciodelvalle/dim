@@ -1613,7 +1613,7 @@ async function buildStateShowcase(ownerUserId: string, seedOrgId: string | null)
 // For each seeded govt account (lucas@, govt@, govt-local@) resolves the live
 // govt_assignments rows (revoked_at IS NULL) and seeds a cluster of
 // outbreak_signal pet_events in those jurisdictions so the /gob/vigilancia
-// "brotes activos" counter is > 0.
+// "señales de brote" counter is > 0.
 //
 // Disease clusters per account:
 //   - lucas@dim.test     : distemper cluster in Retiro + parvo cluster in Recoleta
@@ -1894,7 +1894,7 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
   await buildStateShowcase(ownerUserId, seedOrgId);
 
   // Outbreak clusters: seed open + recent outbreak_signal events per govt scope
-  // so /gob/vigilancia shows brotes activos > 0 for each seeded govt account.
+  // so /gob/vigilancia shows señales de brote > 0 for each seeded govt account.
   await buildOutbreakClusters(ownerUserId);
 
   let created = 0;

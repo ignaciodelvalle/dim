@@ -105,7 +105,7 @@ export {
 export type { ImpactRankable, ImpactRow, ImpactSummary, ImpactTotal } from "./impact-ranking";
 export {
   DEFAULT_IMPACT_TOP_N,
-  NO_CENSUS_NOTE,
+  NO_POPULATION_NOTE,
   computeImpact,
   formatImpactUnits,
   formatTopImpactLine,

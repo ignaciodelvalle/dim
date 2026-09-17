@@ -57,6 +57,56 @@ export const DISCARD_COPY = {
     stay: "Seguir editando",
     leave: "Salir",
   },
+  /**
+   * ASENTAR, AND ONLY ASENTAR, because it is the only writer screen whose
+   * draft survives being left (`pets/event-draft-store.ts`).
+   *
+   * IT IS A SEPARATE ENTRY AND NOT AN EDIT TO `form` FOR A REASON WORTH
+   * STATING. `form` is shared by ten screens that really do lose everything,
+   * and softening its sentence for all of them would be a lie told nine times
+   * to tell the truth once. But leaving asentar on `form` is the mirror lie:
+   * "lo que escribiste hasta acá se pierde" would be false on the one screen
+   * where it is now kept, and a confirm that overstates what it is about is how
+   * people learn to dismiss confirms.
+   *
+   * IT STILL ASKS. The asiento is NOT on the server, and this dialog is the
+   * only place that says so unambiguously before somebody walks away believing
+   * they registered something. What changed is the promise, not the question.
+   */
+  asiento: {
+    title: "¿Salir de este asiento?",
+    body: "Todavía no se registró nada. Guardamos el borrador en este teléfono y lo vas a encontrar cuando vuelvas.",
+    stay: "Seguir escribiendo",
+    leave: "Salir",
+  },
+  /**
+   * The one place a person destroys a draft ON PURPOSE, from the recovery
+   * banner. It is confirmed because it is irreversible and because the text it
+   * throws away is text its owner may not remember writing, which is exactly
+   * the state in which a mis-tap is likeliest.
+   */
+  draft: {
+    title: "¿Descartar el borrador?",
+    body: "Se borra lo que habías escrito y el formulario empieza de nuevo.",
+    stay: "Conservarlo",
+    leave: "Descartar",
+  },
+  /**
+   * El mismo descarte, cuando la persona llegó por la caja de captura.
+   *
+   * ES OTRA ENTRADA POR LA MISMA REGLA QUE `asiento` ES OTRA QUE `form`: acá el
+   * formulario NO "empieza de nuevo". `useEventDraft` devuelve el borrador al
+   * valor con el que la pantalla arrancó, y cuando se llegó por una captura ese
+   * valor son los campos que la frase llenó. Decir "empieza de nuevo" sería
+   * prometer una pantalla en blanco y entregar otra cosa, en el único diálogo
+   * de esta pantalla que borra algo para siempre.
+   */
+  draftOverCapture: {
+    title: "¿Descartar el borrador?",
+    body: "Se borra lo que habías escrito antes y quedan los datos de lo que acabás de contar.",
+    stay: "Conservarlo",
+    leave: "Descartar",
+  },
 } as const satisfies Record<string, DiscardCopy>;
 
 /**

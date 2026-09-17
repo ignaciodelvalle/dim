@@ -205,7 +205,7 @@ nombre, y hay que nombrarlos igual en las cuatro láminas que los tocan.
 | `censo` | Censo | | UI |
 | `vigilancia` | Vigilancia | | UI |
 | `mortalidad` | Mortalidad | | UI |
-| `KPI_CATALOG_LIST` | Indicador · Catálogo de indicadores | <!-- fact:kpi_descriptors -->86<!-- /fact --> descriptores en `lib/metrics/kpi-catalog.ts`. Cada uno declara qué cuenta, sobre qué población y en qué ventana | UI |
+| `KPI_CATALOG_LIST` | Indicador · Catálogo de indicadores | <!-- fact:kpi_descriptors -->87<!-- /fact --> descriptores en `lib/metrics/kpi-catalog.ts`. Cada uno declara qué cuenta, sobre qué población y en qué ventana | UI |
 | `presentation-guards` | Guarda de presentación | Cuando el denominador es demasiado chico, la pantalla lo dice en vez de dibujar un porcentaje. Son cuatro, así que en un nodo va en plural: "Guardas de presentación" | acuñada |
 | `metric-legal-basis` | Respaldo normativo | **Solo dos indicadores citan una norma**, y las dos son de CABA y provincia de Buenos Aires | acuñada |
 | datos abiertos | Datos abiertos | Agregado y público, con umbral. `docs/datos-abiertos` | UI |

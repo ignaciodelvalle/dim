@@ -36,7 +36,6 @@ import { fetchPolicyOutcomes } from "@/lib/analytics/policy-outcome";
 import { fetchProvinceDataQuality } from "@/lib/analytics/territorial-data-quality";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, fetchCrossJurisdictionOutliers } from "@/lib/metrics";
-import { getCensusPopulationsCached } from "@/lib/metrics/census";
 import { windows } from "@/lib/metrics/period";
 
 import {
@@ -82,12 +81,12 @@ async function InteligenciaBody({
   // Three INDEPENDENT budgeted loads (T3.2). Kicked off together here, but
   // each races its OWN deadline and degrades alone — the shared promises are
   // consumed by the panel AND its KPI tile group (one query, two consumers).
-  // getCensusPopulationsCached is a process-lifetime cache (lib/metrics/
-  // census.ts) — ZERO new fan-out after the first render.
-  const indexLoad = loadWithTimeout(
-    Promise.all([fetchCrossJurisdictionOutliers(ctx), getCensusPopulationsCached()]),
-    INTEL_INDEX_TIMEOUT_MS,
-  );
+  //
+  // This used to be a Promise.all with getCensusPopulationsCached(). The census
+  // half fed the impact column's canine population estimate, which was the wrong
+  // denominator for two of the three metrics it multiplied (metric-honesty
+  // audit, PO 2026-09-16). Nothing on this screen reads the census any more.
+  const indexLoad = loadWithTimeout(fetchCrossJurisdictionOutliers(ctx), INTEL_INDEX_TIMEOUT_MS);
   const policyLoad = loadWithTimeout(fetchPolicyOutcomes(), INTEL_POLICY_TIMEOUT_MS);
   const qualityLoad = loadWithTimeout(fetchProvinceDataQuality(ctx), INTEL_QUALITY_TIMEOUT_MS);
 

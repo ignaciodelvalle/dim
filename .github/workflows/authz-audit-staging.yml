@@ -21,12 +21,19 @@ name: Authz audit (staging)
 # from the Supabase SQL editor during an incident would leave `pnpm verify`
 # green forever, and the next reader would conclude production is clean.
 #
+# FOUR FENCES SINCE 2026-09-17, and the fourth is worth a note because this
+# header used to say it was missing. `lint:storage-policies` had no
+# `--allow-remote`, so the storage write grants it freezes — a declared open
+# hole, see its FROZEN_WRITE_GRANTS block — were audited on disk and nowhere
+# else. Its live half now asks the catalog the one question the static half
+# cannot: is there a caller-facing write grant in that database that no file
+# declares?
+#
 # WHAT IT DOES NOT COVER, said here rather than implied by silence:
-#   · `lint:storage-policies` (scripts/check-storage-write-policies.ts) is NOT
-#     run. It does not accept `--allow-remote`, so pointing it at staging is not
-#     available today. The storage write grants it freezes are a declared open
-#     hole (its FROZEN_WRITE_GRANTS block); this workflow does not watch them.
-#     Teaching that script the flag is the work that would close the gap.
+#   · A widening that keeps `auth.uid()` and a bucket name in its predicate. The
+#     fence says so in its own header; it counts those and does not compare
+#     them, because comparing catalog text against source text does not work
+#     (Postgres deparses, and eight false alarms on a correct tree proved it).
 #   · The web's own authorization (guards, scoping predicates) is static and is
 #     already covered by `verify` on every push. This job asks the DATABASE.
 #
@@ -139,6 +146,19 @@ jobs:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         run: pnpm lint:subject-rights -- --allow-remote
 
+      # The fourth. Its static half already runs on every pull request in ci.yml
+      # and answers "is a new blanket grant being added to the tree"; only the
+      # live half belongs here, and it answers the question the static one
+      # cannot ask: does that database carry a storage write grant nobody wrote
+      # down? A `create policy` typed into the SQL editor leaves no file behind.
+      - name: Storage write policies against staging (read-only)
+        if: steps.guard.outputs.run == 'true'
+        id: storage
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm lint:storage-policies -- --allow-remote
+
       # `continue-on-error` marks a failed step `success` at the job level, so
       # without this the job would go green on three reds. Each outcome is named
       # in the summary because "the authz audit failed" is not actionable and
@@ -149,16 +169,17 @@ jobs:
           RLS: ${{ steps.rls.outcome }}
           SCOPE: ${{ steps.scope.outcome }}
           RIGHTS: ${{ steps.rights.outcome }}
+          STORAGE: ${{ steps.storage.outcome }}
         run: |
           echo "RLS coverage        : $RLS"
           echo "Scoping             : $SCOPE"
           echo "Subject rights      : $RIGHTS"
-          echo "storage policies    : not run — check-storage-write-policies.ts has no --allow-remote (see header)"
-          if [ "$RLS" != "success" ] || [ "$SCOPE" != "success" ] || [ "$RIGHTS" != "success" ]; then
+          echo "storage policies    : $STORAGE"
+          if [ "$RLS" != "success" ] || [ "$SCOPE" != "success" ] || [ "$RIGHTS" != "success" ] || [ "$STORAGE" != "success" ]; then
             echo "::error::The live staging database diverges from what the tree declares. A red here is NOT a code defect — it means the database was changed outside the migration chain."
             exit 1
           fi
-          echo "All three authz fences agree with the live database."
+          echo "All four authz fences agree with the live database."
 
   # A guard-skipped audit reports `success`. The `audited:` input is the third
   # state: a run that did not audit neither opens nor closes the alert.

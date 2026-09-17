@@ -19,7 +19,7 @@ import { PresetPanel } from "./PresetPanel";
 const PRESETS = [
   {
     id: "brotes-activos",
-    label: "Brotes activos",
+    label: "Señales de brote",
     description: "d",
     base: "cobertura",
     level: "province",
@@ -44,7 +44,7 @@ describe("PresetPanel — roving focus, commit on Enter/Space (WARNING 8)", () =
     const onPreset = vi.fn();
     render(<PresetPanel presets={PRESETS} activePresetId="brotes-activos" onPreset={onPreset} />);
 
-    const first = screen.getByRole("radio", { name: "Brotes activos" });
+    const first = screen.getByRole("radio", { name: "Señales de brote" });
     first.focus();
     fireEvent.keyDown(first, { key: "ArrowRight" });
 
@@ -57,7 +57,7 @@ describe("PresetPanel — roving focus, commit on Enter/Space (WARNING 8)", () =
     const onPreset = vi.fn();
     render(<PresetPanel presets={PRESETS} activePresetId="brotes-activos" onPreset={onPreset} />);
 
-    const first = screen.getByRole("radio", { name: "Brotes activos" });
+    const first = screen.getByRole("radio", { name: "Señales de brote" });
     first.focus();
     // Arrow to the second, then commit it with Enter.
     fireEvent.keyDown(first, { key: "ArrowRight" });
@@ -96,7 +96,7 @@ describe("PresetPanel — roving focus, commit on Enter/Space (WARNING 8)", () =
     const onPreset = vi.fn();
     render(<PresetPanel presets={PRESETS} activePresetId="cumplimiento" onPreset={onPreset} />);
 
-    expect(screen.getByRole("radio", { name: "Brotes activos" })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: "Señales de brote" })).toHaveAttribute(
       "aria-checked",
       "false",
     );

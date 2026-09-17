@@ -23,6 +23,7 @@ import { diseasesForSpecies, findDisease } from "@/lib/reference/diseases";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
@@ -49,14 +50,20 @@ function LnCheckbox({
   name,
   value,
   required,
-  checked,
+  defaultChecked,
   onChange,
   children,
 }: {
   name: string;
   value: string;
   required?: boolean;
-  checked?: boolean;
+  /**
+   * DOM-OWNED, not `checked`. React 19 resets this form when the action
+   * settles - including on an error - and a CONTROLLED checkbox comes back at
+   * its mount value while React state still holds the real one. The attribute
+   * is what a reset restores from, so the value has to live there.
+   */
+  defaultChecked?: boolean;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   children: React.ReactNode;
 }) {
@@ -67,7 +74,7 @@ function LnCheckbox({
         name={name}
         value={value}
         required={required}
-        checked={checked}
+        defaultChecked={defaultChecked}
         onChange={onChange}
         className="mt-0.5 h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-azul)]"
       />
@@ -88,7 +95,33 @@ export function DeathRecordForm({
   /** True when the pet has an active rabies observation (pets.rabiesObservationStatus). */
   inRabiesObservation?: boolean;
 }) {
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // THE RESET HERE DOES NOT JUST LOSE WORK, IT CAN WRITE A FALSE FACT.
+  //
+  // React 19 resets a `<form action>` when the action settles, error included.
+  // Controlled text survives; a controlled `<select>` and a controlled
+  // checkbox do not - the reset restores them from the ATTRIBUTE, which only
+  // react-dom's mount path writes. Measured in
+  // `__tests__/react19-form-reset-contract.test.tsx`.
+  //
+  // On most forms that costs the person their typing. On THIS one it can cost
+  // the truth: the person ticks "falleció en una veterinaria", the server
+  // bounces the submit for an unrelated reason (there are six such branches in
+  // `src/modules/events/actions.ts`), and the box comes back unticked while
+  // everything around it still looks filled in. Re-submitting then records
+  // that the animal did NOT die at a clinic. This form says out loud, a few
+  // lines below, that the record "no se puede editar, corregir ni deshacer
+  // después".
+  //
+  // WHEN THE DEPENDENT FIELDS ARE FILLED the server catches it instead, with
+  // "Indicaste un nombre de clínica pero no marcaste que falleció en una
+  // veterinaria" - an error about something the person DID tick, which is its
+  // own kind of cruel. The silent branch is the one where those fields are
+  // empty and nothing is left to cross-check.
+  //
+  // Every control below is DOM-owned now; the `useState` mirrors stay only
+  // because the cross-field JSX reads them, and they were never what was lost.
+  const { boundAction, kept, keptChecked } = useKeptFields(action);
+  const [state, formAction, isPending] = useActionState(boundAction, initialState);
   // N3 redirect contract: the action returns `redirectTo` on success and the
   // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
   useActionRedirect(state.redirectTo, state);
@@ -97,16 +130,12 @@ export function DeathRecordForm({
   const today = todayIsoInAr();
   const [cause, setCause] = useState("");
   const [selectedDiseaseCode, setSelectedDiseaseCode] = useState("");
-  const [confirmedByLab, setConfirmedByLab] = useState(false);
   const [causeDetail, setCauseDetail] = useState("");
-  const [confirmedByVet, setConfirmedByVet] = useState(false);
   const [vetName, setVetName] = useState("");
   const [disposition, setDisposition] = useState("");
   const [deathAtClinic, setDeathAtClinic] = useState(false);
   const [vetContactedOwner, setVetContactedOwner] = useState("");
   const [clinicName, setClinicName] = useState("");
-  const [vetDecidedAlone, setVetDecidedAlone] = useState(false);
-  const [ownerToPrivateCrematorium, setOwnerToPrivateCrematorium] = useState(false);
   const [facility, setFacility] = useState("");
   // Plain const, not state: DateInputAr owns the field's value from here on
   // (it submits its own hidden ISO input), so nothing in this component reads
@@ -165,7 +194,8 @@ export function DeathRecordForm({
                 id={id}
                 name="cause"
                 required
-                value={cause}
+                key={`cause-${kept("cause")}`}
+                defaultValue={kept("cause")}
                 onChange={(e) => {
                   setCause(e.target.value);
                   setSelectedDiseaseCode("");
@@ -194,7 +224,8 @@ export function DeathRecordForm({
                   <LnSelect
                     id={id}
                     name="diseaseCode"
-                    value={selectedDiseaseCode}
+                    key={`diseaseCode-${kept("diseaseCode")}`}
+                    defaultValue={kept("diseaseCode")}
                     onChange={(e) => setSelectedDiseaseCode(e.target.value)}
                     aria-describedby={describedBy}
                     invalid={invalid}
@@ -214,8 +245,7 @@ export function DeathRecordForm({
               <LnCheckbox
                 name="confirmedByLab"
                 value="true"
-                checked={confirmedByLab}
-                onChange={(e) => setConfirmedByLab(e.target.checked)}
+                defaultChecked={keptChecked("confirmedByLab", false)}
               >
                 Confirmado por laboratorio
               </LnCheckbox>
@@ -239,8 +269,7 @@ export function DeathRecordForm({
           <LnCheckbox
             name="confirmedByVet"
             value="true"
-            checked={confirmedByVet}
-            onChange={(e) => setConfirmedByVet(e.target.checked)}
+            defaultChecked={keptChecked("confirmedByVet", false)}
           >
             Confirmado por veterinario/a
           </LnCheckbox>
@@ -265,12 +294,17 @@ export function DeathRecordForm({
               <LnCheckbox
                 name="deathAtClinic"
                 value="true"
-                checked={deathAtClinic}
+                defaultChecked={keptChecked("deathAtClinic", false)}
                 onChange={(e) => {
                   setDeathAtClinic(e.target.checked);
                   if (!e.target.checked) {
+                    // `vetDecidedAlone` is NOT cleared here any more, and its
+                    // absence is the point: the box lives inside
+                    // `{showVetDecidedAlone && ...}`, so closing this gate
+                    // UNMOUNTS it and the DOM forgets it. The old line existed
+                    // because the box was controlled and React state outlives
+                    // an unmount; DOM-owned, there is nothing left to clear.
                     setVetContactedOwner("");
-                    setVetDecidedAlone(false);
                     setClinicName("");
                   }
                 }}
@@ -308,7 +342,7 @@ export function DeathRecordForm({
                           key={opt.value}
                           name="vetContactedOwner"
                           value={opt.value}
-                          checked={vetContactedOwner === opt.value}
+                          defaultChecked={keptChecked("vetContactedOwner", false, opt.value)}
                           onChange={(e) => setVetContactedOwner(e.target.value)}
                         >
                           {opt.label}
@@ -321,8 +355,7 @@ export function DeathRecordForm({
                     <LnCheckbox
                       name="vetDecidedAlone"
                       value="true"
-                      checked={vetDecidedAlone}
-                      onChange={(e) => setVetDecidedAlone(e.target.checked)}
+                      defaultChecked={keptChecked("vetDecidedAlone", false)}
                     >
                       El veterinario decidió la disposición sin poder contactarme
                     </LnCheckbox>
@@ -335,8 +368,7 @@ export function DeathRecordForm({
           <LnCheckbox
             name="ownerToPrivateCrematorium"
             value="true"
-            checked={ownerToPrivateCrematorium}
-            onChange={(e) => setOwnerToPrivateCrematorium(e.target.checked)}
+            defaultChecked={keptChecked("ownerToPrivateCrematorium", false)}
           >
             Llevé el cuerpo a un crematorio privado por mi cuenta
           </LnCheckbox>
@@ -346,7 +378,8 @@ export function DeathRecordForm({
               <LnSelect
                 id={id}
                 name="dispositionMethod"
-                value={disposition}
+                key={`dispositionMethod-${kept("dispositionMethod")}`}
+                defaultValue={kept("dispositionMethod")}
                 onChange={(e) => setDisposition(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}

@@ -146,7 +146,7 @@ flowchart TD
 ## Confianza
 
 **Generado (marcadores con control automático):** el catálogo tiene
-<!-- fact:kpi_descriptors -->86<!-- /fact --> descriptores de indicadores
+<!-- fact:kpi_descriptors -->87<!-- /fact --> descriptores de indicadores
 (`lib/metrics/kpi-catalog.ts`); el umbral de anonimato es
 <!-- fact:k_anonymity_k -->5<!-- /fact --> (`lib/metrics/anonymity.ts`); el
 formulario público de denuncias tiene

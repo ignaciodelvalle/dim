@@ -28,7 +28,30 @@ import { ChartSizingBox } from "./ChartSizingBox";
 export type StackedSeriesPoint = {
   x: string;
   values: Record<string, number>;
+  /**
+   * Cells masked by k-anonimato (`suppressSmallStackedCells`): el valor real es
+   * 1..k-1 y viaja como 0 en `values`. Keyed por serie; sólo las celdas
+   * enmascaradas están presentes.
+   *
+   * La tabla "Ver datos" y el tooltip escriben "oculto (privacidad)" en vez del
+   * cero — suprimido ≠ cero. El ÁREA no dibuja un hueco como hace
+   * TimeSeriesChart con su serie única, y la razón es geométrica, no un olvido:
+   * una banda enmascarada ya vale 0 y por lo tanto ya tiene altura cero en el
+   * apilado, así que un corte de trazo no agregaría información y se leería
+   * como una falla de render. Los canales honestos acá son el tooltip, la tabla
+   * y el resumen accesible.
+   */
+  suppressed?: Record<string, true>;
 };
+
+/** Lo que se muestra en lugar de un número que nadie midió. Mismo texto que la
+ *  tabla de TimeSeriesChart usa para su serie única — un solo vocabulario. */
+const SUPPRESSED_CELL_LABEL = "oculto (privacidad)";
+
+/** Campo interno de cada fila de recharts que transporta el mapa de celdas
+ *  enmascaradas hasta el tooltip. Prefijado para no colisionar con una clave de
+ *  serie (las claves son causas crudas del payload, p. ej. "disease"). */
+const MASKED_FIELD = "__dimSuppressed";
 
 export type StackedTimeSeriesChartProps = {
   /** Ordered series keys (raw) — define stack order (bottom → top). */
@@ -91,11 +114,24 @@ export function StackedTimeSeriesChart({
 
   // recharts wants a flat row per x with one numeric prop per series. We use the
   // raw series key as the dataKey and the display label as the series `name`.
+  //
+  // Una celda enmascarada se plotea igual como 0 (no como null) A PROPÓSITO: ya
+  // valía 0 en el apilado, así que null no cambiaría la geometría y sólo
+  // cortaría el trazo de una banda de altura cero. Lo que sí cambia es el
+  // tooltip, que lee `MASKED_FIELD` de la fila y escribe "oculto (privacidad)".
   const chartData = points.map((p) => {
-    const row: Record<string, string | number> = { periodo: p.x };
+    const row: Record<string, unknown> = { periodo: p.x };
     for (const key of seriesKeys) row[key] = p.values[key] ?? 0;
+    if (p.suppressed) row[MASKED_FIELD] = p.suppressed;
     return row;
   });
+
+  /** Total de celdas enmascaradas que ESTOS puntos traen — derivado de los
+   *  propios datos, nunca de un segundo contador que pueda desincronizarse. */
+  const maskedCells = points.reduce(
+    (n, p) => n + (p.suppressed ? Object.keys(p.suppressed).length : 0),
+    0,
+  );
 
   const colorFor = (i: number) => CHART_COLORS[PALETTE[i % PALETTE.length]];
 
@@ -117,13 +153,21 @@ export function StackedTimeSeriesChart({
   // RA-9 BR-5: the recharts SVG used to sit in a bare <div> — no accessible
   // name, not aria-hidden, so a screen reader met an unnamed graphic. Mirrors
   // the ForecastChart / MapChoropleth / CalendarHeatmap contract.
+  // El lector de pantalla oye la geometría del apilado, no el vacío de una
+  // banda de altura cero — así que la única forma de que se entere de que una
+  // celda está enmascarada es que el resumen lo diga. La tabla "Ver datos" ya
+  // escribe "oculto (privacidad)" por celda; esto avisa que hay que ir a mirarla.
+  const maskedNote =
+    maskedCells > 0
+      ? ` ${maskedCells} ${maskedCells === 1 ? "celda oculta" : "celdas ocultas"} por privacidad (k<5): en la tabla figuran como "${SUPPRESSED_CELL_LABEL}", no como cero.`
+      : "";
   const summaryLabel = isEmpty
     ? `${fallbackTableLabel}: ${emptyMessage}`
     : `${fallbackTableLabel}: gráfico de áreas apiladas, ${seriesKeys.length} ${
         seriesKeys.length === 1 ? "serie" : "series"
       } (${seriesKeys.map(labelFor).join(", ")}) sobre ${points.length} ${
         points.length === 1 ? "período" : "períodos"
-      }. Los valores exactos están en la tabla "Ver datos".`;
+      }. Los valores exactos están en la tabla "Ver datos".${maskedNote}`;
 
   return (
     <div className={className}>
@@ -143,7 +187,19 @@ export function StackedTimeSeriesChart({
                   : undefined
               }
             />
-            <Tooltip />
+            {/* Suprimido ≠ cero también acá: sin este formatter el tooltip de una
+                celda enmascarada decía "Enfermedad: 0", que es la misma
+                afirmación falsa que la tabla hacía más abajo. */}
+            <Tooltip
+              formatter={(value: unknown, _name: unknown, item: unknown) => {
+                const entry = item as
+                  | { dataKey?: unknown; payload?: Record<string, unknown> }
+                  | undefined;
+                const key = typeof entry?.dataKey === "string" ? entry.dataKey : null;
+                const masked = entry?.payload?.[MASKED_FIELD] as Record<string, true> | undefined;
+                return key && masked?.[key] ? SUPPRESSED_CELL_LABEL : String(value);
+              }}
+            />
             {!isEmpty && <Legend wrapperStyle={{ fontSize: 12 }} />}
             {seriesKeys.map((key, i) => {
               const color = colorFor(i);
@@ -217,7 +273,10 @@ export function StackedTimeSeriesChart({
                       key={key}
                       className="border border-ln-line px-3 py-1.5 text-ln-ink tabular-nums"
                     >
-                      {p.values[key] ?? 0}
+                      {/* EL cero falso vivía exactamente acá: una celda de 1..4
+                          fallecimientos se imprimía como "0" bajo un encabezado
+                          que ya declaraba "N celdas ocultas (privacidad)". */}
+                      {p.suppressed?.[key] ? SUPPRESSED_CELL_LABEL : (p.values[key] ?? 0)}
                     </td>
                   ))}
                 </tr>

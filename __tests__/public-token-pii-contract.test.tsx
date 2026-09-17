@@ -237,6 +237,19 @@ const FIRST_NAME = "Juan";
 const PHONE = "+5491122334455";
 const EMAIL = "juan.perez@example.com";
 const ADDRESS = "Av. Corrientes 1234, CABA";
+/**
+ * What the page is allowed to SAY about that address (PO decision 2026-09-16).
+ *
+ * Consent to publish the location is not consent to publish a door. A pet very
+ * often goes missing from its own doorstep, so a street number on an open page
+ * is the owner's home address on an open page — and by the time anybody reads
+ * the line, the animal has moved, so the number buys a search nothing.
+ * `publicPlaceReference` removes it at the publication boundary; the full
+ * address and the coordinates stay in the event, route the case and reach the
+ * operator working it.
+ */
+const ADDRESS_AS_PUBLISHED = "Av. Corrientes, CABA";
+const HOUSE_NUMBER_IN_ADDRESS = "Corrientes 1234";
 const LOCALITY = "Palermo";
 const FAKE_DNI = "20-11222333-4";
 const LAT = "-34.603722";
@@ -370,7 +383,14 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     const html = renderToStaticMarkup(element as React.ReactElement);
 
     expect(html).toContain("Credencial pública"); // sanity: active render happened
-    for (const marker of [PHONE, EMAIL, FULL_NAME, ADDRESS, FAKE_DNI]) {
+    // ADDRESS_AS_PUBLISHED, not ADDRESS, and the difference is what keeps this
+    // canary alive. Since the publication boundary coarsens every location
+    // (`publicPlaceReference`, PO 2026-09-16), the FULL address can no longer
+    // appear on any page for any reason — so asserting its absence would pass
+    // whether or not consent was honoured, and a genuine leak would walk past
+    // showing "Av. Corrientes, CABA". The string to watch is the one the page
+    // would really emit if it leaked.
+    for (const marker of [PHONE, EMAIL, FULL_NAME, ADDRESS, ADDRESS_AS_PUBLISHED, FAKE_DNI]) {
       expect(html).not.toContain(marker);
     }
     // No owner query is ever issued on the active path — ownerships/profiles
@@ -400,7 +420,20 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     const html = renderToStaticMarkup(element as React.ReactElement);
 
     expect(html).toContain('data-testid="lost-credential-spy"'); // sanity: lost branch rendered
-    for (const marker of [PHONE, EMAIL, FULL_NAME, FIRST_NAME, ADDRESS, FAKE_DNI, LAT, LNG]) {
+    // ADDRESS_AS_PUBLISHED joins the list for the reason spelled out on the
+    // active-pet canary above: the raw address is now unreachable by
+    // construction, so only the coarsened form can testify to a leak.
+    for (const marker of [
+      PHONE,
+      EMAIL,
+      FULL_NAME,
+      FIRST_NAME,
+      ADDRESS,
+      ADDRESS_AS_PUBLISHED,
+      FAKE_DNI,
+      LAT,
+      LNG,
+    ]) {
       expect(
         html,
         `PII marker "${marker}" leaked into the rendered lost credential despite all disclose flags being OFF`,
@@ -476,9 +509,23 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     // Consented fields DO reach the page.
     expect(html).toContain(PHONE);
     expect(html).toContain(FIRST_NAME);
-    expect(html).toContain(ADDRESS);
     expect(html).toContain(LAT);
     expect(html).toContain(LNG);
+
+    // THE LOCATION REACHES THE PAGE, THE DOOR DOES NOT. This assertion used to
+    // be a single `toContain(ADDRESS)`, written when the whole address was
+    // published; it is now two, and the pair is the point. The first keeps the
+    // original guarantee — an owner who consented to sharing where the animal
+    // was last seen still gets that shared, and a change that quietly stopped
+    // publishing it would be breaking a promise in the other direction. The
+    // second is new and is the actual privacy posture: the street survives as a
+    // landmark, the number does not.
+    //
+    // Checked against the RAW form too, not only the rendered one: the page
+    // embeds a JSON spy blob, so asserting on the visible text alone would miss
+    // the address travelling in a payload one element away.
+    expect(html).toContain(ADDRESS_AS_PUBLISHED);
+    expect(html).not.toContain(HOUSE_NUMBER_IN_ADDRESS);
 
     // Never the full legal name — only the first token is ever derived.
     expect(html).not.toContain(FULL_NAME);

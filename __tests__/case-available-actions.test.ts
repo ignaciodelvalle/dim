@@ -145,6 +145,30 @@ describe("availableCaseActions — un expediente que se cierra por ACCIÓN lo di
     expect(getLifecycle("rehome_request")?.actionCloseProse).toMatch(/titular/);
   });
 
+  it("outbreak_investigation: el motivo manda a la pantalla que SÍ cierra", () => {
+    // 2026-09-17. Este kind estaba en la lista de "nadie escribió la política"
+    // por sumar dos flags — `terminalEvents: []` y `manualCloseAllowed: false`
+    // — y concluir que no había cierre. El cierre existe, y es MÁS estricto
+    // que el genérico: `closeInvestigation` exige un outcome, un motivo de diez
+    // caracteres y, cuando se resuelve, un informe epidemiológico final.
+    //
+    // La frase genérica le pedía a una autoridad sanitaria que reclamara una
+    // política ya escrita, sobre un expediente legalmente sensible.
+    const [, close] = availableCaseActions("outbreak_investigation", "open");
+    expect(close.available).toBe(false);
+    expect(close.unavailableReason).not.toMatch(/todavía no tiene una vía de cierre/i);
+    expect(close.unavailableReason).toMatch(/investigación/i);
+    expect(close.unavailableReason).toMatch(/informe/i);
+  });
+
+  it("y lo declara en el ciclo de vida, no en un comentario", () => {
+    // Mismo criterio que rehome_request: derivado, no restatado.
+    expect(getLifecycle("outbreak_investigation")?.dedicatedCloseProse).toMatch(/investigación/);
+    // Y el flag genérico sigue apagado a propósito — prenderlo abriría una
+    // segunda puerta, más débil, al mismo acto.
+    expect(getLifecycle("outbreak_investigation")?.manualCloseAllowed).toBe(false);
+  });
+
   it("un kind sin política escrita sigue pidiendo la decisión (microchip_remediation)", () => {
     // Triangulación: el campo nuevo sólo cambia la frase donde alguien lo
     // escribió. Donde nadie escribió la política, la frase sigue siendo la

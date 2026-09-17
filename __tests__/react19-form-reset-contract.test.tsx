@@ -55,8 +55,10 @@
 
 import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+import { CorrectSpeciesForm } from "@/app/(app)/mis-mascotas/[publicToken]/corregir-especie/CorrectSpeciesForm";
 import { useActionState, useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 type State = { settled: boolean };
 
@@ -257,5 +259,46 @@ describe("useKeptFields survives the same reset", () => {
     // guessed from an empty record.
     expect((screen.getByLabelText("kept-group-dog") as HTMLInputElement).checked).toBe(true);
     expect((screen.getByLabelText("kept-checkbox") as HTMLInputElement).checked).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The contract, enforced on the real form it damages most
+// ---------------------------------------------------------------------------
+
+describe("the reset landing on a WRONG value, not a blank", () => {
+  // THE CATEGORY THIS BLOCK EXISTS FOR, and it is the one the 2026-09-17 sweep
+  // of 74 forms put at the top: "loses what you typed" is the mild version.
+  // The severe version is a `defaultValue` that is a DIFFERENT, PLAUSIBLE
+  // ANSWER — because an empty field announces itself and a wrong one does not.
+  //
+  // `CorrectSpeciesForm` is the clearest instance in the repo: its whole
+  // purpose is fixing a species entered wrong, and its select defaulted to
+  // `currentSpecies` — the very value being corrected. A rejected submit put
+  // the mistake back. The species feeds the PPP / dangerous-breed rules.
+  it("CorrectSpeciesForm keeps the corrected species instead of restoring the wrong one", async () => {
+    const action = vi.fn(async () => ({ error: "No se pudo corregir la especie." }));
+    const { container } = render(
+      <CorrectSpeciesForm action={action} currentSpecies="dog" petName="Pampa" />,
+    );
+
+    const form = container.querySelector("form") as HTMLFormElement;
+    const species = form.querySelector('select[name="species"]') as HTMLSelectElement;
+    expect(species.value).toBe("dog");
+
+    fireEvent.change(species, { target: { value: "cat" } });
+    expect(species.value).toBe("cat");
+
+    // A real submit: React 19's form-action path does not run on a dispatched
+    // event, and without it the reset under test never happens.
+    form.requestSubmit();
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    await screen.findByText(/No se pudo corregir la especie/i);
+
+    // Re-queried, because the `key` change REMOUNTS the select — the node above
+    // is detached, and that remount is what puts the write back on react-dom's
+    // mount path, which is the only path that sets `defaultSelected`.
+    const after = (form.querySelector('select[name="species"]') as HTMLSelectElement).value;
+    expect(after, "the reset must not restore the species the person is correcting").toBe("cat");
   });
 });

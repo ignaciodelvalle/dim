@@ -213,9 +213,7 @@ export default async function AdminAdopcionesPage({
           value={funnel.adoption.toLocaleString("es-AR")}
           sub="adopciones finalizadas en el período"
           deltaV2={funnel.adoption > 0 ? (adoptionDelta ?? undefined) : undefined}
-          sparkline={
-            adoptionTrend.points.length > 0 ? adoptionTrend.points.map((p) => p.y) : undefined
-          }
+          sparkline={adoptionTrend.points.length > 0 ? adoptionTrend.points : undefined}
           info={{
             definition: "Eventos adoption_finalized registrados en el período (nacional).",
             formula: "COUNT(pet_events) WHERE event_type='adoption_finalized' AND period",

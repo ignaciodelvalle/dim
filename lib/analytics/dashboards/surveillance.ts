@@ -16,6 +16,8 @@ import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { suppressSmallCells } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
+import { parseArDateStartOfDay } from "@/lib/utils/date-input-ar";
+import { isoDateInAr } from "@/lib/utils/format";
 import { EPIDEMIOLOGICAL_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 import { aggregateRowsByDepartment } from "../subregion-aggregate";
 import type { SubregionCaseCount } from "../subregion-redaction";
@@ -58,6 +60,17 @@ export type SurveillanceSignal = {
   authorVerified: boolean;
   authorOrganizationId: string | null;
   payload: Record<string, unknown>;
+  /**
+   * The investigation somebody opened FROM this signal, or null when nobody
+   * has. Null is the interesting value: it is the only way this screen can
+   * tell "there is nothing happening" apart from "nobody looked yet".
+   *
+   * Read through the `signal_link` case event, which `openOutbreakInvestigation`
+   * writes as its own entry type. An investigation opened by hand - a lab
+   * report arriving out of band, which `manualOpenAllowed` permits - carries no
+   * such row, and correctly does not make any signal look triaged.
+   */
+  investigation: { publicCode: string; status: string } | null;
 };
 
 export type DiseaseSummary = {
@@ -131,6 +144,19 @@ export async function fetchSurveillanceSignals(
       authorVerified: petEvents.authorVerified,
       authorOrganizationId: petEvents.authorOrganizationId,
       payload: petEvents.payload,
+      // ONE correlated subquery, not two columns and not a LEFT JOIN: the link
+      // lives in a jsonb payload, so a join condition would be an expression
+      // either way, and two scalar subqueries would walk `case_events` twice
+      // for every one of the 500 rows this query can return.
+      investigation: sql<{ code: string; status: string } | null>`(
+        select json_build_object('code', c.public_code, 'status', c.status)
+        from case_events ce
+        join cases c on c.id = ce.case_id
+        where ce.entry_type = 'signal_link'
+          and ce.payload->>'signal_event_id' = ${petEvents.id}::text
+        order by ce.occurred_at desc
+        limit 1
+      )`,
     })
     .from(petEvents)
     .innerJoin(pets, eq(pets.id, petEvents.petId))
@@ -153,6 +179,9 @@ export async function fetchSurveillanceSignals(
     authorVerified: r.authorVerified,
     authorOrganizationId: r.authorOrganizationId,
     payload: (r.payload ?? {}) as Record<string, unknown>,
+    investigation: r.investigation
+      ? { publicCode: r.investigation.code, status: r.investigation.status }
+      : null,
   }));
 }
 
@@ -213,8 +242,10 @@ export type VigilanciaMetrics = {
   outbreakActiveCount: number;
   /** cases where caseKind='rabies_observation' AND status='open'. */
   rabiesActiveCount: number;
-  /** pets in scope created today, counted from midnight UTC — which is 21:00
-   *  ART of the previous day. See `todayStart` below; the copy says so too. */
+  /** pets in scope created today, counted from 00:00 of the ARGENTINE calendar
+   *  day (metric-honesty audit, PO 2026-09-16 — this used to be midnight UTC,
+   *  i.e. 21:00 ART of the previous day, so the tile carried three hours of
+   *  yesterday every evening). See `todayStart` below; the copy says so too. */
   petsRegisteredToday: number;
   /** pet_events where event_type='vaccination_administered' in scope, last 7 days. */
   vaccinationsThisWeek: number;
@@ -226,6 +257,18 @@ export type VigilanciaMetrics = {
    * not a period-bounded flow.
    */
   investigationActiveCount: number;
+  /**
+   * Signals in the same 30-day window that NO investigation is linked to.
+   *
+   * THE COUNTERWEIGHT TO `investigationActiveCount`, and it has to ship with
+   * it. Pointing this screen at the expediente - a real stock, opened and
+   * closed by people - is the honest move, but it trades one silence for
+   * another: a jurisdiction where nobody triaged anything reads ZERO, exactly
+   * like a jurisdiction where nothing happened. Measured on the seeded database
+   * on 2026-09-17: 2137 signals, 0 investigations, 0 case events. Without this
+   * number the screen would have answered "nothing to see" to that.
+   */
+  untriagedSignalCount: number;
 };
 
 // Canonical list of Argentine provinces for /gob/* dashboard pages.
@@ -297,9 +340,36 @@ export async function fetchVigilanciaMetrics(
   const now = Date.now();
   const since30d = new Date(now - 30 * DAY_MS);
   const since7d = new Date(now - 7 * DAY_MS);
-  // "Today" starts at midnight UTC to match server-side time. If the project
-  // later moves to AR timezone, change this to use startOf('day', 'America/Argentina/Buenos_Aires').
-  const todayStart = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  // "Hoy" is the ARGENTINE calendar day (metric-honesty audit, PO 2026-09-16).
+  //
+  // This line used to build midnight UTC, with a comment inviting exactly this
+  // change. Midnight UTC is 21:00 ART of the PREVIOUS day, so every evening
+  // between 21:00 and 24:00 the "Altas registradas hoy" tile silently carried
+  // three hours of yesterday — and an operator reading it at 22:00 got a number
+  // that could not be reconciled with anything they would call "hoy".
+  //
+  // Composed from the two canonical helpers rather than rebuilt here:
+  // `isoDateInAr` decides WHICH Argentine calendar day it is (Intl pinned to
+  // AR_TIME_ZONE inside lib/utils/format.ts, the one module allowed raw Intl),
+  // and `parseArDateStartOfDay` turns that day into its FIRST instant. Both are
+  // already unit-tested; a third spelling of "start of the Argentine day" here
+  // would be the second source of truth this repo keeps paying for.
+  //
+  // ON DST, because the offset inside `parseArDateStartOfDay` is an assumption
+  // and assumptions deserve an expiry note: Argentina has observed no DST since
+  // 2009 and sits at UTC-3 year-round, which is why that helper can hardcode
+  // `-03:00`. If Argentina ever reintroduces DST, the day-selection half here is
+  // ALREADY correct (it goes through the IANA zone), and the only wrong half
+  // would be the fixed offset — which lives in ONE place, `date-input-ar.ts`.
+  // Fix it there; do not add a zone-aware branch at this call site, or the next
+  // window built from the helper will still be an hour off on switch days while
+  // this one is right.
+  //
+  // The `??` fallback is unreachable and stays for the type, mirroring the same
+  // pattern (and the same reasoning) in app/api/v1/me/caretaker-grants/commands.ts:
+  // `isoDateInAr` emits en-CA "YYYY-MM-DD", which is exactly the shape
+  // `parseArDateStartOfDay` accepts, so it never answers null here.
+  const todayStart = parseArDateStartOfDay(isoDateInAr(new Date(now))) ?? new Date(now);
 
   // 1. Count outbreak_signal events from the last 30 days scoped to user.
   //    NOT "open": there is no open/closed notion on this event.
@@ -314,6 +384,20 @@ export async function fetchVigilanciaMetrics(
     opts.adminLocality,
   );
   if (outbreakScope) outbreakConditions.push(sql`(${outbreakScope})`);
+
+  // 1b. Of those same signals, the ones no investigation is linked to.
+  //     Deliberately derived from `outbreakConditions` rather than rebuilt: the
+  //     two numbers are meant to be read against each other, so they must come
+  //     from the same population and the same scope, or the comparison lies.
+  const untriagedConditions = [
+    ...outbreakConditions,
+    sql`not exists (
+      select 1
+      from case_events ce
+      where ce.entry_type = 'signal_link'
+        and ce.payload->>'signal_event_id' = ${petEvents.id}::text
+    )`,
+  ];
 
   // 2. Count open cases with caseKind='rabies_observation'.
   const casesScope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
@@ -344,11 +428,15 @@ export async function fetchVigilanciaMetrics(
   // instead of two round-trips. Parity pinned in
   // __tests__/pf1-consolidation-parity.test.ts against independently-written
   // reference queries over seeded fixtures (multiple scopes).
-  const [outbreakRows, casesRows, petsRows, vaccRows] = await Promise.all([
+  const [outbreakRows, untriagedRows, casesRows, petsRows, vaccRows] = await Promise.all([
     db
       .select({ n: count() })
       .from(petEvents)
       .where(and(...outbreakConditions)),
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .where(and(...untriagedConditions)),
     db
       .select({
         // The rabies expediente is a `bite_incident` case, NOT the
@@ -401,6 +489,7 @@ export async function fetchVigilanciaMetrics(
     petsRegisteredToday: petsRows[0]?.n ?? 0,
     vaccinationsThisWeek: vaccRows[0]?.n ?? 0,
     investigationActiveCount: casesRows[0]?.investigation ?? 0,
+    untriagedSignalCount: untriagedRows[0]?.n ?? 0,
   };
 }
 

@@ -19,7 +19,7 @@ describe("explainViewState", () => {
       period: { kind: "preset", preset: "90d" },
     });
     expect(explainViewState(v)).toBe(
-      "Brotes activos — Argentina (todas las provincias), últimos 90 días. Capas: Cobertura antirrábica (perros, 12m), Zoonosis / señales.",
+      "Señales de brote — Argentina (todas las provincias), últimos 90 días. Capas: Cobertura antirrábica (perros, 12m), Zoonosis / señales.",
     );
   });
 

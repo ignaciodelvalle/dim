@@ -13,8 +13,15 @@
 // they can press, and what leaves the device when they do.
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { Alert, KeyboardAvoidingView, TextInput } from "react-native";
+import {
+  Alert,
+  AppState,
+  type AppStateStatus,
+  KeyboardAvoidingView,
+  TextInput,
+} from "react-native";
 
 import { createNavigationFake } from "../ui/navigation-fake";
 
@@ -41,7 +48,19 @@ jest.mock("../api/endpoints", () => ({
   fetchOwnerPetDetail: (...args: unknown[]) => mockFetchOwnerPetDetail(...args),
 }));
 
-jest.mock("../auth/session-store", () => ({ sessionPort: {} }));
+/**
+ * `getSessionState` IS NOT DECORATION HERE. The draft store keys every draft by
+ * the id of the person who wrote it — two people share a phone in this
+ * product's model — so a screen whose session answers "signed-out" persists
+ * NOTHING, and every case below about recovering a draft would pass for a build
+ * where the feature had been deleted. Signed-in is also what the real screen
+ * always sees: the route is behind `useGate`.
+ */
+const mockSignedInUserId = "99999999-9999-4999-8999-999999999999";
+jest.mock("../auth/session-store", () => ({
+  sessionPort: {},
+  getSessionState: () => ({ phase: "signed-in", user: { id: mockSignedInUserId } }),
+}));
 
 /**
  * The two network steps a tattoo photo takes before the asiento.
@@ -145,7 +164,14 @@ const availablePicker: ImagePickerPort = {
   pickImage: async () => ({ outcome: "cancelled" }),
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  // THE DRAFT STORE IS LIVE IN EVERY CASE IN THIS FILE, because the screen now
+  // persists what is typed into it, and the in-memory AsyncStorage from
+  // `jest.setup.js` is one Map for the whole file. Without this, a case that
+  // types "12,5" into Peso and unmounts leaves a draft that the NEXT case's
+  // Peso form recovers, and half this file starts asserting against a banner
+  // and a pre-filled field it never asked for.
+  await AsyncStorage.clear();
   setImagePickerPort(availablePicker);
   mockStageTattooPhoto.mockReset();
   mockStageTattooPhoto.mockResolvedValue({ outcome: "staged", stagedPath: A_STAGED_PATH });
@@ -368,7 +394,14 @@ describe("RecordEventScreen — the discard guard (A2-alta-asentar-08)", () => {
 
     expect(mockNav.pressBack().blocked).toBe(true);
     expect(alert).toHaveBeenCalledTimes(1);
-    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir sin guardar?");
+    // THE WORDS CHANGED WITH THE BEHAVIOUR (2026-09-17). It used to say "¿Salir
+    // sin guardar? Lo que escribiste hasta acá se pierde", which stopped being
+    // true the day this screen started keeping the draft — and a confirm that
+    // overstates what it is about is how people learn to dismiss confirms. The
+    // other ten writer screens keep the old sentence because on them it is
+    // still true. See `DISCARD_COPY.asiento`.
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Salir de este asiento?");
+    expect(String(alert.mock.calls[0]?.[1])).toContain("Todavía no se registró nada");
   });
 
   it("asks before 'Elegir otro tipo' remounts the form under it", () => {
@@ -1472,5 +1505,463 @@ describe("RecordEventScreen — the form types above the keyboard", () => {
     // `undefined` is the defect, and it is a legal prop value — so the check is
     // membership in the two arms that DO something, not "is defined".
     expect(["padding", "height"]).toContain(avoider.props.behavior);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What somebody types survives being interrupted (PO decision 2026-09-16)
+//
+// The store's own rules — keys, expiry, what it refuses to hand back — are
+// pinned in `event-draft-store.test.ts`. What is pinned HERE is the half that
+// only exists once the hook, the form and the server are wired together, and
+// every case below is one of the ways that wiring goes wrong on a phone while
+// staying green everywhere else:
+//
+//   · a draft that is never written, so the feature simply is not there;
+//   · a draft written by somebody who opened a form and typed nothing, so the
+//     banner greets people with the recovery of an empty form and teaches them
+//     to ignore it before the day it matters;
+//   · A DRAFT THAT OUTLIVES ITS OWN SUCCESSFUL SUBMIT, which comes back on the
+//     next open and reads as "the app did not save my record" — the exact fear
+//     this feature exists to remove, delivered by the fix for it;
+//   · a draft DESTROYED by a submit that failed, which is that same loss at the
+//     one moment the person most needed it kept.
+//
+// LOCAL SCRATCH, NEVER A SEND QUEUE (and the PO chose that order deliberately:
+// a retry done wrong on an append-only spine writes two asientos for one act).
+// Nothing below asserts a retry because nothing in the screen performs one —
+// `recordPetEvent` is called when, and only when, a person presses the button.
+// ---------------------------------------------------------------------------
+
+/**
+ * SPIED ON THE PUBLIC API and left calling through — the idiom
+ * `use-qr-spotlight.test.tsx` states for this same platform surface. The point
+ * is only to get hold of the listener the hook registered.
+ */
+const appStateListener = jest.spyOn(AppState, "addEventListener");
+
+/** Take the app out of the foreground, the way an incoming call does. */
+function emitAppState(next: AppStateStatus): void {
+  const listener = appStateListener.mock.calls.at(-1)?.[1] as
+    | ((state: AppStateStatus) => void)
+    | undefined;
+  if (listener === undefined) throw new Error("the form registered no AppState listener");
+  act(() => listener(next));
+}
+
+/** Every key the draft store owns, right now. */
+async function storedDraftKeys(): Promise<readonly string[]> {
+  return (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith("mimar.eventDraft."));
+}
+
+/**
+ * Let every queued storage write and delete settle.
+ *
+ * IT IS NOT A CONVENIENCE AND ITS ABSENCE COSTS A REAL FENCE. Writes are
+ * chained on one promise so a delete cannot overtake the write before it, which
+ * means there is a MOMENT between "the success deleted the draft" and "the
+ * unmount wrote it back" in which the phone genuinely holds no draft. A
+ * `waitFor` that only has to be right once passes in that moment and calls the
+ * bug fixed. Measured: without this flush, deleting the seal from
+ * `use-event-draft.ts` left all thirteen draft cases green.
+ */
+async function flushStorage(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/** Wait until exactly `count` drafts are on the phone, and STAY there. */
+async function expectStoredDrafts(count: number): Promise<void> {
+  await flushStorage();
+  await waitFor(async () => {
+    expect(await storedDraftKeys()).toHaveLength(count);
+  });
+}
+
+/** Fill in Peso and leave — the shortest complete interruption there is. */
+async function typeAndLeave(value = "12,5"): Promise<void> {
+  const { unmount } = render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+  fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), value);
+  unmount();
+  await expectStoredDrafts(1);
+}
+
+describe("RecordEventScreen — the draft survives the interruption", () => {
+  it("keeps what was typed when the form goes away", async () => {
+    await typeAndLeave();
+  });
+
+  it("writes NOTHING for somebody who opened a form and typed nothing", async () => {
+    // The same case that kept the discard guard off eight screens, one layer
+    // down: a draft created by merely OPENING a form means the next visit is
+    // met by a banner announcing the recovery of an empty form.
+    const { unmount } = render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    unmount();
+
+    await expectStoredDrafts(0);
+  });
+
+  it("writes when the app leaves the foreground, without waiting to be unmounted", async () => {
+    // THE PHONE RINGS. No blur, no unmount, no navigation: the app simply stops
+    // being in front of the person, and on a cheap phone that is the last
+    // moment before the OS reclaims the process. `inactive` counts, because on
+    // iOS it is the FIRST thing an incoming call raises and the `background`
+    // that may follow is not something to bet somebody's typing on.
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    fireEvent.changeText(screen.getByLabelText("Peso (kg), obligatorio"), "12,5");
+
+    emitAppState("inactive");
+
+    await expectStoredDrafts(1);
+  });
+
+  it("puts it back on screen, and says where it came from", async () => {
+    await typeAndLeave();
+
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Recuperamos lo que estabas escribiendo")).toBeOnTheScreen(),
+    );
+    expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen();
+    // ANNOUNCED AND NOT SILENT, and this sentence is what earns the banner:
+    // somebody who does not remember typing this is one tap from appending it
+    // to a national registry, and the fact they need first is that nothing has
+    // been registered yet.
+    expect(screen.getByText(/Todavía no se registró nada/)).toBeOnTheScreen();
+  });
+
+  it("does not offer one form's draft inside another form", async () => {
+    await typeAndLeave();
+
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="note" />);
+
+    await waitFor(() => expect(screen.getByLabelText("Nota, obligatorio")).toBeOnTheScreen());
+    expect(screen.queryByText("Recuperamos lo que estabas escribiendo")).toBeNull();
+  });
+});
+
+describe("RecordEventScreen — throwing a draft away on purpose", () => {
+  // Declared the way the discard-guard block above declares its own: `Alert` is
+  // already a spy by the time this file's first test runs, and a second
+  // `spyOn` returns that same spy rather than stacking another one.
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+  });
+
+  it("wipes the draft and empties the form when the person confirms", async () => {
+    await typeAndLeave();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+
+    fireEvent.press(screen.getByText("Descartar el borrador"));
+    // CONFIRMED, because it is irreversible and because the text it destroys is
+    // text its owner may not remember writing — which is exactly the state in
+    // which a mis-tap is likeliest.
+    expect(alert.mock.calls[0]?.[0]).toBe("¿Descartar el borrador?");
+    const discard = alert.mock.calls[0]?.[2]?.[1];
+    act(() => {
+      discard?.onPress?.();
+    });
+
+    expect(screen.queryByDisplayValue("12,5")).toBeNull();
+    expect(screen.queryByText("Recuperamos lo que estabas escribiendo")).toBeNull();
+    await expectStoredDrafts(0);
+  });
+
+  it("keeps it when the person backs out of the confirm", async () => {
+    await typeAndLeave();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+
+    fireEvent.press(screen.getByText("Descartar el borrador"));
+
+    expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen();
+    await expectStoredDrafts(1);
+  });
+});
+
+describe("RecordEventScreen — the draft dies with its own success, and only there", () => {
+  it("clears once the server has the asiento", async () => {
+    await typeAndLeave();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(screen.getByText("Volver a la libreta")).toBeOnTheScreen());
+
+    await expectStoredDrafts(0);
+  });
+
+  it("stays cleared when the screen leaves after the success", async () => {
+    // THE SEAL. The unmount write fires a moment after the clear, when the
+    // screen replaces itself with the libreta — and without it that write puts
+    // the draft straight back, for an asiento already on the spine.
+    await typeAndLeave();
+    const { unmount } = render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(screen.getByText("Volver a la libreta")).toBeOnTheScreen());
+
+    unmount();
+
+    await expectStoredDrafts(0);
+  });
+
+  it("clears on a replay, because a replay means the asiento is there", async () => {
+    // `wasDuplicate` IS A SUCCESS: the server answering "this idempotency key
+    // already appended" means the ledger has it. Keeping the draft here would
+    // be the same lie as keeping it after a fresh append.
+    mockRecordPetEvent.mockResolvedValue(recorded(true));
+    await typeAndLeave();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(screen.getByText("Ya estaba registrado")).toBeOnTheScreen());
+
+    await expectStoredDrafts(0);
+  });
+
+  it("KEEPS it when the submit never reached the server", async () => {
+    // THE FAILED SUBMIT ON THE SUBTE IS THE WHOLE CASE. Clearing here would
+    // destroy the writing at the one moment the person most needs it kept, and
+    // would do it on a screen that says the save failed.
+    mockRecordPetEvent.mockResolvedValue({ outcome: "unreachable", detail: "offline" });
+    await typeAndLeave();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(screen.getByText("No se pudo guardar")).toBeOnTheScreen());
+
+    await expectStoredDrafts(1);
+    expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen();
+  });
+
+  it("KEEPS it when the server refused the body", async () => {
+    mockRecordPetEvent.mockResolvedValue({ outcome: "api-error", code: "event_date_future" });
+    await typeAndLeave();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(screen.getByText("No se pudo guardar")).toBeOnTheScreen());
+
+    await expectStoredDrafts(1);
+  });
+
+  it("KEEPS it while the same-day gate is still a question", async () => {
+    // THE SOFT GATE IS NEITHER A REFUSAL NOR A SUCCESS: nothing was written and
+    // the person is one tap from either answer. A draft cleared here would
+    // vanish under somebody about to say "no, ya lo había registrado".
+    mockRecordPetEvent.mockResolvedValue({
+      outcome: "api-error",
+      code: "same_day_duplicate_suspected",
+    });
+    await typeAndLeave();
+    render(<RecordEventScreen publicToken={TOKEN} initialKind="weight" />);
+    await waitFor(() => expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen());
+
+    fireEvent.press(submitControl());
+    await waitFor(() => expect(screen.getByText("¿Registrar otro?")).toBeOnTheScreen());
+
+    await expectStoredDrafts(1);
+  });
+});
+
+describe("RecordEventScreen — la captura rápida, arriba del menú", () => {
+  // Declarado como los dos bloques de arriba: `Alert` ya es un espía para
+  // cuando corre el primer caso de este archivo, y un segundo `spyOn` devuelve
+  // ese mismo espía en vez de apilar otro.
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+    mockNav.reset();
+  });
+
+  /** Escribir una frase en la caja y pedirle a la app que la lea. */
+  function capture(text: string): void {
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), text);
+    fireEvent.press(screen.getByText("Identificar"));
+  }
+
+  it("no reemplaza al menú: la caja está, y las filas siguen estando", () => {
+    // LA LISTA ES LA ÚNICA ENUMERACIÓN COMPLETA de lo que se puede escribir, y
+    // el matcher no llega a todos los tipos. Una caja que reemplazara al menú
+    // dejaría formularios sin puerta.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+
+    expect(screen.getByLabelText("Contá qué pasó")).toBeOnTheScreen();
+    expect(screen.getByText("Antiparasitario")).toBeOnTheScreen();
+    expect(screen.getByText("Terminar una medicación")).toBeOnTheScreen();
+  });
+
+  it("muestra lo que entendió y NO abre nada hasta que la persona lo confirma", () => {
+    // EL MODO DE FALLAR QUE IMPORTA no es "abrió el formulario equivocado y me
+    // di cuenta": es "lo abrió bien llenado, con el valor equivocado, y firmé".
+    // Un campo lleno se lee como un campo revisado, y esto asienta en una
+    // libreta que no se edita. La tarjeta es el único momento en que se lee la
+    // INTERPRETACIÓN de la app en vez de un formulario.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+
+    expect(screen.getByText("Entendimos esto:")).toBeOnTheScreen();
+    expect(screen.getByText(/antirrábica/)).toBeOnTheScreen();
+    // Ni el formulario ni su botón: sigue siendo el menú.
+    expect(screen.queryByText("Registrar vacuna")).toBeNull();
+    expect(screen.getByText("Abrir vacuna")).toBeOnTheScreen();
+  });
+
+  it("también pregunta cuando la lectura es floja, en vez de guardársela", () => {
+    // Sin umbral: la confianza cambia la FRASE y nunca la acción. Ver
+    // `captureConfidenceNote`.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le hicieron una ecografía");
+
+    expect(screen.getByText("No estamos seguros. Revisalo antes de seguir:")).toBeOnTheScreen();
+    expect(screen.getByText("Abrir información clínica")).toBeOnTheScreen();
+  });
+
+  it("abre el formulario con lo entendido ya puesto", () => {
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.press(screen.getByText("Abrir vacuna"));
+
+    expect(screen.getByDisplayValue("antirrábica")).toBeOnTheScreen();
+    expect(screen.getByText("Registrar vacuna")).toBeOnTheScreen();
+  });
+
+  it("identifica con la tecla del teclado, sin tocar el botón", () => {
+    // El campo es de UNA línea justamente para esto: en uno multilínea esa tecla
+    // escribe un salto, que es su trabajo. Es el toque que la caja ahorra.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), "pesó 12,5 kilos");
+    fireEvent(screen.getByLabelText("Contá qué pasó"), "submitEditing");
+
+    expect(screen.getByText("Abrir peso")).toBeOnTheScreen();
+  });
+
+  it("borra la tarjeta apenas cambia el texto que la produjo", () => {
+    // Una tarjeta que dice "Vacuna" arriba de un campo que ahora dice otra cosa
+    // es el formulario equivocado esperando un toque.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), "pesó 12,5 kilos");
+
+    expect(screen.queryByText("Abrir vacuna")).toBeNull();
+  });
+
+  it("volver de una captura equivocada no pregunta nada", () => {
+    // LA RAZÓN POR LA QUE EL PREFILL ENTRA EN EL INICIALIZADOR Y NO EN UN
+    // EFECTO. `useIsDirty` compara contra el primer valor que vio: si los campos
+    // los puso la app, nadie escribió nada, y preguntar "¿Salir de este
+    // asiento?" a quien sólo quiere corregir una lectura equivocada convierte un
+    // error de la app en una fricción de la persona.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.press(screen.getByText("Abrir vacuna"));
+    fireEvent.press(screen.getByText("Elegir otro tipo"));
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(screen.getByText("¿Qué querés registrar?")).toBeOnTheScreen();
+  });
+
+  it("no deja borrador de un formulario que sólo abrió una captura", async () => {
+    // La otra mitad de lo mismo: un borrador escrito por una lectura que nadie
+    // tocó vuelve días después como "recuperamos lo que estabas escribiendo"
+    // sobre un formulario que la persona nunca eligió.
+    const { unmount } = render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.press(screen.getByText("Abrir vacuna"));
+    unmount();
+
+    await expectStoredDrafts(0);
+  });
+
+  it("no tira la frase que no entendió: la ofrece como nota, tal cual", () => {
+    // El peor final posible de una captura es que alguien escriba una oración,
+    // la app no la entienda, y la oración desaparezca. Es la misma salida que
+    // la caja de la web ofrece.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("se portó bárbaro en la plaza");
+
+    expect(screen.getByText("No lo reconocimos")).toBeOnTheScreen();
+    fireEvent.press(screen.getByText("Abrir una nota con este texto"));
+
+    expect(screen.getByDisplayValue("se portó bárbaro en la plaza")).toBeOnTheScreen();
+    expect(screen.getByText("Guardar la nota")).toBeOnTheScreen();
+  });
+
+  it("lo que se hace en otra puerta lo dice, y no abre un formulario", () => {
+    // "Terminé el tratamiento" SÍ se reconoce. Contestar "no lo reconocimos"
+    // mandaría a la persona a buscar en una lista que no lo tiene.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("terminé el tratamiento");
+
+    expect(screen.getByText("Medicación · fin")).toBeOnTheScreen();
+    // DOS VECES A PROPÓSITO, y es la afirmación que vale: la frase de la caja es
+    // palabra por palabra la del `ListRow` inerte que ya está en el menú. Quien
+    // lee una y después va a buscarla tiene que encontrar la misma palabra.
+    expect(screen.getAllByText(/Terminar medicación/)).toHaveLength(2);
+    expect(screen.queryByText("Confirmar cierre de medicación")).toBeNull();
+  });
+});
+
+describe("RecordEventScreen — cuando la captura y un borrador quieren el mismo formulario", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+  });
+
+  /** Dejar un borrador de Peso a medio escribir y volver por la caja. */
+  async function draftThenCapture(): Promise<void> {
+    await typeAndLeave("9,4");
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), "pesó 12,5 kilos");
+    fireEvent.press(screen.getByText("Identificar"));
+    fireEvent.press(screen.getByText("Abrir peso"));
+    await waitFor(() =>
+      expect(screen.getByText("Recuperamos lo que estabas escribiendo")).toBeOnTheScreen(),
+    );
+  }
+
+  it("gana el borrador, porque es lo único de los dos que alguien tipeó", async () => {
+    await draftThenCapture();
+
+    expect(screen.getByDisplayValue("9,4")).toBeOnTheScreen();
+    expect(screen.queryByDisplayValue("12,5")).toBeNull();
+  });
+
+  it("pero lo dice, para que nadie firme un peso viejo creyendo que es el que dijo", async () => {
+    // La mitad silenciosa de este problema es peor que la ruidosa: el
+    // formulario abierto con un valor VIEJO adentro, después de que la persona
+    // acaba de decir otro, a un toque de un asiento que no se puede editar.
+    await draftThenCapture();
+
+    expect(screen.getByText(/no se aplicó, para no pisar el borrador/)).toBeOnTheScreen();
+  });
+
+  it("descartar el borrador deja los datos de la captura", async () => {
+    // Sin una línea de código extra: `discardRestored` devuelve el formulario al
+    // valor con el que la pantalla arrancó, y ese valor ES el prefill.
+    await draftThenCapture();
+
+    fireEvent.press(screen.getByText("Descartar el borrador"));
+    // La frase del diálogo cambia con el comportamiento: acá el formulario NO
+    // "empieza de nuevo". Ver `DISCARD_COPY.draftOverCapture`.
+    expect(String(alert.mock.calls[0]?.[1])).toContain("lo que acabás de contar");
+    const discard = alert.mock.calls[0]?.[2]?.[1];
+    act(() => {
+      discard?.onPress?.();
+    });
+
+    expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen();
+    expect(screen.queryByDisplayValue("9,4")).toBeNull();
   });
 });

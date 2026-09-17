@@ -9,8 +9,9 @@
 //
 // MATCH RULE (design §1, §2): a preset is identified by its LAYER SET and its
 // encoding — NOT by period / scope / asOf. Those are orthogonal modifiers that
-// stay ON a preset (changing the period of "Brotes activos" keeps it "Brotes
-// activos"). A hand-edited layer set that matches no preset is "personalizada"
+// stay ON a preset (changing the period of "Señales de brote" keeps it
+// "Señales de brote"). A hand-edited layer set that matches no preset is
+// "personalizada"
 // (null). A swap that lands EXACTLY on another preset's set derives to that
 // preset (honest — the operator built that view, whatever route they took).
 //
@@ -35,7 +36,7 @@ import type { EncodingId } from "./view-state";
  * @param encoding the encoding SELECTION. `null` = "auto" (the encoding a preset
  *   implies). P5 (design §4.2 amendment): a non-null encoding matches ONLY a
  *   preset that DECLARES it (`preset.encodings`) — the bivariate "Riesgo" toggle
- *   is a display encoding WITHIN "Brotes activos" (the badge stays honest), while
+ *   is a display encoding WITHIN "Señales de brote" (the badge stays honest), while
  *   an encoding forced onto a set no preset owns is still "personalizada".
  * @param presets the preset catalogue to match against.
  */

@@ -67,7 +67,7 @@ import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import { govtProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireGobReadAccessOrRedirect } from "@/lib/infra/auth-guards";
 import {
-  NO_CENSUS_NOTE,
+  NO_POPULATION_NOTE,
   type OutlierMetric,
   buildProjectionContext,
   countAlertedProvinces,
@@ -84,12 +84,7 @@ import {
   toneForTarget,
   totalImpactByJurisdiction,
 } from "@/lib/metrics";
-import {
-  DORMANT_MONTHS_DEFAULT,
-  estimateDogPopulation,
-  getCensusPopulationsCached,
-  registryCounts,
-} from "@/lib/metrics/census";
+import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
@@ -105,11 +100,18 @@ const METRIC_LABEL: Record<string, string> = {
 };
 
 // PO-interview decision 2, item 1 — the honest unit per metric for the
-// impact-ranking column: "~N perros sin vacunar", never an abstract score.
+// impact-ranking column: "~N perros del padrón sin vacunar", never an abstract
+// score.
+//
+// "del padrón" is load-bearing, not filler (metric-honesty audit, PO
+// 2026-09-16). The impact is counted over the metric's OWN denominator, so the
+// unit is registered animals, and each of these three labels names the exact
+// population its row divided by: todas las mascotas activas para chip y
+// esterilización, sólo los perros activos para antirrábica.
 const IMPACT_UNIT_LABEL: Record<OutlierMetric, string> = {
-  rabies: "perros sin vacunar",
-  sterilization: "mascotas sin esterilizar",
-  microchip: "mascotas sin chip",
+  rabies: "perros del padrón sin vacunar",
+  sterilization: "mascotas del padrón sin esterilizar",
+  microchip: "mascotas del padrón sin chip",
 };
 
 // es-AR labels for the PII-oversight "surface" dimension (operator search origin).
@@ -247,9 +249,13 @@ export async function ProgramaResumenScreen({
 
   // Bound the fetcher set with a deadline so a degraded DB yields an honest
   // "reintentar" state instead of an unbounded hang (parity with /admin/programa).
-  // getCensusPopulationsCached is a process-lifetime cache (lib/metrics/census.ts)
-  // — ZERO new fan-out on every render after the first; added here (not fetched
-  // ad-hoc below) so the same timeout guard protects a cold cache too.
+  //
+  // getCensusPopulationsCached USED TO BE IN THIS LIST. It is gone because the
+  // only thing on this page that consumed it was the impact column's canine
+  // population estimate, and that estimate was the wrong denominator for two of
+  // the three metrics it multiplied (metric-honesty audit, PO 2026-09-16 — see
+  // the impact wiring below). The cache itself lives on for the surfaces that
+  // legitimately use it; this page simply no longer asks for it.
   const load = await loadWithTimeout(
     Promise.all([
       registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
@@ -263,7 +269,6 @@ export async function ProgramaResumenScreen({
       // admin callers of this fetcher elsewhere stay flat (JT5).
       fetchCrossJurisdictionOutliers(ctx, jurisdictionTargets.values),
       fetchPiiOversight(ctx),
-      getCensusPopulationsCached(),
     ]),
   );
 
@@ -281,17 +286,8 @@ export async function ProgramaResumenScreen({
     );
   }
 
-  const [
-    registry,
-    sterilization,
-    microchip,
-    enoSla,
-    queue,
-    dataQuality,
-    outliers,
-    piiOversight,
-    censusPopulations,
-  ] = load.value;
+  const [registry, sterilization, microchip, enoSla, queue, dataQuality, outliers, piiOversight] =
+    load.value;
 
   // THE HEADLINE OBEYS THE SAME VERDICT AS THE ROWS (RA-3 finding C1, third
   // instance). This page accepts `?province=` (above), and for an admin that
@@ -346,18 +342,38 @@ export async function ProgramaResumenScreen({
   const hasPadron = sterilization.total > 0;
   const hasChipPadron = microchip.active > 0;
 
-  // PO-interview decision 2, item 1 — gap×población ranking: "24 provincias en
-  // alerta" doesn't say WHICH one matters most. Each outlier row gets an
-  // estimated real-world impact — (target−coverage)/100 × población canina
-  // estimada (same census-derived estimate rabies coverage already uses, see
-  // census.ts's estimateDogPopulation) — then the table re-ranks by it instead
-  // of province-count order. ZERO new fan-out: censusPopulations was fetched
-  // above in the SAME bounded Promise.all as every other fetcher on this page.
+  // Gap x poblacion ranking (PO-interview decision 2, item 1), re-based on the
+  // metric's OWN denominator (metric-honesty audit, PO 2026-09-16).
+  //
+  // WHAT WAS WRONG. This block used to hand every row
+  // `estimateDogPopulation(censusPopulations[row.province])` — INDEC's human
+  // census x ESTIMATED_DOGS_PER_INHABITANT, a CANINE figure. `rabies` is a
+  // dog-only metric and that was coherent. `sterilization` and `microchip` are
+  // ALL-SPECIES (their rate divides by every active pet, see
+  // fetchCrossJurisdictionOutliers), so multiplying their gap fraction by a dog
+  // population mixed two universes and the cell then printed "~N mascotas sin
+  // chip" off a denominator containing no cats.
+  //
+  // WHY THE DENOMINATOR AND NOT THE SPECIES. Narrowing those two rows to dogs
+  // was the other honest repair and it is out of reach here: their `rate` is
+  // read by eight other surfaces (the territorial index, the panorama
+  // choropleth, the home teasers) and judged against an all-species target, so
+  // redefining it would publish two different numbers under one label. What is
+  // in reach is the population: `row.denominator` is the exact base each rate
+  // was divided by, counted in the same aggregate.
+  //
+  // WHAT IT COSTS, stated plainly because it is a narrower claim than before:
+  // the impact is now "how many REGISTERED animals must still be covered to
+  // reach the target", not a projection onto the estimated real population. It
+  // is smaller, it is exact, it carries no assumption — and, unlike a per-metric
+  // mix of a canine estimate for one row and a padron count for the others, it
+  // keeps every row on ONE scale, which is the only way a ranked list means
+  // anything. The note under the table says so to the reader.
   const outlierImpactInputs = outliers.map((row) => ({
     ...row,
     jurisdiction: row.province,
     coverage: row.rate,
-    population: estimateDogPopulation(censusPopulations[row.province] ?? 0),
+    population: row.denominator,
   }));
   // rankByImpact excludes already-met rows (no gap to rank) — appended back
   // below so the table keeps showing them (green, "meets target"), just
@@ -582,24 +598,29 @@ export async function ProgramaResumenScreen({
                   {formatTopImpactLine(topImpactSummary, "mandate")}
                 </p>
               )}
-              {/* Denominator honesty (red-team 2026-07-24 #4): the impact
-                  column projects the gap over the ESTIMATED canine population
-                  (census-derived), not the registered padrón — so its
-                  magnitudes dwarf the padrón counts and read as invented
-                  without this label. Duplicated verbatim from the admin twin
+              {/* Denominator honesty (red-team 2026-07-24 #4, rewritten by the
+                  metric-honesty audit 2026-09-16). The note used to say the
+                  impact projected the gap over the ESTIMATED canine population,
+                  which was true and was the problem: the same canine estimate
+                  multiplied an ALL-SPECIES gap for chip and esterilización. It
+                  now counts over each métrica's own measured base, so the note
+                  states a floor instead of warning about an inflation.
+                  Duplicated verbatim from the admin twin
                   (app/admin/programa/page.tsx) on purpose: one shared sentence
                   is a smaller change than one shared component. */}
               <p className="text-sm text-ln-op-mute">
-                El impacto proyecta la brecha sobre la población canina <strong>estimada</strong>{" "}
-                (censo INDEC), no sobre el padrón registrado — por eso sus magnitudes superan a las
-                mascotas registradas.
+                El impacto cuenta cuántos registros del padrón faltan cubrir para alcanzar la meta,
+                sobre la misma base con la que se calcula cada cobertura: mascotas activas en chip y
+                esterilización, perros activos en antirrábica. Es un piso <strong>medido</strong>,
+                no una proyección sobre la población estimada del territorio, así que la cifra real
+                a nivel provincia es mayor.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-md text-ln-op-ink border-collapse">
                   <caption className="sr-only">
                     Cobertura por provincia y métrica vs meta programática en tu jurisdicción,
-                    ordenada por impacto estimado (mascotas sin cobertura). Filas marcadas en rojo
-                    están por debajo de la meta.
+                    ordenada por impacto (registros del padrón sin cobertura). Filas marcadas en
+                    rojo están por debajo de la meta.
                   </caption>
                   <thead>
                     <tr className="border-b border-ln-op-line">
@@ -639,7 +660,7 @@ export async function ProgramaResumenScreen({
                         row.impact === undefined
                           ? "—"
                           : row.impact === null
-                            ? NO_CENSUS_NOTE
+                            ? NO_POPULATION_NOTE
                             : `~${formatImpactUnits(row.impact)} ${IMPACT_UNIT_LABEL[row.metric]}`;
                       return (
                         <tr

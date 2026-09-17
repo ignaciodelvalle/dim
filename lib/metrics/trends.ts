@@ -81,7 +81,23 @@ export type SingleSeriesTrend = {
 /** Stacked (multi-series) trend return shape. */
 export type StackedTrend = {
   granularity: BucketGranularity;
+  /**
+   * SUPPRESSED ≠ ZERO here too, per (bucket, series) CELL. The fix above closed
+   * the single-series hole; this one survived it for another two months because
+   * the stacked path carries its flag INSIDE the point (`StackedPoint.suppressed`,
+   * a map keyed by series key) rather than beside `y`, so no signature changed
+   * when the flag was missing and nothing looked wrong. The concrete cost was
+   * `/gob/mortalidad`'s "Ver datos" table printing `0` for a month with 1..4
+   * rabies deaths — see the `StackedPoint.suppressed` docblock in ./timeseries.ts.
+   */
   series: StackedSeries;
+  /**
+   * Number of per-(bucket, series) CELLS masked by k-anonymity. This is the
+   * card-header disclosure ("N celdas ocultas (privacidad)"); it says that
+   * something was hidden, never WHICH cell — that is what the per-cell flag is
+   * for, and mistaking the first for the second is what produced the defect
+   * above.
+   */
   suppressedCount: number;
 };
 

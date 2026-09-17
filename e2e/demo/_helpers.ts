@@ -385,71 +385,98 @@ export async function discoverPetToken(
 export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
 
 /**
- * True for the browser having CANCELLED a navigation this helper asked for,
- * because the page started one of its own.
+ * Land on the pet's profile with NO `?sheet=` param, and refuse to assert until
+ * that is true.
  *
- * `net::ERR_ABORTED` is not a page failure and not generic flake: Chromium
- * emits it when a document load is superseded, and Playwright appends "maybe
- * frame was detached?" because from its side the two are indistinguishable.
- * Matched narrowly on purpose — a timeout, a closed target or a real network
- * error must still throw.
+ * WHY THIS IS NOT "one more retry": the assertion after it is UNSATISFIABLE
+ * while a sheet is open, whatever the pet's state. `Sheet` is a Vaul drawer over
+ * a modal dialog, which marks everything outside it `aria-hidden`, and
+ * Playwright's role queries read the accessibility tree. So a cleanup that
+ * asserts on the sheet URL is not looking at a pet that failed to revert - it is
+ * looking at a page whose entire content is hidden from it.
+ *
+ * MEASURED, not reasoned: CI run 35187453196 (2026-09-17), both the first
+ * attempt and the retry. Playwright's own error-context snapshot for that
+ * failure contains the whole accessibility tree of the page it judged, and it is
+ * four nodes long:
+ *
+ *     - region "Notifications alt+T"
+ *     - dialog "Marcar como encontrada":
+ *       - paragraph: Atún no figura como perdida, así que no hay nada que marcar…
+ *       - button "Volver al perfil"
+ *
+ * The animal was ALREADY ACTIVE - "no figura como perdida" is the not-lost
+ * notice - so the cleanup had nothing to do and the spec still failed, blaming
+ * "the write failed" for a write that was never needed.
+ *
+ * HOW IT GOT THERE, and why the previous two lines could not fix it: the old
+ * code did `goto(profile).catch(() => {})` and then
+ * `reloadPastCompetingNavigation`, which calls `page.reload()`. `reload()`
+ * reloads whatever the page is CURRENTLY on. When the goto lost to a competing
+ * client navigation its error was swallowed, the page stayed on the sheet URL,
+ * and the reload then faithfully re-opened the sheet. The locator's own wait log
+ * records exactly that: `navigated to ".../DIM-QGV6-US9W?sheet=marcar-encontrada"`.
+ *
+ * AND THE HELPER IT REPLACES ARGUED ITS OWN SAFETY, CORRECTLY, ABOUT THE WRONG
+ * PROPERTY — which is the part worth keeping. `reloadPastCompetingNavigation`
+ * (deleted with this change; `git log` for its text) carried a paragraph titled
+ * "why swallowing the second abort cannot buy a false green", and its argument
+ * was: the document it settles on was loaded by a navigation that started AFTER
+ * ours, so it is never STALER than the one we asked for. True, and beside the
+ * point. The risk was never the document's age, it was its IDENTITY: the
+ * navigation that wins can be to a different URL, and a different URL here
+ * means a modal over the page the assertions were written for. A freshness
+ * guarantee says nothing about which page you are fresh ON.
+ *
+ * STILL OPEN, and recorded here rather than left for the next person to
+ * rediscover: this fixes the CI failure above and does NOT make the spec green
+ * locally. After it, two consecutive local runs against a warm server failed on
+ * `DIM-PAMP-0001` with the profile showing the STALE lost-case block
+ * ("Búsqueda cerrada por inactividad… la mascota sigue marcada como perdida")
+ * — while the database disagreed with that page: `pets.status` was `active` and
+ * every one of the six `lost_pet_episode` cases opened by those runs was
+ * `closed`/`resolved`. So the cleanup's WRITE commits; what the assertion read
+ * was a page that did not reflect it.
+ *
+ * RULED OUT, so the next person does not re-spend the afternoon:
+ *   - A torn write. `setPetFoundUseCase` does the event, the status projection
+ *     and `closeCase` inside ONE `deps.transaction`, so no reader can observe
+ *     "episode closed, status still lost" from that path - and that is exactly
+ *     the state the stale banner requires (`LostCaseBlock`: the caller mounts
+ *     the block only when `pet.status === 'lost'`, and a null episode there
+ *     means the episode auto-closed).
+ *   - A drifted commit label. The sheet's button is the literal "Marcar como
+ *     encontrada" and `MARK_FOUND_BUTTON` matches it. The sex-dependent
+ *     `foundParticiple` labels belong to the INLINE forms in `LostCaseBlock`,
+ *     not to the sheet this helper drives.
+ *   - A cold server. Two consecutive runs against a warm one reproduced it.
+ *
+ * What is left, and untested: something between the committed rows and the
+ * rendered page. Do not read the fix below as having closed it.
+ *
+ * So the loop below re-NAVIGATES rather than reloading, and checks the URL it
+ * actually landed on instead of assuming. If it cannot get a clean profile in
+ * three tries it throws with the URL in hand, because a cleanup that cannot
+ * reach the page it is supposed to judge must say so - the whole point of this
+ * helper's assertion is that a drifted cleanup fails the spec that owns the
+ * state instead of handing the corpse to the next one.
  */
-function isSupersededNavigation(error: unknown): boolean {
-  return error instanceof Error && /net::ERR_ABORTED/.test(error.message);
-}
-
-/**
- * Reload into a guaranteed-fresh document, tolerating the page navigating on
- * its own while we ask.
- *
- * THE DEFECT THIS CLOSES — twice red on CI in two days, in two different specs,
- * at ONE line. Run 33649350226 (`owner-ia-p6.spec.ts:639`) and run 33663840887
- * (`crisis-owner-lost-flow.spec.ts:149`, on a DOCS-ONLY commit) both died with
- * `page.reload: net::ERR_ABORTED; maybe frame was detached?` inside
- * `ensurePetFound`. Classified by spec name it looked like run-level noise —
- * "a different victim each run" — and it is not: the spec is the caller, the
- * shared helper is the victim, and the failing frame was identical both times.
- *
- * WHY IT ABORTS. `setPetFoundAction` completes, and the client half of the N3
- * contract (`useActionRedirect` → `window.location.assign`,
- * lib/ui/full-page-action-nav.ts) fires a DOCUMENT navigation on its own
- * schedule — after the RSC re-render that unmounts the sheet, so the
- * `toBeHidden` wait above cannot fence it. Whatever load is in flight when it
- * lands is cancelled. The `goto` on the line before already tolerates exactly
- * this (`.catch(() => {})`, documented in `ensurePetFound`'s docblock); the
- * reload right after it did not, and got the same race with none of the
- * tolerance.
- *
- * WHY A RETRY AND NOT A WAIT. The two obvious fixes are both barred here.
- * Waiting for the post-action URL is forbidden by name (e2e/README.md, "Never
- * wait on a post-action URL") because that navigation is precisely the thing
- * known to drop — waiting on something optional turns a flake into a hang.
- * `networkidle` does not fence it either: `assign()` can fire after the network
- * went quiet, which is how this survived a `waitForLoadState` in the sibling
- * copy in crisis-seams.spec.ts. So the honest move is to let the competing
- * navigation WIN, let it land, and take the fresh document from there.
- *
- * WHY SWALLOWING THE SECOND ABORT CANNOT BUY A FALSE GREEN. This function
- * asserts nothing; it is a freshness device. The document it settles on after
- * an abort was loaded by a navigation that started AFTER ours, so it is never
- * staler than the one we asked for — and the assertions in `ensurePetFound`
- * are auto-retrying with 20s budgets and their own messages, so a stale or
- * wrong page fails them. The only outcome removed here is a red raised by a
- * helper that was not testing anything.
- */
-async function reloadPastCompetingNavigation(page: Page): Promise<void> {
-  for (let attempt = 1; attempt <= 2; attempt++) {
+async function settleOnCleanProfile(page: Page, token: string): Promise<void> {
+  const profile = `/mis-mascotas/${token}`;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await page.goto(profile, { waitUntil: "domcontentloaded" }).catch(() => {});
+    await page.waitForLoadState("domcontentloaded").catch(() => {});
+    let landed: URL;
     try {
-      await page.reload({ waitUntil: "domcontentloaded" });
-      return;
-    } catch (error) {
-      if (!isSupersededNavigation(error)) throw error;
-      // The page's own navigation won. Let it commit before asking again;
-      // if it wins the second time too, its document is the fresh one and
-      // the caller's assertions judge it.
-      await page.waitForLoadState("domcontentloaded").catch(() => {});
+      landed = new URL(page.url());
+    } catch {
+      continue;
     }
+    if (!landed.searchParams.has("sheet")) return;
   }
+  throw new Error(
+    `could not land on ${profile} without a ?sheet= param after 3 attempts — the page is at ${page.url()}. A sheet is a modal dialog: everything outside it is aria-hidden, so the assertions that follow would have reported "the pet is still lost" about a page they could not see.`,
+  );
 }
 
 /**
@@ -469,8 +496,26 @@ async function reloadPastCompetingNavigation(page: Page): Promise<void> {
  * THE ASSERTION AT THE END IS THE ACTUAL FIX, not the shared location: a
  * cleanup whose control has drifted must fail THE SPEC THAT OWNS THE STATE,
  * never hand the corpse to whichever spec runs next. Idempotent: on an
- * already-active pet the sheet offers no commit button, the click is skipped,
- * and the profile assertion is already true.
+ * already-active pet the sheet offers no commit button and the click is
+ * skipped.
+ *
+ * THAT IDEMPOTENCE CLAIM USED TO END "and the profile assertion is already
+ * true", and that half was false. The assertion is only true once the page is
+ * OFF the sheet URL, because a sheet is a modal and a modal hides the rest of
+ * the document from the accessibility tree the assertion reads.
+ * `settleOnCleanProfile` above is what makes the sentence true; see its header
+ * for the measurement.
+ *
+ * A CORRECTION TO THE COMMIT THAT INTRODUCED THIS, left here because the
+ * message is already pushed and cannot be: it says "eleven weeks of red CI".
+ * That number was invented, not measured. The measurement is that the last
+ * GREEN CI run on this repo was 2026-09-09 (`4459e670d`), eight days before
+ * this — and not even all of those are this defect: the first red after it died
+ * in `supabase start`, before any spec ran. So the honest statement is that the
+ * CI e2e job has been red since 2026-09-09 for more than one reason, and this
+ * was one of them. The repo already warns about exactly this in its own notes:
+ * a number that reads as measured and does not reproduce is worse than no
+ * number, because the next person scopes from it.
  *
  * THE SHEET IS WAITED FOR BEFORE THE BUTTON IS COUNTED. `Sheet` (VaulSheet →
  * Radix Dialog) renders inside a Portal, which mounts only AFTER hydration:
@@ -525,6 +570,38 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
     `the marcar-encontrada sheet never mounted for pet ${token} — the owner session dropped, this is not the pet's profile, or hydration failed`,
   ).toBeVisible({ timeout: 20_000 });
   const confirm = sheet.getByRole("button", { name: MARK_FOUND_BUTTON });
+  // THE SHEET HAS TWO FACES AND THIS WAITS FOR IT TO PICK ONE, because
+  // `count()` is a photograph with no retry and the line below branches on it.
+  //
+  // The sheet being VISIBLE is not the same as the sheet having RENDERED its
+  // body: `MarkFoundConfirmation` (the commit button) and `PetNotLostNotice`
+  // are chosen by `petStatus`, and on a cold server the RSC payload that
+  // carries either one can land after the portal is already on screen. A
+  // `count()` taken in that window answers 0 for a lost pet, the click is
+  // skipped, and the cleanup becomes a SILENT NO-OP — the exact failure mode
+  // this helper's own docblock describes for a drifted locator, arriving here
+  // through a race instead of a rename.
+  //
+  // HONEST ABOUT ITS OWN EVIDENCE: this is a defect in the SHAPE of the check,
+  // not a fix for a reproduction. Branching on a no-retry `count()` is wrong
+  // whether or not it has fired yet. A first draft of this comment claimed a
+  // cold-server measurement; the next two runs reproduced the same failure
+  // against a WARM server, which disproved it, and the real cause of that
+  // failure is still open (see the note in `settleOnCleanProfile`). The
+  // hardening stays because it is right on its own terms; the story does not,
+  // because it was wrong.
+  //
+  // Polling the SUM is what makes it a real fence rather than a sleep: it waits
+  // for one of the two mutually exclusive faces to exist, so a sheet that
+  // renders NEITHER (a third state nobody predicted) times out and says so,
+  // instead of quietly taking the "nothing to do" branch.
+  const notLost = sheet.getByText(/no figura como perdida/i);
+  await expect
+    .poll(async () => (await confirm.count()) + (await notLost.count()), {
+      timeout: 20_000,
+      message: `the marcar-encontrada sheet for pet ${token} mounted but rendered neither the commit button nor the not-lost notice — its body never arrived, and counting the button now would silently skip the cleanup`,
+    })
+    .toBeGreaterThan(0);
   if ((await confirm.count()) > 0) {
     await confirm.click();
     // A DOM SIGNAL, NOT THE POST-ACTION URL. `setPetFoundAction` returns
@@ -542,8 +619,7 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
       .toBeHidden({ timeout: 20_000 })
       .catch(() => {});
   }
-  await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" }).catch(() => {});
-  await reloadPastCompetingNavigation(page);
+  await settleOnCleanProfile(page, token);
   await expect(
     page.getByRole("link", { name: /marcar como perdida/i }),
     `pet ${token} does not show the owner's "Marcar como perdida" control after the mark-found cleanup — this is not the pet's profile in its active state (dropped session, wrong page, or the write failed)`,

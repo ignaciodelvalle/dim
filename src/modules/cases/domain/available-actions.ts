@@ -138,6 +138,26 @@ export function availableCaseActions(kind: CaseKind, status: CaseStatus): CaseAc
       available: false,
       unavailableReason: "El expediente ya está cerrado.",
     };
+  } else if (!lifecycle.manualCloseAllowed && lifecycle.dedicatedCloseProse) {
+    // Un kind que SÍ se cierra a mano, pero en OTRA pantalla. Va antes de la
+    // rama de abajo porque las dos frases que esa rama sabe decir son falsas
+    // acá: no lo cierra un hecho, y la política no está sin escribir.
+    //
+    // `outbreak_investigation` cayó en la frase genérica por sumar dos flags
+    // — `terminalEvents: []` y `manualCloseAllowed: false` — y concluir que no
+    // había cierre. Los dos flags son correctos y el cierre existe igual: el
+    // segundo está en false JUSTAMENTE porque el cierre dedicado es más
+    // exigente que el genérico que ese flag habilitaría.
+    //
+    // A quién le costaba: a una autoridad sanitaria mirando un expediente
+    // legalmente sensible, a la que la pantalla le pedía que reclamara una
+    // política ya escrita. Esperar por algo que no va a llegar es peor que no
+    // encontrar el botón.
+    close = {
+      action: "close",
+      available: false,
+      unavailableReason: `Este expediente no se cierra desde acá: ${lifecycle.dedicatedCloseProse}`,
+    };
   } else if (!lifecycle.manualCloseAllowed) {
     // El motivo nombra QUÉ lo cierra, no sólo que el botón no está. Un
     // funcionario que sabe que el expediente se cierra solo cuando el animal

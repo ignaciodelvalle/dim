@@ -323,7 +323,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
           value={hasData ? counts.total.toLocaleString("es-AR") : "—"}
           sub={hasData ? "mascotas activas o extraviadas" : "Sin datos en la cobertura"}
           tone={!hasData ? "neutral" : undefined}
-          sparkline={hasTrend ? trend.points.map((p) => p.y) : undefined}
+          sparkline={hasTrend ? trend.points : undefined}
           info={{
             definition:
               "Total de mascotas con status 'active' o 'lost' en el scope de jurisdicción.",

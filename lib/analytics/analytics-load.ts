@@ -16,6 +16,7 @@
 // wait, it does NOT cancel the underlying queries.
 
 import { reportError } from "@/lib/observability/report-error";
+import { unstable_rethrow } from "next/navigation";
 
 /** Deadline for an analytics page's fetcher set before it degrades (D2: 10 s). */
 export const ANALYTICS_LOAD_TIMEOUT_MS = 10_000;
@@ -95,6 +96,27 @@ export async function loadWithTimeout<T>(
       promise.then(
         (value): AnalyticsLoad<T> => ({ ok: true, value }),
         (err): AnalyticsLoad<T> => {
+          // NEXT'S CONTROL FLOW IS NOT A FAILURE, and swallowing it here would
+          // be the worst kind of bug: silent, and pointed at the wrong person.
+          //
+          // `redirect()` and `notFound()` signal by THROWING a sentinel that the
+          // framework catches upstream. This handler turns every rejection into
+          // `{ok:false}`, so a caller who wrapped anything that redirects —
+          // `requireUserOrRedirect()` is the obvious one — would find the
+          // redirect quietly converted into a degraded panel. A visitor with no
+          // session would be shown "no pudimos cargar esto" instead of the login
+          // screen, and nothing anywhere would report a problem.
+          //
+          // This is not hypothetical in this repo: `app/org/[orgToken]/intake/
+          // importar/actions.ts:277` carries a note about a NEXT_REDIRECT that a
+          // loop's catch had already eaten once.
+          //
+          // `unstable_rethrow` is Next's own answer — it re-throws the framework
+          // sentinels (redirect, notFound, dynamic-usage) and returns for
+          // everything else. The `unstable_` prefix is the API's name, not a
+          // warning about what it does; there is no stable alias in Next 15.
+          unstable_rethrow(err);
+
           if (deadlineWon) {
             // Race already resolved with the timeout result — this return
             // value is discarded, so do NOT mint another id or log again.

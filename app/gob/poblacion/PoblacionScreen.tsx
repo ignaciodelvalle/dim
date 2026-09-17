@@ -511,7 +511,7 @@ export async function PoblacionScreen({
               ? `meta ${sterilTargetAdjusted ? "" : "programática "}${sterilTargetPct}% · ${coverage.sterilized.toLocaleString("es-AR")} de ${coverage.total.toLocaleString("es-AR")}${sterilTargetAdjusted ? ` · ${JURISDICTION_ADJUSTED_TARGET_NOTE}` : ""}`
               : "Sin datos en la cobertura"
           }
-          sparkline={hasTrend ? sterilTrend.points.map((p) => p.y) : undefined}
+          sparkline={hasTrend ? sterilTrend.points : undefined}
           info={getKpiInfo("sterilization_coverage_population")}
           descriptorId="sterilization_coverage_population"
         />

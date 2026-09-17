@@ -39,6 +39,7 @@ import {
   getUnreadCountCached,
 } from "@/lib/infra/request-cache";
 import { type ShellRole, resolveShellNav } from "@/lib/ui/shell-nav";
+import { AppSessionUnavailable } from "./_components/AppSessionUnavailable";
 
 // A funcionario works with three portals open at once, and all four of them
 // returned the ROOT title verbatim — "miMAR — Mi Mascota Argentina" — so the
@@ -67,11 +68,46 @@ export default async function AuthenticatedLayout({
     return <LnMaintenanceScreen />;
   }
 
-  const { user } = await requireUserOrRedirect();
-
-  // Profile first: institutional roles redirect away, and the unread-count
-  // query should not run at all on that path.
-  const profile = await getProfileCached(user.id);
+  // BOUNDED, and this pair is the reason the block below was not enough.
+  //
+  // The counters further down were wrapped in 2026-08 with a comment saying a
+  // degraded pooler must not hang every route at once. It could still hang all
+  // of them, one line above that guard: `requireUserOrRedirect` goes to Supabase
+  // Auth and then reads the profile, and `getProfileCached` is a bare
+  // `React.cache()` — memoisation, no deadline. So the layout protected the tab
+  // bar's badges and left the two round-trips that decide whether the page
+  // renders at all completely open. Measured 2026-09-17 while auditing which
+  // citizen screens actually degrade; the comment below described a protection
+  // the code did not provide.
+  //
+  // A LAYOUT HAS NO ERROR BOUNDARY OF ITS OWN, so there is nothing to fall into:
+  // a hang here is an infinite skeleton on every owner route simultaneously, and
+  // the `loading.tsx` files underneath make it look healthier than it is.
+  //
+  // 8s, not the counters' 3s. These two are on the critical path — nothing
+  // renders without them — so the deadline has to be long enough that a merely
+  // slow network does not lock somebody out of their own portal. The counters
+  // can be dropped after three seconds because the cost is a missing badge.
+  //
+  // `loadWithTimeout` re-throws Next's control-flow sentinels
+  // (`unstable_rethrow`, added the same day), so `requireUserOrRedirect`'s own
+  // redirect to the login screen still reaches the framework instead of being
+  // folded into `{ok:false}`. Without that this wrapper would send every
+  // signed-out visitor to a degraded panel instead of to sign-in.
+  const sessionLoad = await loadWithTimeout(
+    (async () => {
+      const { user } = await requireUserOrRedirect();
+      return { user, profile: await getProfileCached(user.id) };
+    })(),
+    8_000,
+  );
+  if (!sessionLoad.ok) {
+    // NOT `children`. We do not know who this is, so rendering the owner portal
+    // would be rendering somebody's private surface on a guess. The honest
+    // answer names the failure and offers the only useful action.
+    return <AppSessionUnavailable reason={sessionLoad.reason} correlationId={sessionLoad.id} />;
+  }
+  const { user, profile } = sessionLoad.value;
   if (profile?.role === "admin") redirect("/admin");
   if (profile?.role === "govt") redirect("/gob");
 
