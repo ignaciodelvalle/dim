@@ -93,6 +93,7 @@ export type KpiId =
   | "pets_registered_today"
   | "vaccinations_weekly"
   | "outbreak_investigations_active"
+  | "outbreak_signals_untriaged"
   | "rabies_observation_compliance_10d"
   | "amr_density"
   | "registry_total_pets"
@@ -1376,6 +1377,28 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     },
   },
 
+  outbreak_signals_untriaged: {
+    id: "outbreak_signals_untriaged",
+    label: "Se\u00f1ales sin investigaci\u00f3n (30 d\u00edas)",
+    numerator:
+      "COUNT(pet_events outbreak_signal, \u00faltimos 30d) sin una fila case_events entry_type='signal_link' que las vincule a un expediente",
+    denominator: "n/a \u2014 conteo absoluto",
+    source: "pet_events",
+    fetcherName: "fetchVigilanciaMetrics (untriagedSignalCount)",
+    fetcherPath: "lib/analytics/dashboards/surveillance.ts",
+    cadence:
+      "misma ventana de 30 d\u00edas y mismo alcance que 'Se\u00f1ales de brote' \u2014 derivado de sus mismas condiciones, no reconstruido, porque los dos n\u00fameros est\u00e1n para leerse uno contra otro",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "EXISTE PARA QUE UN CERO SE PUEDA LEER. 'Casos bajo investigaci\u00f3n activa' es un stock honesto, pero un cero ah\u00ed significa dos cosas distintas: que no pasa nada, o que nadie mir\u00f3. Este n\u00famero separa las dos. No mide riesgo: mide atenci\u00f3n. Una se\u00f1al sin investigaci\u00f3n puede ser un caso aislado que no la amerita.",
+    window: "30d",
+    species: "n/a",
+    basis: "flow",
+    question:
+      "\u00bfCu\u00e1ntas se\u00f1ales de brote de los \u00faltimos 30 d\u00edas no tienen ning\u00fan expediente abierto?",
+    semaphore: { paintAgainst: "none" },
+  },
   outbreak_investigations_active: {
     id: "outbreak_investigations_active",
     label: "Casos bajo investigación activa",

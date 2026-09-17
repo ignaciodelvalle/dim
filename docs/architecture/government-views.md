@@ -139,7 +139,7 @@ other scope clause on this surface already had. Pinned by
 `lib/metrics/kpi-catalog.ts` turns KPI documentation into an executable
 contract. `KPI_CATALOG` (`lib/metrics/kpi-catalog.ts:368`) is a record keyed by
 id, flattened into `KPI_CATALOG_LIST` at `:2446` —
-<!-- fact:kpi_descriptors -->86<!-- /fact --> descriptors, spread in from two
+<!-- fact:kpi_descriptors -->87<!-- /fact --> descriptors, spread in from two
 sibling modules (`lib/metrics/kpi-catalog-queues.ts`,
 `lib/metrics/kpi-catalog-compliance.ts`) so a single lookup serves every render
 site.

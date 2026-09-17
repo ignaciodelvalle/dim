@@ -60,6 +60,17 @@ export type SurveillanceSignal = {
   authorVerified: boolean;
   authorOrganizationId: string | null;
   payload: Record<string, unknown>;
+  /**
+   * The investigation somebody opened FROM this signal, or null when nobody
+   * has. Null is the interesting value: it is the only way this screen can
+   * tell "there is nothing happening" apart from "nobody looked yet".
+   *
+   * Read through the `signal_link` case event, which `openOutbreakInvestigation`
+   * writes as its own entry type. An investigation opened by hand - a lab
+   * report arriving out of band, which `manualOpenAllowed` permits - carries no
+   * such row, and correctly does not make any signal look triaged.
+   */
+  investigation: { publicCode: string; status: string } | null;
 };
 
 export type DiseaseSummary = {
@@ -133,6 +144,19 @@ export async function fetchSurveillanceSignals(
       authorVerified: petEvents.authorVerified,
       authorOrganizationId: petEvents.authorOrganizationId,
       payload: petEvents.payload,
+      // ONE correlated subquery, not two columns and not a LEFT JOIN: the link
+      // lives in a jsonb payload, so a join condition would be an expression
+      // either way, and two scalar subqueries would walk `case_events` twice
+      // for every one of the 500 rows this query can return.
+      investigation: sql<{ code: string; status: string } | null>`(
+        select json_build_object('code', c.public_code, 'status', c.status)
+        from case_events ce
+        join cases c on c.id = ce.case_id
+        where ce.entry_type = 'signal_link'
+          and ce.payload->>'signal_event_id' = ${petEvents.id}::text
+        order by ce.occurred_at desc
+        limit 1
+      )`,
     })
     .from(petEvents)
     .innerJoin(pets, eq(pets.id, petEvents.petId))
@@ -155,6 +179,9 @@ export async function fetchSurveillanceSignals(
     authorVerified: r.authorVerified,
     authorOrganizationId: r.authorOrganizationId,
     payload: (r.payload ?? {}) as Record<string, unknown>,
+    investigation: r.investigation
+      ? { publicCode: r.investigation.code, status: r.investigation.status }
+      : null,
   }));
 }
 
@@ -230,6 +257,18 @@ export type VigilanciaMetrics = {
    * not a period-bounded flow.
    */
   investigationActiveCount: number;
+  /**
+   * Signals in the same 30-day window that NO investigation is linked to.
+   *
+   * THE COUNTERWEIGHT TO `investigationActiveCount`, and it has to ship with
+   * it. Pointing this screen at the expediente - a real stock, opened and
+   * closed by people - is the honest move, but it trades one silence for
+   * another: a jurisdiction where nobody triaged anything reads ZERO, exactly
+   * like a jurisdiction where nothing happened. Measured on the seeded database
+   * on 2026-09-17: 2137 signals, 0 investigations, 0 case events. Without this
+   * number the screen would have answered "nothing to see" to that.
+   */
+  untriagedSignalCount: number;
 };
 
 // Canonical list of Argentine provinces for /gob/* dashboard pages.
@@ -346,6 +385,20 @@ export async function fetchVigilanciaMetrics(
   );
   if (outbreakScope) outbreakConditions.push(sql`(${outbreakScope})`);
 
+  // 1b. Of those same signals, the ones no investigation is linked to.
+  //     Deliberately derived from `outbreakConditions` rather than rebuilt: the
+  //     two numbers are meant to be read against each other, so they must come
+  //     from the same population and the same scope, or the comparison lies.
+  const untriagedConditions = [
+    ...outbreakConditions,
+    sql`not exists (
+      select 1
+      from case_events ce
+      where ce.entry_type = 'signal_link'
+        and ce.payload->>'signal_event_id' = ${petEvents.id}::text
+    )`,
+  ];
+
   // 2. Count open cases with caseKind='rabies_observation'.
   const casesScope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
 
@@ -375,11 +428,15 @@ export async function fetchVigilanciaMetrics(
   // instead of two round-trips. Parity pinned in
   // __tests__/pf1-consolidation-parity.test.ts against independently-written
   // reference queries over seeded fixtures (multiple scopes).
-  const [outbreakRows, casesRows, petsRows, vaccRows] = await Promise.all([
+  const [outbreakRows, untriagedRows, casesRows, petsRows, vaccRows] = await Promise.all([
     db
       .select({ n: count() })
       .from(petEvents)
       .where(and(...outbreakConditions)),
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .where(and(...untriagedConditions)),
     db
       .select({
         // The rabies expediente is a `bite_incident` case, NOT the
@@ -432,6 +489,7 @@ export async function fetchVigilanciaMetrics(
     petsRegisteredToday: petsRows[0]?.n ?? 0,
     vaccinationsThisWeek: vaccRows[0]?.n ?? 0,
     investigationActiveCount: casesRows[0]?.investigation ?? 0,
+    untriagedSignalCount: untriagedRows[0]?.n ?? 0,
   };
 }
 

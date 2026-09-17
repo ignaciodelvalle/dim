@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-09-17",
-  "sha": "87bf560b4",
+  "sha": "b56a755da",
   "facts": {
     "event_types": {
       "value": 55,
@@ -108,7 +108,7 @@
       "method": "ORGANIZATION_CAPABILITIES.length, imported. The UI-facing `CAPABILITY_CATALOG` in `src/modules/organizations/domain/capabilities.ts` describes a SUBSET and is deliberately not the number quoted here."
     },
     "kpi_descriptors": {
-      "value": 86,
+      "value": 87,
       "source": "lib/metrics/kpi-catalog.ts",
       "method": "KPI_CATALOG_LIST.length, imported — `Object.values(KPI_CATALOG)`, which merges the queue and compliance sub-catalogs."
     },

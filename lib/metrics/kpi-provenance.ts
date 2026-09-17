@@ -162,6 +162,10 @@ export const KPI_PROVENANCE: Record<KpiId, KpiProvenance> = {
     formulaEs:
       "Dos conteos independientes mostrados en par: mordeduras reportadas en los últimos 12 meses junto a observaciones rábicas abiertas ahora — no es una fracción.",
   },
+  outbreak_signals_untriaged: {
+    formulaEs:
+      "Se\u00f1ales de brote de los \u00faltimos 30 d\u00edas que no tienen ning\u00fan expediente de investigaci\u00f3n vinculado. Se lee contra 'Casos bajo investigaci\u00f3n activa': un cero all\u00e1 con un n\u00famero alto ac\u00e1 significa que nadie tri\u00f3, no que no pase nada.",
+  },
   outbreak_active_signals: {
     formulaEs:
       "Señales de brote registradas en los últimos 30 días (cuenta avisos emitidos dentro de la ventana, no señales 'abiertas': una señal no tiene estado que se cierre).",

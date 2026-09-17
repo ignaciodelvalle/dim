@@ -48,6 +48,7 @@ const SIGNAL: SurveillanceSignal = {
   authorVerified: true,
   authorOrganizationId: null,
   payload: {},
+  investigation: null,
 };
 
 describe("OutbreakSignalRow — signalId deep-link affordance", () => {
@@ -71,5 +72,32 @@ describe("OutbreakSignalRow — signalId deep-link affordance", () => {
     const li = container.querySelector(`#signal-${SIGNAL.signalEventId}`);
     expect(li).not.toHaveAttribute("aria-current");
     expect(li?.className).not.toContain("ring-2");
+  });
+});
+
+describe("OutbreakSignalRow — no ofrece abrir lo que ya está abierto", () => {
+  // La fila ofrecía "Abrir investigación" en TODAS las señales, incluidas las
+  // que alguien ya había investigado — no tenía con qué saberlo. Un operador
+  // trabajando un feed de cientos podía abrir un segundo expediente sobre la
+  // misma señal, y nada en pantalla lo frenaba ni se lo insinuaba.
+  it("una señal ya investigada linkea al expediente y NO ofrece abrir otro", () => {
+    const { container } = render(
+      <OutbreakSignalRow
+        signal={{ ...SIGNAL, investigation: { publicCode: "CAS-TEST-0001", status: "open" } }}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain("CAS-TEST-0001");
+    expect(text).not.toContain("Abrir investigación");
+    const link = container.querySelector('a[href*="/investigaciones/CAS-TEST-0001"]');
+    expect(link, "debe linkear al expediente que ya existe").toBeTruthy();
+  });
+
+  it("una señal sin investigación sigue ofreciendo abrirla", () => {
+    // Control positivo: sin esto, un bug que escondiera SIEMPRE el CTA pasaría
+    // la aserción de arriba sin que nadie lo note.
+    const { container } = render(<OutbreakSignalRow signal={{ ...SIGNAL, investigation: null }} />);
+    expect(container.textContent ?? "").toContain("Abrir investigación");
+    expect(container.querySelector('a[href*="/investigaciones/nuevo"]')).toBeTruthy();
   });
 });

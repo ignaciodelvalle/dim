@@ -203,7 +203,7 @@ funciona si las dos láminas incómodas están donde se ven.
   honesto, la pantalla lo dice en vez de dibujar un porcentaje.
 - **Hechos.**
   - Descriptores en el catálogo de indicadores:
-    <!-- fact:kpi_descriptors -->86<!-- /fact -->.
+    <!-- fact:kpi_descriptors -->87<!-- /fact -->.
 - **Respaldo.**
   - `lib/metrics/kpi-catalog.ts` — el catálogo: cada entrada con su definición, su
     fuente y su meta.
