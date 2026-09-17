@@ -80,7 +80,20 @@ export function buildContentSecurityPolicy(
     ["img-src", "'self'", "data:", "blob:", "https:", supabaseHttpOrigin]
       .filter(Boolean)
       .join(" "),
-    // maplibre-gl runs its tile/geometry pipeline in a blob: Web Worker.
+    // maplibre-gl runs its tile/geometry pipeline in a Web Worker.
+    //
+    // `blob:` IS NO LONGER THE PATH TAKEN, and the note is kept rather than the
+    // allowance removed. v5 laundered its worker through a Blob URL; v6 fetches
+    // a real same-origin URL (/maplibre/maplibre-gl-worker.mjs) and only falls
+    // back to a Blob when the worker URL is CROSS-origin, which ours is not.
+    // Nothing else in this app constructs a Worker. So `blob:` here is an
+    // allowance nobody currently uses.
+    //
+    // It stays because removing it is a separate judgement with a runtime risk
+    // this change did not measure: a dependency that creates a worker on some
+    // path we did not exercise would fail at the CSP, in production, silently
+    // enough. Narrowing it deserves its own change and its own verification,
+    // not a line stolen from a map fix.
     "worker-src 'self' blob:",
     // XHR/fetch/WebSocket: Supabase REST+Auth and realtime (ws/wss), plus the
     // OpenStreetMap raster tiles maplibre fetches for the location-capture maps
@@ -257,6 +270,15 @@ export const config = {
   matcher: [
     // Run on every request except static files, image optimization, the
     // favicon, and any file with a recognizable extension (svg, png, jpg, ...).
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    //
+    // `maplibre/` is excluded by PATH rather than by extension, and the reason
+    // is worth a line: the two files under it are `.mjs`, which this matcher's
+    // extension list does not cover, so without this they would run the full
+    // middleware — including the Supabase `auth.getUser()` round-trip in
+    // lib/supabase/middleware.ts — on a static asset that needs no session. It
+    // would also stamp a per-request nonce and any refresh `Set-Cookie` onto the
+    // response, which makes it uncacheable by any shared cache and undoes the
+    // Cache-Control entry next.config.ts gives it.
+    "/((?!_next/static|_next/image|favicon.ico|maplibre/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

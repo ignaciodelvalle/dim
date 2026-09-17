@@ -30,10 +30,10 @@ import { join } from "node:path";
 import {
   MAPLIBRE_PUBLIC_DIR,
   MAPLIBRE_WORKER_ASSETS,
-  SHARED_SPECIFIER,
   maplibreDistDir,
   maplibreVersion,
   sha,
+  unknownRelativeImports,
 } from "./copy-maplibre-worker";
 
 const problems: string[] = [];
@@ -41,8 +41,103 @@ const problems: string[] = [];
 const LOADER = "lib/ui/maplibre-loader.ts";
 const COPY_SCRIPT = "scripts/copy-maplibre-worker.ts";
 
-const VALUE_IMPORT = /\bimport\s*\(\s*["']maplibre-gl["']\s*\)/;
+/**
+ * Any RUNTIME reference to the package, in any spelling.
+ *
+ * THE FIRST VERSION OF THIS MATCHED ONE CALL SHAPE — `import("maplibre-gl")` —
+ * and adversarial review measured what walked past it: a static default import
+ * (`import maplibregl from "maplibre-gl"`), a named one, a template literal, a
+ * parenthesised argument, a deep subpath (`maplibre-gl/dist/maplibre-gl.mjs`,
+ * legal: the package's exports map publishes `./dist/*`), `require()` through
+ * `createRequire`, and a re-export barrel. The first of those is the one that
+ * matters, because it is the form maplibre's own documentation shows — so it is
+ * what the next person writes, and the fence would have waved it through while
+ * CANON-531 said it could not.
+ *
+ * So: match the SPECIFIER wherever a module reference can carry it. Three
+ * shapes, all over comment-stripped source.
+ */
+// The three quote characters. The backtick is a unicode escape so this
+// file's own template literals below stay readable.
+const Q = "[\"'\\u0060]";
+const SPEC = "maplibre-gl(?:/[^\"'\\u0060]*)?";
 
+const IMPORT_SHAPES: RegExp[] = [
+  // `import ... from "x"`, `export ... from "x"`, and the bare side-effect form.
+  new RegExp(`(?:^|[\\n;])\\s*(?:import|export)\\b[^;]*?${Q}${SPEC}${Q}`, "m"),
+  // `import("x")`, tolerating wrapping parens and a template-literal specifier.
+  new RegExp(`\\bimport\\s*\\(\\s*(?:\\()*\\s*${Q}${SPEC}${Q}`),
+  // `require("x")` - reachable in this repo through createRequire.
+  new RegExp(`\\brequire\\s*\\(\\s*${Q}${SPEC}${Q}`),
+];
+
+const CSS_ONLY = new RegExp(`^\\s*import\\s+${Q}maplibre-gl/dist/maplibre-gl\\.css${Q}\\s*;?\\s*$`);
+
+/**
+ * A SECOND, INDEPENDENT NET, because the first one is still a text match on a
+ * specifier and specifiers can be spelled in ways nobody has thought of yet.
+ * Whatever the import looks like, a component that builds a map ends up writing
+ * `new <something>.Map(` or `new <something>.Marker(`. A file that does that and
+ * does not go through the loader is a bypass by construction.
+ *
+ * The dot is what keeps this quiet: a bare `new Map()` is the JavaScript
+ * builtin and is everywhere.
+ */
+const MAP_CONSTRUCTOR = /\bnew\s+[A-Za-z_$][\w$]*\.(?:Map|Marker)\s*\(/;
+
+function loadsMapLibre(code: string): boolean {
+  const lines = code.split("\n").filter((l) => !CSS_ONLY.test(l));
+  const withoutCss = lines.join("\n");
+  const withoutTypeOnly = withoutCss.replace(/(?:^|[\n;])\s*(?:import|export)\s+type\b[^;]*;/g, "");
+  return IMPORT_SHAPES.some((re) => re.test(withoutTypeOnly));
+}
+
+/**
+ * Characters after which a `/` starts a REGEX LITERAL rather than division.
+ *
+ * WITHOUT THIS THE STRIPPER DESYNCHRONISES AND CAN DELETE REAL CODE, which is
+ * the one direction a fence may never fail in. Adversarial review measured it:
+ *
+ *     const QUOTE_RE = /[\"']/;
+ *     const url = "https://tiles.example/x"; await import("maplibre-gl");
+ *
+ * the quote inside the character class opens a bogus string, it closes on the
+ * quote of the URL, `https:` arrives at top level, `//` reads as a comment and
+ * the import is deleted. Legal TypeScript, invisible to the fence. Measured
+ * over this repo's own scan set: 16 files desynchronise today and none loses
+ * code to it yet -- but the OTHER half of the same desync is already live,
+ * because in those 16 files comments stop being stripped, so a commented-out
+ * import would be reported as an offender. That is the fence punishing the
+ * documentation, which is what this whole function exists to prevent.
+ */
+const REGEX_MAY_FOLLOW = new Set("=(,:[!&|?{};+-*%<>~^".split(""));
+
+function lastSignificant(out: string[]): string {
+  for (let i = out.length - 1; i >= 0; i--) {
+    const c = out[i];
+    if (c !== undefined && c.trim() !== "") return c;
+  }
+  return "";
+}
+
+/** End index of the regex literal at `start`, or -1 when it is not one. */
+function endOfRegex(source: string, start: number): number {
+  let i = start + 1;
+  let inClass = false;
+  while (i < source.length) {
+    const c = source[i];
+    if (c === "\\") {
+      i += 2;
+      continue;
+    }
+    if (c === "\n") return -1;
+    if (c === "[") inClass = true;
+    else if (c === "]") inClass = false;
+    else if (c === "/" && !inClass) return i + 1;
+    i++;
+  }
+  return -1;
+}
 /** End index of the string literal that starts at `start`. */
 function endOfString(source: string, start: number): number {
   const quote = source[start];
@@ -94,6 +189,18 @@ export function stripComments(source: string): string {
       const end = endOfString(source, i);
       out.push(source.slice(i, end));
       i = end;
+    } else if (ch === "/" && REGEX_MAY_FOLLOW.has(lastSignificant(out))) {
+      // Checked AFTER the two comment shapes on purpose: `a = /* c */ b` would
+      // otherwise read as a regex opening at `/`, and the block comment would
+      // never close.
+      const end = endOfRegex(source, i);
+      if (end === -1) {
+        out.push(ch);
+        i++;
+      } else {
+        out.push(source.slice(i, end));
+        i = end;
+      }
     } else {
       out.push(ch ?? "");
       i++;
@@ -107,13 +214,35 @@ export function stripComments(source: string): string {
 // `import type` is erased at compile time and cannot reach setWorkerUrl's
 // ordering problem, so only VALUE imports count. The loader is the one
 // legitimate site.
-const sources = globSync("{app,components,lib,src}/**/*.{ts,tsx}", {
+// `packages` is in the list because the sibling fence check-maplibre-locale.ts
+// already scans it; two fences over the same subject disagreeing about
+// territory is how a gap opens with nobody noticing it is a gap.
+const sources = globSync("{app,components,lib,packages,src}/**/*.{ts,tsx}", {
   exclude: (p) => p.includes("node_modules"),
 });
-const offenders = sources
+const scanned = sources
   .map((f) => f.replaceAll("\\", "/"))
   .filter((f) => f !== LOADER)
-  .filter((f) => VALUE_IMPORT.test(stripComments(readFileSync(f, "utf8"))));
+  .map((f) => ({ file: f, code: stripComments(readFileSync(f, "utf8")) }));
+
+const offenders = scanned.filter(({ code }) => loadsMapLibre(code)).map(({ file }) => file);
+
+// The second net: builds a map without coming through the door.
+const constructorBypass = scanned
+  .filter(({ code }) => MAP_CONSTRUCTOR.test(code) && !code.includes("loadMapLibre"))
+  .map(({ file }) => file);
+if (constructorBypass.length > 0) {
+  problems.push(
+    [
+      `${constructorBypass.length} file(s) construct a maplibre Map/Marker without importing the loader:`,
+      ...constructorBypass.map((f) => `    ${f}`),
+      "  However the module reference is spelled, a map built without `loadMapLibre()` may be",
+      "  built before `setWorkerUrl` has run. Whether it draws then depends on whether some",
+      "  OTHER component on the same page happened to load first — a blank map on one route",
+      "  and a working one on the next, with an empty console either way.",
+    ].join("\n"),
+  );
+}
 
 if (offenders.length > 0) {
   problems.push(
@@ -131,7 +260,7 @@ if (offenders.length > 0) {
 // Non-vacuity: if the scan cannot see the loader's own import, the regex died
 // and every reassuring line above judged nothing.
 const loaderText = readFileSync(LOADER, "utf8");
-if (!VALUE_IMPORT.test(stripComments(loaderText))) {
+if (!loadsMapLibre(stripComments(loaderText))) {
   problems.push(
     `the scan found no runtime import even in ${LOADER} itself — the detection regex is dead, so the check above judged nothing.`,
   );
@@ -162,10 +291,16 @@ if (declared !== expectedUrl) {
 // --- 4. the installed worker still needs exactly what we copy -------------
 const dist = maplibreDistDir();
 const version = maplibreVersion();
-const workerSource = readFileSync(join(dist, MAPLIBRE_WORKER_ASSETS[0]), "utf8");
-if (!workerSource.includes(SHARED_SPECIFIER)) {
+// AN ENUMERATION, NOT AN INCLUSION TEST, and the difference is a whole class of
+// silent failure. Asserting the known file is still imported fires when it goes
+// AWAY; it cannot fire when an UNKNOWN one is added. A future 6.11 that keeps
+// ./maplibre-gl-shared.mjs and adds ./maplibre-gl-util.mjs would pass that
+// check, ship two of three files, and every map would go blank again — green
+// build, green fence, empty console.
+const unexpected = unknownRelativeImports(dist);
+if (unexpected.length > 0) {
   problems.push(
-    `maplibre-gl ${version}: the worker no longer imports "${SHARED_SPECIFIER}". Copying ${MAPLIBRE_WORKER_ASSETS.join(" + ")} would ship a worker that cannot load — silently, with a green build and an empty map.`,
+    `maplibre-gl ${version}: the copied files import relative modules this script does not copy: ${unexpected.join(", ")}. Shipping them without those would produce a worker that cannot load — silently, the way it already did once. Add them to MAPLIBRE_WORKER_ASSETS.`,
   );
 }
 

@@ -126,6 +126,25 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // maplibre's worker and its shared chunk (public/maplibre/*), generated
+        // by scripts/copy-maplibre-worker.ts on prebuild. Same class of asset as
+        // /geo above and the same reasoning applies verbatim: immutable per
+        // deploy, filenames NOT content-hashed, so `immutable` would be wrong.
+        //
+        // Without an entry here these two fall back to Next's `public/` default
+        // of max-age=0 and revalidate on every page that draws a map — and the
+        // shared chunk is 514 KB. It is the same 514 KB webpack already bundles
+        // for the main thread; a worker cannot share the page's bundle, so the
+        // second copy is unavoidable, which makes not caching it cost twice.
+        source: "/maplibre/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
     ];
   },
   images: {

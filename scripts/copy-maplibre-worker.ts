@@ -47,6 +47,28 @@ export const MAPLIBRE_PUBLIC_DIR = join("public", "maplibre");
  */
 export const SHARED_SPECIFIER = "./maplibre-gl-shared.mjs";
 
+const RELATIVE_SPECIFIER = /from\s*["']((?:\.\.?\/)[^"']+)["']/g;
+
+/**
+ * Relative specifiers the copied files import that this script does not copy.
+ *
+ * The first version asserted the worker still imports the shared chunk. That
+ * fires when the known file goes away and is blind to a new one arriving --
+ * and a worker whose third import 404s dies exactly as silently as a worker
+ * that is missing altogether.
+ */
+export function unknownRelativeImports(dist: string): string[] {
+  const known = new Set<string>(MAPLIBRE_WORKER_ASSETS);
+  const found = new Set<string>();
+  for (const name of MAPLIBRE_WORKER_ASSETS) {
+    const text = readFileSync(join(dist, name), "utf8");
+    for (const m of text.matchAll(RELATIVE_SPECIFIER)) {
+      const target = (m[1] ?? "").replace(/^\.\//, "");
+      if (!known.has(target)) found.add(target);
+    }
+  }
+  return [...found].sort();
+}
 export function maplibreDistDir(): string {
   return join(dirname(require.resolve("maplibre-gl/package.json")), "dist");
 }
@@ -66,10 +88,10 @@ export function copyMaplibreWorker({ quiet = false }: { quiet?: boolean } = {}):
   const dist = maplibreDistDir();
   const version = maplibreVersion();
 
-  const workerSource = readFileSync(join(dist, MAPLIBRE_WORKER_ASSETS[0]), "utf8");
-  if (!workerSource.includes(SHARED_SPECIFIER)) {
+  const unexpected = unknownRelativeImports(dist);
+  if (unexpected.length > 0) {
     throw new Error(
-      `maplibre-gl ${version}: the worker no longer imports "${SHARED_SPECIFIER}". Copying the two known files would ship a worker that cannot load, and it would fail the way this whole script exists to prevent: silently, with a green build and an empty map. Open dist/maplibre-gl-worker.mjs, see what it reaches for now, and update MAPLIBRE_WORKER_ASSETS.`,
+      `maplibre-gl ${version}: the copied files import relative modules that are not copied: ${unexpected.join(", ")}. Shipping without them produces a worker that cannot load, and it fails the way this whole script exists to prevent: silently, with a green build and an empty map. Add them to MAPLIBRE_WORKER_ASSETS.`,
     );
   }
 

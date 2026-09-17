@@ -51,6 +51,23 @@ describe("loadMapLibre — one door, opened once", () => {
     expect(setWorkerUrl).toHaveBeenCalledTimes(1);
   });
 
+  it("FORGETS a failure so the next map can try again", async () => {
+    // Memoising the promise is what makes setWorkerUrl run once. Memoising a
+    // REJECTED one turns a single failed chunk request — a deploy that rotated
+    // hashes while a map page was open, one flaky connection — into a dead map
+    // for the rest of the session, on every route, with no call site catching
+    // it and nothing in the console. The code this loader replaced retried by
+    // accident, because each mount issued its own import().
+    setWorkerUrl.mockImplementationOnce(() => {
+      throw new Error("chunk 404");
+    });
+    await expect(loadMapLibre()).rejects.toThrow("chunk 404");
+
+    // The very next caller gets a real attempt, not the corpse of the last one.
+    await expect(loadMapLibre()).resolves.toBeDefined();
+    expect(setWorkerUrl).toHaveBeenCalledTimes(2);
+  });
+
   it("serves the worker from THIS origin, not a CDN and not a blob", () => {
     // v6 dropped the CSP bundle because a same-origin worker needs no blob:
     // laundering — the app's `worker-src 'self'` covers this URL and nothing
