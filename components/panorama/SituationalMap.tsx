@@ -182,6 +182,7 @@ import {
   removeLayer,
   srcId,
 } from "@/components/panorama/situational-map-config";
+import { loadMapLibre } from "@/lib/ui/maplibre-loader";
 export type {
   PointRenderMode,
   ActiveLayer,
@@ -482,7 +483,7 @@ export function SituationalMap({
     if (!containerRef.current) return;
     let cancelled = false;
 
-    import("maplibre-gl").then((maplibregl) => {
+    loadMapLibre().then((maplibregl) => {
       if (cancelled || !containerRef.current) return;
       mlRef.current = maplibregl;
 

@@ -423,15 +423,15 @@ funciona si las dos láminas incómodas están donde se ven.
   cumplir, y el propio verificador de la suite desconfía del resultado de la suite.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
-    <!-- fact:verify_fences -->69<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1528<!-- /fact -->.
+    <!-- fact:verify_fences -->70<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1529<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
   - Flujos de integración continua: <!-- fact:ci_workflows -->8<!-- /fact -->.
   - Reglas del canon de convenciones que algo hace cumplir:
-    <!-- fact:canon_enforced -->179<!-- /fact --> de
-    <!-- fact:canon_rows -->517<!-- /fact -->.
+    <!-- fact:canon_enforced -->180<!-- /fact --> de
+    <!-- fact:canon_rows -->518<!-- /fact -->.
 - **Respaldo.**
   - `scripts/run-verified-suite.ts` — el verificador que ignora a propósito el código
     de salida de la suite y lo vuelve a plegar, para que una corrida que se cayó no

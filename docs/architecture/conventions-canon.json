@@ -31,10 +31,10 @@
     ]
   },
   "stats": {
-    "rows": 517,
+    "rows": 518,
     "byStatus": {
       "UNENFORCED": 245,
-      "ENFORCED": 179,
+      "ENFORCED": 180,
       "PARTIAL": 93
     },
     "byScopeStatus": {
@@ -55,7 +55,7 @@
       },
       "web": {
         "UNENFORCED": 41,
-        "ENFORCED": 88,
+        "ENFORCED": 89,
         "PARTIAL": 38
       },
       "mobile": {
@@ -9408,6 +9408,27 @@
       "confidence": 0.9,
       "numberKey": "non-vacuity floors per scan",
       "verifiedAt": "working-tree-2026-09-09"
+    },
+    {
+      "id": "CANON-531",
+      "rule": "Every runtime load of maplibre-gl must go through lib/ui/maplibre-loader.ts, which calls setWorkerUrl() once before any Map is constructed; the worker and its shared chunk are generated into public/maplibre/ by prebuild/predev and are never committed.",
+      "scope": "web",
+      "sources": [
+        "lib/ui/maplibre-loader.ts:1-30",
+        "scripts/copy-maplibre-worker.ts:1-26"
+      ],
+      "enforcer": [
+        "scripts/check-maplibre-worker.ts:104-175",
+        "lib/ui/maplibre-loader.test.ts:30-60"
+      ],
+      "enforcementKind": "lint-script",
+      "wired": "verify",
+      "status": "ENFORCED",
+      "clause": "R1",
+      "statusBasis": "check-maplibre-worker.ts scans app/components/lib/src with comments stripped and fails on any import(\"maplibre-gl\") outside the loader; it also fails when package.json loses the prebuild/predev hooks, when MAPLIBRE_WORKER_URL and the copy destination disagree, when the installed worker stops importing ./maplibre-gl-shared.mjs, and when a served copy differs from node_modules. A non-vacuity check fails if the scan cannot even see the loader's own import. lint:maplibre-worker is in verify (package.json) and in ci.yml; lint:ci-parity keeps the two in step.",
+      "notes": "MEASURED, not stylistic. maplibre-gl 6 resolves its worker at runtime through new URL('./maplibre-gl-worker.mjs', import.meta.url) — a form no bundler detects statically, so webpack emits no asset: after a clean pnpm build, `find .next -iname \"*worker*\"` returned nothing. The fetch does not 404; Next answers the app's own HTML with a 200, the worker executes HTML as JavaScript and dies silently, and the map renders an empty canvas with every layer and source registered and zero features in all of them — no console output, no failed request, no CSP violation. It cost a day of ruling out the database, WebGL2, the load handler, legacy expressions and the CSP. The A/B on one tree: canvas PNG 141099 bytes with the worker present, 82981 with the same file taken away. The e2e spec that covered this page only asserted the canvas was VISIBLE, which it was, which is why the blank map survived months of green.",
+      "confidence": 0.95,
+      "verifiedAt": "a15491"
     }
   ],
   "recommendations": [

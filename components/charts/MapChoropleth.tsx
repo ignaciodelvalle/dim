@@ -16,6 +16,7 @@ import {
   joinChoroplethData,
 } from "@/lib/infra/geo-join";
 import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
+import { loadMapLibre } from "@/lib/ui/maplibre-loader";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import {
   COLOR_DIVERGENT_ABOVE,
@@ -396,7 +397,7 @@ export function MapChoropleth({
     // maplibre-gl v6 is ESM-only and has no default export: the module NAMESPACE
     // is the thing that carries `Map`, `Marker`, `NavigationControl`, so the
     // dynamic import resolves straight to it instead of being destructured.
-    import("maplibre-gl").then((maplibregl) => {
+    loadMapLibre().then((maplibregl) => {
       if (cancelled || !mapContainer.current) return;
 
       // Privacy (spec §13.4 mirror): tiles-free basemap — background layer only,

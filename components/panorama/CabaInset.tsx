@@ -22,6 +22,7 @@ import {
 } from "@/components/panorama/hatch-pattern";
 import { CIRCLE_BLUR } from "@/components/panorama/situational-map-config";
 import { normalizeBarioCode } from "@/lib/infra/geo-join";
+import { loadMapLibre } from "@/lib/ui/maplibre-loader";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -191,7 +192,7 @@ export function CabaInset({
     // maplibre-gl v6 is ESM-only and has no default export — the module
     // namespace itself is what carries `Map`. See CabaInset.test.tsx, whose
     // mock has to return the same shape.
-    import("maplibre-gl").then((maplibregl) => {
+    loadMapLibre().then((maplibregl) => {
       if (cancelled || !containerRef.current) return;
       const map = new maplibregl.Map({
         container: containerRef.current,

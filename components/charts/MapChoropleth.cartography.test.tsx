@@ -79,6 +79,12 @@ class FakePopup {
 // maplibre-locale.ts scans raw source and would read it as a real map here.)
 // failure: a mock that shapes the module wrongly instead of not at all.
 vi.mock("maplibre-gl", () => ({
+  // `setWorkerUrl` is part of the module's surface since the single-door
+  // loader (lib/ui/maplibre-loader.ts) started pointing the worker at a URL
+  // webpack actually emits. A mock that omits it makes every map test throw
+  // "No 'setWorkerUrl' export is defined" — which is the mock being honest
+  // about having drifted from the module, not a failure of the component.
+  setWorkerUrl: vi.fn(),
   Map: FakeMap,
   Popup: FakePopup,
 }));

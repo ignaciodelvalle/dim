@@ -12,6 +12,7 @@
 //   - app/(app)/denuncias/[id]                                — welfare report authed
 //   - app/denuncias/codigo/[code]                             — welfare report anon
 
+import { loadMapLibre } from "@/lib/ui/maplibre-loader";
 import { MAPLIBRE_LOCALE_ES } from "@/lib/ui/maplibre-locale";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -31,7 +32,7 @@ export default function LocationMap({ lat, lng }: Props) {
     (async () => {
       // maplibre-gl v6 is ESM-only and has no default export — the module
       // namespace itself carries `Map` and `Marker`.
-      const maplibregl = await import("maplibre-gl");
+      const maplibregl = await loadMapLibre();
       if (cancelled || !containerRef.current) return;
       map = new maplibregl.Map({
         container: containerRef.current,

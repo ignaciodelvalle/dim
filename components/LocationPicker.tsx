@@ -8,6 +8,7 @@
 // shared stylesheet. The runtime is dynamic-imported inside useEffect so
 // neither component blocks SSR.
 
+import { loadMapLibre } from "@/lib/ui/maplibre-loader";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
 import { useEffect, useRef } from "react";
@@ -64,7 +65,7 @@ export default function LocationPicker({ value, onChange, defaultCenter = null }
     (async () => {
       // maplibre-gl v6 is ESM-only and has no default export — the module
       // namespace itself carries `Map` and `Marker`.
-      const maplibregl = await import("maplibre-gl");
+      const maplibregl = await loadMapLibre();
       if (cancelled || !containerRef.current) return;
       // Read the LATEST value at this moment — the parent may have called
       // setPoint while the import was resolving (e.g. via "Usar mi ubicación"
@@ -150,7 +151,7 @@ export default function LocationPicker({ value, onChange, defaultCenter = null }
     (async () => {
       // maplibre-gl v6 is ESM-only and has no default export — the module
       // namespace itself carries `Marker`.
-      const maplibregl = await import("maplibre-gl");
+      const maplibregl = await loadMapLibre();
       if (!markerRef.current) {
         const marker = new maplibregl.Marker({ color: "#dc2626", draggable: true })
           .setLngLat([value.lng, value.lat])

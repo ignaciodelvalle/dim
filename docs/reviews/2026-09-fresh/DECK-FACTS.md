@@ -111,27 +111,27 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | key | value with marker |
 |---|---|
 | `event_types` | `<!-- fact:event_types -->55<!-- /fact -->` |
-| `verify_fences` | `<!-- fact:verify_fences -->68<!-- /fact -->` |
-| `lint_scripts` | `<!-- fact:lint_scripts -->68<!-- /fact -->` |
-| `check_scripts` | `<!-- fact:check_scripts -->73<!-- /fact -->` |
+| `verify_fences` | `<!-- fact:verify_fences -->70<!-- /fact -->` |
+| `lint_scripts` | `<!-- fact:lint_scripts -->70<!-- /fact -->` |
+| `check_scripts` | `<!-- fact:check_scripts -->75<!-- /fact -->` |
 | `modules` | `<!-- fact:modules -->22<!-- /fact -->` |
 | `pages` | `<!-- fact:pages -->262<!-- /fact -->` |
-| `route_handlers` | `<!-- fact:route_handlers -->83<!-- /fact -->` |
-| `layouts` | `<!-- fact:layouts -->10<!-- /fact -->` |
-| `migrations` | `<!-- fact:migrations -->211<!-- /fact -->` |
-| `tables` | `<!-- fact:tables -->53<!-- /fact -->` |
+| `route_handlers` | `<!-- fact:route_handlers -->88<!-- /fact -->` |
+| `layouts` | `<!-- fact:layouts -->11<!-- /fact -->` |
+| `migrations` | `<!-- fact:migrations -->222<!-- /fact -->` |
+| `tables` | `<!-- fact:tables -->54<!-- /fact -->` |
 | `enums` | `<!-- fact:enums -->22<!-- /fact -->` |
-| `rls_enabled_tables` | `<!-- fact:rls_enabled_tables -->55<!-- /fact -->` |
+| `rls_enabled_tables` | `<!-- fact:rls_enabled_tables -->56<!-- /fact -->` |
 | `security_definer_functions` | `<!-- fact:security_definer_functions -->8<!-- /fact -->` |
-| `cron_route_dirs` | `<!-- fact:cron_route_dirs -->25<!-- /fact -->` |
+| `cron_route_dirs` | `<!-- fact:cron_route_dirs -->26<!-- /fact -->` |
 | `vercel_crons_declared` | `<!-- fact:vercel_crons_declared -->2<!-- /fact -->` |
-| `cron_jobs` | `<!-- fact:cron_jobs -->23<!-- /fact -->` |
+| `cron_jobs` | `<!-- fact:cron_jobs -->24<!-- /fact -->` |
 | `ci_workflows` | `<!-- fact:ci_workflows -->8<!-- /fact -->` |
-| `vitest_files` | `<!-- fact:vitest_files -->1499<!-- /fact -->` |
+| `vitest_files` | `<!-- fact:vitest_files -->1529<!-- /fact -->` |
 | `e2e_specs` | `<!-- fact:e2e_specs -->45<!-- /fact -->` |
-| `mobile_jest_files` | `<!-- fact:mobile_jest_files -->85<!-- /fact -->` |
+| `mobile_jest_files` | `<!-- fact:mobile_jest_files -->113<!-- /fact -->` |
 | `org_capabilities` | `<!-- fact:org_capabilities -->16<!-- /fact -->` |
-| `kpi_descriptors` | `<!-- fact:kpi_descriptors -->86<!-- /fact -->` |
+| `kpi_descriptors` | `<!-- fact:kpi_descriptors -->87<!-- /fact -->` |
 | `k_anonymity_k` | `<!-- fact:k_anonymity_k -->5<!-- /fact -->` |
 | `token_prefixes` | `<!-- fact:token_prefixes -->12<!-- /fact -->` |
 | `denuncia_kinds` | `<!-- fact:denuncia_kinds -->9<!-- /fact -->` |
@@ -140,9 +140,9 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `throttle_per_hour` | `<!-- fact:throttle_per_hour -->6000<!-- /fact -->` |
 | `signed_url_ttl_seconds` | `<!-- fact:signed_url_ttl_seconds -->3600<!-- /fact -->` |
 | `projections` | `<!-- fact:projections -->13<!-- /fact -->` |
-| `service_role_call_sites` | `<!-- fact:service_role_call_sites -->34<!-- /fact -->` |
-| `canon_rows` | `<!-- fact:canon_rows -->514<!-- /fact -->` |
-| `canon_enforced` | `<!-- fact:canon_enforced -->176<!-- /fact -->` |
+| `service_role_call_sites` | `<!-- fact:service_role_call_sites -->39<!-- /fact -->` |
+| `canon_rows` | `<!-- fact:canon_rows -->518<!-- /fact -->` |
+| `canon_enforced` | `<!-- fact:canon_enforced -->180<!-- /fact -->` |
 | `canon_partial` | `<!-- fact:canon_partial -->93<!-- /fact -->` |
 | `canon_unenforced` | `<!-- fact:canon_unenforced -->245<!-- /fact -->` |
 

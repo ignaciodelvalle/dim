@@ -43,6 +43,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { Icon } from "@/components/Icon";
+import { loadMapLibre } from "@/lib/ui/maplibre-loader";
 
 export type StaticFirstMapProps = {
   /** Marker/center latitude. */
@@ -86,7 +87,7 @@ export function StaticFirstMap({
       // maplibre-gl v6 is ESM-only and has no default export — bind the module
       // namespace itself rather than destructuring a `default` that no longer
       // exists.
-      const ml = await import("maplibre-gl");
+      const ml = await loadMapLibre();
       if (cancelled || !containerRef.current) return;
 
       map = new ml.Map({
