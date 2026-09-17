@@ -311,7 +311,7 @@
         "lib/analytics/ppp-exports.ts",
         "lib/domain/libreta-health-status.ts",
         "lib/domain/rule-types-registry.ts",
-        "lib/events/event-capture-matcher.ts",
+        "packages/contract/src/events/event-capture-matcher.ts",
         "lib/events/events.ts",
         "lib/infra/backfill-eno-trigger-helpers.ts",
         "lib/infra/business-rules-reeval.ts",

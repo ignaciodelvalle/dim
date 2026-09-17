@@ -85,6 +85,7 @@ import {
   Choice,
   DateField,
   Eyebrow,
+  LabelledDivider,
   ListRow,
   PrimaryButton,
   Screen,
@@ -100,6 +101,7 @@ import { useDraftDiscardGuard } from "../ui/use-draft-discard-guard";
 import { useReturnKeyChain } from "../ui/use-return-key-chain";
 import { useScrollToError } from "../ui/use-scroll-to-error";
 import { LocalityPicker } from "./LocalityPicker";
+import { QuickCaptureBox } from "./QuickCaptureBox";
 import {
   type AcceptedImage,
   acceptPickedImage,
@@ -187,9 +189,24 @@ export function RecordEventScreen({
   sourceEventId?: string | null;
 }) {
   const [kind, setKind] = useState<WritableKind | null>(initialKind);
+  // LO QUE LA CAPTURA ENTENDIÓ, viajando del menú al formulario.
+  //
+  // VIVE ACÁ Y NO ADENTRO DEL FORMULARIO porque lo produce el menú, que es el
+  // hermano de al lado. Se limpia con "Elegir otro tipo": un borrador de
+  // arranque que sobreviviera a volver atrás llenaría el formulario SIGUIENTE
+  // con campos que la persona dijo para el anterior.
+  const [prefill, setPrefill] = useState<Partial<EventDraft>>({});
 
   if (kind === null) {
-    return <KindPicker publicToken={publicToken} onPick={setKind} />;
+    return (
+      <KindPicker
+        publicToken={publicToken}
+        onPick={(picked, values = {}) => {
+          setPrefill(values);
+          setKind(picked);
+        }}
+      />
+    );
   }
 
   return (
@@ -201,7 +218,15 @@ export function RecordEventScreen({
       kind={kind}
       publicToken={publicToken}
       sourceEventId={sourceEventId}
-      onBack={initialKind === null ? () => setKind(null) : null}
+      prefill={prefill}
+      onBack={
+        initialKind === null
+          ? () => {
+              setPrefill({});
+              setKind(null);
+            }
+          : null
+      }
     />
   );
 }
@@ -273,19 +298,31 @@ function KindPicker({
   onPick,
 }: {
   publicToken: string;
-  onPick: (kind: WritableKind) => void;
+  /** `prefill` llega sólo desde la caja de captura; una fila no entiende nada. */
+  onPick: (kind: WritableKind, prefill?: Partial<EventDraft>) => void;
 }) {
   const facts = useMenuFacts(publicToken);
   // Empty until the read lands — see `useMenuFacts`. The ten fixed rows draw
   // immediately either way; these are additive.
   const conditional = facts === null ? [] : conditionalKinds(facts);
   return (
-    <Screen>
+    // `keyboardAvoiding` DESDE QUE HAY UNA CAJA DE TEXTO ACÁ. Sin esto el
+    // teclado tapa la tarjeta que dice qué se entendió, que es justo lo que hay
+    // que leer antes de apretar el botón que abre el formulario. El ScrollView
+    // del kit ya trae `keyboardShouldPersistTaps="handled"`, así que ese botón
+    // se puede tocar con el teclado abierto y sin un toque previo para cerrarlo.
+    <Screen keyboardAvoiding>
       <View style={styles.header}>
         <Eyebrow>Libreta sanitaria</Eyebrow>
         <Title>Asentar</Title>
         <Body>¿Qué querés registrar?</Body>
       </View>
+      {/* ARRIBA DE LAS FILAS Y SIN REEMPLAZARLAS. Ver la cabecera de
+          `QuickCaptureBox`: es el camino rápido, y un camino rápido abajo de
+          trece filas no lo es; y la lista sigue siendo la única enumeración
+          completa de lo que se puede escribir. */}
+      <QuickCaptureBox facts={facts} onOpen={onPick} />
+      <LabelledDivider label="o elegí el tipo" />
       {RECORD_KINDS.map((kind) => (
         <SecondaryButton
           key={kind}
@@ -413,17 +450,41 @@ function EventForm({
   kind,
   publicToken,
   sourceEventId,
+  prefill,
   onBack,
 }: {
   kind: WritableKind;
   publicToken: string;
   sourceEventId: string | null;
+  /**
+   * Lo que la caja de captura entendió de una frase, o `{}` si se llegó acá
+   * tocando una fila. Ver dónde se aplica, justo abajo: el LUGAR es la decisión.
+   */
+  prefill: Partial<EventDraft>;
   /** `null` when this form is the whole screen and there is nothing to go back to. */
   onBack: (() => void) | null;
 }) {
   const router = useRouter();
   const { registries: pppRegistries, species } = useOwnerPetFacts(kind, publicToken);
-  const [draft, setDraft] = useState<EventDraft>(() => emptyDraft());
+  // EL PREFILL ENTRA EN EL INICIALIZADOR, Y ESO ES TODO LO QUE HACE FALTA PARA
+  // QUE LOS DOS GUARDIANES DE ESTA PANTALLA SIGAN DICIENDO LA VERDAD.
+  //
+  // `useIsDirty` y `useEventDraft` comparan contra el PRIMER valor que vieron,
+  // cada uno capturado en un ref en su primer render. Si el prefill entra acá,
+  // ese primer valor YA lo incluye, y entonces:
+  //
+  //   · Volver atrás de una captura equivocada no pregunta "¿Salir sin
+  //     guardar?". Nadie escribió nada: los campos los puso la app.
+  //   · No se guarda ningún borrador de un formulario que sólo se abrió. El
+  //     autoguardado arranca cuando el valor DIFIERE del inicial, así que una
+  //     captura que nadie tocó no deja papel escrito en el teléfono, y no vuelve
+  //     días después como "recuperamos lo que estabas escribiendo" sobre un
+  //     formulario que la persona nunca eligió.
+  //
+  // Aplicarlo con un `useEffect` después del montaje, que es la forma obvia,
+  // rompe las dos cosas a la vez: el prefill llegaría como un CAMBIO sobre un
+  // formulario vacío, o sea indistinguible de alguien tipeando.
+  const [draft, setDraft] = useState<EventDraft>(() => ({ ...emptyDraft(), ...prefill }));
   const [state, setState] = useState<FormPhase>({ phase: "editing" });
   const [error, setError] = useState<string | null>(null);
   // The fields the last refusal was about, for the red border (forms-F3).
@@ -664,6 +725,16 @@ function EventForm({
 
   const busy = state.phase === "sending";
   const cta = recordEventCta(kind);
+  /**
+   * Los dos llegaron al mismo formulario: una captura recién leída y un
+   * borrador guardado. Ver el callout de abajo para qué se hace con eso.
+   *
+   * SE MIRAN LAS CLAVES Y NO LOS VALORES porque `prefill` sólo lleva los campos
+   * que la frase llenó de verdad: una captura que no entendió ningún dato (una
+   * mordedura, por ejemplo) llega vacía y no tiene nada que pisar ni que
+   * anunciar.
+   */
+  const capturedOver = restored !== null && Object.keys(prefill).length > 0;
 
   return (
     <Screen keyboardAvoiding scrollRef={scrollRef}>
@@ -682,10 +753,40 @@ function EventForm({
       {restored === null ? null : (
         <Callout tone="neutral" title={RESTORED_DRAFT_TITLE}>
           <Body>{restoredDraftNote(restored.savedAt)}</Body>
+          {/* CUANDO LOS DOS QUIEREN EL MISMO FORMULARIO, GANA EL BORRADOR.
+              Alguien escribió "pesó 12 kilos", la app leyó Peso, y adentro ya
+              había un pesaje a medio escribir de hace tres días. Son dos cosas
+              distintas y las dos son de la persona; hay que elegir, y se elige
+              así:
+
+                · EL BORRADOR GANA EL FORMULARIO. Es lo único de los dos que
+                  alguien TIPEÓ. Pisarlo sería esta función destruyendo texto,
+                  que es exactamente lo que el borrador existe para impedir.
+                · PERO NO EN SILENCIO. La otra mitad del error es peor: si la
+                  captura desapareciera sin decirlo, la persona vería el
+                  formulario abierto con un peso VIEJO en el campo, creería que
+                  son los 12 kilos que acaba de escribir, y firmaría. Esto es una
+                  libreta que no se edita.
+                · Y DESCARTAR EL BORRADOR DEJA LA CAPTURA, sin una línea de
+                  código extra: `discardRestored` devuelve el formulario al valor
+                  con el que esta pantalla arrancó, y ese valor ES el prefill
+                  (ver el `useState` de arriba). La frase de abajo se limita a
+                  decir en voz alta algo que ya era cierto. */}
+          {capturedOver ? (
+            <Body>
+              Lo que acabás de contar no se aplicó, para no pisar el borrador. Si descartás el
+              borrador, quedan esos datos.
+            </Body>
+          ) : null}
           <SecondaryButton
             label="Descartar el borrador"
             disabled={busy}
-            onPress={() => confirmDiscard(DISCARD_COPY.draft, discardRestored)}
+            onPress={() =>
+              confirmDiscard(
+                capturedOver ? DISCARD_COPY.draftOverCapture : DISCARD_COPY.draft,
+                discardRestored,
+              )
+            }
           />
         </Callout>
       )}

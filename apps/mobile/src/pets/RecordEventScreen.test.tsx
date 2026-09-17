@@ -1772,3 +1772,196 @@ describe("RecordEventScreen — the draft dies with its own success, and only th
     await expectStoredDrafts(1);
   });
 });
+
+describe("RecordEventScreen — la captura rápida, arriba del menú", () => {
+  // Declarado como los dos bloques de arriba: `Alert` ya es un espía para
+  // cuando corre el primer caso de este archivo, y un segundo `spyOn` devuelve
+  // ese mismo espía en vez de apilar otro.
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+    mockNav.reset();
+  });
+
+  /** Escribir una frase en la caja y pedirle a la app que la lea. */
+  function capture(text: string): void {
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), text);
+    fireEvent.press(screen.getByText("Identificar"));
+  }
+
+  it("no reemplaza al menú: la caja está, y las filas siguen estando", () => {
+    // LA LISTA ES LA ÚNICA ENUMERACIÓN COMPLETA de lo que se puede escribir, y
+    // el matcher no llega a todos los tipos. Una caja que reemplazara al menú
+    // dejaría formularios sin puerta.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+
+    expect(screen.getByLabelText("Contá qué pasó")).toBeOnTheScreen();
+    expect(screen.getByText("Antiparasitario")).toBeOnTheScreen();
+    expect(screen.getByText("Terminar una medicación")).toBeOnTheScreen();
+  });
+
+  it("muestra lo que entendió y NO abre nada hasta que la persona lo confirma", () => {
+    // EL MODO DE FALLAR QUE IMPORTA no es "abrió el formulario equivocado y me
+    // di cuenta": es "lo abrió bien llenado, con el valor equivocado, y firmé".
+    // Un campo lleno se lee como un campo revisado, y esto asienta en una
+    // libreta que no se edita. La tarjeta es el único momento en que se lee la
+    // INTERPRETACIÓN de la app en vez de un formulario.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+
+    expect(screen.getByText("Entendimos esto:")).toBeOnTheScreen();
+    expect(screen.getByText(/antirrábica/)).toBeOnTheScreen();
+    // Ni el formulario ni su botón: sigue siendo el menú.
+    expect(screen.queryByText("Registrar vacuna")).toBeNull();
+    expect(screen.getByText("Abrir vacuna")).toBeOnTheScreen();
+  });
+
+  it("también pregunta cuando la lectura es floja, en vez de guardársela", () => {
+    // Sin umbral: la confianza cambia la FRASE y nunca la acción. Ver
+    // `captureConfidenceNote`.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le hicieron una ecografía");
+
+    expect(screen.getByText("No estamos seguros. Revisalo antes de seguir:")).toBeOnTheScreen();
+    expect(screen.getByText("Abrir información clínica")).toBeOnTheScreen();
+  });
+
+  it("abre el formulario con lo entendido ya puesto", () => {
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.press(screen.getByText("Abrir vacuna"));
+
+    expect(screen.getByDisplayValue("antirrábica")).toBeOnTheScreen();
+    expect(screen.getByText("Registrar vacuna")).toBeOnTheScreen();
+  });
+
+  it("identifica con la tecla del teclado, sin tocar el botón", () => {
+    // El campo es de UNA línea justamente para esto: en uno multilínea esa tecla
+    // escribe un salto, que es su trabajo. Es el toque que la caja ahorra.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), "pesó 12,5 kilos");
+    fireEvent(screen.getByLabelText("Contá qué pasó"), "submitEditing");
+
+    expect(screen.getByText("Abrir peso")).toBeOnTheScreen();
+  });
+
+  it("borra la tarjeta apenas cambia el texto que la produjo", () => {
+    // Una tarjeta que dice "Vacuna" arriba de un campo que ahora dice otra cosa
+    // es el formulario equivocado esperando un toque.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), "pesó 12,5 kilos");
+
+    expect(screen.queryByText("Abrir vacuna")).toBeNull();
+  });
+
+  it("volver de una captura equivocada no pregunta nada", () => {
+    // LA RAZÓN POR LA QUE EL PREFILL ENTRA EN EL INICIALIZADOR Y NO EN UN
+    // EFECTO. `useIsDirty` compara contra el primer valor que vio: si los campos
+    // los puso la app, nadie escribió nada, y preguntar "¿Salir de este
+    // asiento?" a quien sólo quiere corregir una lectura equivocada convierte un
+    // error de la app en una fricción de la persona.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.press(screen.getByText("Abrir vacuna"));
+    fireEvent.press(screen.getByText("Elegir otro tipo"));
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(screen.getByText("¿Qué querés registrar?")).toBeOnTheScreen();
+  });
+
+  it("no deja borrador de un formulario que sólo abrió una captura", async () => {
+    // La otra mitad de lo mismo: un borrador escrito por una lectura que nadie
+    // tocó vuelve días después como "recuperamos lo que estabas escribiendo"
+    // sobre un formulario que la persona nunca eligió.
+    const { unmount } = render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("le di la antirrábica hoy");
+    fireEvent.press(screen.getByText("Abrir vacuna"));
+    unmount();
+
+    await expectStoredDrafts(0);
+  });
+
+  it("no tira la frase que no entendió: la ofrece como nota, tal cual", () => {
+    // El peor final posible de una captura es que alguien escriba una oración,
+    // la app no la entienda, y la oración desaparezca. Es la misma salida que
+    // la caja de la web ofrece.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("se portó bárbaro en la plaza");
+
+    expect(screen.getByText("No lo reconocimos")).toBeOnTheScreen();
+    fireEvent.press(screen.getByText("Abrir una nota con este texto"));
+
+    expect(screen.getByDisplayValue("se portó bárbaro en la plaza")).toBeOnTheScreen();
+    expect(screen.getByText("Guardar la nota")).toBeOnTheScreen();
+  });
+
+  it("lo que se hace en otra puerta lo dice, y no abre un formulario", () => {
+    // "Terminé el tratamiento" SÍ se reconoce. Contestar "no lo reconocimos"
+    // mandaría a la persona a buscar en una lista que no lo tiene.
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    capture("terminé el tratamiento");
+
+    expect(screen.getByText("Medicación · fin")).toBeOnTheScreen();
+    // DOS VECES A PROPÓSITO, y es la afirmación que vale: la frase de la caja es
+    // palabra por palabra la del `ListRow` inerte que ya está en el menú. Quien
+    // lee una y después va a buscarla tiene que encontrar la misma palabra.
+    expect(screen.getAllByText(/Terminar medicación/)).toHaveLength(2);
+    expect(screen.queryByText("Confirmar cierre de medicación")).toBeNull();
+  });
+});
+
+describe("RecordEventScreen — cuando la captura y un borrador quieren el mismo formulario", () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+  beforeEach(() => {
+    alert.mockClear();
+  });
+
+  /** Dejar un borrador de Peso a medio escribir y volver por la caja. */
+  async function draftThenCapture(): Promise<void> {
+    await typeAndLeave("9,4");
+    render(<RecordEventScreen publicToken={TOKEN} />);
+    fireEvent.changeText(screen.getByLabelText("Contá qué pasó"), "pesó 12,5 kilos");
+    fireEvent.press(screen.getByText("Identificar"));
+    fireEvent.press(screen.getByText("Abrir peso"));
+    await waitFor(() =>
+      expect(screen.getByText("Recuperamos lo que estabas escribiendo")).toBeOnTheScreen(),
+    );
+  }
+
+  it("gana el borrador, porque es lo único de los dos que alguien tipeó", async () => {
+    await draftThenCapture();
+
+    expect(screen.getByDisplayValue("9,4")).toBeOnTheScreen();
+    expect(screen.queryByDisplayValue("12,5")).toBeNull();
+  });
+
+  it("pero lo dice, para que nadie firme un peso viejo creyendo que es el que dijo", async () => {
+    // La mitad silenciosa de este problema es peor que la ruidosa: el
+    // formulario abierto con un valor VIEJO adentro, después de que la persona
+    // acaba de decir otro, a un toque de un asiento que no se puede editar.
+    await draftThenCapture();
+
+    expect(screen.getByText(/no se aplicó, para no pisar el borrador/)).toBeOnTheScreen();
+  });
+
+  it("descartar el borrador deja los datos de la captura", async () => {
+    // Sin una línea de código extra: `discardRestored` devuelve el formulario al
+    // valor con el que la pantalla arrancó, y ese valor ES el prefill.
+    await draftThenCapture();
+
+    fireEvent.press(screen.getByText("Descartar el borrador"));
+    // La frase del diálogo cambia con el comportamiento: acá el formulario NO
+    // "empieza de nuevo". Ver `DISCARD_COPY.draftOverCapture`.
+    expect(String(alert.mock.calls[0]?.[1])).toContain("lo que acabás de contar");
+    const discard = alert.mock.calls[0]?.[2]?.[1];
+    act(() => {
+      discard?.onPress?.();
+    });
+
+    expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen();
+    expect(screen.queryByDisplayValue("9,4")).toBeNull();
+  });
+});

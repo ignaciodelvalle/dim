@@ -91,6 +91,22 @@ export const DISCARD_COPY = {
     stay: "Conservarlo",
     leave: "Descartar",
   },
+  /**
+   * El mismo descarte, cuando la persona llegó por la caja de captura.
+   *
+   * ES OTRA ENTRADA POR LA MISMA REGLA QUE `asiento` ES OTRA QUE `form`: acá el
+   * formulario NO "empieza de nuevo". `useEventDraft` devuelve el borrador al
+   * valor con el que la pantalla arrancó, y cuando se llegó por una captura ese
+   * valor son los campos que la frase llenó. Decir "empieza de nuevo" sería
+   * prometer una pantalla en blanco y entregar otra cosa, en el único diálogo
+   * de esta pantalla que borra algo para siempre.
+   */
+  draftOverCapture: {
+    title: "¿Descartar el borrador?",
+    body: "Se borra lo que habías escrito antes y quedan los datos de lo que acabás de contar.",
+    stay: "Conservarlo",
+    leave: "Descartar",
+  },
 } as const satisfies Record<string, DiscardCopy>;
 
 /**
