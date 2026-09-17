@@ -12,6 +12,7 @@
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton, OpTextarea } from "@/components/ui/dashboard";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
 import { useActionState, useRef, useState } from "react";
 
@@ -33,7 +34,14 @@ export function EndFosterForm({
   fosterName: string | null;
 }) {
   const action = endFosterAction.bind(null, orgToken, publicToken);
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // THE RESET MISATTRIBUTES THE ACT. React 19 resets a `<form action>` when
+  // the action settles, error included, and this radio group falls back to
+  // `shelter`. So an operator who recorded that the FOSTER family ended the
+  // arrangement gets it quietly reassigned to the organisation — on an event
+  // this form itself calls immutable a few lines below. Nobody reads a radio
+  // twice; they read the error and press the button again.
+  const { boundAction, keptChecked } = useKeptFields(action);
+  const [state, formAction, isPending] = useActionState(boundAction, initialState);
   const [confirming, setConfirming] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -54,7 +62,7 @@ export function EndFosterForm({
                 type="radio"
                 name="endedBy"
                 value={option.value}
-                defaultChecked={option.value === "shelter"}
+                defaultChecked={keptChecked("endedBy", option.value === "shelter", option.value)}
               />
               {option.label}
             </label>

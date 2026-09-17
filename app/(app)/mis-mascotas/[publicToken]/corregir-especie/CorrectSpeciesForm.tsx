@@ -7,6 +7,7 @@
 
 import { LnField, LnSelect } from "@/components/ui/Field";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useKeptFields } from "@/lib/ui/use-kept-fields";
 import { speciesOptions } from "@/lib/utils/format";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 import { useActionState } from "react";
@@ -28,7 +29,16 @@ export function CorrectSpeciesForm({
   currentSpecies: string;
   petName: string;
 }) {
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // THE WORST DIRECTION A RESET CAN TAKE, and this form is the clearest case
+  // of it in the repo. React 19 resets a `<form action>` when the action
+  // settles, error included, and a `<select>` goes back to its `defaultValue`
+  // attribute. Here that attribute is `currentSpecies` — the WRONG species the
+  // person opened this screen to correct. So a rejected submit does not leave
+  // them with an empty field to refill; it silently puts the mistake back, and
+  // a wrong value looks like an answer. The species feeds the PPP /
+  // dangerous-breed rules, so it is not cosmetic.
+  const { boundAction, kept } = useKeptFields(action);
+  const [state, formAction, isPending] = useActionState(boundAction, initialState);
   // N3: the action returns where to go and this navigates. It used to
   // redirect() server-side — a transition the App Router drops in production,
   // so the edit saved and the screen never moved.
@@ -47,7 +57,8 @@ export function CorrectSpeciesForm({
             id={id}
             name="species"
             required
-            defaultValue={currentSpecies}
+            key={`species-${kept("species") || currentSpecies}`}
+            defaultValue={kept("species") || currentSpecies}
             aria-describedby={describedBy}
             invalid={invalid}
           >
