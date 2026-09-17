@@ -17,7 +17,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DeathRecordForm } from "./DeathRecordForm";
@@ -141,5 +141,58 @@ describe("<DeathRecordForm> — date of death entry (dd/mm/aaaa, browser-indepen
     expect(
       container.querySelector<HTMLInputElement>('input[type="hidden"][name="occurredAt"]')?.value,
     ).toBe("2026-03-12");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The reset that can write a false permanent fact
+// ---------------------------------------------------------------------------
+
+describe("<DeathRecordForm> - an error settle must not silently untick the clinic box", () => {
+  // WHY THIS ONE MATTERS MORE THAN "the person retypes": React 19 resets a
+  // `<form action>` when the action settles, ERROR INCLUDED, and a controlled
+  // checkbox comes back at its mount value. On most forms that costs typing.
+  // Here the box says WHERE THE ANIMAL DIED, on a record this same form tells
+  // the person cannot be edited, corrected or undone. An unticked box that the
+  // person ticked is not a blank - it is a different, false answer, and it
+  // looks like an answer.
+  //
+  // `src/modules/events/actions.ts` has six independent rejection branches
+  // this form can trip, so the error settle is not a rare path.
+  it("keeps the clinic checkbox and the cause select after the action returns an error", async () => {
+    const action = vi.fn(async () => ({ error: "Causa de muerte inválida." }));
+    render(<DeathRecordForm action={action} species="dog" inRabiesObservation={false} />);
+
+    // Selected by NAME, not by label: the label carries a required marker, and
+    // the name is what actually reaches `FormData` - which is the thing under
+    // test.
+    const form = document.querySelector("form") as HTMLFormElement;
+    const cause = form.querySelector('select[name="cause"]') as HTMLSelectElement;
+    fireEvent.change(cause, { target: { value: "natural" } });
+
+    const clinicBox = screen.getByLabelText(
+      /Falleció durante una estadía en la veterinaria/i,
+    ) as HTMLInputElement;
+    fireEvent.click(clinicBox);
+    expect(clinicBox.checked).toBe(true);
+
+    // `requestSubmit()`, not `fireEvent.submit`: React 19's form-action path
+    // only runs on a real submit, and a dispatched event settles nothing - so
+    // the reset under test never happens and the assertions below pass
+    // vacuously.
+    form.requestSubmit();
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    await screen.findByText(/Causa de muerte inválida/i);
+
+    // THE ASSERTIONS THE OLD SHAPE FAILED. Read from the DOM, not from React
+    // state: state was never what was lost. A reset restores a checkbox from
+    // its `checked` ATTRIBUTE and a select from its options' `selected` one,
+    // and with the controls controlled neither attribute carried the person's
+    // answer.
+    expect(
+      (screen.getByLabelText(/Falleció durante una estadía en la veterinaria/i) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+    expect((form.querySelector('select[name="cause"]') as HTMLSelectElement).value).toBe("natural");
   });
 });
