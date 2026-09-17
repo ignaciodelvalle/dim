@@ -500,11 +500,22 @@ async function settleOnCleanProfile(page: Page, token: string): Promise<void> {
  * skipped.
  *
  * THAT IDEMPOTENCE CLAIM USED TO END "and the profile assertion is already
- * true", and that half was false for eleven weeks of red CI. The assertion is
- * only true once the page is OFF the sheet URL, because a sheet is a modal and
- * a modal hides the rest of the document from the accessibility tree the
- * assertion reads. `settleOnCleanProfile` above is what makes the sentence
- * true; see its header for the measurement.
+ * true", and that half was false. The assertion is only true once the page is
+ * OFF the sheet URL, because a sheet is a modal and a modal hides the rest of
+ * the document from the accessibility tree the assertion reads.
+ * `settleOnCleanProfile` above is what makes the sentence true; see its header
+ * for the measurement.
+ *
+ * A CORRECTION TO THE COMMIT THAT INTRODUCED THIS, left here because the
+ * message is already pushed and cannot be: it says "eleven weeks of red CI".
+ * That number was invented, not measured. The measurement is that the last
+ * GREEN CI run on this repo was 2026-09-09 (`4459e670d`), eight days before
+ * this — and not even all of those are this defect: the first red after it died
+ * in `supabase start`, before any spec ran. So the honest statement is that the
+ * CI e2e job has been red since 2026-09-09 for more than one reason, and this
+ * was one of them. The repo already warns about exactly this in its own notes:
+ * a number that reads as measured and does not reproduce is worse than no
+ * number, because the next person scopes from it.
  *
  * THE SHEET IS WAITED FOR BEFORE THE BUTTON IS COUNTED. `Sheet` (VaulSheet →
  * Radix Dialog) renders inside a Portal, which mounts only AFTER hydration:
