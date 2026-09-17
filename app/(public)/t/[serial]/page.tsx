@@ -29,6 +29,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { lookupTagBySerial, normalizeTagSerial } from "@/lib/infra/tag-lookup";
 
@@ -92,7 +93,53 @@ export default async function TagResolverPage({ params }: PageProps) {
     throw err;
   }
 
-  const tag = await lookupTagBySerial(serial);
+  // BOUNDED, at 4s, and this is the cheapest deadline in the product guarding
+  // the most expensive silence.
+  //
+  // `lookupTagBySerial` is one indexed row — so if it has not answered in four
+  // seconds, it is not going to, and waiting longer only extends the moment
+  // somebody stands over an animal watching a spinner. This page has no
+  // `loading.tsx` and no segment `error.tsx`, so before this the two failure
+  // modes were a hung navigation and a white screen: the reader is left holding
+  // a collar with no idea whether to keep waiting, reload, or give up.
+  //
+  // The header at the top of this file already names that outcome, about a
+  // different cause: a dead end with no explanation is "the worst outcome of
+  // them all for the person actually standing over an animal". It was written
+  // about a 404 walking a scanner into nothing. A slow read produces the same
+  // dead end with less explanation, and nobody had bounded it.
+  //
+  // WHAT MAKES THIS WORTH DOING AT ALL is that the useful answer needs no data.
+  // `TagStatusShell` already renders the sentence that helps — look for other
+  // contact details on the collar, take the animal to a vet to read its
+  // microchip — with zero fields. So the degraded state here is not a
+  // consolation prize: it is most of the value of the page, available while the
+  // database is not.
+  //
+  // AND IT CANNOT BE FIXED LATER. This URL is engraved on a physical object that
+  // will be in the street for the animal's life. Every other page in this repo
+  // can be improved for tomorrow's visitor; this one has to work for a chapa
+  // stamped years ago.
+  //
+  // `loadWithTimeout` re-throws Next's control-flow sentinels, so the
+  // `notFound()` below still reaches the framework instead of being folded into
+  // a degraded result.
+  const tagLoad = await loadWithTimeout(lookupTagBySerial(serial), 4_000);
+  if (!tagLoad.ok) {
+    return (
+      <TagStatusShell title="No pudimos leer esta chapa">
+        <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
+          Hubo un problema al consultar el registro. Si encontraste una mascota con esta chapa,
+          buscá otros datos de contacto en el collar o acercala a una veterinaria para que lean su
+          microchip.
+        </p>
+        <p className="mt-4 text-sm text-[var(--color-ln-mute)]">
+          También podés volver a intentarlo en unos segundos.
+        </p>
+      </TagStatusShell>
+    );
+  }
+  const tag = tagLoad.value;
 
   // Unknown serial → 404. No "does this serial exist" oracle beyond the 404
   // itself, which the 31^8 serial space makes useless for enumeration.

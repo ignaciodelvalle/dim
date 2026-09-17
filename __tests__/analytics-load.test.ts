@@ -109,6 +109,35 @@ describe("loadWithTimeout()", () => {
       ok: false,
     });
   });
+
+  // THE EXCEPTION TO THE RULE ABOVE, and it is not a softening of it.
+  //
+  // `redirect()` and `notFound()` signal by THROWING a sentinel the framework
+  // catches upstream. A helper that swallows every rejection swallows those too,
+  // and the failure is silent and aimed at the wrong person: wrap
+  // `requireUserOrRedirect()` — which `app/(app)/layout.tsx` now does — and a
+  // signed-out visitor gets "no pudimos abrir tu cuenta" instead of the sign-in
+  // screen, with nothing logged anywhere to say so.
+  //
+  // Not hypothetical here: `app/org/[orgToken]/intake/importar/actions.ts:277`
+  // carries a note about a NEXT_REDIRECT a loop's catch had already eaten once.
+  //
+  // The sentinel is matched by its `digest` (`NEXT_REDIRECT;...`), which is how
+  // Next itself identifies it, so this fixture is the real shape and not a
+  // stand-in that would pass against any implementation.
+  it("RE-THROWS Next's redirect instead of folding it into a degraded result", async () => {
+    const redirectError = Object.assign(new Error("NEXT_REDIRECT"), {
+      digest: "NEXT_REDIRECT;replace;/iniciar-sesion;307;",
+    });
+    await expect(loadWithTimeout(Promise.reject(redirectError), 1000)).rejects.toBe(redirectError);
+  });
+
+  it("RE-THROWS Next's notFound for the same reason", async () => {
+    const notFoundError = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), {
+      digest: "NEXT_HTTP_ERROR_FALLBACK;404",
+    });
+    await expect(loadWithTimeout(Promise.reject(notFoundError), 1000)).rejects.toBe(notFoundError);
+  });
 });
 
 describe("analyticsRetryHref()", () => {
