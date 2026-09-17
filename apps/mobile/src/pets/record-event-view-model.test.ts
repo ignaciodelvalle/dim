@@ -15,6 +15,7 @@ import {
   isWritableKind,
   kindSubtitle,
   kindTitle,
+  restoredDraftNote,
   symptomSeverityLabel,
   tattooLocationLabel,
   todayInAr,
@@ -435,5 +436,43 @@ describe("tatuaje — el asiento que no viaja sin foto", () => {
 
   it("nombra el paso que falta para cada código del tatuaje", () => {
     expect(inputCodeMessage("TATTOO_LOCATION_INVALID")).toBe("Elegí dónde está el tatuaje.");
+  });
+});
+
+describe("restoredDraftNote — where the recovered text came from", () => {
+  // 18:00 UTC on the 17th is 15:00 in Buenos Aires.
+  const NOW = new Date("2026-09-17T18:00:00Z");
+
+  it("says the HOUR for something written today, not the date", () => {
+    // Most recoveries are minutes or hours old: the call that came in, the app
+    // the OS reclaimed while somebody answered the door. Telling that person
+    // the calendar date of today reads as if the app had dug up something
+    // ancient, which is the opposite of the reassurance the banner is for.
+    expect(restoredDraftNote(Date.parse("2026-09-17T17:30:00Z"), NOW)).toContain(
+      "Lo escribiste hoy a las 14:30",
+    );
+  });
+
+  it("says 'ayer' across the Argentine midnight, not the UTC one", () => {
+    // 01:30 UTC on the 17th is 22:30 on the 16th in Buenos Aires. Reading this
+    // in UTC would tell somebody "hoy" about writing they did last night.
+    expect(restoredDraftNote(Date.parse("2026-09-17T01:30:00Z"), NOW)).toContain(
+      "Lo escribiste ayer a las 22:30",
+    );
+  });
+
+  it("falls back to the date once the hour has stopped meaning anything", () => {
+    expect(restoredDraftNote(Date.parse("2026-09-12T12:00:00Z"), NOW)).toContain(
+      "Lo escribiste el 12/09/2026",
+    );
+  });
+
+  it("says that nothing was registered, in every arm", () => {
+    // THE HALF THAT MATTERS. A banner that only announced a recovery would read
+    // like a receipt to somebody who was interrupted mid-form, and these
+    // asientos cannot be taken back once appended.
+    for (const at of ["2026-09-17T17:30:00Z", "2026-09-17T01:30:00Z", "2026-09-12T12:00:00Z"]) {
+      expect(restoredDraftNote(Date.parse(at), NOW)).toContain("Todavía no se registró nada");
+    }
   });
 });

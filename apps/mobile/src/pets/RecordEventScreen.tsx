@@ -122,6 +122,7 @@ import {
   RECORD_DUPLICATE_LABEL,
   RECORD_IMMUTABILITY_NOTE,
   RECORD_KINDS,
+  RESTORED_DRAFT_TITLE,
   SAME_DAY_PROMPT_LABEL,
   STERILIZATION_PROCEDURE_OPTIONS,
   SYMPTOM_SEVERITY_OPTIONS,
@@ -147,6 +148,7 @@ import {
   noteCategoryLabel,
   pregnancyOutcomeLabel,
   recordEventCta,
+  restoredDraftNote,
   sterilizationProcedureLabel,
   symptomSeverityLabel,
   tattooLocationLabel,
@@ -155,6 +157,7 @@ import {
   yesNoLabel,
 } from "./record-event-view-model";
 import { DISCARD_COPY, confirmDiscard } from "./use-discard-guard";
+import { useEventDraft } from "./use-event-draft";
 
 /** One sentence per failure arm. No arm may fall through to a generic shrug. */
 function failureMessage(result: ApiResult<EventRecordedV1>): string {
@@ -481,7 +484,29 @@ function EventForm({
   // everyone who merely opened the form — see that hook's header. `done` clears
   // it because the asiento is on the server and the screen is an ack.
   const dirty = useIsDirty(draft) && state.phase !== "done";
-  const { allowLeave } = useDraftDiscardGuard(dirty);
+  // `DISCARD_COPY.asiento` AND NOT `.form` SINCE 2026-09-17, because this is the
+  // one writer screen where leaving no longer loses anything: the draft is kept
+  // on the phone and offered back. See that entry for why the other ten screens
+  // keep the old sentence.
+  const { allowLeave } = useDraftDiscardGuard(dirty, DISCARD_COPY.asiento);
+  // WHAT SOMEBODY TYPED SURVIVES BEING INTERRUPTED (PO decision 2026-09-16).
+  //
+  // A LOCAL DRAFT, AND NOT A SEND QUEUE. That ordering is the decision itself,
+  // not an increment of it: a queue would have to decide what happens when a
+  // retry is refused, and on an append-only spine a retry done wrong puts TWO
+  // asientos in the ledger for one act. Nothing below can send anything. The
+  // only thing that writes an asiento is the button at the bottom of this form,
+  // pressed by a person who is looking at it, on `attempt.current.key()`.
+  const { restored, discardRestored, forgetOnSuccess } = useEventDraft({
+    publicToken,
+    kind,
+    // KEYED WITH THE SOURCE ASIENTO TOO, for the one kind that has one:
+    // abandoning the end of treatment A and later opening the end of treatment
+    // B must not restore A's "Motivo" under B's form. See `eventDraftKey`.
+    sourceEventId,
+    draft,
+    onRestore: setDraft,
+  });
   // ONE key for this whole asiento. `useRef` and not `useState` because a
   // re-render must not be able to produce a different key, and because nothing
   // renders from it. Never `restart()`-ed: this form IS one attempt, and the
@@ -556,11 +581,24 @@ function EventForm({
       attempt.current.key(),
     );
     if (result.outcome === "ok") {
+      // THE ONLY PLACE THE DRAFT IS DESTROYED BY THIS SCREEN, and it is inside
+      // the arm where the SERVER said yes. A draft that outlives its own
+      // successful submit comes back on the next open and reads as "the app did
+      // not save my record" — the exact fear the draft exists to remove,
+      // delivered by the thing that was supposed to remove it.
+      //
+      // `wasDuplicate` IS A SUCCESS AND CLEARS TOO: the server answering "this
+      // key already appended" means the asiento is on the spine. Every other
+      // arm below keeps the draft, because on every one of them nothing was
+      // written and the person still needs what they typed.
+      forgetOnSuccess();
       setState({ phase: "done", wasDuplicate: result.payload.wasDuplicate });
       return;
     }
     // The soft gate is a QUESTION, not a refusal: the same body goes back with
-    // the override, on the SAME key, because nothing was written.
+    // the override, on the SAME key, because nothing was written. So the draft
+    // stays: this arm is one tap away from a submit, and a person who answers
+    // "no" is back on a form that must still hold their text.
     if (result.outcome === "api-error" && result.code === "same_day_duplicate_suspected") {
       setState({ phase: "confirming-same-day" });
       return;
@@ -635,6 +673,23 @@ function EventForm({
         <Body>{kindSubtitle(kind)}</Body>
       </View>
 
+      {/* ABOVE THE FIELDS AND NOT BELOW THEM, because it is about the fields:
+          the person has to meet the sentence before they meet the text it
+          explains, not after they have scrolled past somebody else's words
+          wondering where they came from. `tone="neutral"` and not `ok` — a
+          recovered draft is not good news about a registration, it is a
+          statement of fact about a form. See `RESTORED_DRAFT_TITLE`. */}
+      {restored === null ? null : (
+        <Callout tone="neutral" title={RESTORED_DRAFT_TITLE}>
+          <Body>{restoredDraftNote(restored.savedAt)}</Body>
+          <SecondaryButton
+            label="Descartar el borrador"
+            disabled={busy}
+            onPress={() => confirmDiscard(DISCARD_COPY.draft, discardRestored)}
+          />
+        </Callout>
+      )}
+
       <Fields
         kind={kind}
         draft={draft}
@@ -679,11 +734,15 @@ function EventForm({
           (A2-alta-asentar-08). The screen stays and the FORM is remounted under
           a new `key` — deliberately, so the new asiento gets its own idempotency
           key — which takes every field with it. `beforeRemove` never fires, so
-          the confirm has to be asked here, in the same words. */}
+          the confirm has to be asked here, in the same words.
+          AND IT IS NOT A DISCARD ANY MORE, which is why the words changed with
+          it: the unmount the remount causes is a departure like any other, so
+          the abandoned form's draft is written under ITS OWN kind's key and is
+          waiting there if the person comes back to it. */}
       {onBack === null ? null : (
         <SecondaryButton
           label="Elegir otro tipo"
-          onPress={() => (dirty ? confirmDiscard(DISCARD_COPY.form, onBack) : onBack())}
+          onPress={() => (dirty ? confirmDiscard(DISCARD_COPY.asiento, onBack) : onBack())}
           disabled={busy}
         />
       )}

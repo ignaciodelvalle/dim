@@ -641,6 +641,13 @@ export const CLINICAL_SUB_KIND_OPTIONS = CLINICAL_SUB_KINDS;
 export const SYMPTOM_SEVERITY_OPTIONS = SYMPTOM_SEVERITIES;
 
 /**
+ * UTC-3, the whole year. Named rather than repeated because `timeInAr` further
+ * down needs the same shift, and two hand-written `3 * 60 * 60 * 1000` would be
+ * two places for the day and the hour of one timestamp to disagree.
+ */
+const AR_UTC_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+/**
  * Today, as an Argentine calendar day.
  *
  * ARGENTINA IS UTC-3 ALL YEAR — no DST since 2009 — so a fixed offset is exact
@@ -651,7 +658,7 @@ export const SYMPTOM_SEVERITY_OPTIONS = SYMPTOM_SEVERITIES;
  * and the server would refuse a day the owner never chose.
  */
 export function todayInAr(now: Date = new Date()): string {
-  return new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return new Date(now.getTime() - AR_UTC_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 /** The screen's raw text state. Every field is a string; empty means unstated. */
@@ -1524,6 +1531,62 @@ export const SAME_DAY_PROMPT_LABEL =
  */
 export const RECORD_IMMUTABILITY_NOTE =
   "Los asientos no se editan ni se borran. Si te equivocás, se corrige agregando una corrección encima.";
+
+/**
+ * The heading over a draft this phone had kept.
+ *
+ * A RESTORE IS ANNOUNCED AND NOT SILENT, and on this screen that is not a
+ * nicety. Silent recovery has one failure mode and it is the serious one:
+ * somebody opens the form, does not read text they do not remember writing,
+ * and presses the button — and what they appended to a national registry is a
+ * sentence from a week ago about a different day. The same reasoning
+ * `credential-cache.ts` applies to a cached credential, which is ALWAYS drawn
+ * with its age rather than passed off as fresh.
+ *
+ * IT IS A CALLOUT AND NOT AN ALERT, though. This screen is opened in a crisis —
+ * a symptom, a bite — and a modal between a frightened person and the form is a
+ * cost paid on every recovery to solve a confusion that happens on some of
+ * them. The banner is unmissable, says when, offers the way out, and does not
+ * stand in the way.
+ */
+export const RESTORED_DRAFT_TITLE = "Recuperamos lo que estabas escribiendo";
+
+/** Time of day in Argentine time, `HH:MM`. Same fixed offset as `todayInAr`. */
+function timeInAr(at: Date): string {
+  return new Date(at.getTime() - AR_UTC_OFFSET_MS).toISOString().slice(11, 16);
+}
+
+/**
+ * When the recovered draft was written, in words somebody can place.
+ *
+ * "HOY A LAS 14:30" AND NOT A DATE, for anything inside the last two days.
+ * Most recoveries are minutes or hours old — the call that came in, the app the
+ * OS reclaimed while the person answered the door — and telling that person the
+ * calendar date of today reads as if the app had dug up something ancient. The
+ * bare date is right for the older ones, where the day is the fact that matters
+ * and the hour is noise.
+ *
+ * ARGENTINE TIME ON BOTH SIDES, computed the way `todayInAr` computes it and
+ * for the same reason: a phone that travelled would otherwise be told "ayer"
+ * about something written this morning.
+ */
+export function restoredDraftNote(savedAt: number, now: Date = new Date()): string {
+  const at = new Date(savedAt);
+  const day = todayInAr(at);
+  const today = todayInAr(now);
+  const yesterday = todayInAr(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  const when =
+    day === today
+      ? `hoy a las ${timeInAr(at)}`
+      : day === yesterday
+        ? `ayer a las ${timeInAr(at)}`
+        : `el ${isoToDateInput(day)}`;
+  // NAMES THE ONE FACT THAT MATTERS BEFORE ANYTHING ELSE: nothing was
+  // registered. A person who was interrupted mid-form is being told both halves
+  // at once — we kept your writing, AND the asiento still does not exist — and
+  // the second half is the one that stops a draft from reading like a receipt.
+  return `Lo escribiste ${when} y quedó guardado en este teléfono. Todavía no se registró nada: revisalo antes de confirmar.`;
+}
 
 // ---------------------------------------------------------------------------
 // Atestación PPP — the registries a person may choose from

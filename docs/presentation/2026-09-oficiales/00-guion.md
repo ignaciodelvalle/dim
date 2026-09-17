@@ -427,7 +427,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - Archivos de prueba de la web: <!-- fact:vitest_files -->1528<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
-    <!-- fact:mobile_jest_files -->111<!-- /fact -->.
+    <!-- fact:mobile_jest_files -->112<!-- /fact -->.
   - Flujos de integración continua: <!-- fact:ci_workflows -->8<!-- /fact -->.
   - Reglas del canon de convenciones que algo hace cumplir:
     <!-- fact:canon_enforced -->179<!-- /fact --> de

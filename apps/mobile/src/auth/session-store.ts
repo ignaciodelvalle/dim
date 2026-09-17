@@ -80,6 +80,7 @@ import {
   revokeThisDeviceForPush,
 } from "../notifications/push-registration";
 import { addAuthBreadcrumb, reportHandledFailure } from "../observability/report";
+import { forgetAllEventDrafts } from "../pets/event-draft-store";
 import {
   AUTH_STORAGE_KEY,
   authClient,
@@ -1299,6 +1300,28 @@ export async function resetPasswordWithCode(input: {
  */
 export async function signOut(endedAt: string): Promise<void> {
   await clearSession();
+  // DRAFTS ARE SWEPT HERE AND NOT IN `clearSession`, and the distinction is the
+  // whole of the decision.
+  //
+  // `clearSession` is the funnel EVERY session end passes through, including the
+  // refused arm of `accessToken()` — a refresh that fails on a bad connection.
+  // Sweeping there would mean an auth blip mid-form destroys what somebody was
+  // writing, which is the exact loss the draft feature exists to prevent,
+  // delivered by the fix. This function is the other kind of ending: a person
+  // deliberately pressed "Cerrar sesión", and leaving their half-written asiento
+  // on a phone they may be handing over is not a kindness.
+  //
+  // WHAT THIS DOES NOT BUY, so nobody mistakes it for the fence: confidentiality
+  // between two people sharing a phone is already bought by the owner id inside
+  // every draft key (`event-draft-store.ts`) — person B cannot name, let alone
+  // read, person A's draft. This only stops the bytes from sitting in the app
+  // sandbox until the seven-day prune, on the one exit where the person has said
+  // they are done.
+  //
+  // Deliberately NOT awaited before the state change: a storage failure must not
+  // keep somebody signed in. It is best-effort, like every other local sweep on
+  // this path.
+  void forgetAllEventDrafts();
   setState({ phase: "signed-out", reason: "user_action", endedAt });
 }
 
