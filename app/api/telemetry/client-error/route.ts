@@ -29,13 +29,16 @@
 //   · Sizes are capped. `reportError` JSON-encodes, so a newline cannot forge a
 //     log line — but an unbounded `stack` can still flood the log, and flooding
 //     a log is how you hide the line that mattered.
-//   · `context` accepts only primitives, and only a bounded number of keys. An
-//     object there would serialise to arbitrary depth.
+//   · `context` is a CLOSED allowlist of five keys, primitives only, bounded in
+//     count. Anything else is dropped — an object there would serialise to
+//     arbitrary depth, and an unlisted key is a field nobody reviewed.
 //   · The client's `ts` is IGNORED. The reporter stamps its own. A timestamp a
 //     caller chooses is a timestamp a caller can use to sort its line somewhere
 //     else in the log.
-//   · Rate-limited per caller IP. Without it, one loop in one browser can push
-//     the rest of the day's logs past the retention window.
+//   · TWO rate limits, per caller IP and global. The per-IP one bounds the
+//     broken tab; the global one bounds the flood that is not per-IP, because
+//     this endpoint takes a cross-origin POST with no preflight and any page can
+//     make all of its visitors post here from their own addresses.
 //
 // The redaction that matters already happened in the browser, in
 // `lib/observability/report-error.ts`, BEFORE the report reached the network.
@@ -68,6 +71,25 @@ const MAX_BODY_BYTES = 16_000;
  */
 const RATE_LIMIT = { maxPerMinute: 60, maxPerHour: 600 };
 
+/**
+ * The GLOBAL ceiling, and the reason it exists is that the per-IP one does not
+ * address the threat this endpoint actually carries.
+ *
+ * The first version had only the per-IP budget. Per-IP is the right shape for
+ * one broken tab and the wrong shape for the flood that matters: this route
+ * takes a cross-origin POST with no preflight — no `Origin` check, and a
+ * `text/plain` body is a simple request — so any third-party page can make EVERY
+ * ONE OF ITS VISITORS post here, each from its own residential IP, each well
+ * inside its own budget. Sixty a minute times N visitors, against a bounded log
+ * retention, with nothing summing them.
+ *
+ * A shared bucket turns that into a 429. It is deliberately NOT tight: 2000 a
+ * minute is far above anything the real user base can produce and far below what
+ * a distributed flood needs to bury a day of logs. It bounds the blast radius;
+ * it does not try to be a WAF.
+ */
+const GLOBAL_RATE_LIMIT = { maxPerMinute: 2000, maxPerHour: 40_000 };
+
 function str(value: unknown, max: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -76,10 +98,30 @@ function str(value: unknown, max: number): string | undefined {
 }
 
 /**
+ * The CLOSED allowlist of caller-context keys, mirroring
+ * `ALLOWED_CONTEXT_KEYS` in `lib/observability/report-error.ts`.
+ *
+ * IT IS A REAL LIST NOW, AND THE FIRST VERSION ONLY SAID IT WAS. That version's
+ * comment claimed to mirror the browser's closed allowlist and then accepted ANY
+ * key matching `/^[A-Za-z0-9_.-]{1,64}$/` — its own test proved it, sending
+ * `ok`/`num`/`si` and asserting they survived.
+ *
+ * Why that matters beyond the prose being wrong: the privacy checklist says
+ * project the fields you need, never ship the bag, and the browser-side list is
+ * declared as THE REVIEW POINT for adding one. A regex here is not a review
+ * point — a new call site could hang a field on the context and reach the log
+ * with nothing objecting.
+ *
+ * Adding a key here is a decision: it must exist on the browser's list too, or
+ * it can never arrive, and it must be a field this application GENERATES rather
+ * than one a page interpolated from whatever it was holding.
+ */
+const ALLOWED_CONTEXT_KEYS = new Set(["route", "homeHref", "source", "correlationId", "boundary"]);
+
+/**
  * The allowlisted, primitives-only projection of caller context.
  *
- * Mirrors the CLOSED allowlist the browser-side reporter already applies. It is
- * repeated here and not trusted from the wire for the reason every boundary in
+ * Repeated here and not trusted from the wire for the reason every boundary in
  * this repo repeats: the client is not a guard, it is a suggestion.
  */
 function sanitizeContext(value: unknown): Record<string, string | number | boolean> {
@@ -88,7 +130,7 @@ function sanitizeContext(value: unknown): Record<string, string | number | boole
   let kept = 0;
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
     if (kept >= MAX_CONTEXT_KEYS) break;
-    if (!/^[A-Za-z0-9_.-]{1,64}$/.test(key)) continue;
+    if (!ALLOWED_CONTEXT_KEYS.has(key)) continue;
     if (typeof raw === "number" && Number.isFinite(raw)) {
       out[key] = raw;
     } else if (typeof raw === "boolean") {
@@ -111,26 +153,48 @@ function sanitizeContext(value: unknown): Record<string, string | number | boole
 // El endpoint es de SOLA ESCRITURA y no devuelve nada: un 204 vacío, o un 400
 // cuando la forma no es la prometida. No lee, no consulta, no expone un estado
 // que un llamador pudiera sondear. Lo que sí necesita —porque escribe en el log
-// que el equipo lee— está abajo y no es autorización sino contención: límite de
-// tasa por IP del llamador, tope de cuerpo, topes por campo, y contexto acotado
-// a primitivos con una cantidad máxima de claves.
+// que el equipo lee— está abajo y no es autorización sino contención: DOS
+// límites de tasa (por IP del llamador y global, porque la inundación que
+// importa no es por IP), tope de cuerpo medido en bytes, topes por campo, y un
+// contexto acotado a una lista blanca cerrada de cinco claves.
 export async function POST(req: NextRequest): Promise<NextResponse> {
   // Rate limit BEFORE reading the body: a caller that is over budget should not
   // get to make the server parse 16 KB to find that out.
+  //
+  // TWO BUDGETS, because one flood is per-caller and the other is not. See
+  // GLOBAL_RATE_LIMIT above for why the per-IP one alone is the wrong shape.
+  let limiterFailed = false;
   try {
-    await enforceRateLimit("telemetry-client-error", callerIp(req.headers), RATE_LIMIT);
+    const ip = callerIp(req.headers);
+    await enforceRateLimit("telemetry-client-error", ip, RATE_LIMIT);
+    await enforceRateLimit("telemetry-client-error-global", "all", GLOBAL_RATE_LIMIT);
   } catch (err) {
     if (err instanceof RateLimitError) {
       return new NextResponse(null, { status: 429 });
     }
-    // The limiter itself failing must not swallow the report. Log it and let
-    // the report through — a telemetry endpoint that fails closed on its own
-    // infrastructure hiccup loses exactly the reports a bad deploy produces.
-    reportError("telemetry/client-error:rate-limit", err);
+    // The limiter itself failing must not swallow the report: a telemetry
+    // endpoint that fails closed on its own infrastructure hiccup loses exactly
+    // the reports a bad deploy produces.
+    //
+    // BUT IT MUST NOT WRITE ITS OWN LINE EITHER, and the first version did. The
+    // limiter is backed by a table; when that table is unavailable, EVERY
+    // anonymous request produces two log lines instead of one, unbounded, at
+    // precisely the moment the team is reading the log. The signal survives as a
+    // flag on the report that is about to be written anyway — same information,
+    // one line, and it cannot outrun the thing it describes.
+    limiterFailed = true;
   }
 
   const raw = await req.text();
-  if (raw.length > MAX_BODY_BYTES) {
+  // BYTES, not `raw.length`. The first version compared the cap against string
+  // length, which is UTF-16 units: 16.000 characters in the U+0800-U+FFFF range
+  // are 48.000 bytes, so the real ceiling was up to three times the named one.
+  //
+  // What this bounds honestly is the cost of the parse and of the line written,
+  // NOT memory or bandwidth: `req.text()` has already buffered the whole body by
+  // the time this runs. The body size itself is bounded by the platform
+  // (Vercel's serverless request limit), not here.
+  if (Buffer.byteLength(raw, "utf8") > MAX_BODY_BYTES) {
     return new NextResponse(null, { status: 413 });
   }
 
@@ -169,6 +233,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   reportError("client", err, {
     ...context,
     ...(digest ? { digest } : {}),
+    ...(limiterFailed ? { limiter_unavailable: true } : {}),
     surface: "browser",
   });
 

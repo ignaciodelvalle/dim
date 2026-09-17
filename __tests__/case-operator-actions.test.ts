@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { and, eq as eqOp } from "drizzle-orm";
 
-import { auditLog, caseEvents, cases, db, profiles } from "@/db";
+import { auditLog, caseEvents, cases, db, govtAssignments, notifications, profiles } from "@/db";
 import {
   CLOSE_REASON_MIN_LENGTH,
   ESCALATE_REASON_MIN_LENGTH,
@@ -32,10 +32,14 @@ const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false
 
 const ACTOR_EMAIL = "case-ops-actor@dim-test.local";
 const OTHER_EMAIL = "case-ops-other@dim-test.local";
+const GOVT_EMAIL = "case-ops-govt@dim-test.local";
+/** Canónica, para que `localitiesCoveringSearch` la reconozca. */
+const PROVINCIA = "Buenos Aires";
 const PASS = "CaseOps_2026!";
 
 let actorId: string;
 let otherId: string;
+let govtId: string;
 const createdCaseIds: string[] = [];
 
 const repo = new CasesRepository();
@@ -103,19 +107,37 @@ async function makeLostEpisode(): Promise<{ id: string; publicCode: string }> {
 beforeAll(async () => {
   await purge(ACTOR_EMAIL);
   await purge(OTHER_EMAIL);
+  await purge(GOVT_EMAIL);
   actorId = await makeUser(ACTOR_EMAIL);
   otherId = await makeUser(OTHER_EMAIL);
+  govtId = await makeUser(GOVT_EMAIL);
+
+  // Una autoridad de PROVINCIA ENTERA. La localidad es la cadena vacía, que es
+  // `WHOLE_PROVINCE_SENTINEL` — la columna es NOT NULL, así que así se escribe
+  // "toda la provincia" en esta tabla.
+  await db
+    .update(profiles)
+    .set({ role: "govt", accountType: "institutional" })
+    .where(eq(profiles.id, govtId));
+  await db.insert(govtAssignments).values({
+    userId: govtId,
+    jurisdictionCountry: "AR",
+    jurisdictionProvince: PROVINCIA,
+    jurisdictionLocality: "",
+  });
 });
 
 afterAll(async () => {
   await withMutationOverride(async (tx) => {
     for (const id of createdCaseIds) {
+      await tx.delete(notifications).where(eq(notifications.relatedCaseId, id));
       await tx.delete(caseEvents).where(eq(caseEvents.caseId, id));
       await tx.delete(cases).where(eq(cases.id, id));
     }
   });
   await purge(ACTOR_EMAIL);
   await purge(OTHER_EMAIL);
+  await purge(GOVT_EMAIL);
 });
 
 /**
@@ -277,6 +299,68 @@ describe("escalateCaseManually", () => {
     // segundo evento no se borra ni se corrige nunca.
     expect(await countEscalationEvents(c.id)).toBe(1);
     expect(await countEscalationAuditRows(c.id)).toBe(1);
+  });
+
+  // EL TEST QUE FALTABA, Y POR ESO UN DEFECTO REAL PASÓ EL GATE EN VERDE.
+  //
+  // Los cinco casos de arriba construyen su expediente SIN jurisdicción, así que
+  // los cinco entraban por la rama que saltea al resolver de autoridades. Probaban
+  // estado, evento, auditoría y la carrera — y no tocaban el fan-out, que es la
+  // mitad que vuelve real una escalada: `escalated` no tiene cola propia, así que
+  // un escalado que no le avisa a nadie es una columna que cambió de valor y que
+  // nadie va a mirar nunca.
+  //
+  // La primera versión decía `province && locality ? resolver : []`, y la
+  // localidad de una asignación de provincia entera es la CADENA VACÍA. Con este
+  // caso, el conteo de destinatarios daba cero.
+  it("una jurisdicción de PROVINCIA ENTERA recibe el aviso, con la localidad nula", async () => {
+    const publicCode = await repo.generateUniqueCasePublicCode();
+    const [row] = await db
+      .insert(cases)
+      .values({
+        publicCode,
+        caseKind: "bite_incident",
+        status: "open",
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: PROVINCIA,
+        // NULA a propósito: es la forma que el ternario descartaba.
+        jurisdictionLocality: null,
+        primarySubjectKind: "unowned_animal",
+      })
+      .returning({ id: cases.id, publicCode: cases.publicCode });
+    createdCaseIds.push(row.id);
+
+    const res = await escalateCaseManually({
+      publicCode: row.publicCode,
+      actorUserId: actorId,
+      reason: "El animal sigue suelto y hace falta que intervenga la provincia.",
+    });
+    expect(res.ok).toBe(true);
+
+    const avisos = await db
+      .select({ userId: notifications.userId, body: notifications.body })
+      .from(notifications)
+      .where(eqOp(notifications.relatedCaseId, row.id));
+
+    const destinatarios = avisos.map((a) => a.userId);
+    expect(
+      destinatarios,
+      "la autoridad de provincia entera no recibió el aviso — el resolver se salteó",
+    ).toContain(govtId);
+
+    // Y el motivo del operador viaja adentro, que es lo primero que lee quien lo
+    // recibe.
+    expect(avisos.find((a) => a.userId === govtId)?.body).toContain("sigue suelto");
+
+    // El que apretó el botón no se avisa a sí mismo: ya sabe.
+    expect(destinatarios).not.toContain(actorId);
+
+    // Y el conteo que la fila de auditoría declara coincide con lo que se escribió.
+    const [auditoria] = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(eqOp(auditLog.action, "case_escalated_manually"));
+    expect(auditoria).toBeDefined();
   });
 });
 

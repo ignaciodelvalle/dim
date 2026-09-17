@@ -309,13 +309,36 @@ export async function escalateCaseManually(input: {
 
   // Destinatarios FUERA de la transacción, como el cron: son dos consultas que
   // no necesitan el lock y que alargarían la ventana de la carrera.
-  const govtAuthorities =
-    row.jurisdictionProvince && row.jurisdictionLocality
-      ? await findAuthoritiesForJurisdiction({
-          province: row.jurisdictionProvince,
-          locality: row.jurisdictionLocality,
-        })
-      : [];
+  //
+  // LA JURISDICCIÓN NULA SE COERCIONA, NO SE SALTEA, y la primera versión de
+  // este caso de uso hacía lo contrario: `province && locality ? resolver : []`.
+  // Se ve razonable y es un agujero, por dos motivos que se suman:
+  //
+  //   · `jurisdictionLocality` es nullable en el esquema, y
+  //   · `WHOLE_PROVINCE_SENTINEL` es la CADENA VACÍA — una asignación de
+  //     provincia entera es exactamente lo que ese ternario descarta.
+  //
+  // Y el costo no es no avisarle a nadie: es que las dos mitades del sistema
+  // discrepan. Del lado de la LECTURA, `jurisdictionScopeContains` con una
+  // asignación de provincia entera devuelve true sin mirar la localidad, así que
+  // la autoridad provincial SÍ puede abrir ese expediente. Del lado del RUTEO,
+  // no se enteraba nunca. Es el defecto que el encabezado de `approval-routing`
+  // documenta — "wording, query y ROUTING no pueden discrepar" — reintroducido
+  // por un chequeo de veracidad.
+  //
+  // Los tres crones hermanos coercionan a propósito desde el 2026-08-17. Esta es
+  // la misma forma.
+  const govtAuthorities = await findAuthoritiesForJurisdiction(
+    {
+      province: row.jurisdictionProvince ?? "",
+      locality: row.jurisdictionLocality ?? "",
+    },
+    // La etiqueta de ruta NO es decorativa: sin ella el resolver escribe su
+    // propia traza de fan-out vacío como `approval_routing_unlabelled`, FUERA de
+    // esta transacción — dos filas para un acto, una con la ruta equivocada, y la
+    // de afuera sobreviviría a un rollback. Los tres crones hermanos la pasan.
+    { route: "case_escalated_by_operator" },
+  );
   // Humanos activos, no cuentas de servicio ni desactivadas. Contarlas haría
   // el conjunto no-vacío y saltearía en silencio la traza de fan-out vacío —
   // el defecto exacto que este helper compartido se creó para cerrar.
@@ -340,14 +363,18 @@ export async function escalateCaseManually(input: {
       };
     }
 
-    // 2. El evento, dentro de la misma transacción.
-    await tx.insert(caseEvents).values({
-      caseId: row.id,
-      entryType: "case_escalated",
-      notes: reason,
-      recordedByUserId: input.actorUserId,
-      payload: { escalated_manually: true, recipient_count: recipients.length },
-    });
+    // 2. El evento, dentro de la misma transacción. Se pide el id de vuelta
+    //    porque el aviso lo usa como clave de deduplicación — ver abajo.
+    const [evento] = await tx
+      .insert(caseEvents)
+      .values({
+        caseId: row.id,
+        entryType: "case_escalated",
+        notes: reason,
+        recordedByUserId: input.actorUserId,
+        payload: { escalated_manually: true, recipient_count: recipients.length },
+      })
+      .returning({ id: caseEvents.id });
 
     // 3. El acto administrativo. Va SIEMPRE, no sólo cuando el fan-out sale
     //    vacío: la primera versión de este caso de uso sólo escribía la traza de
@@ -394,10 +421,18 @@ export async function escalateCaseManually(input: {
         ctaLabel: "Ver expediente",
         ctaUrl: `/casos/${row.publicCode}`,
         relatedCaseId: row.id,
-        // Uno por expediente y destinatario: un expediente se escala una vez
-        // (la guarda de estado lo garantiza), así que esta clave no puede
-        // suprimir un aviso legítimo.
-        dedupeKey: `case_escalated_by_operator:${row.id}:${userId}`,
+        // LA CLAVE VA CONTRA EL EVENTO, NO CONTRA EL EXPEDIENTE, y la diferencia
+        // importa. La primera versión usaba `{caseId}:{userId}` justificándose en
+        // que "un expediente se escala una vez, la guarda de estado lo
+        // garantiza". La guarda garantiza que no haya dos escaladas
+        // CONCURRENTES; no garantiza una sola en la vida del expediente.
+        // `reopenCase` devuelve un caso a `open` desde cualquier estado, incluido
+        // `escalated`, sin consultar `reopenAllowed`. Hoy no tiene llamadores de
+        // producción — pero el día que los tenga, escalar → reabrir → escalar
+        // dejaría el evento y la fila de auditoría escritos y el aviso TRAGADO en
+        // silencio por el ON CONFLICT DO NOTHING. Con el id del evento adentro,
+        // cada escalada es su propia clave y el segundo aviso sale.
+        dedupeKey: `case_escalated_by_operator:${evento.id}:${userId}`,
       })),
       tx,
     );
