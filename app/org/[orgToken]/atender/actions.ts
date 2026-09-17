@@ -41,8 +41,16 @@ import { createMedicationStart } from "@/src/modules/events/application/medical/
 import { createSterilization } from "@/src/modules/events/application/medical/sterilization-use-case";
 import { createVaccination } from "@/src/modules/events/application/medical/vaccination-use-case";
 import { CLINICAL_SUB_KINDS } from "@/src/modules/events/domain/enums";
+import { revalidatePath } from "next/cache";
+
+import { flushNotifications } from "@/src/modules/events/application/writers";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { closeCase } from "@/lib/infra/case-helpers";
+import { professionalCloseObservation } from "@/src/modules/surveillance/application/professional-close-observation";
+import type { RabiesObservationOutcome } from "@/src/modules/surveillance/domain/rabies-observation";
+import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { ATENDER_TOKEN_PATTERN, normalizeAtenderToken, resolveAtenderPet } from "./atender-access";
 import { attemptedChipMatchesDeclaration, rejectIfAlreadySigned } from "./atender-declared-events";
 import { completeAtenderSignature } from "./atender-signature-completion";
@@ -807,4 +815,115 @@ export async function atenderSterilizationAction(
     eventType: "sterilization_performed",
     occurredAt,
   });
+}
+
+// ---------------------------------------------------------------------------
+// atenderCloseRabiesObservationAction — el veterinario cierra la observación
+// ---------------------------------------------------------------------------
+//
+// POR QUÉ EXISTE, y es una mentira corregida más que una capacidad agregada:
+// hasta el 2026-09-17 sólo admin y autoridad sanitaria podían cerrar una
+// observación antirrábica, mientras DOS notificaciones le decían al dueño "pedí
+// el cierre a tu veterinario". El matriculado que observó al animal diez días no
+// podía registrar el resultado clínico. Decisión del PO.
+//
+// LA REGLA: matrícula VALIDADA más relación con la mascota. Las dos salen de
+// `resolveAtenderPet`, que es el mismo boundary por el que este profesional ya
+// firma vacunas sobre animales que no tiene en custodia:
+//
+//   · relación — `event.write` sobre ESTA organización más conocer el código DIM
+//     (31^8, ≈ posesión física de la credencial: el dueño trajo al animal).
+//   · matrícula — `eventAuthorship.authorVerified`, atada al FIRMANTE y no a la
+//     organización (keystone de provenance #43). Una organización verificada
+//     cuyo miembro no es matriculado NO pasa el chequeo de abajo.
+//
+// LO QUE EL PO ACEPTA CON ESTO, dicho para que no haya que deducirlo: cualquier
+// matriculado que tenga el animal delante puede cerrar, no sólo el que condujo
+// la observación — porque el sistema NO REGISTRA quién la condujo. Las
+// observaciones son `in_situ` (domicilio del dueño) y el campo de la clínica
+// oficial está declarado y sin implementar. La barrera real es física, y es la
+// misma que ya protege cada evento clínico de walk-in (PO-3).
+//
+// NO DUPLICA LA LÓGICA DEL CIERRE. Delega en el mismo caso de uso que usa el
+// Estado, así que la carrera de cierres concurrentes, la guarda adentro del
+// UPDATE, el fan-out a la autoridad ante un positivo y la fila de auditoría son
+// LOS MISMOS. Lo único distinto es la puerta.
+export async function atenderCloseRabiesObservationAction(
+  orgToken: string,
+  publicToken: string,
+  formData: FormData,
+): Promise<{ error: string | null; redirectTo?: string }> {
+  const access = await resolveAtenderPet(orgToken, publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, organizationId, eventAuthorship } = access;
+
+  // LA MATRÍCULA, y el mensaje nombra qué falta en vez de decir "no podés".
+  // Un miembro de una organización verificada que no es matriculado firma como
+  // `shelter`, no como `vet`: puede asentar eventos y NO puede cerrar una
+  // observación antirrábica, que es un resultado clínico.
+  if (eventAuthorship.authorRole !== "vet" || !eventAuthorship.authorVerified) {
+    return {
+      error:
+        "El resultado de una observación antirrábica lo registra un profesional con matrícula validada. Si sos veterinario, pedí que se valide tu matrícula desde el perfil de la organización.",
+    };
+  }
+
+  const outcomeRaw = String(formData.get("outcome") ?? "").trim();
+  const OUTCOMES: RabiesObservationOutcome[] = [
+    "negative",
+    "positive_rabies",
+    "dead",
+    "lost_to_followup",
+  ];
+  if (!OUTCOMES.includes(outcomeRaw as RabiesObservationOutcome)) {
+    return { error: "Elegí un resultado para la observación." };
+  }
+  const closureNotes = String(formData.get("closureNotes") ?? "").trim() || null;
+
+  const result = await professionalCloseObservation(
+    {
+      petPublicToken: publicToken,
+      outcome: outcomeRaw as RabiesObservationOutcome,
+      closureNotes,
+      // `jurisdictions` vacío a propósito: el alcance del veterinario no es
+      // territorial, es la mascota que tiene delante. El caso de uso sólo mira
+      // jurisdicciones cuando el rol es `govt`.
+      actor: {
+        profile: { id: user.id, role: "vet" },
+        jurisdictions: [],
+        organizationId,
+      },
+    },
+    {
+      repo: new SurveillanceRepository(),
+      closeCase: async (args, tx) => {
+        await closeCase(args, tx as Parameters<typeof closeCase>[1]);
+      },
+      transaction: db.transaction.bind(db),
+      findAuthoritiesForJurisdiction: (jurisdiction) =>
+        findAuthoritiesForJurisdiction(jurisdiction, {
+          route: "rabies_observation_positive_authority",
+        }),
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  // LOS AVISOS NO SON OPCIONALES, y son dos: al DUEÑO, que se entera del
+  // resultado de la observación de su animal, y ante un `positive_rabies` a la
+  // AUTORIDAD SANITARIA de la jurisdicción — rabia confirmada es un evento de
+  // salud pública, y un positivo que sólo queda asentado no alerta a nadie.
+  //
+  // Los arma el caso de uso, no esta puerta: son los MISMOS avisos que salen
+  // cuando cierra el Estado. Por eso esta acción NO llama a
+  // `completeAtenderSignature` como sus vecinas — ese helper avisa al dueño de
+  // un evento clínico, y acá el dueño ya fue avisado, mejor y con el resultado
+  // adentro. Llamarlo igual habría mandado dos avisos del mismo hecho.
+  await flushNotifications(result.notifications);
+
+  revalidatePath(`/org/${orgToken}/atender/${publicToken}`);
+  return {
+    error: null,
+    redirectTo: `/org/${orgToken}/atender/${publicToken}?evento=observacion&cerrada=1`,
+  };
 }

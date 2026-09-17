@@ -263,7 +263,7 @@ export async function closeEligibleObservations(
               notificationType: "rabies_observation_window_expired_owner",
               severity: "info",
               title: `Período de observación cumplido — ${pet.name}`,
-              body: `Se cumplió el período de observación antirrábica${window} de ${pet.name} (vencía el ${deadlineLabel}). La observación sigue abierta: el resultado clínico solo puede registrarlo un veterinario matriculado o la autoridad sanitaria. Pedí el cierre a tu veterinario o a la autoridad sanitaria de tu localidad.`,
+              body: `Se cumplió el período de observación antirrábica${window} de ${pet.name} (vencía el ${deadlineLabel}). La observación sigue abierta: el resultado clínico solo puede registrarlo un veterinario matriculado o la autoridad sanitaria. Llevá a ${pet.name} con su credencial a tu veterinario para que lo registre, o presentate ante la autoridad sanitaria de tu localidad.`,
               relatedPetId: pet.id,
               relatedCaseId: biteCase?.id ?? null,
               relatedEventId: startedEvent.id,

@@ -93,6 +93,18 @@ const GOVT_OUT_JURISDICTION = {
   jurisdictions: [{ province: "Córdoba", locality: "Río Cuarto" }],
 };
 
+// Veterinario matriculado, con el animal delante (2026-09-17).
+//
+// `jurisdictions` vacío NO es un descuido: el alcance del veterinario no es
+// territorial. Su relación con la mascota la resolvió `resolveAtenderPet` aguas
+// arriba — `event.write` sobre esta organización más el código DIM — y la
+// matrícula viene de `eventAuthorship`, atada al firmante.
+const VET_ACTOR = {
+  profile: { id: "vet-user-1", role: "vet" as const },
+  jurisdictions: [] as Array<{ province: string; locality: string }>,
+  organizationId: "org-vet-1",
+};
+
 const BASE_INPUT: ProfessionalCloseObservationInput = {
   petPublicToken: "tok-prof-1",
   outcome: "negative",
@@ -403,5 +415,141 @@ describe("professionalCloseObservation — audit_log", () => {
     // garantizada porque ambas escrituras ocurren dentro de la misma— y no algo
     // que este doble pueda demostrar.
     expect(deps.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Veterinario matriculado (PO, 2026-09-17)
+// ---------------------------------------------------------------------------
+
+describe("professionalCloseObservation — veterinario", () => {
+  it("cierra, y la mascota NO tiene por qué estar en ninguna jurisdicción suya", async () => {
+    // El punto del caso: el veterinario no falla el chequeo territorial porque
+    // NO PASA por él. Su alcance es el animal que tiene delante. Si alguien
+    // mueve la rama de jurisdicción para que lo alcance, esto se pone rojo.
+    const deps = makeDeps();
+    const result = await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
+
+    expect(result.ok).toBe(true);
+    expect(deps.repo.closeObservationIfOpen).toHaveBeenCalled();
+  });
+
+  it("firma el evento como vet, con su organización y matrícula verificada", async () => {
+    // Las tres columnas juntas son lo que vuelve auditable la firma: sin la
+    // organización, un evento firmado como profesional verificado no dice de qué
+    // clínica salió, que es la mitad de su valor.
+    const deps = makeDeps();
+    await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
+
+    const [row] = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(row.authorRole).toBe("vet");
+    expect(row.authorOrganizationId).toBe("org-vet-1");
+    expect(row.authorVerified).toBe(true);
+    expect(row.recordedByUserId).toBe("vet-user-1");
+  });
+
+  it("el Estado sigue firmando como govt, sin organización y sin verificar", async () => {
+    // El control del caso anterior. Sin esto, un bug que pusiera authorVerified
+    // en true para todos pasaría desapercibido.
+    const deps = makeDeps();
+    await professionalCloseObservation({ ...BASE_INPUT, actor: ADMIN_ACTOR }, deps);
+
+    const [row] = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(row.authorRole).toBe("govt");
+    expect(row.authorOrganizationId).toBeNull();
+    expect(row.authorVerified).toBe(false);
+  });
+
+  it("el payload guarda closed_by_role='vet', que es la distinción precisa", async () => {
+    // `authorRole` colapsa admin y govt en 'govt' porque el enum de la columna no
+    // tiene 'admin'. El payload es donde sobrevive quién cerró de verdad.
+    const deps = makeDeps();
+    await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
+
+    const [row] = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect((row.payload as { closed_by_role: string }).closed_by_role).toBe("vet");
+  });
+
+  it("FALLA CERRADO sin organización, en vez de firmar como profesional anónimo", async () => {
+    // El caso de uso no puede distinguir "el llamador se la olvidó" de "no había
+    // ninguna". Firmar igual dejaría en la espina append-only un resultado
+    // clínico verificado que no dice de qué clínica salió, imposible de corregir.
+    const deps = makeDeps();
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, actor: { ...VET_ACTOR, organizationId: undefined } },
+      deps,
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/organización/i);
+    // Y no escribió NADA: ni el evento ni el cierre del estado.
+    expect(deps.repo.insertObservationEnded).not.toHaveBeenCalled();
+    expect(deps.repo.closeObservationIfOpen).not.toHaveBeenCalled();
+  });
+
+  it("al dueño se le dice que cerró su VETERINARIO, no una autoridad sanitaria", async () => {
+    // Era un ternario de dos ramas. Con el veterinario adentro habría dicho "una
+    // autoridad sanitaria" sobre un cierre hecho por el veterinario: una
+    // afirmación falsa al dueño sobre quién actuó en el registro legal de su
+    // animal, en la única notificación que va a leer del tema.
+    const deps = makeDeps({
+      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+    });
+    const result = await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const aviso = result.notifications.find(
+      (n) => n.notificationType === "rabies_observation_completed_professional_owner",
+    );
+    expect(aviso?.body).toContain("un veterinario matriculado");
+    expect(aviso?.body).not.toContain("autoridad sanitaria");
+  });
+
+  it("y a cada actor se lo nombra distinto, que es para lo que existe el mapa", async () => {
+    const esperado: Array<
+      [typeof VET_ACTOR | typeof ADMIN_ACTOR | typeof GOVT_IN_JURISDICTION, string]
+    > = [
+      [ADMIN_ACTOR, "un administrador"],
+      [GOVT_IN_JURISDICTION, "una autoridad sanitaria"],
+      [VET_ACTOR, "un veterinario matriculado"],
+    ];
+
+    for (const [actor, frase] of esperado) {
+      const deps = makeDeps({
+        findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+      });
+      const result = await professionalCloseObservation({ ...BASE_INPUT, actor }, deps);
+      expect(result.ok, `${actor.profile.role} no pudo cerrar`).toBe(true);
+      if (!result.ok) continue;
+      const aviso = result.notifications.find(
+        (n) => n.notificationType === "rabies_observation_completed_professional_owner",
+      );
+      expect(aviso?.body, `${actor.profile.role}`).toContain(frase);
+    }
+  });
+
+  it("un positivo escala a la autoridad IGUAL que si cerrara el Estado", async () => {
+    // Rabia confirmada es un evento de salud pública. Que la haya registrado un
+    // veterinario en su clínica no la vuelve menos urgente para la jurisdicción,
+    // y este caso existe porque la puerta nueva podría haberse saltado el fan-out.
+    const deps = makeDeps({
+      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+    });
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "positive_rabies", actor: VET_ACTOR },
+      {
+        ...deps,
+        findAuthoritiesForJurisdiction: vi.fn().mockResolvedValue(["authority-1", "authority-2"]),
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const alertas = result.notifications.filter(
+      (n) => n.notificationType === "rabies_observation_positive_authority",
+    );
+    expect(alertas).toHaveLength(2);
+    expect(alertas[0].severity).toBe("urgent");
   });
 });

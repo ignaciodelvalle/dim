@@ -7,10 +7,37 @@
 //   - admin = universal scope (any pet)
 //   - govt  = ONLY pets where (province,locality) ∈ jurisdictions
 //     → out-of-jurisdiction govt MUST be rejected (cross-org bypass lesson)
+//   - vet   = matrícula VALIDADA + la mascota delante. Ver abajo.
 //
-// authorRole column is hardcoded to 'govt' for both admin and govt actors
-// (petEvents.authorRole enum doesn't include 'admin' — both log as 'govt').
-// payload.closed_by_role keeps the precise distinction (admin|govt).
+// EL VETERINARIO ENTRA EL 2026-09-17, por decisión del PO, y lo que se corrige
+// es una mentira y no una carencia: dos notificaciones le decían al dueño "pedí
+// el cierre a tu veterinario" y ningún veterinario podía cerrar. El comentario
+// de `surveillance-repository.ts` sobre la carrera de cierres ya hablaba de "dos
+// veterinarios", y `closed_by_role` ya aceptaba `"vet"` en el esquema de eventos.
+// El diseño siempre lo contempló; la autorización era la que faltaba.
+//
+// QUÉ RELACIÓN CON LA MASCOTA, porque la que uno imagina no existe como dato.
+// El sistema NO registra qué veterinario conduce una observación: las
+// observaciones son `in_situ` (domicilio del dueño) y el campo para la clínica
+// oficial está declarado y sin implementar. Así que "el matriculado que observó
+// diez días" no es expresable.
+//
+// La relación que SÍ existe es la de Atender, y es la que se usa: el dueño trae
+// al animal y muestra la credencial. La prueba es `event.write` sobre ESA
+// organización más conocer el código DIM (31^8 ≈ posesión física), resuelta
+// aguas arriba por `resolveAtenderPet`. Lo que el PO acepta explícitamente con
+// eso: cualquier matriculado que tenga el animal delante puede cerrar, no sólo
+// el que la condujo. La barrera real es física — hay que llevar el animal a esa
+// clínica — y es la misma que ya protege cada evento clínico de walk-in (PO-3).
+//
+// LA MATRÍCULA NO SE CHEQUEA ACÁ. Viene resuelta en `eventAuthorship`, que la
+// ata al FIRMANTE y no a la organización — el keystone de provenance #43: una
+// organización verificada cuyo miembro no es matriculado NO firma como
+// profesional. El llamador rechaza antes de llegar hasta acá.
+//
+// authorRole: 'govt' para admin y govt (el enum de petEvents no tiene 'admin'),
+// 'vet' para el veterinario, con su organización y `authorVerified` en true.
+// payload.closed_by_role mantiene la distinción precisa (admin|govt|vet).
 //
 // AUDIT_LOG: YES since 2026-08-17 — `rabies_observation_closed_professional`,
 // written INSIDE the transaction. The whole Ley 22.953 surface wrote no audit
@@ -48,8 +75,18 @@ export type ProfessionalCloseObservationInput = {
   outcome: RabiesObservationOutcome;
   closureNotes: string | null;
   actor: {
-    profile: { id: string; role: "admin" | "govt" };
+    profile: { id: string; role: "admin" | "govt" | "vet" };
+    /** Vacío para el veterinario: su alcance no es territorial. */
     jurisdictions: Array<{ province: string; locality: string }>;
+    /**
+     * Sólo el camino veterinario. La organización sobre la que el firmante tiene
+     * `event.write` y desde la que atendió al animal.
+     *
+     * Es OBLIGATORIA para `role: "vet"` — sin ella el evento quedaría firmado
+     * como profesional verificado sin decir de qué clínica, que es la mitad del
+     * valor de esa firma. El paso 4 lo exige en vez de confiar en el llamador.
+     */
+    organizationId?: string;
   };
 };
 
@@ -83,6 +120,19 @@ type Deps = {
 
 export type ProfessionalCloseObservationResult = UseCaseResult<void>;
 
+/**
+ * Cómo se nombra a quien cerró, en el aviso que lee el dueño.
+ *
+ * Un mapa y no un ternario: un ternario con tres roles obliga a anidar, y el
+ * anidado es donde se cuela la rama que dice lo que no es. El tipo garantiza
+ * que un rol nuevo no compile sin su frase.
+ */
+const ACTOR_PROSE: Record<"admin" | "govt" | "vet", string> = {
+  admin: "un administrador",
+  govt: "una autoridad sanitaria",
+  vet: "un veterinario matriculado",
+};
+
 // ---------------------------------------------------------------------------
 // Use-case
 // ---------------------------------------------------------------------------
@@ -111,9 +161,13 @@ export async function professionalCloseObservation(
     return { ok: false, error: "Esta mascota no tiene una observación abierta." };
   }
 
-  // 4. Govt scope check — admin is universal. Subsumption-aware: a whole-province
-  // assignment (e.g. whole-CABA) governs every barrio in it, so a pet geocoded to
-  // a barrio is within cover. See jurisdictionScopeContains.
+  // 4. Alcance, que es de una forma distinta para cada actor.
+  //
+  // admin — universal.
+  //
+  // govt — territorial, y con subsunción: una asignación de provincia entera
+  // (por ejemplo CABA entera) gobierna cada barrio adentro, así que una mascota
+  // geocodificada a un barrio está cubierta. Ver jurisdictionScopeContains.
   if (actor.profile.role === "govt") {
     const inScope = jurisdictionScopeContains(
       actor.jurisdictions,
@@ -123,6 +177,20 @@ export async function professionalCloseObservation(
     if (!inScope) {
       return { ok: false, error: "Esta mascota no está dentro de tu cobertura asignada." };
     }
+  }
+
+  // vet — NO territorial. Su alcance es la mascota que tiene delante, y esa
+  // relación la resolvió `resolveAtenderPet` aguas arriba: `event.write` sobre
+  // esta organización más el código DIM. Acá no se re-resuelve; lo que sí se
+  // exige es que la organización HAYA LLEGADO, porque un evento firmado como
+  // profesional verificado sin decir de qué clínica pierde la mitad de su valor
+  // — y este caso de uso no puede distinguir "el llamador se la olvidó" de "no
+  // había ninguna". Falla cerrado.
+  if (actor.profile.role === "vet" && !actor.organizationId) {
+    return {
+      ok: false,
+      error: "Falta la organización del profesional que cierra la observación.",
+    };
   }
 
   // 5. Load started event.
@@ -156,7 +224,19 @@ export async function professionalCloseObservation(
         closure_notes: input.closureNotes,
         death_event_id: null,
       });
-      // petEvents.authorRole enum doesn't include 'admin' — both admin and govt log as 'govt'.
+      // LA FIRMA DEL EVENTO, que es distinta de quién autorizó el acto.
+      //
+      // El Estado firma como 'govt' — el enum de petEvents no tiene 'admin', así
+      // que admin y govt colapsan ahí y `closed_by_role` guarda la distinción
+      // precisa en el payload.
+      //
+      // El veterinario firma como 'vet', con su organización y `authorVerified`
+      // en true. Ese true no es una afirmación de este módulo: el llamador sólo
+      // llega hasta acá con `role: "vet"` cuando `eventAuthorship` lo resolvió
+      // como profesional verificado, o sea con la matrícula del FIRMANTE
+      // validada (keystone #43). Una organización verificada cuyo miembro no es
+      // matriculado no llega.
+      const esVet = actor.profile.role === "vet";
       await repo.insertObservationEnded(
         {
           petId: pet.id,
@@ -164,9 +244,9 @@ export async function professionalCloseObservation(
           occurredAt: now,
           recordedAt: now,
           recordedByUserId: actor.profile.id,
-          authorRole: "govt",
-          authorOrganizationId: null,
-          authorVerified: false,
+          authorRole: esVet ? "vet" : "govt",
+          authorOrganizationId: esVet ? (actor.organizationId ?? null) : null,
+          authorVerified: esVet,
           payload: endedPayload,
           caseId: biteCase?.id ?? null,
         } as Parameters<typeof repo.insertObservationEnded>[0],
@@ -237,7 +317,13 @@ export async function professionalCloseObservation(
           notificationType: "rabies_observation_completed_professional_owner",
           severity: notifSeverity,
           title: `Observación cerrada profesionalmente — ${pet.name}`,
-          body: `La observación antirrábica de ${pet.name} fue cerrada por ${actor.profile.role === "admin" ? "un administrador" : "una autoridad sanitaria"} con ${rabiesObservationOutcomeLabel(input.outcome)}.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
+          // QUIÉN CERRÓ, dicho bien. Esto era un ternario de dos ramas —
+          // administrador o autoridad sanitaria— y al entrar el veterinario
+          // habría dicho "una autoridad sanitaria" sobre un cierre hecho por su
+          // veterinario: una afirmación falsa al dueño acerca de quién actuó en
+          // el registro legal de su animal, en la única notificación que va a
+          // leer sobre el tema.
+          body: `La observación antirrábica de ${pet.name} fue cerrada por ${ACTOR_PROSE[actor.profile.role]} con ${rabiesObservationOutcomeLabel(input.outcome)}.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
           relatedPetId: pet.id,
           relatedCaseId: biteCase?.id ?? null,
           ctaLabel: "Ver mascota",

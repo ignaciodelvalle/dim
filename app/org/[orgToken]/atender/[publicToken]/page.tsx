@@ -17,12 +17,15 @@ import { Suspense } from "react";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpCrumbs } from "@/components/ui/dashboard";
 import { speciesLabel } from "@/lib/utils/format";
 
+import { CloseObservationForm } from "@/app/admin/observaciones/[publicToken]/CloseObservationForm";
+import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
+import { atenderCloseRabiesObservationAction } from "../actions";
 import { resolveAtenderPet } from "../atender-access";
 import { fetchPendingDeclaredEvents } from "../atender-declared-events";
 import { AtenderCaptureMounter } from "./AtenderCaptureMounter";
 import { AtenderQuickCapture } from "./AtenderQuickCapture";
 import { PendingSignaturesCard } from "./PendingSignaturesCard";
-import { ATENDER_EVENTOS } from "./atender-eventos";
+import { ATENDER_EVENTOS, ATENDER_EVENTOS_CONDICIONALES } from "./atender-eventos";
 
 export default async function AtenderSignPage({
   params,
@@ -75,6 +78,16 @@ export default async function AtenderSignPage({
   // a tile whose href drops confirmEventId, silently downgrading the
   // confirmation to a fresh placement (review of QA v3 M3 wiring).
   const activeEvento = sp.confirmEventId ? null : (sp.evento ?? null);
+
+  // ¿Tiene este animal una observación antirrábica abierta? Decide si la pantalla
+  // ofrece cerrarla. Mismo predicado que usa el caso de uso, importado y no
+  // reescrito: una pantalla que ofreciera el cierre en un estado que el servidor
+  // rechaza sería peor que no ofrecerlo.
+  const observacionAbierta = isObservationOpen(access.pet.rabiesObservationStatus);
+  // Y la matrícula, que es lo que separa poder ASENTAR de poder REGISTRAR UN
+  // RESULTADO CLÍNICO. El servidor la exige igual; esto evita ofrecer un botón
+  // que iba a rebotar.
+  const puedeCerrarObservacion = observacionAbierta && access.signer.matriculaVerified;
   const justSigned = sp.firmado === "1";
   const pendingSignatures = await fetchPendingDeclaredEvents(pet.id);
 
@@ -181,7 +194,9 @@ export default async function AtenderSignPage({
           <OpCardHead title="¿Qué querés registrar?" />
           <OpCardBody>
             <nav className="grid grid-cols-2 gap-2">
-              {ATENDER_EVENTOS.map((e) => {
+              {ATENDER_EVENTOS.filter(
+                (e) => !ATENDER_EVENTOS_CONDICIONALES.has(e.key) || observacionAbierta,
+              ).map((e) => {
                 const isActive = activeEvento === e.key;
                 return (
                   <Link
@@ -201,6 +216,42 @@ export default async function AtenderSignPage({
             </nav>
           </OpCardBody>
         </OpCard>
+
+        {activeEvento === "observacion" && observacionAbierta && (
+          <OpCard>
+            <OpCardHead title="Cerrar observación antirrábica" />
+            <OpCardBody>
+              {puedeCerrarObservacion ? (
+                <>
+                  {/* Qué significa este acto, antes del formulario. Termina una
+                      obligación legal de la Ley 22.953 y da vuelta el cartel de
+                      la credencial pública: no es asentar un evento más. */}
+                  <p className="mb-4 text-sm text-ln-op-mute">
+                    Registrás el resultado clínico de la observación de {access.pet.name}. Termina
+                    el período legal y cambia lo que muestra su credencial pública. Queda asentado
+                    con tu matrícula.
+                  </p>
+                  <CloseObservationForm
+                    action={atenderCloseRabiesObservationAction.bind(
+                      null,
+                      orgToken,
+                      access.pet.publicToken,
+                    )}
+                  />
+                </>
+              ) : (
+                /* El motivo, no el silencio: un miembro sin matrícula validada
+                   firma como organización y no como profesional, así que puede
+                   asentar eventos y no puede registrar un resultado clínico. */
+                <p className="text-sm text-ln-op-mute">
+                  El resultado de una observación antirrábica lo registra un profesional con
+                  matrícula validada. Si sos veterinario, pedí que se valide tu matrícula desde el
+                  perfil de la organización.
+                </p>
+              )}
+            </OpCardBody>
+          </OpCard>
+        )}
 
         <Suspense>
           <AtenderCaptureMounter

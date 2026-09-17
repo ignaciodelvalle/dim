@@ -61,6 +61,18 @@ export type AtenderPet = {
   status: "active" | "lost" | "deceased";
   /** "YYYY-MM-DD" or null — feeds the writers' BEFORE_BIRTH plausibility leg. */
   dateOfBirth: string | null;
+  /**
+   * Estado de la observación antirrábica, para que la pantalla sepa si ofrecer
+   * el cierre (2026-09-17).
+   *
+   * ES UN CAMPO MÁS EN UNA PROYECCIÓN DELIBERADAMENTE ANGOSTA, así que va con su
+   * argumento: el encabezado de este archivo dice que resuelve "ONLY pet
+   * identity — never owner PII", y esto no lo contradice. El estado de
+   * observación es del ANIMAL, no de su dueño, y ya se publica en la credencial
+   * pública `/p/{token}` a cualquiera que escanee el QR. No agrega superficie:
+   * hace que esta pantalla sepa algo que la calle ya sabe.
+   */
+  rabiesObservationStatus: string | null;
 };
 
 export type AtenderSigner = {
@@ -300,6 +312,7 @@ export async function resolveAtenderPet(
       // Needed by the atender writers' plausibility guard (BEFORE_BIRTH leg) —
       // pet identity data, not owner PII.
       dateOfBirth: pets.dateOfBirth,
+      rabiesObservationStatus: pets.rabiesObservationStatus,
     })
     .from(pets)
     // Art. 16 (Ley 25.326): an erased pet must answer exactly like a code that

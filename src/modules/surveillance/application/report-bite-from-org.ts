@@ -372,7 +372,7 @@ export async function reportBiteFromOrg(
           notificationType: "bite_reported_by_org_owner",
           severity: "warning",
           title: `Mordedura reportada por ${organization.displayName} — ${pet.name}`,
-          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })} en ${pet.name}. Inicia un período de observación antirrábica de ${rabiesWindow.days} días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. La observación la cierra un veterinario matriculado o la autoridad sanitaria de tu localidad: no podés cerrarla vos. Si discrepás con el reporte, escribile a ${organization.displayName} (${orgContact}) o presentate ante la autoridad sanitaria de tu municipio.`,
+          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })} en ${pet.name}. Inicia un período de observación antirrábica de ${rabiesWindow.days} días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. La observación la cierra un veterinario matriculado —llevándole el animal con su credencial— o la autoridad sanitaria de tu localidad: no podés cerrarla vos. Si discrepás con el reporte, escribile a ${organization.displayName} (${orgContact}) o presentate ante la autoridad sanitaria de tu municipio.`,
           relatedPetId: pet.id,
           relatedCaseId: caseRow.id,
           ctaLabel: "Ver mascota",

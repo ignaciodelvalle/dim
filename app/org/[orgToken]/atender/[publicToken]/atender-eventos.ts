@@ -18,6 +18,20 @@ export const ATENDER_EVENTOS = [
   { key: "medicacion", label: "Medicación" },
   { key: "chip", label: "Colocación de microchip" },
   { key: "nota", label: "Nota clínica" },
+  // CONDICIONAL, a diferencia de las demás: sólo se ofrece cuando este animal
+  // tiene una observación antirrábica abierta. Un botón para cerrar algo que no
+  // está abierto le miente al profesional sobre lo que el sistema va a hacer.
+  // La página lo filtra con `ATENDER_EVENTOS_SIEMPRE` vs este.
+  { key: "observacion", label: "Cerrar observación antirrábica" },
 ] as const;
 
 export type AtenderEvento = (typeof ATENDER_EVENTOS)[number]["key"];
+
+/**
+ * Las claves que dependen del estado del animal, no del catálogo.
+ *
+ * Existe para que el filtro de la página sea una LISTA y no un `if` sobre un
+ * string suelto: agregar una segunda condicional mañana la suma acá y el filtro
+ * no cambia.
+ */
+export const ATENDER_EVENTOS_CONDICIONALES = new Set(["observacion"]);
