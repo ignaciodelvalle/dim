@@ -6,13 +6,49 @@
 >
 > Status: PENDING PO DECISION as of 2026-09
 
-**Status: OPEN — requires PO decision and, for options C and D, legal sign-off.**
+**Status: OPTION B SHIPPED 2026-09-17. C remains open and still needs legal sign-off.**
 **Date raised: 2026-08-29 (observability-sink lane)**
 
-The engineering seam is DONE and tested (`lib/observability/`). What is missing
-is a decision this document exists to inform, not to make: **which sink**, at
-what price, under whose data-processing agreement. That has billing and
-international-data-transfer consequences and is explicitly the PO's call.
+## What changed on 2026-09-17
+
+**The "dies in the tab" hole is closed.** Option B shipped, exactly as this
+document sequenced it:
+
+- `app/api/telemetry/client-error/route.ts` — public POST, rate-limited per
+  caller IP, strict shape validation, re-emits through `lib/infra/report-error.ts`
+  into the Vercel function logs the server already writes to.
+- `lib/observability/beacon-sink.ts` — the transport. `navigator.sendBeacon`
+  first, `fetch` with `keepalive` as the fallback, because the moment an error
+  boundary fires is very often the moment the page goes away, and a plain
+  `fetch` issued there is cancelled on unload. The reports lost that way are
+  precisely the ones from errors bad enough that somebody abandoned the page.
+- `components/ErrorSinkBootstrap.tsx` — installs it once, after hydration.
+
+**No new data processor.** Vercel already processes every request this app
+serves, so nothing here touches the art. 12 analysis below.
+
+**The PO chose Sentry (option C) on 2026-09-17**, and that choice stands — but
+it is still gated on two things this document already named: a DSN, and the
+legal sign-off. B was done first because, in this document's own words, *"if
+only one thing is done, it should be B, because it is the one with no gate in
+front of it"*. The seam is unchanged, so C replaces the transport and nothing
+else when it arrives.
+
+**Correction to the table below, measured 2026-09-17**: the mobile row says
+Sentry ships crashes with *"no `beforeSend` hook"* (finding A06-2). **That is no
+longer true.** `apps/mobile/src/observability/sentry.ts` wires BOTH hooks —
+`beforeSend: (event) => redactEvent(event)` and `beforeBreadcrumb` — against the
+mobile app's own redactor, which has its own tests. A06-2 is closed. The row is
+left as written with this note beside it rather than edited, because the
+reasoning that follows from it is still the reasoning that made it get fixed.
+
+---
+
+The engineering seam is DONE and tested (`lib/observability/`). What was missing
+until 2026-09-17 was a decision this document exists to inform, not to make:
+**which sink**, at what price, under whose data-processing agreement. That has
+billing and international-data-transfer consequences and is explicitly the PO's
+call.
 
 ## Context — where an error goes today
 

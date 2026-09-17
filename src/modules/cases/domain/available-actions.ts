@@ -72,7 +72,21 @@ export type CaseAction =
   /** Asentar texto libre. No cambia el estado. Legítima para los doce kinds. */
   | "note"
   /** Cerrar a mano, sin esperar un evento terminal. Sólo donde el ciclo lo declara. */
-  | "close";
+  | "close"
+  /**
+   * Subir el expediente a la autoridad, ahora, sin esperar al reloj.
+   *
+   * Sólo donde el ciclo de vida declara `escalated` entre sus `statusValues` —
+   * hoy cinco de trece. Los otros ocho NO tienen ese estado, y ofrecerles el
+   * botón sería la falla que este módulo existe para no cometer: prometer una
+   * transición que el ciclo no declara.
+   *
+   * Decisión del PO 2026-09-17, y ahí pidió "los doce tipos". Se entrega
+   * derivado y no literal porque lo literal es imposible: un expediente que no
+   * puede estar `escalated` no se puede escalar, y un botón que lo ofreciera
+   * fallaría en el servidor después de prometerle al operador que iba a andar.
+   */
+  | "escalate";
 
 export type CaseActionAvailability = {
   action: CaseAction;
@@ -91,9 +105,13 @@ export type CaseActionAvailability = {
 /**
  * Las acciones que el ciclo de vida de `kind` admite sobre un caso en `status`.
  *
- * Devuelve SIEMPRE las dos entradas, disponibles o no. Un llamador que quiera
- * ocultar lo indisponible puede filtrar; uno que quiera explicar por qué falta
- * tiene el motivo a mano. Devolver sólo lo disponible haría imposible lo segundo.
+ * Devuelve SIEMPRE las tres entradas, disponibles o no, y SIEMPRE en el orden
+ * nota · cierre · escalada. Un llamador que quiera ocultar lo indisponible puede
+ * filtrar; uno que quiera explicar por qué falta tiene el motivo a mano.
+ * Devolver sólo lo disponible haría imposible lo segundo.
+ *
+ * El orden es parte del contrato: hay tests que desestructuran por índice, y la
+ * escalada se agregó AL FINAL por eso. Los consumidores de UI usan `.find()`.
  */
 export function availableCaseActions(kind: CaseKind, status: CaseStatus): CaseActionAvailability[] {
   const lifecycle = getLifecycle(kind);
@@ -116,6 +134,12 @@ export function availableCaseActions(kind: CaseKind, status: CaseStatus): CaseAc
         available: false,
         unavailableReason:
           "Este tipo de expediente no tiene un ciclo de vida declarado, así que el sistema no sabe cómo se cierra.",
+      },
+      {
+        action: "escalate",
+        available: false,
+        unavailableReason:
+          "Este tipo de expediente no tiene un ciclo de vida declarado, así que el sistema no sabe si admite escalada.",
       },
     ];
   }
@@ -188,7 +212,42 @@ export function availableCaseActions(kind: CaseKind, status: CaseStatus): CaseAc
     close = { action: "close", available: true, unavailableReason: null };
   }
 
-  return [note, close];
+  // ESCALAR: subir el expediente a la autoridad ahora, sin esperar al cron.
+  //
+  // Se deriva de `statusValues`, que es donde cada ciclo declara si `escalated`
+  // existe para él. Hoy lo declaran cinco de trece. Para los otros ocho la
+  // respuesta no es "todavía no": es que ese estado NO EXISTE en su ciclo, y la
+  // frase lo dice así en vez de sugerir que falta una decisión.
+  let escalate: CaseActionAvailability;
+  if (isTerminal) {
+    escalate = {
+      action: "escalate",
+      available: false,
+      unavailableReason:
+        status === "merged"
+          ? "Este expediente se fusionó con otro. La escalada va sobre el que quedó abierto."
+          : "El expediente está cerrado.",
+    };
+  } else if (status === "escalated") {
+    // Ya escalado. Decirlo así y no "no se puede" — el operador que aprieta dos
+    // veces necesita saber que la primera funcionó, no creer que ninguna lo hizo.
+    escalate = {
+      action: "escalate",
+      available: false,
+      unavailableReason: "Este expediente ya está escalado.",
+    };
+  } else if (!lifecycle.statusValues.includes("escalated")) {
+    escalate = {
+      action: "escalate",
+      available: false,
+      unavailableReason:
+        "Este tipo de expediente no tiene estado de escalada: no hay una autoridad por encima a la que subirlo. Si necesitás que alguien más lo mire, dejá una nota.",
+    };
+  } else {
+    escalate = { action: "escalate", available: true, unavailableReason: null };
+  }
+
+  return [note, close, escalate];
 }
 
 /** Atajo para el caso más frecuente: ¿puede este operador hacer X acá? */

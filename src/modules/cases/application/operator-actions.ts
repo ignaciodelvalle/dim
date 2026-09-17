@@ -26,6 +26,10 @@
 import { and, eq } from "drizzle-orm";
 
 import { caseEvents, cases, db } from "@/db";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { writeAuditLog } from "@/lib/infra/audit-log";
+import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { availableCaseActions, canPerformCaseAction } from "../domain/available-actions";
 import type { CaseKind } from "../domain/case-kinds";
 import type { CaseStatus } from "../domain/lifecycles/types";
@@ -41,11 +45,36 @@ export const NOTE_MAX_LENGTH = 2000;
 export const CLOSE_REASON_MIN_LENGTH = 20;
 export const CLOSE_REASON_MAX_LENGTH = 500;
 
-type CaseRow = { id: string; caseKind: CaseKind; status: CaseStatus };
+/**
+ * Mínimo del motivo de escalada.
+ *
+ * Igual que el cierre y no como la nota, porque escalar TAMBIÉN es un acto: le
+ * llega a una autoridad que no estaba mirando este expediente, y lo primero que
+ * esa persona va a querer saber es por qué la llamaron.
+ */
+export const ESCALATE_REASON_MIN_LENGTH = 20;
+export const ESCALATE_REASON_MAX_LENGTH = 500;
+
+type CaseRow = {
+  id: string;
+  caseKind: CaseKind;
+  status: CaseStatus;
+  publicCode: string;
+  /** Nullable en el esquema: un expediente puede no tener jurisdicción todavía. */
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+};
 
 async function loadCase(publicCode: string): Promise<CaseRow | null> {
   const [row] = await db
-    .select({ id: cases.id, caseKind: cases.caseKind, status: cases.status })
+    .select({
+      id: cases.id,
+      caseKind: cases.caseKind,
+      status: cases.status,
+      publicCode: cases.publicCode,
+      jurisdictionProvince: cases.jurisdictionProvince,
+      jurisdictionLocality: cases.jurisdictionLocality,
+    })
     .from(cases)
     .where(eq(cases.publicCode, publicCode))
     .limit(1);
@@ -84,12 +113,36 @@ export async function addOperatorNote(input: {
     return { ok: false, error: "Este expediente ya no admite notas." };
   }
 
-  await db.insert(caseEvents).values({
-    caseId: row.id,
-    entryType: "operator_note",
-    notes: text,
-    recordedByUserId: input.actorUserId,
-    payload: {},
+  // EL EVENTO Y LA FILA DE AUDITORÍA, EN UNA TRANSACCIÓN. Antes era un insert
+  // suelto. La fila de auditoría llegó el 2026-09-17 y con ella la transacción:
+  // dos escrituras que describen el mismo acto no pueden quedar una sin la otra,
+  // porque la ausencia de una fila de auditoría es permanentemente
+  // indistinguible de la ausencia del acto que habría descrito.
+  //
+  // POR QUÉ SE AUDITA UNA NOTA, que el baseline dejaba como decisión pendiente:
+  // el hecho ya está en la espina `case_events`, que carga su propio autor, así
+  // que el argumento de "otro libro ya lo cubre" era real. Se resuelve hacia la
+  // trazabilidad porque el costo es asimétrico — una fila de más no le hace daño
+  // a nadie, y una consulta de rendición de cuentas que no encuentra en
+  // `audit_log` un asiento de una autoridad sobre un expediente legal sí.
+  await db.transaction(async (tx) => {
+    await tx.insert(caseEvents).values({
+      caseId: row.id,
+      entryType: "operator_note",
+      notes: text,
+      recordedByUserId: input.actorUserId,
+      payload: {},
+    });
+    await writeAuditLog(tx, {
+      action: "case_note_recorded",
+      actorUserId: input.actorUserId,
+      payload: {
+        case_id: row.id,
+        case_public_code: row.publicCode,
+        case_kind: row.caseKind,
+        note_length: text.length,
+      },
+    });
   });
 
   return { ok: true };
@@ -168,6 +221,186 @@ export async function closeCaseManually(input: {
       recordedByUserId: input.actorUserId,
       payload: { closed_manually: true },
     });
+
+    // 4. Y el ACTO ADMINISTRATIVO, con su estado anterior. El evento registra la
+    //    afirmación; esta fila registra que una autoridad identificada terminó
+    //    un expediente legal, que es lo que se busca en `audit_log` y no en la
+    //    espina. Adentro de la transacción: si el cierre se deshace, el rastro
+    //    de que ocurrió se deshace con él.
+    await writeAuditLog(tx, {
+      action: "case_closed_manually",
+      actorUserId: input.actorUserId,
+      payload: {
+        case_id: row.id,
+        case_public_code: row.publicCode,
+        case_kind: row.caseKind,
+        status_before: row.status,
+        status_after: "closed",
+        closed_reason: "cancelled",
+      },
+    });
+
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Escala un expediente a la autoridad, a mano, sin esperar al reloj.
+ *
+ * QUÉ PROBLEMA RESUELVE. Escalar ya existía, pero SÓLO por cron: una disputa de
+ * custodia sube a los 365 días, un handoff de decomiso trabado a los 7. Un
+ * operador que hoy ve que un expediente necesita otra mirada no tenía cómo
+ * pedirla — su única salida era una nota, que nadie recibe. Decisión del PO,
+ * 2026-09-17, cerrando lo último que le faltaba a #41.
+ *
+ * LO QUE HAY QUE SABER ANTES DE TOCAR ESTO, y está medido en el cron hermano
+ * (`escalate-stale-disputes.ts`): **`escalated` no tiene cola propia**. Ninguna
+ * pantalla lista "los expedientes escalados". Entonces un escalado que no le
+ * avisa a nadie no es un escalado — es una columna que cambió de valor y que
+ * nadie va a mirar nunca. Por eso el fan-out no es un extra de este caso de uso:
+ * es la mitad que lo vuelve real, y cuando sale vacío queda una fila de
+ * auditoría diciéndolo, igual que en el cron.
+ *
+ * EL ORDEN ES EL MISMO QUE EN EL CIERRE Y POR EL MISMO MOTIVO. Primero la
+ * mutación guardada (`AND status = 'open'`), que dice si ganamos la carrera;
+ * recién después el evento. `case_events` es append-only por trigger, así que un
+ * `case_escalated` escrito por el perdedor de una carrera sería permanente e
+ * incorregible.
+ *
+ * DIFERENCIA CON EL CRON, a favor: el cron inserta notificaciones directo. Acá
+ * van por `createNotificationsBulk`, que es el camino canónico — idempotente por
+ * `dedupeKey` y con cola de fallidos. La reja `lint:notifications` lo exige para
+ * todo archivo nuevo, y tiene razón.
+ */
+export async function escalateCaseManually(input: {
+  publicCode: string;
+  actorUserId: string;
+  reason: string;
+}): Promise<OperatorActionResult> {
+  const reason = input.reason.trim();
+  if (reason.length < ESCALATE_REASON_MIN_LENGTH) {
+    return {
+      ok: false,
+      error: `Escalar necesita un motivo de al menos ${ESCALATE_REASON_MIN_LENGTH} caracteres — es lo primero que va a leer quien lo reciba.`,
+    };
+  }
+  if (reason.length > ESCALATE_REASON_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `El motivo no puede pasar los ${ESCALATE_REASON_MAX_LENGTH} caracteres.`,
+    };
+  }
+
+  const row = await loadCase(input.publicCode);
+  if (!row) return { ok: false, error: "Expediente no encontrado." };
+
+  // El motivo del dominio, no uno genérico: "este kind no tiene estado de
+  // escalada" y "ya está escalado" son respuestas muy distintas para el
+  // operador, y el dominio ya sabe decir cuál es cuál.
+  const escalate = availableCaseActions(row.caseKind, row.status).find(
+    (a) => a.action === "escalate",
+  );
+  if (!escalate?.available) {
+    return {
+      ok: false,
+      error: escalate?.unavailableReason ?? "Este expediente no se puede escalar.",
+    };
+  }
+
+  // Destinatarios FUERA de la transacción, como el cron: son dos consultas que
+  // no necesitan el lock y que alargarían la ventana de la carrera.
+  const govtAuthorities =
+    row.jurisdictionProvince && row.jurisdictionLocality
+      ? await findAuthoritiesForJurisdiction({
+          province: row.jurisdictionProvince,
+          locality: row.jurisdictionLocality,
+        })
+      : [];
+  // Humanos activos, no cuentas de servicio ni desactivadas. Contarlas haría
+  // el conjunto no-vacío y saltearía en silencio la traza de fan-out vacío —
+  // el defecto exacto que este helper compartido se creó para cerrar.
+  const adminIds = await activeHumanInstitutionalAdminIds();
+  const recipients = Array.from(new Set<string>([...govtAuthorities, ...adminIds])).filter(
+    // Avisarle al que acaba de apretar el botón es ruido: ya sabe.
+    (id) => id !== input.actorUserId,
+  );
+
+  return db.transaction(async (tx) => {
+    // 1. MUTACIÓN guardada. Si otro escaló o cerró mientras tanto, 0 filas.
+    const updated = await tx
+      .update(cases)
+      .set({ status: "escalated", updatedAt: new Date() })
+      .where(and(eq(cases.id, row.id), eq(cases.status, "open")))
+      .returning({ id: cases.id });
+
+    if (updated.length === 0) {
+      return {
+        ok: false as const,
+        error: "El expediente cambió de estado mientras lo escalabas. Recargá para ver cómo quedó.",
+      };
+    }
+
+    // 2. El evento, dentro de la misma transacción.
+    await tx.insert(caseEvents).values({
+      caseId: row.id,
+      entryType: "case_escalated",
+      notes: reason,
+      recordedByUserId: input.actorUserId,
+      payload: { escalated_manually: true, recipient_count: recipients.length },
+    });
+
+    // 3. El acto administrativo. Va SIEMPRE, no sólo cuando el fan-out sale
+    //    vacío: la primera versión de este caso de uso sólo escribía la traza de
+    //    `notification_fanout_empty`, o sea que una escalada que SÍ avisaba no
+    //    dejaba ninguna fila en `audit_log` — auditando exactamente el caso raro
+    //    y dejando el común sin rastro.
+    await writeAuditLog(tx, {
+      action: "case_escalated_manually",
+      actorUserId: input.actorUserId,
+      payload: {
+        case_id: row.id,
+        case_public_code: row.publicCode,
+        case_kind: row.caseKind,
+        status_before: row.status,
+        status_after: "escalated",
+        recipient_count: recipients.length,
+      },
+    });
+
+    // 4. Y el aviso, que es lo que vuelve real la escalada.
+    if (recipients.length === 0) {
+      await writeAuditLog(tx, {
+        action: "notification_fanout_empty",
+        actorUserId: input.actorUserId,
+        payload: {
+          route: "case_escalated_by_operator",
+          province: row.jurisdictionProvince ?? "",
+          locality: row.jurisdictionLocality ?? "",
+          reason: "no_govt_no_admin",
+          case_id: row.id,
+          case_public_code: row.publicCode,
+        },
+      });
+      return { ok: true as const };
+    }
+
+    await createNotificationsBulk(
+      recipients.map((userId) => ({
+        userId,
+        notificationType: "case_escalated_by_operator",
+        severity: "warning" as const,
+        title: "Expediente escalado",
+        body: `${row.publicCode} fue escalado por un operador. Motivo: ${reason}`,
+        ctaLabel: "Ver expediente",
+        ctaUrl: `/casos/${row.publicCode}`,
+        relatedCaseId: row.id,
+        // Uno por expediente y destinatario: un expediente se escala una vez
+        // (la guarda de estado lo garantiza), así que esta clave no puede
+        // suprimir un aviso legítimo.
+        dedupeKey: `case_escalated_by_operator:${row.id}:${userId}`,
+      })),
+      tx,
+    );
 
     return { ok: true as const };
   });

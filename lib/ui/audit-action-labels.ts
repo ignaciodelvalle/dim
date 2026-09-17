@@ -164,6 +164,14 @@ export const AUDIT_ACTION_LABELS = {
   pet_events_mutation_override: "Mutación forzada de evento de mascota (override)",
   // The sibling this file's header cites, and the one that drifted out of it.
   case_events_mutation_override: "Mutación forzada de evento de caso (override)",
+  // Actos de operador sobre un expediente (#41). El hecho ya vive en la espina
+  // append-only `case_events`, que carga su propio autor; estas filas registran
+  // el ACTO ADMINISTRATIVO, que es lo que una consulta de rendición de cuentas
+  // sobre `audit_log` espera encontrar. Mismo argumento que el cierre
+  // profesional de observación antirrábica escribió el 2026-08-17.
+  case_note_recorded: "Nota de operador asentada en un expediente",
+  case_closed_manually: "Expediente cerrado a mano por un operador",
+  case_escalated_manually: "Expediente escalado a mano por un operador",
   audit_log_mutation_override: "Mutación forzada del registro de auditoría (override)",
   // Chapas físicas (tag lifecycle). Dotted codes, like microchip.replace.
   "tag.lote_issue": "Lote de chapas emitido",

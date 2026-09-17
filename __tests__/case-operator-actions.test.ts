@@ -11,13 +11,17 @@ import { createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { caseEvents, cases, db, profiles } from "@/db";
+import { and, eq as eqOp } from "drizzle-orm";
+
+import { auditLog, caseEvents, cases, db, profiles } from "@/db";
 import {
   CLOSE_REASON_MIN_LENGTH,
+  ESCALATE_REASON_MIN_LENGTH,
   NOTE_MIN_LENGTH,
   addOperatorNote,
   closeCaseManually,
   countCloseEvents,
+  escalateCaseManually,
 } from "@/src/modules/cases/application/operator-actions";
 import { CasesRepository } from "@/src/modules/cases/infrastructure/cases-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -112,6 +116,168 @@ afterAll(async () => {
   });
   await purge(ACTOR_EMAIL);
   await purge(OTHER_EMAIL);
+});
+
+/**
+ * Un `bite_incident` abierto — uno de los cinco kinds que declaran `escalated`.
+ *
+ * `custody_episode`, el que usan los tests de arriba, NO lo declara: es
+ * exactamente el par que hace falta para probar que la escalada se DERIVA del
+ * ciclo de vida en vez de estar escrita a mano.
+ */
+async function makeBiteIncident(): Promise<{ id: string; publicCode: string }> {
+  const publicCode = await repo.generateUniqueCasePublicCode();
+  const [row] = await db
+    .insert(cases)
+    .values({
+      publicCode,
+      caseKind: "bite_incident",
+      status: "open",
+      jurisdictionCountry: "AR",
+      primarySubjectKind: "unowned_animal",
+    })
+    .returning({ id: cases.id, publicCode: cases.publicCode });
+  createdCaseIds.push(row.id);
+  return row;
+}
+
+async function countEscalationEvents(caseId: string): Promise<number> {
+  const rows = await db
+    .select({ id: caseEvents.id })
+    .from(caseEvents)
+    .where(and(eqOp(caseEvents.caseId, caseId), eqOp(caseEvents.entryType, "case_escalated")));
+  return rows.length;
+}
+
+/**
+ * Filas de auditoría de escalada para ESTE caso.
+ *
+ * Filtra por payload en JS y no en SQL a propósito: la tabla de pruebas es
+ * chica, y un `->>'case_id'` en el where acoplaría el test a la forma interna
+ * del payload, que es justo lo que este test no está juzgando.
+ */
+async function countEscalationAuditRows(caseId: string): Promise<number> {
+  const rows = await db
+    .select({ payload: auditLog.payload })
+    .from(auditLog)
+    .where(eqOp(auditLog.action, "case_escalated_manually"));
+  return rows.filter((r) => (r.payload as { case_id?: string } | null)?.case_id === caseId).length;
+}
+
+describe("escalateCaseManually", () => {
+  it("no la ofrece en un kind que no declara el estado escalado", async () => {
+    // `custody_episode` no tiene `escalated` entre sus statusValues. La respuesta
+    // NO puede ser "todavía no" ni un error genérico: no existe el estado al que
+    // subirlo, y el motivo tiene que decir eso.
+    const c = await makeCustodyEpisode();
+    const res = await escalateCaseManually({
+      publicCode: c.publicCode,
+      actorUserId: actorId,
+      reason: "Necesita que lo mire alguien con más autoridad que yo.",
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/no tiene estado de escalada/i);
+
+    const [row] = await db.select().from(cases).where(eq(cases.id, c.id));
+    expect(row.status).toBe("open");
+    expect(await countEscalationEvents(c.id)).toBe(0);
+  });
+
+  it("exige un motivo: es lo primero que lee quien la recibe", async () => {
+    const c = await makeBiteIncident();
+    const res = await escalateCaseManually({
+      publicCode: c.publicCode,
+      actorUserId: actorId,
+      reason: "urgente",
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain(String(ESCALATE_REASON_MIN_LENGTH));
+
+    const [row] = await db.select().from(cases).where(eq(cases.id, c.id));
+    expect(row.status).toBe("open");
+  });
+
+  it("escala: mueve el estado, asienta el evento Y deja la fila de auditoría", async () => {
+    const c = await makeBiteIncident();
+    const motivo = "El animal sigue suelto y el denunciante no puede volver a acercarse.";
+
+    const res = await escalateCaseManually({
+      publicCode: c.publicCode,
+      actorUserId: actorId,
+      reason: motivo,
+    });
+    expect(res.ok).toBe(true);
+
+    const [row] = await db.select().from(cases).where(eq(cases.id, c.id));
+    expect(row.status).toBe("escalated");
+
+    // El evento registra la AFIRMACIÓN, con el motivo adentro.
+    const eventos = await db
+      .select()
+      .from(caseEvents)
+      .where(and(eqOp(caseEvents.caseId, c.id), eqOp(caseEvents.entryType, "case_escalated")));
+    expect(eventos).toHaveLength(1);
+    expect(eventos[0].notes).toBe(motivo);
+
+    // Y la fila de auditoría registra el ACTO, con el estado anterior. Va
+    // SIEMPRE: la primera versión de este caso de uso sólo escribía la traza de
+    // fan-out vacío, auditando el caso raro y dejando el común sin rastro.
+    expect(await countEscalationAuditRows(c.id)).toBe(1);
+  });
+
+  it("un expediente ya escalado dice que ya lo está, y no escribe dos veces", async () => {
+    const c = await makeBiteIncident();
+    const base = { publicCode: c.publicCode, actorUserId: actorId };
+
+    const primera = await escalateCaseManually({
+      ...base,
+      reason: "Primera escalada, con motivo suficientemente largo para pasar.",
+    });
+    expect(primera.ok).toBe(true);
+
+    const segunda = await escalateCaseManually({
+      ...base,
+      reason: "Segunda escalada sobre el mismo expediente, también con motivo.",
+    });
+    expect(segunda.ok).toBe(false);
+    if (!segunda.ok) expect(segunda.error).toMatch(/ya está escalado/i);
+
+    expect(await countEscalationEvents(c.id)).toBe(1);
+    expect(await countEscalationAuditRows(c.id)).toBe(1);
+  });
+
+  // EL MISMO TEST QUE JUSTIFICA EL ORDEN EN EL CIERRE, sobre la escalada.
+  it("dos escaladas concurrentes dejan UN solo case_escalated", async () => {
+    const c = await makeBiteIncident();
+
+    const [a, b] = await Promise.all([
+      escalateCaseManually({
+        publicCode: c.publicCode,
+        actorUserId: actorId,
+        reason: "Escalada A — un operador subiendo el expediente a la autoridad.",
+      }),
+      escalateCaseManually({
+        publicCode: c.publicCode,
+        actorUserId: otherId,
+        reason: "Escalada B — otro operador haciendo lo mismo al mismo tiempo.",
+      }),
+    ]);
+
+    const ganadores = [a, b].filter((r) => r.ok);
+    expect(ganadores).toHaveLength(1);
+
+    const perdedor = [a, b].find((r) => !r.ok);
+    expect(perdedor && !perdedor.ok && perdedor.error).toMatch(
+      /ya está escalado|cambió de estado/i,
+    );
+
+    // Lo que importa: `case_events` es append-only por trigger, así que un
+    // segundo evento no se borra ni se corrige nunca.
+    expect(await countEscalationEvents(c.id)).toBe(1);
+    expect(await countEscalationAuditRows(c.id)).toBe(1);
+  });
 });
 
 describe("addOperatorNote", () => {

@@ -2742,6 +2742,27 @@ export const AUDIT_LOG_ACTIONS = [
   // ("no_receiver_coordinators", "no_govt_targets", …) for the sites that build
   // their own recipient set.
   "notification_fanout_empty",
+
+  // Actos de operador sobre un expediente (#41), agregados el 2026-09-17.
+  //
+  // POR QUÉ EXISTEN, porque el baseline los tenía como una decisión pendiente:
+  // el hecho ya vive en la espina append-only `case_events`, que carga su propio
+  // autor, así que el argumento de "otro libro ya lo cubre" era real y por eso
+  // estaban en `audit-log-coverage-baseline.json` esperando una definición.
+  //
+  // Se resuelve hacia la trazabilidad porque el costo es asimétrico. Una fila de
+  // más no le hace daño a nadie. Una consulta de rendición de cuentas bajo la
+  // Ley 25.326 que NO encuentra en `audit_log` que una autoridad identificada
+  // cerró un expediente legal sí — y la ausencia de esa fila es permanentemente
+  // indistinguible de la ausencia del acto que habría descrito.
+  //
+  // La distinción que hace el par: el evento registra la AFIRMACIÓN, esta fila
+  // registra el ACTO ADMINISTRATIVO con su estado anterior y posterior. Es el
+  // mismo argumento que escribió el cierre profesional de observación
+  // antirrábica el 2026-08-17, aplicado al vecino.
+  "case_note_recorded",
+  "case_closed_manually",
+  "case_escalated_manually",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

@@ -891,8 +891,8 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the thirteen documented ones", () => {
-    // A FOURTEENTH opt-out appearing here is a decision, not a detail: it means
+  it("the intentionally-public handlers are exactly the fourteen documented ones", () => {
+    // A FIFTEENTH opt-out appearing here is a decision, not a detail: it means
     // an endpoint was made public and this list is where that shows up in review.
     //
     // The seventh arrived on 2026-08-21 with the first `/api/v1` endpoint. It is
@@ -1004,6 +1004,35 @@ describe("listRouteHandlerFiles", () => {
     // verifies the mailed code against GoTrue directly (auth plane, like token
     // refresh), so there is no handler here to opt anything out of. See the
     // route's own header for what that costs.
+    //
+    // The FOURTEENTH arrived on 2026-09-17 with option B of the client-error
+    // sink: `POST /api/telemetry/client-error`. A SEVENTH kind — WRITE-ONLY
+    // INGESTION, and the first entry on this list that has nothing to disclose
+    // because it answers nothing. Every branch returns an empty body: 204 when
+    // the report is accepted, 400 when the shape is not the one promised, 413
+    // over the size cap, 429 over budget. There is no read, no query, and no
+    // state a caller could probe by varying its input.
+    //
+    // WHY IT CANNOT REQUIRE A SESSION, which is the part worth reviewing: a React
+    // error boundary fires for whoever is looking at the screen, and the screens
+    // that matter most here have no session by design — the public credential at
+    // `/p/{publicToken}` that someone scans off a collar in the street, and the
+    // anonymous maltreatment-report wizard. Gating this on a session would
+    // silence exactly the reports nobody can reconstruct afterwards, because
+    // there is no account to write back to and ask.
+    //
+    // WHAT IT HAS INSTEAD OF AUTHORIZATION is containment, and it is the reason
+    // the opt-out is defensible rather than merely convenient: a per-caller-IP
+    // budget, a body cap checked before the parse, per-field caps, and a context
+    // projection that accepts primitives only and a bounded number of keys. The
+    // threat this endpoint actually carries is not disclosure — it is FLOODING
+    // the log the team reads, and a flooded log hides the line that mattered just
+    // as completely as never writing it.
+    //
+    // It re-emits through `lib/infra/report-error.ts`, the same reporter the
+    // server already uses, so it introduces NO new data processor. The hosted-APM
+    // decision is separate and still open; see
+    // `docs/architecture/client-error-sink-pending-decision.md`.
     const optedOut = handlers.filter((f) =>
       extractExportedAsyncFunctions(readFileSync(f, "utf8")).some((fn) => fn.hasNoAuthComment),
     );
@@ -1016,6 +1045,8 @@ describe("listRouteHandlerFiles", () => {
       // Sorts here and not first: `(` is 0x28, `.` is 0x2E.
       "app/.well-known/assetlinks.json/route.ts",
       "app/api/health/route.ts",
+      // Ordena entre `health` y `v1`: 'h' < 't' < 'v'.
+      "app/api/telemetry/client-error/route.ts",
       "app/api/v1/auth/login/route.ts",
       // Sorts between its two siblings: 'l' < 'p' < 's'.
       "app/api/v1/auth/password-reset/route.ts",

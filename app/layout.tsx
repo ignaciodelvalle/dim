@@ -7,6 +7,7 @@ import {
   IBM_Plex_Serif,
 } from "next/font/google";
 
+import { ErrorSinkBootstrap } from "@/components/ErrorSinkBootstrap";
 import { Toaster } from "@/components/Toaster";
 import { BRANDING } from "@/lib/ui/branding";
 
@@ -150,6 +151,10 @@ export default function RootLayout({
         </a>
         {children}
         <Toaster />
+        {/* Instala el transporte de errores del cliente. No dibuja nada; hasta
+            que existió, una excepción en el navegador de alguien moría en su
+            pestaña y no la veía nadie. */}
+        <ErrorSinkBootstrap />
       </body>
     </html>
   );

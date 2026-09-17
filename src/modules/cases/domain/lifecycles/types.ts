@@ -84,8 +84,14 @@ export interface CaseLifecycle {
    * Added for `rehome_request` (rehome-by-titular): with `terminalEvents: []`
    * and `manualCloseAllowed: false` the detail told org members to escalate a
    * request only they could answer. Leave it unset where the policy really is
-   * unwritten (microchip_remediation) — the generic sentence there is the
-   * honest one.
+   * unwritten — the generic sentence there is the honest one.
+   *
+   * As of 2026-09-17 NO kind is in that state: microchip_remediation got a
+   * manual close by PO decision and welfare_denuncia got `dedicatedCloseProse`.
+   * The generic "no hay vía de cierre" branch is therefore unreachable today,
+   * and `__tests__/case-available-actions.test.ts` pins that it stays so. The
+   * branch is kept on purpose: it is what a NEW kind added without a close
+   * policy would fall into, and saying so honestly beats guessing.
    *
    * NOT for a kind closed by hand on ITS OWN screen — that is
    * `dedicatedCloseProse` below. This one says "the parties close it"; that one

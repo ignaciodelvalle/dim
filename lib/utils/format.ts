@@ -1112,6 +1112,7 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   custody_dispute_raised_against_you: "Disputa de custodia iniciada en tu contra",
   custody_dispute_raised_by_you: "Disputa de custodia iniciada por vos",
   custody_dispute_resolved: "Disputa de custodia resuelta",
+  case_escalated_by_operator: "Expediente escalado por un operador",
   custody_dispute_stale: "Disputa de custodia sin movimiento",
   custody_received: "Custodia recibida",
   custody_transfer_accepted_owner_side: "Devolución aceptada por el dueño",

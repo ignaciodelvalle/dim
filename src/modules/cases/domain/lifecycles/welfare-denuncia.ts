@@ -28,8 +28,24 @@ export const welfareDenunciaLifecycle: CaseLifecycle = {
   cronCloseRoute: null,
   cronCloseScheduleHours: 24,
   manualOpenAllowed: true,
-  // Nadie documentó una política de cierre manual para este kind.  no
-  // es una prohibición decidida: es la ausencia de una decisión escrita.
+  // Sigue en false, y ahora por un motivo escrito en vez de por omisión: el
+  // cierre de una denuncia NO es un botón genérico, es un acto con notas de
+  // resolución sobre la fila de `welfare_reports`, que además dual-escribe al
+  // expediente. Prenderlo agregaría una segunda puerta que saltearía esas notas.
   manualCloseAllowed: false,
+  // Machine-readable, no un comentario. Sin esto, `availableCaseActions` sumaba
+  // `terminalEvents: []` + `manualCloseAllowed: false` y le decía al operador
+  // que este tipo de expediente "todavía no tiene una vía de cierre definida" y
+  // que pidiera una política — sobre el kind con MÁS TRÁFICO de la cola, y con
+  // la política escrita y desplegada desde hace meses:
+  // `closeWelfareReport` (use-case) ← `closeWelfareReportAction` (server action,
+  // admin/govt con alcance de jurisdicción) ← `app/gob/maltrato/[id]`.
+  //
+  // Es exactamente el defecto que este campo se creó para arreglar en
+  // `outbreak_investigation` el 2026-09-17, encontrado el mismo día en el kind
+  // de al lado. Dos flags en falso no suman una capacidad ausente: antes de
+  // decirle a alguien que la política no está escrita, buscá la pantalla.
+  dedicatedCloseProse:
+    "lo cierra la autoridad desde la denuncia misma, en Maltrato, dejando las notas de resolución que quedan asentadas en el expediente.",
   reopenAllowed: false,
 };

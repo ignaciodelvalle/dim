@@ -16,11 +16,15 @@
 
 import { useState, useTransition } from "react";
 
-import { addCaseNoteAction, closeCaseAction } from "@/app/actions/case-operator";
+import {
+  addCaseNoteAction,
+  closeCaseAction,
+  escalateCaseAction,
+} from "@/app/actions/case-operator";
 import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import type { CaseActionAvailability } from "@/src/modules/cases/domain/available-actions";
 
-type Mode = "none" | "note" | "close";
+type Mode = "none" | "note" | "close" | "escalate";
 
 export function CaseOperatorActions({
   publicCode,
@@ -37,9 +41,19 @@ export function CaseOperatorActions({
 
   const note = actions.find((a) => a.action === "note");
   const close = actions.find((a) => a.action === "close");
+  const escalate = actions.find((a) => a.action === "escalate");
+
+  // Los motivos de ausencia, SIN repetidos. Sobre un expediente cerrado, cierre
+  // y escalada dicen las dos casi lo mismo, y leer dos veces "está cerrado" hace
+  // parecer roto a un bloque que está funcionando.
+  const reasons = [close, escalate]
+    .filter((a) => a && !a.available && a.unavailableReason)
+    .map((a) => a?.unavailableReason as string);
+  const distinctReasons = Array.from(new Set(reasons));
 
   // Sin ninguna acción disponible y sin nada que explicar, el bloque no aporta.
-  if (!note?.available && !close?.available && !close?.unavailableReason) return null;
+  if (!note?.available && !close?.available && !escalate?.available && distinctReasons.length === 0)
+    return null;
 
   function reset() {
     setMode("none");
@@ -73,6 +87,11 @@ export function CaseOperatorActions({
               Asentar nota
             </OpButton>
           )}
+          {escalate?.available && (
+            <OpButton variant="ghost" size="sm" onClick={() => setMode("escalate")}>
+              Escalar
+            </OpButton>
+          )}
           {close?.available && (
             <OpButton variant="ghost" size="sm" onClick={() => setMode("close")}>
               Cerrar expediente
@@ -100,6 +119,38 @@ export function CaseOperatorActions({
               onClick={() => run(() => addCaseNoteAction(publicCode, text))}
             >
               {pending ? "Asentando…" : "Asentar nota"}
+            </OpButton>
+            <OpButton variant="ghost" size="sm" disabled={pending} onClick={reset}>
+              Cancelar
+            </OpButton>
+          </div>
+        </div>
+      )}
+
+      {mode === "escalate" && (
+        <div className="space-y-2">
+          {/* Qué va a pasar, antes del click. Escalar no es destructivo, pero SÍ
+              le manda un aviso a gente que no estaba mirando este expediente, y
+              eso merece saberse antes y no después. */}
+          <p className="rounded-[var(--radius-sm)] border border-ln-op-blue-bd bg-ln-op-blue-bg px-3 py-2 text-sm text-ln-op-azul">
+            Escalar avisa a la autoridad de la jurisdicción del expediente y a la administración de
+            la plataforma. El motivo que escribas va en ese aviso.
+          </p>
+          <OpTextarea
+            rows={3}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Por qué este expediente necesita otra mirada, ahora."
+          />
+          <p className="text-sm text-ln-op-mute">Es lo primero que va a leer quien lo reciba.</p>
+          <div className="flex items-center gap-2">
+            <OpButton
+              variant="primary"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(() => escalateCaseAction(publicCode, text))}
+            >
+              {pending ? "Escalando…" : "Confirmar escalada"}
             </OpButton>
             <OpButton variant="ghost" size="sm" disabled={pending} onClick={reset}>
               Cancelar
@@ -145,9 +196,12 @@ export function CaseOperatorActions({
       )}
 
       {/* El motivo de la ausencia, no el silencio. */}
-      {!close?.available && close?.unavailableReason && mode === "none" && (
-        <p className="text-sm text-ln-op-mute">{close.unavailableReason}</p>
-      )}
+      {mode === "none" &&
+        distinctReasons.map((reason) => (
+          <p key={reason} className="text-sm text-ln-op-mute">
+            {reason}
+          </p>
+        ))}
 
       {error && (
         <p role="alert" className="text-sm text-ln-op-danger">

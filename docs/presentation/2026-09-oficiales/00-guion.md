@@ -424,7 +424,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->70<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1529<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1531<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
@@ -466,7 +466,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - Trabajos diarios hacia los que reparte:
     <!-- fact:cron_jobs -->24<!-- /fact -->.
   - Puntos de entrada de la interfaz de programación:
-    <!-- fact:route_handlers -->88<!-- /fact -->.
+    <!-- fact:route_handlers -->89<!-- /fact -->.
 - **Respaldo.**
   - `vercel.json` — las tareas programadas declaradas.
   - `lib/infra/cron-dispatcher.ts` — el repartidor de tareas: cada trabajo corre aislado y el
@@ -509,7 +509,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Pantallas: <!-- fact:pages -->262<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->222<!-- /fact -->.
+    <!-- fact:migrations -->223<!-- /fact -->.
   - Tablas: <!-- fact:tables -->54<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que
