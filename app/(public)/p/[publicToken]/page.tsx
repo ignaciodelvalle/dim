@@ -47,6 +47,7 @@ import { DegradedFallback } from "@/components/ui/DegradedFallback";
 import { LnVstamp } from "@/components/ui/StatusFlag";
 import { type Pet, db, pets } from "@/db";
 import { deriveRabiesSemaphore, isRabiesAtRisk } from "@/lib/domain/credential-badges";
+import { publicPlaceReference } from "@/lib/domain/public-place-reference";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { withDbBudgetOrThrow } from "@/lib/infra/db-budget";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
@@ -746,7 +747,22 @@ export default async function PublicCredentialPage({
               // resolved once in the loader rather than re-derived here, so
               // there is exactly one place the rule can be got wrong.
               caretakerContact={lostContext.caretakerContact}
-              lastSeenPlaceName={pet.discloseLastLocationWhenLost ? lostContext.locationText : null}
+              // THE DOOR COMES OFF HERE, at the publication boundary and not at
+              // capture (PO decision 2026-09-16). The full address and the
+              // coordinates keep doing their jobs: the coordinate routes the case
+              // and alerts organisations by proximity, and the operator working it
+              // still sees the address. What a STRANGER reads is the landmark
+              // without the number.
+              // The reasoning is the PO's and it is the good kind: by the time
+              // anybody reads this line, the animal has moved. It is not where the
+              // animal is, it is where to start looking — so exactness buys nothing
+              // against a search, and costs a home address on an open page, because
+              // a pet very often goes missing from its own door.
+              lastSeenPlaceName={
+                pet.discloseLastLocationWhenLost
+                  ? publicPlaceReference(lostContext.locationText)
+                  : null
+              }
               lastSeenLocality={
                 pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
               }
