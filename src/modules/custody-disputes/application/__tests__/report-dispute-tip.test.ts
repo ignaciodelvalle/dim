@@ -15,6 +15,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeFakeRateLimiter } from "@/__tests__/_helpers/fake-rate-limiter";
+
 const PUBLIC_TOKEN = "DIM-DISP-TIP-001";
 const PET_ID = "pet-disp-0000-0000-000000000001";
 const CASE_ID = "case-disp-0000-0000-000000000001";
@@ -204,7 +206,9 @@ describe("reportDisputeTip — dispute-safe finder tip", () => {
 
     await reportDisputeTip(PUBLIC_TOKEN, CALLER_IP, fd);
 
-    expect(callOrder).toEqual(["limiter", "publicPetByToken"]);
+    // The per-ADDRESS bucket, then the lookup, then the animal's own bucket
+    // (A03-2), which deliberately waits for the refusals that write nothing.
+    expect(callOrder).toEqual(["limiter", "publicPetByToken", "limiter"]);
   });
 
   it("still refuses a throttled caller WITHOUT resolving the token", async () => {
@@ -273,5 +277,77 @@ describe("reportDisputeTip — dispute-safe finder tip", () => {
     expect(result.ok).toBe(false);
     expect(mockReportError).toHaveBeenCalled();
     expect(capturedInserts).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The animal's own ceiling (audit A03-2)
+// ---------------------------------------------------------------------------
+//
+// Tips land on the case timeline a reviewing authority has to read. The
+// per-(address, token) bucket alone let N addresses write 10 × N of them an
+// hour. The second bucket is keyed on the token alone; its ceiling is stated
+// here as 5/min + 30/hour, independently of the constant.
+
+describe("reportDisputeTip — the animal's own ceiling (A03-2)", () => {
+  beforeEach(() => {
+    capturedInserts = [];
+    callOrder = [];
+    mockReportError.mockClear();
+    mockEnforceRateLimit.mockReset().mockResolvedValue(undefined);
+    petRow = { id: PET_ID, name: "Luna", inCustodyDispute: true };
+    caseRow = { caseId: CASE_ID };
+    buildMockDb();
+  });
+
+  it("spends two buckets: the address's, keyed (token, ip), and the animal's, keyed on the token alone", async () => {
+    const reportDisputeTip = await importUseCase();
+    await reportDisputeTip(PUBLIC_TOKEN, CALLER_IP, makeFormData({ info: "La vi en la plaza." }));
+
+    expect(mockEnforceRateLimit.mock.calls).toEqual([
+      [`dispute_tip:${PUBLIC_TOKEN}`, CALLER_IP, { maxPerMinute: 1, maxPerHour: 10 }],
+      ["dispute_tip_token", PUBLIC_TOKEN, { maxPerMinute: 5, maxPerHour: 30 }],
+    ]);
+  });
+
+  it("refuses a FRESH address once thirty others have sent a tip within the hour", async () => {
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const reportDisputeTip = await importUseCase();
+
+    for (let n = 1; n <= 30; n++) {
+      buildMockDb();
+      const ok = await reportDisputeTip(
+        PUBLIC_TOKEN,
+        `203.0.113.${n}`,
+        makeFormData({ info: `Aviso ${n}` }),
+      );
+      expect(ok.ok, `tip ${n} should have landed`).toBe(true);
+      limiter.advance(61_000);
+    }
+    expect(capturedInserts).toHaveLength(30);
+
+    buildMockDb();
+    const refused = await reportDisputeTip(
+      PUBLIC_TOKEN,
+      "198.51.100.200",
+      makeFormData({ info: "Aviso 31" }),
+    );
+
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toMatch(/muchos avisos sobre esta mascota/);
+    expect(refused.error).not.toMatch(/Ya enviaste/);
+    expect(capturedInserts).toHaveLength(30);
+  });
+
+  it("a tip refused before any write (no open dispute) does not spend the animal's budget", async () => {
+    petRow = { id: PET_ID, name: "Luna", inCustodyDispute: false };
+    buildMockDb();
+    const reportDisputeTip = await importUseCase();
+    await reportDisputeTip(PUBLIC_TOKEN, CALLER_IP, makeFormData({ info: "La vi." }));
+
+    expect(mockEnforceRateLimit.mock.calls.map((call) => call[0])).toEqual([
+      `dispute_tip:${PUBLIC_TOKEN}`,
+    ]);
   });
 });

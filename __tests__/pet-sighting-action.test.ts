@@ -11,6 +11,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeFakeRateLimiter } from "./_helpers/fake-rate-limiter";
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -25,10 +27,13 @@ const PREVIOUS_STATE = { ok: false as const, error: null };
 // Mock: next/headers
 // ---------------------------------------------------------------------------
 
+/** The caller's address, per test — the token-ceiling tests rotate it. */
+const { callerAddress } = vi.hoisted(() => ({ callerAddress: { value: "1.2.3.4" } }));
+
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => ({
     // x-real-ip is the trusted edge IP — callerIp() prefers it over XFF.
-    get: (key: string) => (key === "x-real-ip" ? "1.2.3.4" : null),
+    get: (key: string) => (key === "x-real-ip" ? callerAddress.value : null),
   })),
 }));
 
@@ -399,7 +404,9 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 
     await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData({ ...BASE_LOCATION }));
 
-    expect(callOrder).toEqual(["limiter", "publicPetByToken"]);
+    // The per-ADDRESS bucket, then the lookup, then the animal's own bucket
+    // (A03-2), which deliberately waits for the refusals that write nothing.
+    expect(callOrder).toEqual(["limiter", "publicPetByToken", "limiter"]);
   });
 
   it("a throttled caller never reaches the token lookup at all", async () => {
@@ -436,7 +443,8 @@ describe("reportPetSightingAction — P0d payload fields", () => {
       makeFormData({ ...BASE_LOCATION }),
     );
     expect(result.ok).toBe(true);
-    expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
+    // Two buckets since A03-2: the address's and the animal's.
+    expect(mockEnforceRateLimit).toHaveBeenCalledTimes(2);
   });
 
   it("returns ok:false when enforceRateLimit throws RateLimitError", async () => {
@@ -645,6 +653,100 @@ describe("reportPetSightingAction — who hears the sighting", () => {
     expect(result.ok).toBe(true);
     expect(capturedPetEventInsert).not.toBeNull();
     expect(capturedNotificationInserts).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The animal's own ceiling (audit A03-2)
+// ---------------------------------------------------------------------------
+//
+// The per-(address, token) bucket alone let N addresses write 10 × N sightings
+// an hour onto one pet's spine and into its owner's inbox. The second bucket is
+// keyed on the token with no address, so the number of addresses stops
+// mattering. Its ceiling is stated here as 5/min + 30/hour, independently of
+// the constant the code reads.
+
+describe("reportPetSightingAction — the animal's own ceiling (A03-2)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    callOrder = [];
+    callerAddress.value = "1.2.3.4";
+    mockEnforceRateLimit.mockReset().mockResolvedValue(undefined);
+    mockUpload.mockReset().mockResolvedValue({
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error: null,
+    });
+  });
+
+  it("spends two buckets: the address's, keyed (token, ip), and the animal's, keyed on the token alone", async () => {
+    buildMockDb();
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+    await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData({ ...BASE_LOCATION }));
+
+    expect(mockEnforceRateLimit.mock.calls).toEqual([
+      [`sighting:${PUBLIC_TOKEN}`, "1.2.3.4", { maxPerMinute: 1, maxPerHour: 10 }],
+      ["sighting_token", PUBLIC_TOKEN, { maxPerMinute: 5, maxPerHour: 30 }],
+    ]);
+  });
+
+  it("refuses a FRESH address once thirty others have reported this animal within the hour", async () => {
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    // Thirty different people, a minute apart — the per-minute window never
+    // binds, the hourly one fills.
+    for (let n = 1; n <= 30; n++) {
+      buildMockDb();
+      callerAddress.value = `203.0.113.${n}`;
+      const ok = await reportPetSightingAction(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData({ ...BASE_LOCATION }),
+      );
+      expect(ok.ok, `report ${n} should have landed`).toBe(true);
+      limiter.advance(61_000);
+    }
+
+    // The thirty-first comes from an address that has sent nothing — its own
+    // bucket is empty — and is refused by the animal's.
+    buildMockDb();
+    capturedPetEventInsert = null;
+    capturedNotificationInserts = [];
+    callerAddress.value = "198.51.100.200";
+    const refused = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toMatch(/muchos avisos sobre esta mascota/);
+    // Not the per-address copy — this caller sent nothing before.
+    expect(refused.error).not.toMatch(/Ya enviaste/);
+    expect(capturedPetEventInsert).toBeNull();
+    expect(capturedNotificationInserts).toEqual([]);
+  });
+
+  it("refuses the sixth different address inside one minute", async () => {
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const outcomes: boolean[] = [];
+    for (let n = 1; n <= 6; n++) {
+      buildMockDb();
+      callerAddress.value = `203.0.113.${n}`;
+      const r = await reportPetSightingAction(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData({ ...BASE_LOCATION }),
+      );
+      outcomes.push(r.ok);
+    }
+    expect(outcomes).toEqual([true, true, true, true, true, false]);
   });
 });
 

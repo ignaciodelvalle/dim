@@ -36,6 +36,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeFakeRateLimiter } from "./_helpers/fake-rate-limiter";
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -51,10 +53,13 @@ const PREVIOUS_STATE = { ok: false as const, error: null };
 // Mock: next/headers
 // ---------------------------------------------------------------------------
 
+/** The caller's address, per test — the token-ceiling tests rotate it. */
+const { callerAddress } = vi.hoisted(() => ({ callerAddress: { value: "203.0.113.42" } }));
+
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => ({
     // x-real-ip is the trusted edge IP — callerIp() prefers it over XFF.
-    get: (key: string) => (key === "x-real-ip" ? "203.0.113.42" : null),
+    get: (key: string) => (key === "x-real-ip" ? callerAddress.value : null),
   })),
 }));
 
@@ -218,6 +223,7 @@ function reset(options: { petFound?: boolean; holders?: Row[] } = {}): void {
   notificationsInsertThrows = false;
   insertedNotifications = [];
   deadLetteredRows = [];
+  callerAddress.value = "203.0.113.42";
   mockEnforceRateLimit.mockReset().mockResolvedValue(undefined);
   mockDb.select.mockReset().mockImplementation(() => selectChain());
   mockDb.insert.mockReset().mockImplementation((t: unknown) => insertChain(t));
@@ -471,5 +477,65 @@ describe("notifyOwnerOfFoundPetAction — who hears it (ROUTE-1 ranking)", () =>
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain("dueño activo");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The animal's own ceiling (audit A03-2)
+// ---------------------------------------------------------------------------
+//
+// This action writes nothing but urgent notifications, so the per-(address,
+// token) bucket alone meant 10 × N "alguien encontró a tu mascota" an hour for
+// anyone with N addresses. The second bucket is keyed on the token alone. Its
+// ceiling is stated here as 5/min + 30/hour, independently of the constant.
+
+describe("notifyOwnerOfFoundPetAction — the animal's own ceiling (A03-2)", () => {
+  beforeEach(() => {
+    reset();
+  });
+
+  it("spends two buckets: the address's, keyed (token, ip), and the animal's, keyed on the token alone", async () => {
+    await (await loadAction())(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(BASE_FIELDS));
+
+    expect(mockEnforceRateLimit.mock.calls).toEqual([
+      [`found_notify:${PUBLIC_TOKEN}`, "203.0.113.42", { maxPerMinute: 1, maxPerHour: 10 }],
+      ["found_notify_token", PUBLIC_TOKEN, { maxPerMinute: 5, maxPerHour: 30 }],
+    ]);
+  });
+
+  it("refuses a FRESH address once thirty others have reported within the hour, and says what still works", async () => {
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const action = await loadAction();
+
+    for (let n = 1; n <= 30; n++) {
+      callerAddress.value = `203.0.113.${n}`;
+      const ok = await action(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(BASE_FIELDS));
+      expect(ok.ok, `report ${n} should have landed`).toBe(true);
+      limiter.advance(61_000);
+    }
+    expect(insertedNotifications).toHaveLength(30);
+
+    callerAddress.value = "198.51.100.200";
+    const refused = await action(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(BASE_FIELDS));
+
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toMatch(/muchos avisos sobre esta mascota/);
+    // The sender may be standing next to the animal: the copy names what does
+    // not depend on us.
+    expect(refused.error).toMatch(/microchip/);
+    expect(refused.error).not.toMatch(/Ya enviaste/);
+    expect(insertedNotifications).toHaveLength(30);
+  });
+
+  it("a report refused before any write does not spend the animal's budget", async () => {
+    // Nobody notifiable → refused. The token bucket sits after that refusal on
+    // purpose: a submission that writes nothing must not bring the animal
+    // closer to its ceiling.
+    reset({ holders: [] });
+    await (await loadAction())(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(BASE_FIELDS));
+
+    const buckets = mockEnforceRateLimit.mock.calls.map((call) => call[0]);
+    expect(buckets).toEqual([`found_notify:${PUBLIC_TOKEN}`]);
   });
 });

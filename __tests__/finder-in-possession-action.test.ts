@@ -16,6 +16,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeFakeRateLimiter } from "./_helpers/fake-rate-limiter";
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -43,10 +45,13 @@ const BASE_FIELDS = {
 // Mock: next/headers
 // ---------------------------------------------------------------------------
 
+/** The caller's address, per test — the token-ceiling tests rotate it. */
+const { callerAddress } = vi.hoisted(() => ({ callerAddress: { value: "10.0.0.1" } }));
+
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => ({
     // x-real-ip is the trusted edge IP — callerIp() prefers it over XFF.
-    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
+    get: (key: string) => (key === "x-real-ip" ? callerAddress.value : null),
   })),
 }));
 
@@ -858,5 +863,108 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const payload = capturedPetEventInsert?.payload as Record<string, unknown>;
     expect(payload.finderContact as string).toContain("11-1111-2222");
     expect(payload.finderContact as string).toContain("maria@test.com");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The animal's own ceiling (audit A03-2)
+// ---------------------------------------------------------------------------
+//
+// The heaviest of the anonymous reports: an urgent alert per recipient plus a
+// row on the spine. The per-(address, token) bucket alone let N addresses send
+// 10 × N of them an hour. The second bucket is keyed on the token alone; its
+// ceiling is stated here as 5/min + 30/hour, independently of the constant.
+
+describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", () => {
+  const FIELDS = { ...BASE_FIELDS, canKeepIndefinite: "true" };
+
+  beforeEach(() => {
+    vi.resetModules();
+    capturedPetEventInsert = null;
+    capturedNotificationInsert = null;
+    capturedNotificationRows = [];
+    capturedDeadLetterRows = [];
+    capturedAttachmentInsert = null;
+    idempotencyReturnEvent = false;
+    activeCaretakerPresent = false;
+    callOrder.length = 0;
+    callerAddress.value = "10.0.0.1";
+    mockEnforceRateLimit.mockReset().mockResolvedValue(undefined);
+    mockUpload.mockReset().mockResolvedValue({
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error: null,
+    });
+    buildMockDb("lost");
+  });
+
+  it("spends two buckets: the address's, keyed (token, ip), and the animal's, keyed on the token alone", async () => {
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(FIELDS));
+
+    expect(mockEnforceRateLimit.mock.calls).toEqual([
+      [`finder_possession:${PUBLIC_TOKEN}`, "10.0.0.1", { maxPerMinute: 1, maxPerHour: 10 }],
+      ["finder_possession_token", PUBLIC_TOKEN, { maxPerMinute: 5, maxPerHour: 30 }],
+    ]);
+    // Address bucket, lookup, animal bucket: the second waits for the refusals
+    // that write nothing.
+    expect(callOrder).toEqual(["rate-limit", "pet-lookup", "rate-limit"]);
+  });
+
+  it("refuses a FRESH address once thirty others have reported within the hour, and says what still works", async () => {
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+
+    for (let n = 1; n <= 30; n++) {
+      buildMockDb("lost");
+      callerAddress.value = `203.0.113.${n}`;
+      const ok = await reportFinderInPossessionAction(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData(FIELDS),
+      );
+      expect(ok.ok, `report ${n} should have landed`).toBe(true);
+      limiter.advance(61_000);
+    }
+
+    buildMockDb("lost");
+    capturedPetEventInsert = null;
+    capturedNotificationRows = [];
+    callerAddress.value = "198.51.100.200";
+    const refused = await reportFinderInPossessionAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(FIELDS),
+    );
+
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toMatch(/muchos avisos sobre esta mascota/);
+    expect(refused.error).toMatch(/microchip/);
+    expect(refused.error).not.toMatch(/Ya enviaste/);
+    expect(capturedPetEventInsert).toBeNull();
+    expect(capturedNotificationRows).toEqual([]);
+  });
+
+  it("a report refused before any write (pet not lost) does not spend the animal's budget", async () => {
+    buildMockDb("active");
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const result = await reportFinderInPossessionAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(FIELDS),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(mockEnforceRateLimit.mock.calls.map((call) => call[0])).toEqual([
+      `finder_possession:${PUBLIC_TOKEN}`,
+    ]);
   });
 });

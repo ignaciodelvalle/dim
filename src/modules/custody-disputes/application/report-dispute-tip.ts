@@ -22,13 +22,18 @@
 //
 // @no-auth-required: anonymous finder submits from the public credential
 // (/p/[publicToken]). Rate-limited by (IP + publicToken) via the persistent
-// DB-backed limiter. Limit: 1/min, 10/hour per key. The caller IP arrives as
+// DB-backed limiter. Limit: 1/min, 10/hour per key — and by the token alone
+// (`dispute_tip_token`, lib/infra/anonymous-report-limits.ts). The caller IP arrives as
 // an argument — request context (next/headers) stays in the actions layer
 // (ADR 2026-07-18 native-readiness, Decision 1).
 
 import { and, eq, inArray } from "drizzle-orm";
 
 import { caseEvents, cases, custodyDisputes, db, pets } from "@/db";
+import {
+  ANONYMOUS_REPORT_TOKEN_BUSY,
+  ANONYMOUS_REPORT_TOKEN_LIMIT,
+} from "@/lib/infra/anonymous-report-limits";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
@@ -150,6 +155,18 @@ export async function reportDisputeTip(
       ok: false,
       error: "No pudimos registrar la información. Probá de nuevo más tarde.",
     };
+  }
+
+  // THE ANIMAL'S OWN CEILING (audit A03-2). The bucket above is per ADDRESS,
+  // so N addresses meant 10 × N tips an hour on the case timeline the reviewing
+  // authority has to read. This one is keyed on the token alone and placed
+  // after every refusal that writes nothing; derivation and placement in
+  // lib/infra/anonymous-report-limits.ts.
+  try {
+    await enforceRateLimit("dispute_tip_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) return { ok: false, error: ANONYMOUS_REPORT_TOKEN_BUSY };
+    throw err;
   }
 
   // The notes body is what the authority reads on the case timeline. Rendered

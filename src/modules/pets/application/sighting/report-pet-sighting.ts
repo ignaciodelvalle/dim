@@ -31,6 +31,9 @@
 // @no-auth-required: anonymous sighting submission via /p/[token]/sighting.
 // Rate-limited by (IP + publicToken) via the persistent DB-backed limiter so
 // the limit holds cross-worker / cross cold-start. Limit: 1/min, 10/hour per key.
+// And by the token alone (`sighting_token`, lib/infra/anonymous-report-limits.ts),
+// so the number of addresses a sender controls no longer multiplies what
+// reaches the owner.
 //
 // Capability-enforcement is not applicable: this use-case is anonymous.
 // The thin shim (app/actions/pet-sighting.ts) delegates here directly with
@@ -49,6 +52,10 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import {
+  ANONYMOUS_REPORT_TOKEN_BUSY,
+  ANONYMOUS_REPORT_TOKEN_LIMIT,
+} from "@/lib/infra/anonymous-report-limits";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
@@ -189,6 +196,18 @@ export async function reportPetSighting(
       ok: false,
       error: `${DISPUTE_TIP_NOTICE} Enviá tu aviso desde la credencial de la mascota.`,
     };
+  }
+
+  // THE ANIMAL'S OWN CEILING (audit A03-2). The bucket above is per ADDRESS,
+  // so N addresses meant 10 × N sightings an hour on this pet's spine and in
+  // its owner's inbox. This one is keyed on the token alone. It sits here —
+  // after every refusal that writes nothing, before the photo upload and the
+  // event — for the reasons in lib/infra/anonymous-report-limits.ts.
+  try {
+    await enforceRateLimit("sighting_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) return { ok: false, error: ANONYMOUS_REPORT_TOKEN_BUSY };
+    throw err;
   }
 
   // NOBODY IS RESOLVED HERE ANY MORE, AND THAT IS THE POINT. This is where the

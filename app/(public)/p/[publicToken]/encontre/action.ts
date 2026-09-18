@@ -29,6 +29,10 @@ import { attachments, cases, db, organizationMemberships, petEvents, pets } from
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import {
+  ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL,
+  ANONYMOUS_REPORT_TOKEN_LIMIT,
+} from "@/lib/infra/anonymous-report-limits";
 import { createNotification } from "@/lib/infra/notification-service";
 import { resolveOriginShelterOrgId } from "@/lib/infra/origin-shelter-alert";
 import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
@@ -51,6 +55,8 @@ export type FinderInPossessionState = {
 // @no-auth-required: anonymous finder submits via /p/[token]/encontre.
 // Rate-limited by (IP + publicToken) via the persistent DB-backed limiter so
 // the limit holds cross-worker / cross cold-start. Limit: 1/min, 10/hour per key.
+// And by the token alone (`finder_possession_token`, lib/infra/anonymous-report-
+// limits.ts), so the addresses a sender controls no longer multiply the alerts.
 export async function reportFinderInPossessionAction(
   publicToken: string,
   _previous: FinderInPossessionState,
@@ -212,6 +218,21 @@ export async function reportFinderInPossessionAction(
   // __tests__/pet-alert-recipients.test.ts pins that parity case by case.
   const recipients = await resolveLostPetAlertRecipients(pet.id);
   if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
+
+  // THE ANIMAL'S OWN CEILING (audit A03-2). The bucket above is per ADDRESS,
+  // so N addresses meant 10 × N urgent "alguien tiene a tu mascota" alerts and
+  // spine rows an hour. This one is keyed on the token alone, placed after every
+  // refusal that writes nothing and before the upload and the event; derivation
+  // and placement in lib/infra/anonymous-report-limits.ts. Its own bucket, so a
+  // flood of fake sightings cannot silence this report.
+  try {
+    await enforceRateLimit("finder_possession_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return { ok: false, error: ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL };
+    }
+    throw err;
+  }
 
   // Build the canonical contact string: phone takes precedence; append email
   // when both are provided. The schema's finderContact is a single text field;
