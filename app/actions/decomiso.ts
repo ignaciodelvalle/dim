@@ -164,8 +164,10 @@ export async function executeDecomisoAction(
   // to "at upload", after the officer filled the whole form. PDF actas
   // (and video/HEIC) await a PO decision on the bucket before they can be
   // accepted here. The bytes are stored as they arrived — no re-encode, no
-  // metadata strip — because whether the metadata of seizure evidence is
-  // itself evidence is a separate PO decision not yet taken.
+  // metadata strip — by PO decision D7 (2026-09-18): the EXIF/GPS of seizure
+  // evidence is itself evidence. Readers sign it only for viewers who read the
+  // decomiso itself (lib/infra/decomiso-evidence-access.ts), never for
+  // everyone with pet access.
   const typedFiles: Array<{
     file: File;
     buffer: Buffer;

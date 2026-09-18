@@ -15,6 +15,7 @@ import type { EventType } from "@/db/schema";
 import { readPoint } from "@/lib/domain/location";
 import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events/events";
 import { applyAmendments } from "@/lib/infra/amendment";
+import { withholdUnreadableDecomisoEvidence } from "@/lib/infra/decomiso-evidence-access";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 import { eventTypeLabel, formatDateTime } from "@/lib/utils/format";
@@ -82,10 +83,12 @@ export default async function EventDetailPage({
   // firma_hash, evidence_hash, *_id, source, or payload_version.
   const details = eventPayloadDetails(event.eventType, correctedPayload);
 
-  const eventAttachments = await db
-    .select()
-    .from(attachments)
-    .where(eq(attachments.eventId, event.id));
+  // Decomiso evidence keeps its metadata (PO decision D7): only a viewer who
+  // reads the decomiso itself is shown it, not everyone with pet access.
+  const eventAttachments = await withholdUnreadableDecomisoEvidence(
+    await db.select().from(attachments).where(eq(attachments.eventId, event.id)),
+    session.user.id,
+  );
   const attachmentUrls = await Promise.all(
     eventAttachments.map(async (a) => ({
       id: a.id,

@@ -91,6 +91,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
+import { withholdUnreadableDecomisoEvidence } from "@/lib/infra/decomiso-evidence-access";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
@@ -114,6 +115,9 @@ let createdPetPublicToken: string;
 let caseId: string;
 let casePublicCode: string;
 let intakeEventId: string;
+
+// Stub profiles the D7 suite creates (no auth.users row, like govtUserId).
+const extraProfileIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
@@ -212,6 +216,10 @@ afterAll(async () => {
     await tx.execute(sql`DELETE FROM organization_memberships WHERE organization_id IN (
       SELECT id FROM organizations WHERE public_token IN (${GOVT_ORG_TOKEN}, ${RECEIVER_ORG_TOKEN})
     )`);
+    for (const id of extraProfileIds) {
+      await tx.execute(sql`DELETE FROM organization_memberships WHERE user_id = ${id}`);
+      await tx.execute(sql`DELETE FROM profiles WHERE id = ${id}`);
+    }
     await tx.execute(
       sql`DELETE FROM organizations WHERE public_token IN (${GOVT_ORG_TOKEN}, ${RECEIVER_ORG_TOKEN})`,
     );
@@ -702,5 +710,69 @@ describe("executeDecomisoAction — unowned_animal jurisdiction", () => {
       .where(eq(pets.id, createdPetId))
       .limit(1);
     expect(pet.jurisdictionProvince).toBe("CABA");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D7 (PO 2026-09-18) — decomiso evidence keeps its metadata, so the pet readers
+// sign it only for a viewer who reads THE DECOMISO: canReadCase (govt in
+// jurisdiction, admin, current titular) or a member of the receiver org.
+// Pet access alone is not enough. Uses the happy-path case above.
+// ---------------------------------------------------------------------------
+
+describe("withholdUnreadableDecomisoEvidence — D7 read rule", () => {
+  async function stubProfile(opts: { receiverMember: boolean }): Promise<string> {
+    const id = randomUUID();
+    await db.insert(profiles).values({
+      id,
+      displayName: "Visitante D7",
+      role: "owner",
+      accountType: "personal",
+    });
+    extraProfileIds.push(id);
+    if (opts.receiverMember) {
+      await db.insert(organizationMemberships).values({
+        userId: id,
+        organizationId: receiverOrgId,
+        role: "coordinator",
+      });
+    }
+    return id;
+  }
+
+  const rows = () => [
+    { eventId: intakeEventId, storagePath: "decomiso/dir/legacy.jpg" },
+    { eventId: intakeEventId, storagePath: "decomiso-evidence/dir/acta.pdf" },
+    { eventId: intakeEventId, storagePath: "pet/vacuna.jpg" },
+    // Evidence whose event carries no case: fails closed for everyone but
+    // is not something this rule can authorize.
+    { eventId: null, storagePath: "decomiso-evidence/dir/orphan.jpg" },
+  ];
+
+  it("the govt officer in jurisdiction reads the evidence", async () => {
+    const visible = await withholdUnreadableDecomisoEvidence(rows(), govtUserId);
+    expect(visible.map((r) => r.storagePath)).toEqual([
+      "decomiso/dir/legacy.jpg",
+      "decomiso-evidence/dir/acta.pdf",
+      "pet/vacuna.jpg",
+    ]);
+  });
+
+  it("a member of the receiver org reads the evidence", async () => {
+    const member = await stubProfile({ receiverMember: true });
+    const visible = await withholdUnreadableDecomisoEvidence(rows(), member);
+    expect(visible.map((r) => r.storagePath)).toEqual([
+      "decomiso/dir/legacy.jpg",
+      "decomiso-evidence/dir/acta.pdf",
+      "pet/vacuna.jpg",
+    ]);
+  });
+
+  it("anyone else — or no viewer — keeps the ordinary attachment and loses the evidence", async () => {
+    const stranger = await stubProfile({ receiverMember: false });
+    for (const viewer of [stranger, null, randomUUID()]) {
+      const visible = await withholdUnreadableDecomisoEvidence(rows(), viewer);
+      expect(visible.map((r) => r.storagePath)).toEqual(["pet/vacuna.jpg"]);
+    }
   });
 });

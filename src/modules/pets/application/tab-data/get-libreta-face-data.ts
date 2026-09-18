@@ -47,6 +47,7 @@ import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
 import { notReportedClause } from "@/lib/infra/content-reports";
+import { withholdUnreadableDecomisoEvidence } from "@/lib/infra/decomiso-evidence-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 import type { HistorialEventRow, LibretaFaceData } from "./types";
@@ -265,7 +266,7 @@ export async function getLibretaFaceData(
         .filter((id): id is string => typeof id === "string"),
     ),
   ];
-  const [attachmentRows, authorOrgRows] = await Promise.all([
+  const [allAttachmentRows, authorOrgRows] = await Promise.all([
     eventIds.length > 0
       ? db.select().from(attachments).where(inArray(attachments.eventId, eventIds))
       : Promise.resolve([]),
@@ -277,6 +278,10 @@ export async function getLibretaFaceData(
       : Promise.resolve([]),
   ]);
   const orgNameById = new Map(authorOrgRows.map((o) => [o.id, o.displayName]));
+  // Decomiso evidence keeps its metadata (PO decision D7): withheld unless the
+  // viewer reads the decomiso itself — before the "has a file" set too, so the
+  // withheld file is not announced either.
+  const attachmentRows = await withholdUnreadableDecomisoEvidence(allAttachmentRows, user.id);
   // WHICH events carry a file — derived from the rows, never from the URLs, so
   // a caller that opts out of signing still reports the attachment honestly
   // instead of reporting "no file" for every asiento.
