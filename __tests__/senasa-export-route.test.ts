@@ -24,6 +24,7 @@
 // Runs against the local Postgres, provisions its own fixtures and cleans up.
 
 import { desc, eq, inArray } from "drizzle-orm";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { auditLog, db, petEvents, pets, profiles } from "@/db";
@@ -42,6 +43,16 @@ import { withMutationOverride } from "./_helpers/db-overrides";
 const requireAdminOrGovtOrRedirect = vi.fn();
 vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: () => requireAdminOrGovtOrRedirect(),
+}));
+
+// The entry-point tests (section 6) render /gob/analytics/export, whose client
+// islands read the live URL. Empty search params = "the picker has not moved",
+// so the link must carry the server snapshot. The route itself never touches
+// next/navigation.
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/gob/analytics/export",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -453,5 +464,49 @@ describe("GET /gob/senasa/export — audit", () => {
 
     const after = await db.select().from(auditLog).where(eq(auditLog.actorUserId, actorId));
     expect(after.length).toBe(before.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6 — The entry point (pilot T1-P7). The route had no caller in app/ or
+// components/; /gob/analytics/export now links to it, for exactly the people
+// the route serves, with the page's period + jurisdiction.
+// ---------------------------------------------------------------------------
+
+async function renderExportPage(search: Record<string, string> = {}): Promise<string> {
+  const { default: Page } = await import("@/app/gob/analytics/export/page");
+  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(search) }));
+}
+
+describe("/gob/analytics/export — SENASA entry point", () => {
+  it("links a govt operator with an assignment to the route, default period, CSV", async () => {
+    asGovt([MINE]);
+    const html = await renderExportPage();
+    expect(html).toContain('href="/gob/senasa/export?period=30d&amp;format=csv"');
+    expect(html).toContain("Descargar padrón SENASA (CSV)");
+  });
+
+  it("carries the chosen period and jurisdiction into the link", async () => {
+    asAdmin();
+    const html = await renderExportPage({
+      period: "7d",
+      province: "Santa Fe",
+      locality: "SenasaRouteVilla",
+    });
+    expect(html).toContain(
+      'href="/gob/senasa/export?period=7d&amp;province=Santa+Fe&amp;locality=SenasaRouteVilla&amp;format=csv"',
+    );
+  });
+
+  it("shows no link to a govt operator with zero assignments (the route would deny them)", async () => {
+    asGovt([]);
+    const html = await renderExportPage();
+    expect(html).toContain("Sin acceso");
+    expect(html).not.toContain("/gob/senasa/export");
+  });
+
+  it("renders nothing for a role the guard rejects (owner, vet, national)", async () => {
+    requireAdminOrGovtOrRedirect.mockRejectedValue(new Error("NEXT_REDIRECT:/acceso-denegado"));
+    await expect(renderExportPage()).rejects.toThrow("NEXT_REDIRECT");
   });
 });
