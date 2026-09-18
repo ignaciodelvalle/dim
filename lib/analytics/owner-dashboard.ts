@@ -45,11 +45,7 @@ import {
   timeSlots,
   welfareReports,
 } from "@/db";
-import {
-  complianceRuleParams,
-  microchipObligationRuleInfo,
-  obligationRuleInfo,
-} from "@/lib/domain/business-rules-defaults";
+import { jurisdictionComplianceInputs } from "@/lib/analytics/compliance-rule-inputs";
 import {
   type VaccinationSummary,
   computeVaccinationSummary,
@@ -63,7 +59,6 @@ import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import {
   type Jurisdiction,
-  type ResolvedRule,
   canonicalJurisdictionKey,
   resolveBusinessRuleForJurisdictions,
 } from "@/lib/infra/business-rules-resolver";
@@ -75,7 +70,6 @@ import {
 import { batchFetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import {
   type ComplianceEvent,
-  type ComplianceInput,
   type ComplianceState,
   type RabiesReminder,
   type ReservedRabiesTurno,
@@ -1246,31 +1240,6 @@ const COMPLIANCE_EVENT_TYPES = [
 
 // Same rabies-reminder matcher the pet-profile header uses.
 const RABIES_TITLE_RE = /antirr[aá]b|rabi/i;
-
-/**
- * The jurisdiction half of one pet's ComplianceInput: the tier + citation
- * (`obligations`) and the payload parameters (`ruleParams`, T1-G1) of the SAME
- * resolved rules. All three maps are keyed off the same distinct-jurisdiction
- * set, so they hit/miss together; a miss (pet row absent from petRows) falls
- * back to the legacy universal behavior, exactly as `?? true` did.
- */
-function jurisdictionComplianceInputs(
-  rabiesRule: ResolvedRule<"rabies_vaccination"> | undefined,
-  sterilizationRule: ResolvedRule<"sterilization"> | undefined,
-  microchipRule: ResolvedRule<"microchip_required"> | undefined,
-): Pick<ComplianceInput, "obligations" | "ruleParams"> {
-  if (!rabiesRule || !sterilizationRule || !microchipRule) {
-    return { obligations: undefined, ruleParams: undefined };
-  }
-  return {
-    obligations: {
-      rabies: obligationRuleInfo(rabiesRule),
-      sterilization: obligationRuleInfo(sterilizationRule),
-      microchip: microchipObligationRuleInfo(microchipRule),
-    },
-    ruleParams: complianceRuleParams(rabiesRule, sterilizationRule),
-  };
-}
 
 /**
  * Derive the compliance projection for a batch of pets in 4 bounded queries,

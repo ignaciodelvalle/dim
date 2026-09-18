@@ -225,7 +225,7 @@ export function vetRefusalMessage(
     // who can record the death (whoever holds the animal — whose record also
     // fires the urgent death-in-observation alert to the authority).
     case "dead_before_deadline":
-      return `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio: avisá ahora a la autoridad sanitaria de tu localidad. Desde la clínica no se registra la muerte; pedile a quien tiene a ${petName} a su cargo que la registre desde su libreta, y eso también le llega a la autoridad. Después del ${formatObservationEnd(deadline)} podés cerrar la observación acá.`;
+      return `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio: avisá ahora a la autoridad sanitaria de tu localidad. Desde la clínica no se registra la muerte; pedile a quien tiene a ${petName} a su cargo que la registre desde su libreta, y eso también le llega a la autoridad. Vas a poder cerrar la observación acá a partir del ${formatObservationEnd(deadline)}.`;
   }
 }
 
