@@ -15,6 +15,7 @@ import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashb
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { ExportFormClient } from "./ExportFormClient";
+import { SenasaExportLink } from "./SenasaExportLink";
 import { EXPORT_DEFAULT_PRESET } from "./export-period";
 import { EXPORT_PRIVACY_NOTICE } from "./privacy-notice";
 
@@ -118,6 +119,30 @@ export default async function GobAnalyticsExportPage({
               locality={locality}
             />
           </Suspense>
+        </OpCardBody>
+      </OpCard>
+
+      {/* Pilot T1-P7: the SENASA padrón route had no entry point. Same access
+          rule as this page (checked above), same period + jurisdiction. */}
+      <OpCard>
+        <OpCardHead title="Padrón sanitario para SENASA" />
+        <OpCardBody>
+          <div className="space-y-3">
+            <p className="text-md text-ln-op-ink-2">
+              Eventos sanitarios de tu cobertura (vacunas, desparasitaciones y demás) para el
+              período y la jurisdicción elegidos arriba. Sale en CSV con nuestras columnas: el
+              formato oficial de SENASA todavía no está homologado.
+            </p>
+            <Suspense fallback={null}>
+              <SenasaExportLink
+                period={period}
+                from={from}
+                to={to}
+                province={province}
+                locality={locality}
+              />
+            </Suspense>
+          </div>
         </OpCardBody>
       </OpCard>
     </div>

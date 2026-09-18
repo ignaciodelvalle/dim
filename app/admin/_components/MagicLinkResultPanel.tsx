@@ -23,7 +23,7 @@ type Variant = "create" | "reset";
 const VARIANT_COPY: Record<Variant, { title: string; subtitle: string }> = {
   create: {
     title: "Cuenta institucional creada",
-    subtitle: "Compartí el link con el operador para que complete el acceso.",
+    subtitle: "Compartí el link con el operador para que entre y elija su contraseña.",
   },
   reset: {
     title: "Credenciales restablecidas",
@@ -54,7 +54,19 @@ type Props = {
   // Used in "reset credentials" context: show a dismiss/close button.
   onReset?: () => void;
   resetLabel?: string;
+  // "create" only (pilot T1-P3): whether GoTrue accepted the invite mail. When
+  // it did, the link below is the FALLBACK; when it did not, it is the only way
+  // in and the panel says so. Omitted (reset) → no mail line at all.
+  inviteEmailSent?: boolean;
 };
+
+/** The line that tells the admin what reached the operator's inbox. */
+export function inviteMailNotice(inviteEmailSent: boolean | undefined, email: string) {
+  if (inviteEmailSent === undefined) return null;
+  return inviteEmailSent
+    ? `Le enviamos a ${email} un mail con el link para entrar y elegir su contraseña. Si no le llega, compartile el link de abajo.`
+    : `No pudimos enviar el mail a ${email}. Compartile el link de abajo a mano.`;
+}
 
 export function MagicLinkResultPanel({
   magicLink,
@@ -66,7 +78,9 @@ export function MagicLinkResultPanel({
   onCreateAnother,
   onReset,
   resetLabel = "Cerrar",
+  inviteEmailSent,
 }: Props) {
+  const mailNotice = inviteMailNotice(inviteEmailSent, email);
   const [revealed, setRevealed] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
 
@@ -104,6 +118,14 @@ export function MagicLinkResultPanel({
         <p className="mt-1 text-md text-ln-op-ok">
           {displayName} &middot; {email}
         </p>
+        {mailNotice && (
+          <p
+            className={`mt-2 text-md ${inviteEmailSent ? "text-ln-op-ok" : "text-ln-op-danger"}`}
+            role={inviteEmailSent ? undefined : "alert"}
+          >
+            {mailNotice}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">

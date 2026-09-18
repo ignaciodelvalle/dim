@@ -2,7 +2,13 @@
 
 export type CreateInstitutionalResult =
   | { error: string }
-  | { ok: true; profileId: string; magicLink: string };
+  | {
+      ok: true;
+      profileId: string;
+      magicLink: string;
+      /** GoTrue accepted the invite mail (pilot T1-P3). False → forward the link by hand. */
+      inviteEmailSent: boolean;
+    };
 
 export type DeactivateResult = { error: string } | { ok: true; noOp?: boolean };
 

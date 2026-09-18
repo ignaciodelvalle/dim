@@ -5,6 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
 import postgres from "postgres";
 
+import { assertNotSplitEnv, describeTarget } from "./_env-target";
+
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
@@ -17,6 +19,22 @@ const databaseUrl =
 if (!serviceKey) {
   console.error("Missing SUPABASE_SERVICE_ROLE_KEY in env");
   process.exit(1);
+}
+// Same guard as scripts/seed-test-users.ts, minus its --allow-remote escape
+// hatch: this script creates admin@dim.test with a fixed, published password,
+// so there is no remote on which running it is legitimate. The first admin of
+// a real environment follows docs/ops/production-deploy-plan.md §1 step 9.
+if (process.env.NODE_ENV === "production") {
+  console.error("Refusing to seed: NODE_ENV=production.");
+  process.exit(2);
+}
+assertNotSplitEnv(url, databaseUrl, "seed:genesis-admin");
+const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
+if (!isLocalUrl(url) || !isLocalUrl(databaseUrl)) {
+  console.error(
+    `[seed:genesis-admin] Me niego: el destino es REMOTO (${describeTarget(url)} / ${describeTarget(databaseUrl)}). Este script solo corre en local; no hay --allow-remote. El primer admin de un entorno real sigue docs/ops/production-deploy-plan.md §1 paso 9.`,
+  );
+  process.exit(2);
 }
 
 const supabase = createClient(url, serviceKey, {

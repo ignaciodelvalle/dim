@@ -1,5 +1,6 @@
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { BRANDING } from "@/lib/ui/branding";
+import { OpHelpLink } from "./OpHelpLink";
 import { type NavSection, OpRailNav } from "./OpRailNav";
 
 type Props = {
@@ -71,6 +72,9 @@ export function OpRail({
 
       {/* Nav */}
       <OpRailNav nav={nav} sections={sections} variant={variant} />
+
+      {/* A person to write to, on every operator screen (pilot T1-P5). */}
+      <OpHelpLink />
 
       {/* Footer user strip */}
       {user && (

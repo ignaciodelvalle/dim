@@ -61,6 +61,7 @@ export const AUDIT_ACTION_LABELS = {
   institutional_create_orphan_auth_user: "Usuario institucional creado sin perfil",
   institutional_govt_created: "Cuenta gobierno creada",
   institutional_admin_created: "Cuenta admin creada",
+  institutional_national_created: "Observador nacional creado",
   govt_locality_assigned: "Localidad asignada a usuario gobierno",
   // Profile / account
   profile_self_updated: "Perfil actualizado",

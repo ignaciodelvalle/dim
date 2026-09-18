@@ -2398,6 +2398,9 @@ export const AUDIT_LOG_ACTIONS = [
   // Fase 5: institutional account lifecycle actions
   "institutional_govt_created",
   "institutional_admin_created",
+  // Pilot T1-P9 (migration 0225): an admin created a read-only `national`
+  // observer. Payload shape identical to the two above.
+  "institutional_national_created",
   "admin_deactivated_by_admin",
   "govt_deactivated_by_admin",
   "operator_credentials_reset",

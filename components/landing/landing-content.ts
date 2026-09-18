@@ -475,8 +475,9 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
       // already dropped it for exactly that reason ("link hidden to avoid dead
       // end") — the fix landed on one of the two footers and this one, on the
       // highest-traffic page in the product, kept offering the dead end.
-      // Restore in BOTH footers when a real channel exists; see
-      // __tests__/footer-dead-end-fitness.test.ts.
+      // Since pilot T1-P5 /sugerencias names a mailbox a person reads; the
+      // link is still out of BOTH footers until somebody decides to restore
+      // it — see __tests__/footer-dead-end-fitness.test.ts.
     ],
   ],
   [

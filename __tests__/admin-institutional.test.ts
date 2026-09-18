@@ -9,11 +9,17 @@
 //   - afterAll deletes them with app.allow_audit_mutation GUC
 //   - Each test calls the inner *ForAuthority writer directly (no Next.js runtime)
 
-import { createClient } from "@supabase/supabase-js";
+import { AuthError, createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  FIRST_ACCESS_MESSAGES,
+  setInitialPassword,
+} from "@/src/modules/auth/application/first-access/set-initial-password";
+import { NEW_PASSWORD_MESSAGES } from "@/src/modules/auth/domain/new-password-rules";
 import { assignGovtLocalityForAuthority } from "@/src/modules/organizations/application/admin-institutional/assign-govt-locality";
 import { createInstitutionalAccountForAuthority } from "@/src/modules/organizations/application/admin-institutional/create-institutional-account";
 import { deactivateAdminForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-admin";
@@ -144,10 +150,13 @@ describe("createInstitutionalAccountForAuthority — happy path govt", () => {
     expect(result.magicLink).toBeTypeOf("string");
     expect(result.magicLink.length).toBeGreaterThan(0);
 
-    // Verify auth user was created and email confirmed
+    // Verify auth user was created. Pilot T1-P3: it is born UNCONFIRMED (GoTrue
+    // only mails an invite to an unconfirmed address; following the link
+    // confirms it) and owing a password.
     const { data: authUser } = await adminSdk.auth.admin.getUserById(result.profileId);
     expect(authUser.user?.email).toBe(NEW_GOVT_EMAIL);
-    expect(authUser.user?.email_confirmed_at).toBeTruthy();
+    expect(authUser.user?.email_confirmed_at ?? null).toBeNull();
+    expect(authUser.user?.app_metadata?.password_setup_pending).toBe(true);
 
     // Verify profile
     const [profile] = await db
@@ -1199,6 +1208,11 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
     expect(result.magicLink).toBeTypeOf("string");
     expect(result.magicLink.length).toBeGreaterThan(0);
 
+    // Pilot T1-P3: the reset re-arms the first-access step, so the operator
+    // chooses a new password before anything else.
+    const { data: target } = await adminSdk.auth.admin.getUserById(resetGovtId);
+    expect(target.user?.app_metadata?.password_setup_pending).toBe(true);
+
     // Verify audit_log row
     const [logRow] = await db
       .select()
@@ -1459,5 +1473,220 @@ describe("assignGovtLocalityForAuthority — unresolvable locality rejected (iss
         ),
       );
     expect(stray).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// Pilot T1-P3 — the invite mail and the first-access step
+// ============================================================================
+//
+// The account is born without a password. GoTrue mails the invite (spied on
+// the shared admin client so the test asserts the REQUEST, not the SMTP), the
+// fallback magic link lands on /primer-acceso, and the session that link mints
+// must choose a password — with the app's password rules — before the flag
+// that pins it to that step is cleared.
+
+const SITE = "http://127.0.0.1:3000";
+const FIRST_ACCESS_URL = `${SITE}/primer-acceso`;
+
+/** Opens a GoTrue action link the way a browser would and returns the session it mints. */
+async function sessionFromActionLink(actionLink: string) {
+  const res = await fetch(actionLink, { redirect: "manual" });
+  const location = res.headers.get("location") ?? "";
+  const [target, fragment = ""] = location.split("#");
+  const params = new URLSearchParams(fragment);
+  const client = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+  if (accessToken && refreshToken) {
+    const { error } = await client.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) throw new Error(`setSession: ${error.message}`);
+  }
+  return { target, hasSession: Boolean(accessToken), client };
+}
+
+describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first access", () => {
+  const INVITE_EMAIL = "t1p3-invite-govt@dim-test.local";
+  const PASSWORD = "PrimerAcceso_2026!";
+
+  beforeAll(() => {
+    createdNewUserEmails.push(INVITE_EMAIL);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("asks GoTrue to mail an invite that lands on /primer-acceso, and the link's session must set a password first", async () => {
+    await deleteTestUser(INVITE_EMAIL);
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
+    const invite = vi.spyOn(createAdminClient().auth.admin, "inviteUserByEmail");
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "govt",
+      email: INVITE_EMAIL,
+      displayName: "Invitado T1P3",
+      initialLocalities: [{ province: "Buenos Aires", locality: "La Plata" }],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    // The mail was requested exactly once, for this address, landing on the step.
+    expect(invite).toHaveBeenCalledTimes(1);
+    expect(invite).toHaveBeenCalledWith(INVITE_EMAIL, { redirectTo: FIRST_ACCESS_URL });
+    expect(result.inviteEmailSent).toBe(true);
+
+    // The account owes a password and cannot enter with one yet.
+    const { data: born } = await adminSdk.auth.admin.getUserById(result.profileId);
+    expect(born.user?.app_metadata?.password_setup_pending).toBe(true);
+    const tooEarly = await createClient(SUPABASE_URL, SECRET, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: INVITE_EMAIL, password: PASSWORD });
+    expect(tooEarly.error).not.toBeNull();
+
+    // The hand-copied fallback link lands on the first-access step with a session.
+    const opened = await sessionFromActionLink(result.magicLink);
+    expect(opened.target).toBe(FIRST_ACCESS_URL);
+    expect(opened.hasSession).toBe(true);
+
+    // Same rules as every other password in the app, in the same order.
+    expect(
+      await setInitialPassword(opened.client, { password: "corta", confirmPassword: "corta" }),
+    ).toEqual({ error: NEW_PASSWORD_MESSAGES.too_short });
+    expect(
+      await setInitialPassword(opened.client, {
+        password: PASSWORD,
+        confirmPassword: `${PASSWORD}x`,
+      }),
+    ).toEqual({ error: NEW_PASSWORD_MESSAGES.mismatch });
+
+    // A valid pair sets it, clears the flag and points at the govt portal.
+    expect(
+      await setInitialPassword(opened.client, { password: PASSWORD, confirmPassword: PASSWORD }),
+    ).toEqual({ error: null, ok: true, landing: "/gob" });
+    const { data: done } = await adminSdk.auth.admin.getUserById(result.profileId);
+    expect(done.user?.app_metadata?.password_setup_pending).toBe(false);
+
+    const signIn = await createClient(SUPABASE_URL, SECRET, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: INVITE_EMAIL, password: PASSWORD });
+    expect(signIn.error).toBeNull();
+
+    // Once set, the step refuses: it is not a password-change endpoint.
+    expect(
+      await setInitialPassword(opened.client, {
+        password: "OtraClave_2026!",
+        confirmPassword: "OtraClave_2026!",
+      }),
+    ).toEqual({ error: FIRST_ACCESS_MESSAGES.not_pending });
+  });
+
+  it("still returns the copy-by-hand link, flagged as not mailed, when the invite mail fails", async () => {
+    await deleteTestUser(INVITE_EMAIL);
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
+    vi.spyOn(createAdminClient().auth.admin, "inviteUserByEmail").mockResolvedValue({
+      data: { user: null },
+      error: new AuthError("smtp down", 500),
+    } as Awaited<
+      ReturnType<ReturnType<typeof createAdminClient>["auth"]["admin"]["inviteUserByEmail"]>
+    >);
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "govt",
+      email: INVITE_EMAIL,
+      displayName: "Invitado T1P3",
+      initialLocalities: [],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    expect(result.inviteEmailSent).toBe(false);
+    const opened = await sessionFromActionLink(result.magicLink);
+    expect(opened.target).toBe(FIRST_ACCESS_URL);
+    expect(opened.hasSession).toBe(true);
+  });
+
+  it("refuses without a session", async () => {
+    const anonymous = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
+    expect(
+      await setInitialPassword(anonymous, { password: PASSWORD, confirmPassword: PASSWORD }),
+    ).toEqual({ error: FIRST_ACCESS_MESSAGES.no_session });
+  });
+});
+
+// ============================================================================
+// Pilot T1-P9 — a national observer is created from /admin/govts/new
+// ============================================================================
+
+describe("createInstitutionalAccountForAuthority — T1-P9 national observer", () => {
+  const NATIONAL_EMAIL = "t1p9-national@dim-test.local";
+
+  beforeAll(() => {
+    createdNewUserEmails.push(NATIONAL_EMAIL);
+  });
+
+  it("creates an institutional national with no assignments and its own audit action", async () => {
+    await deleteTestUser(NATIONAL_EMAIL);
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "national",
+      email: NATIONAL_EMAIL,
+      displayName: "Observador Nacional T1P9",
+      initialLocalities: [],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    const [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, result.profileId))
+      .limit(1);
+    expect(profile.role).toBe("national");
+    expect(profile.accountType).toBe("institutional");
+
+    const assignments = await db
+      .select()
+      .from(govtAssignments)
+      .where(eq(govtAssignments.userId, result.profileId));
+    expect(assignments).toHaveLength(0);
+
+    const [logRow] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.targetUserId, result.profileId), eq(auditLog.actorUserId, actorUserId)),
+      )
+      .limit(1);
+    expect(logRow.action).toBe("institutional_national_created");
+    expect((logRow.payload as Record<string, unknown>).role).toBe("national");
+  });
+
+  it("refuses initial localities for a national and creates nothing", async () => {
+    await deleteTestUser(NATIONAL_EMAIL);
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "national",
+      email: NATIONAL_EMAIL,
+      displayName: "Observador Nacional T1P9",
+      initialLocalities: [{ province: "Buenos Aires", locality: "La Plata" }],
+    });
+
+    expect(result).toEqual({
+      error:
+        "VALIDATION_ERROR: Un observador nacional no lleva localidades: lee todo el país por su rol.",
+    });
+    const { data: list } = await adminSdk.auth.admin.listUsers({ perPage: 200 });
+    expect(list?.users.some((u) => u.email === NATIONAL_EMAIL)).toBe(false);
+  });
+
+  it("is still created by admins only", async () => {
+    const result = await createInstitutionalAccountForAuthority(govtActorUserId, {
+      role: "national",
+      email: NATIONAL_EMAIL,
+      displayName: "Observador Nacional T1P9",
+      initialLocalities: [],
+    });
+    expect(result).toEqual({ error: "CAPABILITY_DENIED" });
   });
 });

@@ -20,6 +20,7 @@ import {
   getProfileCached,
 } from "@/lib/infra/request-cache";
 import type { createClient } from "@/lib/supabase/server";
+import { FIRST_ACCESS_PATH, isPasswordSetupPending } from "@/src/modules/auth/domain/first-access";
 
 export type AuthenticatedSession = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -115,6 +116,13 @@ export async function requireUserOrRedirect(returnTo?: string): Promise<Authenti
     if (!live.supabase || !live.user) redirect("/iniciar-sesion");
     return { supabase: live.supabase, user: live.user };
   }
+
+  // First access (pilot T1-P3): an institutional account born from an invite
+  // has no password yet. The session its link minted must choose one before it
+  // reaches any guarded page. `live.user` is the GoTrue user `getUser()` just
+  // fetched, so the flag is read from the server, not from a stale token claim,
+  // and clearing it takes effect on the very next request.
+  if (isPasswordSetupPending(live.user)) redirect(FIRST_ACCESS_PATH);
 
   return { supabase: live.supabase, user: live.user };
 }

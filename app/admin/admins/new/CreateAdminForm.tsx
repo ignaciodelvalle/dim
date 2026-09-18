@@ -16,6 +16,7 @@ type SuccessState = {
   magicLink: string;
   displayName: string;
   email: string;
+  inviteEmailSent: boolean;
 };
 
 export function CreateAdminForm() {
@@ -46,6 +47,7 @@ export function CreateAdminForm() {
           magicLink: result.magicLink,
           displayName: displayName.trim(),
           email: email.trim(),
+          inviteEmailSent: result.inviteEmailSent,
         });
         notifySaved("Cuenta admin creada");
       }
@@ -72,6 +74,7 @@ export function CreateAdminForm() {
         profileId={success.profileId}
         detailPath={`/admin/admins/${success.profileId}`}
         variant="create"
+        inviteEmailSent={success.inviteEmailSent}
         onCreateAnother={handleCreateAnother}
       />
     );

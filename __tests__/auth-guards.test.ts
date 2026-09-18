@@ -229,6 +229,41 @@ describe("requireUserOrRedirect", () => {
     expect(result.user.id).toBe("user-live");
     expect(mockRedirect).not.toHaveBeenCalled();
   });
+
+  // Pilot T1-P3: a session minted by an institutional invite link owes its
+  // password. Every guarded page sends it to the first-access step — the
+  // operator portals included, since they all start here.
+  const govtProfile = {
+    id: "user-invited",
+    role: "govt",
+    displayName: "Invitado",
+    accountType: "institutional",
+    deactivatedAt: null,
+    deletedAt: null,
+  };
+
+  it("sends a session that still owes its password to /primer-acceso", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-invited", app_metadata: { password_setup_pending: true } } },
+      error: null,
+    });
+    mockGetProfileCached.mockResolvedValue(govtProfile);
+    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/primer-acceso");
+    await expect(requireGobReadAccessOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/primer-acceso");
+  });
+
+  it("lets the same account through once the flag is cleared, and ignores a non-boolean flag", async () => {
+    mockGetProfileCached.mockResolvedValue(govtProfile);
+    for (const flag of [false, "true", undefined]) {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-invited", app_metadata: { password_setup_pending: flag } } },
+        error: null,
+      });
+      const result = await requireUserOrRedirect();
+      expect(result.user.id).toBe("user-invited");
+    }
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

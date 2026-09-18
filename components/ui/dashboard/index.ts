@@ -4,6 +4,7 @@ export { OpFileInput } from "./OpFileInput";
 export type { OpFileInputProps } from "./OpFileInput";
 export type { OpButtonVariant, OpButtonSize } from "./OpButton";
 export { OpRail } from "./OpRail";
+export { OpHelpLink } from "./OpHelpLink";
 export { OpRailNav } from "./OpRailNav";
 export type { NavSection } from "./OpRailNav";
 export { OpTopbar } from "./OpTopbar";

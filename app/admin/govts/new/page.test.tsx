@@ -26,4 +26,14 @@ describe("/admin/govts/new — render smoke test", () => {
     expect(html).not.toContain("<main");
     expect(html).not.toContain("mx-auto");
   });
+
+  // Pilot T1-P9: the read-only national role gets a writer on this screen, with
+  // copy that says what it can and cannot do.
+  it("offers the national observer next to the municipal official, saying it is read-only", async () => {
+    const html = renderToStaticMarkup(await NewGovtPage());
+    expect(html).toContain('value="govt"');
+    expect(html).toContain('value="national"');
+    expect(html).toContain("Observador nacional (solo lectura)");
+    expect(html).toContain("No puede aprobar, denunciar, decomisar ni cambiar nada");
+  });
 });

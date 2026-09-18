@@ -238,6 +238,9 @@ describe("SistemaCronsBanner", () => {
     mocks.fetchFailedCronNames.mockResolvedValue(["drain_outbox"]);
     const html = renderToStaticMarkup(await SistemaCronsBanner());
     expect(html).toContain("Procesos automáticos caídos");
+    // Pilot T1-P5: it names the channel instead of "avisá a soporte".
+    expect(html).toContain('href="mailto:hola@mimar.com.ar?subject=');
+    expect(html).not.toContain("avisá a soporte");
   });
 
   it("renders NOTHING when the banner query hangs (unknown ≠ healthy claim)", async () => {

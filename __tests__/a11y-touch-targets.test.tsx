@@ -58,6 +58,27 @@ describe("OpRailNav — 44px nav links (UX 2.1)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// OpRail — "¿Necesitás ayuda?" (pilot T1-P5). The rail is every operator
+// shell's (/gob, /org, /admin), so this one render covers all three: the entry
+// is there, it reaches the mailbox a person reads, and it clears 44px.
+// ---------------------------------------------------------------------------
+
+import { OpRail } from "@/components/ui/dashboard/OpRail";
+
+describe("OpRail — help entry reaches a person (T1-P5)", () => {
+  it("renders a 44px mailto to hola@mimar.com.ar, with the address visible", () => {
+    const html = renderToStaticMarkup(
+      <OpRail nav={[{ href: "/gob/dashboard", label: "Dashboard" }]} />,
+    );
+    expect(html).toContain("¿Necesitás ayuda?");
+    expect(html).toMatch(
+      /<a href="mailto:hola@mimar\.com\.ar\?subject=[^"]+" class="[^"]*min-h-11/,
+    );
+    expect(html).toContain(">hola@mimar.com.ar<");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PetActionRow — labeled action bar (PO 2026-07-05: relabeled from icon-only
 // circles to the handoff's `.actionbar` — Compartir · Editar datos · Marcar
 // como perdida · Más). Full coverage lives in
