@@ -430,8 +430,8 @@ funciona si las dos láminas incómodas están donde se ven.
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
   - Flujos de integración continua: <!-- fact:ci_workflows -->8<!-- /fact -->.
   - Reglas del canon de convenciones que algo hace cumplir:
-    <!-- fact:canon_enforced -->180<!-- /fact --> de
-    <!-- fact:canon_rows -->518<!-- /fact -->.
+    <!-- fact:canon_enforced -->181<!-- /fact --> de
+    <!-- fact:canon_rows -->519<!-- /fact -->.
 - **Respaldo.**
   - `scripts/run-verified-suite.ts` — el verificador que ignora a propósito el código
     de salida de la suite y lo vuelve a plegar, para que una corrida que se cayó no
@@ -509,7 +509,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Pantallas: <!-- fact:pages -->266<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->231<!-- /fact -->.
+    <!-- fact:migrations -->232<!-- /fact -->.
   - Tablas: <!-- fact:tables -->54<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que

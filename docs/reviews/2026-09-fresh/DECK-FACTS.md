@@ -118,7 +118,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `pages` | `<!-- fact:pages -->266<!-- /fact -->` |
 | `route_handlers` | `<!-- fact:route_handlers -->91<!-- /fact -->` |
 | `layouts` | `<!-- fact:layouts -->11<!-- /fact -->` |
-| `migrations` | `<!-- fact:migrations -->231<!-- /fact -->` |
+| `migrations` | `<!-- fact:migrations -->232<!-- /fact -->` |
 | `tables` | `<!-- fact:tables -->54<!-- /fact -->` |
 | `enums` | `<!-- fact:enums -->22<!-- /fact -->` |
 | `rls_enabled_tables` | `<!-- fact:rls_enabled_tables -->56<!-- /fact -->` |
@@ -141,8 +141,8 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `signed_url_ttl_seconds` | `<!-- fact:signed_url_ttl_seconds -->3600<!-- /fact -->` |
 | `projections` | `<!-- fact:projections -->13<!-- /fact -->` |
 | `service_role_call_sites` | `<!-- fact:service_role_call_sites -->44<!-- /fact -->` |
-| `canon_rows` | `<!-- fact:canon_rows -->518<!-- /fact -->` |
-| `canon_enforced` | `<!-- fact:canon_enforced -->180<!-- /fact -->` |
+| `canon_rows` | `<!-- fact:canon_rows -->519<!-- /fact -->` |
+| `canon_enforced` | `<!-- fact:canon_enforced -->181<!-- /fact -->` |
 | `canon_partial` | `<!-- fact:canon_partial -->93<!-- /fact -->` |
 | `canon_unenforced` | `<!-- fact:canon_unenforced -->245<!-- /fact -->` |
 

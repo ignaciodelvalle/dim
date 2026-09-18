@@ -262,13 +262,13 @@ Four fences keep this documentation layer itself honest — none of them is a
 
 `docs/architecture/conventions-canon.md` renders
 `docs/architecture/conventions-canon.json`:
-<!-- fact:canon_rows -->518<!-- /fact --> rows, harvested from the project's
+<!-- fact:canon_rows -->519<!-- /fact --> rows, harvested from the project's
 own prose (`AGENTS.md`, `CLAUDE.md`, fence headers, `docs/agents/` briefs,
 `docs/architecture/`, `e2e/README.md`, `CONTRIBUTING.md`, test-file comment
 blocks) and classified against whether the enforcer they cite can actually
 FAIL on a violation:
 
-- <!-- fact:canon_enforced -->180<!-- /fact --> **ENFORCED** — a fence or test
+- <!-- fact:canon_enforced -->181<!-- /fact --> **ENFORCED** — a fence or test
   fails on a violation.
 - <!-- fact:canon_partial -->93<!-- /fact --> **PARTIAL** — some but not all
   of the rule's surface is covered.

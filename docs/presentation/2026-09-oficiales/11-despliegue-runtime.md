@@ -78,7 +78,7 @@ sube si pasan. Ninguna migración viaja por el primero.
 - Los recorridos de navegador (<!-- fact:e2e_specs -->45<!-- /fact -->) son un
   control **aparte**, nocturno, y no forman parte de la cadena de verificación
   local (`.github/workflows/e2e-nightly.yml`).
-- <!-- fact:migrations -->231<!-- /fact --> migraciones, solo hacia adelante y
+- <!-- fact:migrations -->232<!-- /fact --> migraciones, solo hacia adelante y
   nunca editadas.
 
 ## Mermaid

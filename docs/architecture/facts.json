@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-09-18",
-  "sha": "569ff946d",
+  "sha": "43e26ecb0",
   "facts": {
     "event_types": {
       "value": 55,
@@ -43,7 +43,7 @@
       "method": "files named exactly `layout.tsx` anywhere under `app/`."
     },
     "migrations": {
-      "value": 231,
+      "value": 232,
       "source": "db/migrations/*.sql",
       "method": "files ending in `.sql` under `db/migrations/`. Migrations are forward-only and immutable, so this only ever grows."
     },
@@ -158,12 +158,12 @@
       "method": "literal occurrences of the service-role factory's name followed by `(` in `.ts`/`.tsx` files under those four trees, excluding the factory's own module. The trailing paren is what makes this a CALL count and not an import count — an `import { … } from` line has no paren. The needle is concatenated at runtime so this generator does not match itself. Every one of these bypasses RLS by design."
     },
     "canon_rows": {
-      "value": 518,
+      "value": 519,
       "source": "docs/architecture/conventions-canon.json",
       "method": "total rows — counted over `rows[]` in the canon JSON, which is the source of truth its markdown is rendered from. The same four numbers appear as `fact:` markers in `docs/architecture/conventions-canon.md` and are cross-checked there by `__tests__/conventions-canon-parity.test.ts`."
     },
     "canon_enforced": {
-      "value": 180,
+      "value": 181,
       "source": "docs/architecture/conventions-canon.json",
       "method": "rows with status ENFORCED — counted over `rows[]` in the canon JSON, which is the source of truth its markdown is rendered from. The same four numbers appear as `fact:` markers in `docs/architecture/conventions-canon.md` and are cross-checked there by `__tests__/conventions-canon-parity.test.ts`."
     },
