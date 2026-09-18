@@ -22,6 +22,7 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { govtSelfDeactivateForUser as _govtSelfDeactivate } from "@/src/modules/pets/application/profile/govt-self-deactivate";
 import { selfDeactivatePersonalAccountForUser as _selfDeactivatePersonal } from "@/src/modules/pets/application/profile/self-deactivate-personal-account";
 import { selfReactivatePersonalAccountForUser as _selfReactivatePersonal } from "@/src/modules/pets/application/profile/self-reactivate-personal-account";
+import { setDailyDigestOptOutForUser as _setDailyDigestOptOut } from "@/src/modules/pets/application/profile/set-daily-digest-opt-out";
 import { vetSelfResignForUser as _vetSelfResign } from "@/src/modules/pets/application/profile/vet-self-resign";
 
 // ---------------------------------------------------------------------------
@@ -90,5 +91,22 @@ export async function selfReactivatePersonalAccountAction() {
   if ("ok" in result && !result.noOp) {
     revalidatePath("/cuenta");
   }
+  return result;
+}
+
+/**
+ * T2-N1 — /cuenta toggle for the daily operator digest email. Writes exactly
+ * one boolean column on the CALLER'S OWN row (resolved from the session,
+ * never from an argument beyond the desired state) — no separate module
+ * needed for a single-column preference, unlike the account-state writers
+ * above whose invariants (last-admin guard, account-type checks) actually
+ * live in src/modules/pets/application/profile/.
+ */
+export async function setDailyDigestOptOutAction(
+  optOut: boolean,
+): Promise<{ ok: true; optOut: boolean }> {
+  const { user } = await requireUserOrRedirect();
+  const result = await _setDailyDigestOptOut(user.id, optOut);
+  revalidatePath("/cuenta");
   return result;
 }

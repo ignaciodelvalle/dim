@@ -50,6 +50,7 @@ import { GET as closeFollowupExpiredAdoptions } from "../close-followup-expired-
 import { GET as closeRabiesObservations } from "../close-rabies-observations/route";
 import { GET as closeStaleLostEpisodes } from "../close-stale-lost-episodes/route";
 import { GET as cronHealth } from "../cron-health/route";
+import { GET as dailyOperatorDigest } from "../daily-operator-digest/route";
 import { GET as dataLifecycle } from "../data-lifecycle/route";
 import { GET as drainNotificationDeadLetter } from "../drain-notification-dead-letter/route";
 import { GET as drainOutbox } from "../drain-outbox/route";
@@ -92,6 +93,7 @@ const HANDLERS: Record<string, (req: NextRequest) => Promise<Response>> = {
   vaccine_due: vaccineDue,
   post_adoption_checkin: postAdoptionCheckin,
   evaluate_alerts: evaluateAlerts,
+  daily_operator_digest: dailyOperatorDigest,
   auto_expire_approvals: autoExpireApprovals,
   expire_caretaker_grants: expireCaretakerGrants,
   expire_foster_proposals: expireFosterProposals,

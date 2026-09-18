@@ -93,6 +93,7 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
     runsVia: "daily",
   },
   { cronName: "cron_health", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
+  { cronName: "daily_operator_digest", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   { cronName: "data_lifecycle", maxStalenessMs: DAILY_STALENESS_MS, runsVia: "daily" },
   {
     cronName: "drain_notification_dead_letter",
@@ -167,6 +168,7 @@ const CRON_DISPLAY_LABELS: Record<string, string> = {
   // too (M2, cowork demo 2026-07-17: "cron_daily" showed raw in Detalle técnico).
   cron_daily: "Corrida diaria de procesos",
   cron_health: "Chequeo de salud de procesos",
+  daily_operator_digest: "Resumen diario de pendientes para operadores",
   data_lifecycle: "Ciclo de vida de datos",
   drain_notification_dead_letter: "Reintento de notificaciones fallidas",
   drain_outbox: "Envío de notificaciones pendientes",
