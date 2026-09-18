@@ -417,9 +417,11 @@ describe("resolveRoutableJurisdiction — D.11 gate", () => {
     });
   });
 
-  it("GEOCODER SUCCEEDED with an off-catalog locality: still verified, locality preserved", async () => {
+  it("GEOCODER SUCCEEDED with an off-catalog locality: accepted and preserved, but MARKED", async () => {
     // The public intake normalizes locality in "soft" mode precisely so an OSM
-    // spelling that is not in INDEC does not hard-block. That row is verified.
+    // spelling that is not in INDEC does not hard-block — and it still does not:
+    // the pair is kept. But a locality with no catalog row has nothing the pin
+    // can be measured against, so it is not verified (security review LOW-2).
     const r = await resolveRoutableJurisdiction({
       province: "Buenos Aires",
       locality: "Villa Tesei",
@@ -428,8 +430,21 @@ describe("resolveRoutableJurisdiction — D.11 gate", () => {
       lat: -34.6167,
       lng: -58.6333,
     });
-    expect(r.unverified).toBe(false);
+    expect(r.unverified).toBe(true);
     expect(r.locality).toBe("Villa Tesei");
+    expect(r.province).toBe("Buenos Aires");
+  });
+
+  it("control: the same pin with a province-only claim (no locality) is verified", async () => {
+    const r = await resolveRoutableJurisdiction({
+      province: "Buenos Aires",
+      locality: null,
+      localityId: null,
+      addressText: "Calle 12, Buenos Aires",
+      lat: -34.6167,
+      lng: -58.6333,
+    });
+    expect(r.unverified).toBe(false);
   });
 
   // A11-G1: the pair on this arm is the CLIENT's echo of a geocoder answer. A

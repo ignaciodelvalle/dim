@@ -205,9 +205,10 @@ const LOCALITY_NEAREST_RANK = 3;
  *   - province: it must be the province of at least one of the nearest
  *     catalogued localities. Near a border both provinces show up, so an
  *     honest pin is not penalised; a pin in Salta claiming CABA is caught.
- *   - locality (only when it resolved to a catalog row and is not the
- *     whole-province aggregate): its centroid must be within
+ *   - locality (unless it is the whole-province aggregate): it must have
+ *     resolved to a catalog row, and that row's centroid must be within
  *     LOCALITY_RADIUS_KM of the point, or among the nearest few settlements.
+ *     A locality name with no catalog row answers false — nothing corroborates it.
  *
  * Any doubt answers false — the caller then keeps the pair but marks it
  * unverified, which is the visible, safe state (D.11). Residual, stated: a
@@ -227,8 +228,13 @@ export async function coordinatesCorroborateJurisdiction(input: {
   const near = await nearestLocalities({ ...point, limit: CORROBORATION_NEIGHBOURS });
   if (!near.some((n) => n.provinceCode === province.code)) return false;
 
-  if (!input.localityId) return true;
-  if (input.locality && isWholeProvinceLocality(province.name, input.locality)) return true;
+  const claimedLocality = input.locality?.trim() ?? "";
+  if (claimedLocality && isWholeProvinceLocality(province.name, claimedLocality)) return true;
+  // No catalog row to measure against. A province-only claim has nothing more
+  // to check; a locality NAME that did not resolve to the catalog cannot be
+  // corroborated, so it is not verified (security review 2026-09, LOW-2). The
+  // soft-mode intake still accepts it — it is only marked.
+  if (!input.localityId) return claimedLocality === "";
 
   const rank = near.findIndex((n) => n.id === input.localityId);
   if (rank >= 0 && rank < LOCALITY_NEAREST_RANK) return true;
