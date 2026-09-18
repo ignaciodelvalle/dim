@@ -25,7 +25,7 @@ vi.mock("@/lib/domain/intake-csv", () => ({
   }),
 }));
 
-import { PRECHECK_CONCURRENCY, validateIntakeRows } from "./validate-rows";
+import { validateIntakeRows } from "./validate-rows";
 
 function records(n: number): Record<string, string>[] {
   return Array.from({ length: n }, (_, i) => ({ nombre: `A${i}` }));
@@ -51,18 +51,29 @@ describe("validateIntakeRows — the budget", () => {
   });
 
   it("an abandoned run stops issuing lookups after the deadline", async () => {
-    // Each lookup takes 40 ms; the budget is 60 ms. Group 1 ends at ~40 ms,
-    // group 2 starts before the deadline and ends at ~80 ms, after it; group 3
-    // must never start. 40 rows would be 8 groups if nothing stopped the loop.
-    lookupByTattoo.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(null), 40)),
-    );
-    const result = await validateIntakeRows(records(40), new Set(), 60);
-    expect(result).toBeNull();
+    // Each lookup takes 40 ms; the budget is 60 ms. Group 1 (rows 0-4) starts
+    // at t=0 and ends at t=40; group 2 (rows 5-9) starts at t=40 (before the
+    // 60 ms deadline) and ends at t=80; group 3 checks the deadline at t=80,
+    // finds it past 60, and never starts. 40 rows would be 8 groups of 5 if
+    // nothing stopped the loop — exactly 2 groups (10 lookups) run.
+    // Fake timers make this deterministic: no real setTimeout race against
+    // the test's own wall clock.
+    vi.useFakeTimers();
+    try {
+      lookupByTattoo.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve(null), 40)),
+      );
+      const resultPromise = validateIntakeRows(records(40), new Set(), 60);
 
-    // Give the abandoned loop time to (wrongly) keep going.
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    expect(lookupByTattoo.mock.calls.length).toBeLessThanOrEqual(2 * PRECHECK_CONCURRENCY);
+      await vi.advanceTimersByTimeAsync(40); // group 1 resolves; group 2 starts
+      await vi.advanceTimersByTimeAsync(40); // t=80: group 2 resolves, deadline fires
+      const result = await resultPromise;
+
+      expect(result).toBeNull();
+      expect(lookupByTattoo.mock.calls.length).toBe(10);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

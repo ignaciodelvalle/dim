@@ -41,6 +41,42 @@ describe("reportOnlyExitCode", () => {
       1,
     );
   });
+
+  // The bug this closes: qa-panorama-vis's login step failed, the run
+  // "completed" with a single "the login did not land" finding, and exited
+  // 0 — a green report with zero real coverage of the product, reading
+  // exactly like a clean night to anyone scanning the job.
+  it("exits 1 for a 'completed' run that reports zero successful steps", () => {
+    const outcome: QaRunOutcome = {
+      kind: "completed",
+      findings: [
+        { where: "login", kind: "step-failed", detail: "Timeout 25000ms exceeded" },
+        { where: "run", kind: "skipped", detail: "every view: the login did not land" },
+      ],
+      successfulSteps: 0,
+    };
+    expect(reportOnlyExitCode(outcome)).toBe(1);
+  });
+
+  it("exits 0 when at least one step succeeded, even alongside findings", () => {
+    const outcome: QaRunOutcome = {
+      kind: "completed",
+      findings: [{ where: "national-1920", kind: "step-failed", detail: "boom" }],
+      successfulSteps: 3,
+    };
+    expect(reportOnlyExitCode(outcome)).toBe(0);
+  });
+
+  // Callers that don't track successfulSteps at all (report-panorama-a11y,
+  // qa-panorama-chaos) must see NO behavior change — the field is optional.
+  it("exits 0 when successfulSteps is not reported at all", () => {
+    expect(
+      reportOnlyExitCode({
+        kind: "completed",
+        findings: [{ where: "round-1", kind: "no-map", detail: "canvas never attached" }],
+      }),
+    ).toBe(0);
+  });
 });
 
 describe("chaosFindings", () => {

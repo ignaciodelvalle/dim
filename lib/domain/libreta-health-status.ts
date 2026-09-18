@@ -36,6 +36,26 @@ export type VaccineSnapshot = {
    *                 was not. See the note on `unconfirmed` below.
    */
   status: "active" | "due_soon" | "expired" | "missing" | "unconfirmed";
+  /**
+   * Where `nextDueAt` came from, mirroring pet-compliance's `dueSource`
+   * ("dose" | "reminder" | "rule"):
+   *   • "payload"  — the asiento itself carries `next_due_at` (normally
+   *                  written by the vet who signed the dose). An established
+   *                  date; "expired" here is a real, strong vencida.
+   *   • "derived"  — no date on record; COMPUTED from the catalog's
+   *                  `intervalMonths` (an administrative estimate, not a
+   *                  vet-signed deadline). "expired" here must read as a
+   *                  SUGGESTION, never as the strong "Vencida" state — the
+   *                  same rule pet-compliance enforces for `dueSource: "rule"`
+   *                  ("Refuerzo sugerido", never "Vencida"). Undefined when
+   *                  there is no next-due date at all (`nextDueAt: null`).
+   *
+   * Bug this closes: the libreta badge showed red "Vencida" for a
+   * catalog-interval estimate while the compliance card on the SAME profile
+   * showed "Refuerzo sugerido vencido" (warning tone) for the identical dose —
+   * two surfaces disagreeing on how confident to sound about the same guess.
+   */
+  dueSource?: "payload" | "derived";
 };
 
 export type VaccinationSummary = {
@@ -178,7 +198,10 @@ export function computeVaccinationSummary(
   dueSoonWindowDays: number = DUE_SOON_WINDOW_DAYS,
 ): VaccinationSummary {
   // Latest event per vaccine name (case-insensitive match against the catalog).
-  const latestByVaccine = new Map<string, { occurredAt: Date; nextDueAt: Date | null }>();
+  const latestByVaccine = new Map<
+    string,
+    { occurredAt: Date; nextDueAt: Date | null; dueSource: "payload" | "derived" | undefined }
+  >();
   // Distinct off-catalog (free-text) vaccine names, normalized for dedupe.
   // These don't change core-vaccine status but must stay visible — counting
   // them here is what keeps free-text doses from silently vanishing.
@@ -200,12 +223,17 @@ export function computeVaccinationSummary(
     const occurredAt = asDate(e.occurredAt);
     if (!occurredAt) continue;
     const payloadNextDue = parseExplicitNextDue(payload.next_due_at);
-    const derivedNextDue =
-      payloadNextDue ??
-      (def.intervalMonths !== null ? derivedDueDate(occurredAt, def.intervalMonths) : null);
+    const catalogNextDue =
+      def.intervalMonths !== null ? derivedDueDate(occurredAt, def.intervalMonths) : null;
+    const nextDue = payloadNextDue ?? catalogNextDue;
+    const dueSource: "payload" | "derived" | undefined = payloadNextDue
+      ? "payload"
+      : catalogNextDue
+        ? "derived"
+        : undefined;
     const existing = latestByVaccine.get(def.name);
     if (!existing || existing.occurredAt < occurredAt) {
-      latestByVaccine.set(def.name, { occurredAt, nextDueAt: derivedNextDue });
+      latestByVaccine.set(def.name, { occurredAt, nextDueAt: nextDue, dueSource });
     }
   }
 
@@ -281,6 +309,7 @@ export function computeVaccinationSummary(
       lastDoseAt: latest.occurredAt,
       nextDueAt,
       status,
+      dueSource: latest.dueSource,
     });
   }
 

@@ -22,6 +22,16 @@
 // and the row's position, so re-uploading the SAME, UNMODIFIED file re-sends
 // the written rows as no-ops and writes only the rest. An edited file has a
 // different hash, which is why the copy insists on "sin modificarlo".
+//
+// THAT NO-OP ONLY COVERS THE WRITE STEP (code review, 2026-09-18). A row is
+// re-validated by validateIntakeCsvAction BEFORE it ever reaches the
+// idempotency check — and for a row that carries a chip or tattoo, the
+// identifierPrecheckErrors lookup (validate-rows.ts) now finds the record the
+// FIRST pass wrote and rejects the row as a possible identity match, exactly
+// as it would for a genuinely new duplicate. That row lands in "Con errores"
+// and the failed-rows CSV, not the imported list — it does NOT "figure again
+// as imported". The interrupted-run banner below says so explicitly instead
+// of promising a re-import label these rows will never show.
 
 import { useRef, useState } from "react";
 
@@ -416,9 +426,12 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
                 sin confirmar: las de la tanda que se cortó pueden haberse registrado o no.
               </p>
               <p>
-                Para terminar, volvé a subir el mismo archivo, sin modificarlo. Las filas que ya
-                están registradas se reconocen y no se duplican (en el resultado van a figurar otra
-                vez como importadas); solo se registran las que faltan.
+                Para terminar, volvé a subir el mismo archivo, sin modificarlo. Las filas sin chip
+                ni tatuaje que ya quedaron registradas se reconocen solas y no se duplican (van a
+                figurar otra vez como importadas); solo se registran las que faltan. Las filas CON
+                chip o tatuaje que ya se cargaron van a aparecer con un error de "posible
+                coincidencia" en vez de como importadas — esa es la señal de que ya están, no las
+                cargues de nuevo a mano por el formulario individual.
               </p>
               <OpButton type="button" variant="primary" onClick={restartWithSameFile}>
                 Volver a subir el archivo

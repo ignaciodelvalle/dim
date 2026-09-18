@@ -6,9 +6,10 @@
 // These tests pin the honest rule: "por vencer" counts ONLY registered doses
 // approaching next_due; zero records renders the empty state.
 
+import type { VaccineSnapshot } from "@/lib/domain/libreta-health-status";
 import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { describe, expect, it } from "vitest";
-import { deriveVacunasBadgeCounts } from "./VacunasStatusBadges";
+import { deriveVacunasBadgeCounts, isSuggestedLapse, metaFor } from "./VacunasStatusBadges";
 
 const NOW = new Date("2026-03-15T00:00:00Z");
 
@@ -57,6 +58,42 @@ describe("deriveVacunasBadgeCounts — missing is never folded into 'por vencer'
     const counts = deriveVacunasBadgeCounts(summary);
     expect(counts.porVencer).toBe(1);
     expect(counts.vigente).toBe(0);
+  });
+});
+
+// The bug this closes: a catalog-interval ESTIMATE (dueSource "derived")
+// rendered as the strong "Vencida" state ("Venció dd/mm", red badge) —
+// contradicting the compliance card on the same profile, which calls the
+// identical estimate "Refuerzo sugerido vencido" in warning tone. A
+// vet-signed date (dueSource "payload") keeps the strong copy.
+describe("metaFor / isSuggestedLapse — estimate vs vet-signed vencida", () => {
+  const expired = (
+    dueSource: VaccineSnapshot["dueSource"],
+    nextDueAt: Date | null = new Date("2026-03-01T12:00:00Z"),
+  ): VaccineSnapshot => ({
+    vaccineName: "Antirrábica",
+    lastDoseAt: new Date("2025-03-01T12:00:00Z"),
+    nextDueAt,
+    status: "expired",
+    dueSource,
+  });
+
+  it("a catalog-interval estimate reads as a suggestion, not 'Vencida'", () => {
+    const v = expired("derived");
+    expect(isSuggestedLapse(v)).toBe(true);
+    expect(metaFor(v)).toBe("Refuerzo sugerido vencido el 1 de mar de 2026");
+  });
+
+  it("a vet-signed date keeps the strong 'Venció' state", () => {
+    const v = expired("payload");
+    expect(isSuggestedLapse(v)).toBe(false);
+    expect(metaFor(v)).toBe("Venció 1 de mar de 2026");
+  });
+
+  it("an expired vaccine with no date at all (defensive) is not a suggested lapse", () => {
+    const v = expired("derived", null);
+    expect(isSuggestedLapse(v)).toBe(false);
+    expect(metaFor(v)).toBe("Vencida");
   });
 });
 

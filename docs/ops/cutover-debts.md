@@ -117,3 +117,22 @@
 - [ ] **Nightly e2e against the real environment**: its red is a consumed fixture (the seeded
   refugio has no live shelter custody), not missing secrets — `.github/workflows/e2e-nightly.yml:48-60`.
   A production smoke suite must not depend on seeded fixtures at all.
+- [ ] **`e2e/crisis-seams.spec.ts` seam (d) grows staging by one pet every night** (dated
+  2026-09-18, code review). The seam intakes a fresh refugio pet named `E2EIntake-<timestamp>`
+  (`e2e/_shelter-custody.ts` `intakeShelterPet`), publishes it for adoption, and has owner2 apply
+  and the refugio finalize the adoption — a real, event-sourced custody transfer. Its own
+  `beforeAll`/`afterAll` sweep the `E2EIntake-` prefix, but `deletePetsByNamePrefix`
+  (`e2e/demo/_db-cleanup.ts`) is LOCAL ONLY by design — a no-op against any non-local database,
+  same guard as every other cleanup helper in that file — so on the nightly run against
+  `dim-staging` (`.github/workflows/e2e-nightly.yml`) the pet is never removed. **There is no UI
+  path that would fix this even if wired in**: the pet is the credential (invariant #1) and
+  events are append-only (invariant #2) — there is deliberately no "delete a pet" or "unwind an
+  adoption" flow, by design, everywhere else this codebase touches the question (see the header
+  comment on `deletePetsByNamePrefix` and `deleteTagsByLotePrefix`). A "rehome" or "mark
+  deceased" action would change custody or status, not remove the row, so it would not stop the
+  count from growing. Before a real cutover: either (a) this seam must stop running against a
+  shared/staging database (scope it to local-only runs, same pattern as
+  `e2e/degraded-states.spec.ts`'s `isLocalDatabase()` self-skip), or (b) `_db-cleanup.ts` needs a
+  narrowly-scoped, explicitly-opt-in remote cleanup path for CI-manufactured `E2EIntake-` rows
+  specifically — never a general remote delete. Until one of those lands, staging's pet count (and
+  owner2's registry) grows by one real row per nightly run.

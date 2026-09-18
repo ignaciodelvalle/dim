@@ -59,6 +59,11 @@ const VIEWPORTS = [
 ];
 
 const findings: QaFinding[] = [];
+// Counted separately from `findings` (a login/step failure IS a finding, but
+// contributes zero here) so the run can tell "we drove the product and it
+// had issues" from "we never actually drove the product" — see
+// scripts/lib/qa-report-outcome.ts.
+let successfulSteps = 0;
 
 async function login(page: Page): Promise<void> {
   await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
@@ -106,6 +111,7 @@ async function axe(page: Page, state: string): Promise<AxeViolation[]> {
 async function step(name: string, fn: () => Promise<void>): Promise<boolean> {
   try {
     await fn();
+    successfulSteps++;
     return true;
   } catch (err) {
     const detail = errorMessage(err);
@@ -130,7 +136,7 @@ async function main(): Promise<QaRunOutcome> {
         kind: "skipped",
         detail: "every view: the login did not land",
       });
-      return { kind: "completed", findings };
+      return { kind: "completed", findings, successfulSteps };
     }
 
     for (const vp of VIEWPORTS) {
@@ -164,7 +170,7 @@ async function main(): Promise<QaRunOutcome> {
         await shot(page, `${tag}-pba-drill-${wtag}`);
       });
     }
-    return { kind: "completed", findings };
+    return { kind: "completed", findings, successfulSteps };
   } finally {
     await browser.close().catch(() => {});
   }
