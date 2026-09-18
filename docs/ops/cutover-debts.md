@@ -21,8 +21,8 @@
   working (Sensitive values cannot be read back — verify first, lock after). Keep a copy in a
   password manager; `vercel env pull` will not return them.
 - [ ] **Demo accounts must not exist in a real environment.** `govt@`, `govt-local@`,
-  `owner@`, `lilian@`, `orgadmin@`, `admin@dim.test` all share `Test1234!`
-  (`scripts/seed-test-users.ts:161`), and `admin@dim.test` is a superadmin.
+  `owner@`, `lilian@`, `orgadmin@`, `admin@dim.test` all share the same published demo
+  password (`scripts/seed-test-users.ts:161`), and `admin@dim.test` is a superadmin.
 
   **Verified 2026-09-16, and the four legs matter together rather than separately.** The
   repository is `visibility: PUBLIC` and `scripts/seed-test-users.ts` is tracked in it, so the
@@ -54,6 +54,15 @@
   `orgadmin@`/`owner@` too when their seeded org or pets fall inside it. The runbook step is
   `docs/pilotos/onboarding-municipio.md` §0.1. New passwords go to the password manager, never
   into a doc.
+
+  **Two traps the runbook step now calls out explicitly (security review LOW-C,
+  2026-09-18).** Changing a demo account's password does not revoke refresh tokens already
+  issued to it — a session opened before the change keeps working after, so closing an
+  account also needs `admin.signOut` / deleting its sessions from the Supabase Auth
+  dashboard, or deactivating it outright. And no seed/bootstrap script
+  (`seed-test-users`, `pnpm db:bootstrap`, any `seed:*`) may ever run against the pilot
+  environment — every one of them recreates `*@dim.test` with the published demo password,
+  undoing any close-out done here without anything flagging it.
 
 ## 2. Environments
 

@@ -58,6 +58,19 @@ Nunca anotes la contraseña nueva en un documento del repo, ni en este ni en
 otro: va al gestor de contraseñas. Dejá constancia en `cutover-debts.md` de
 qué cuentas se cerraron y cuándo, sin contraseñas.
 
+**Cambiar la contraseña no alcanza.** Supabase Auth no revoca las sesiones ya
+emitidas cuando se cambia la contraseña de una cuenta — un refresh token
+sacado antes del cambio sigue funcionando después. Para dejar la cuenta
+realmente cerrada hay que además cerrarle la sesión (`admin.signOut` / borrar
+sus sesiones desde el panel de Supabase Auth) o directamente desactivarla
+desde `/admin/govts/[userId]` (§3), que sí revoca el acceso.
+
+**Nunca corras un script de seed/bootstrap contra el ambiente del piloto.**
+`seed-test-users`, `pnpm db:bootstrap`, cualquier `seed:*` — todos recrean las
+cuentas `*@dim.test` con la contraseña pública publicada en el repo, aunque ya
+las hayas desactivado o les hayas cambiado la contraseña vos: el cierre de
+cuentas de este mismo apartado quedaría deshecho sin que nada lo avise.
+
 ---
 
 ## 1. Crear las cuentas — `/admin/govts/new`
