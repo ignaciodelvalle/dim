@@ -46,7 +46,7 @@
 // The re-derivation used to be one call to `requireLiveUser`, and that call can
 // only ever refuse an INSTITUTIONAL principal for the shift: its check sits
 // behind `isInstitutionalPrincipal`, i.e. an `institutional` accountType or a
-// `govt`/`admin` role (lib/infra/live-user.ts). The single largest group of
+// `govt`/`admin`/`national` role (lib/infra/live-user.ts). The single largest group of
 // operators under B9 does not match it. A clinic vet holds `role: "vet"` /
 // `accountType: "personal"` and their operator-ness lives in
 // `organization_memberships`, a table `requireLiveUser` never reads — which is

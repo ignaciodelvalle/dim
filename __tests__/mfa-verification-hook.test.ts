@@ -1,4 +1,6 @@
-// public.hook_mfa_verification_attempt — migration 0232.
+// public.hook_mfa_verification_attempt — migration 0232, serialised per account
+// by 0233 (an advisory lock before the read, so two concurrent attempts cannot
+// both read the same count).
 //
 // GoTrue calls this on EVERY factor verification, through the app or not, so it
 // is the only ceiling on TOTP guesses that a caller posting straight to
@@ -146,6 +148,45 @@ describe("MFA verification hook — failure ceiling (0232)", () => {
   it("a correct code with no misses on file continues", async () => {
     await clearBuckets(guesserId);
     expect((await hook(guesserId, verifiedFactorId, true)).decision).toBe("continue");
+  });
+});
+
+describe("MFA verification hook — attempts on one account are serialised (0233)", () => {
+  it("a code that arrives while the tenth miss is still in flight waits for it, and is refused", async () => {
+    await clearBuckets(guesserId);
+    await setLastSignIn(guesserId, 0);
+    for (let i = 0; i < 9; i++) await hook(guesserId, verifiedFactorId, false);
+
+    // Transaction A: the tenth wrong code, counted but NOT committed yet.
+    let release!: () => void;
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    let counted!: () => void;
+    const inFlight = new Promise<void>((r) => {
+      counted = r;
+    });
+    const tenthMiss = JSON.stringify({
+      user_id: guesserId,
+      factor_id: verifiedFactorId,
+      factor_type: "totp",
+      valid: false,
+    });
+    const txA = db.transaction(async (tx) => {
+      await tx.execute(sql`select public.hook_mfa_verification_attempt(${tenthMiss}::jsonb)`);
+      counted();
+      await held;
+    });
+    await inFlight;
+
+    // B: a CORRECT code on another connection. Read-then-decide without the
+    // per-account lock sees 9 misses (A is uncommitted) and lets it through;
+    // with the lock it waits for A, sees 10, and refuses.
+    const b = hook(guesserId, verifiedFactorId, true);
+    await new Promise((r) => setTimeout(r, 300));
+    release();
+    await txA;
+    expect((await b).decision).toBe("reject");
   });
 });
 

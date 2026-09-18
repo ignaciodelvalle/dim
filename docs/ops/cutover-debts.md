@@ -77,6 +77,14 @@
 - [ ] **Recreate Supabase Auth configuration in the new project**: custom SMTP (Resend,
   `smtp.resend.com:465`, `noreply@mimar.com.ar`), the code-only "Reset password" template,
   URL configuration, rate limits, attack protection. None of it travels with a schema migration.
+- [ ] **MFA verification-attempt hook requires Supabase Teams/Enterprise; staging on Pro relies
+  on GoTrue's per-IP limit only.** The hook (`public.hook_mfa_verification_attempt`, migrations
+  0232/0233: 10 wrong codes per hour or 20 per day per account, and enrolment only within 15
+  minutes of a real sign-in) exists as a function on Pro but GoTrue never calls it, so a caller
+  posting TOTP codes straight to GoTrue — with the password or with a leftover session — meets
+  only the per-IP limit. **Accepted by the PO 2026-09-18 as a known cutover debt.** At cutover,
+  enable the hook if the plan allows: Authentication → Hooks → MFA Verification Attempt →
+  `public.hook_mfa_verification_attempt`.
 - [ ] **`NEXT_PUBLIC_SITE_URL` set, non-empty, to the real domain** — the hero QR encodes it,
   and an empty string makes it unscannable.
 

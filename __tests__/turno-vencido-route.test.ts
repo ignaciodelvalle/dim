@@ -26,7 +26,7 @@
 // ---------------------------------------------------------------------------
 // The handler re-derived the policy with `requireLiveUser` ALONE, and that guard
 // applies the shift only behind `isInstitutionalPrincipal` — an `institutional`
-// accountType or a `govt`/`admin` role. A clinic vet holds `role: "vet"` /
+// accountType or a `govt`/`admin`/`national` role. A clinic vet holds `role: "vet"` /
 // `accountType: "personal"`; their operator-ness lives in
 // `organization_memberships`, which requireLiveUser never reads. So the org
 // capability path refused them at /org/{token}/atender, the page redirected them

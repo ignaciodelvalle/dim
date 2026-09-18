@@ -29,7 +29,9 @@
 //     factor whose secret it does not hold — it re-enrols on its next run.
 //
 // LOCAL / CI ONLY. It deletes factors of whatever account it is handed; it must
-// never be pointed at an environment where a person uses the account.
+// never be pointed at an environment where a person uses the account — so it
+// refuses a NEXT_PUBLIC_SUPABASE_URL whose host is not the local machine, with
+// the same check the e2e seed uses (assertLocalSupabaseUrl).
 //
 // SERIALISED across vitest workers with a lock file: two files elevating the
 // same seed account at once would each see the other's freshly verified factor
@@ -41,6 +43,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { type SupabaseClient, createClient } from "@supabase/supabase-js";
+
+import { assertLocalSupabaseUrl } from "@/scripts/lib/seed-mfa";
 
 export const TEMP_FACTOR_PREFIX = "rls-aal2-";
 
@@ -158,6 +162,7 @@ export async function elevateToAal2(client: SupabaseClient): Promise<void> {
       "aal2-session: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing — cannot manage factors",
     );
   }
+  assertLocalSupabaseUrl(supabaseUrl, "aal2-session");
   const serviceClient = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
