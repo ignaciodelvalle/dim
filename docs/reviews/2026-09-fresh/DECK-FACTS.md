@@ -111,9 +111,9 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | key | value with marker |
 |---|---|
 | `event_types` | `<!-- fact:event_types -->55<!-- /fact -->` |
-| `verify_fences` | `<!-- fact:verify_fences -->70<!-- /fact -->` |
-| `lint_scripts` | `<!-- fact:lint_scripts -->70<!-- /fact -->` |
-| `check_scripts` | `<!-- fact:check_scripts -->75<!-- /fact -->` |
+| `verify_fences` | `<!-- fact:verify_fences -->71<!-- /fact -->` |
+| `lint_scripts` | `<!-- fact:lint_scripts -->71<!-- /fact -->` |
+| `check_scripts` | `<!-- fact:check_scripts -->76<!-- /fact -->` |
 | `modules` | `<!-- fact:modules -->22<!-- /fact -->` |
 | `pages` | `<!-- fact:pages -->263<!-- /fact -->` |
 | `route_handlers` | `<!-- fact:route_handlers -->89<!-- /fact -->` |
@@ -127,7 +127,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `vercel_crons_declared` | `<!-- fact:vercel_crons_declared -->2<!-- /fact -->` |
 | `cron_jobs` | `<!-- fact:cron_jobs -->24<!-- /fact -->` |
 | `ci_workflows` | `<!-- fact:ci_workflows -->8<!-- /fact -->` |
-| `vitest_files` | `<!-- fact:vitest_files -->1562<!-- /fact -->` |
+| `vitest_files` | `<!-- fact:vitest_files -->1563<!-- /fact -->` |
 | `e2e_specs` | `<!-- fact:e2e_specs -->45<!-- /fact -->` |
 | `mobile_jest_files` | `<!-- fact:mobile_jest_files -->113<!-- /fact -->` |
 | `org_capabilities` | `<!-- fact:org_capabilities -->16<!-- /fact -->` |

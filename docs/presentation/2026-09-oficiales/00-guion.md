@@ -423,8 +423,8 @@ funciona si las dos láminas incómodas están donde se ven.
   cumplir, y el propio verificador de la suite desconfía del resultado de la suite.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
-    <!-- fact:verify_fences -->70<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1562<!-- /fact -->.
+    <!-- fact:verify_fences -->71<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1563<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
