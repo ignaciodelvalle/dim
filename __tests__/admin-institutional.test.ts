@@ -32,18 +32,15 @@ vi.mock("resend", () => ({
   },
 }));
 
+import type * as RevokeTargetSessions from "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions";
+
 // A revocation that fails (security review 2026-09, reset item). Off by default:
 // every other test in this file runs the REAL revokeAllSessionsOf.
 const revoke = vi.hoisted(() => ({ fail: false }));
 vi.mock(
   "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions",
   async (importOriginal) => {
-    const real =
-      await importOriginal<
-        typeof import(
-          "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions",
-        )
-      >();
+    const real = await importOriginal<typeof RevokeTargetSessions>();
     return {
       ...real,
       revokeAllSessionsOf: async (...args: Parameters<typeof real.revokeAllSessionsOf>) =>
