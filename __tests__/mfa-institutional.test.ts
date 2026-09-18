@@ -68,6 +68,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
+import { isInstitutionalPrincipal } from "@/lib/infra/live-user";
 import { RateLimitError } from "@/lib/infra/rate-limit";
 import { base32Decode, secondsLeftInStep, totp, totpFromKey } from "@/scripts/lib/totp";
 import {
@@ -192,6 +193,24 @@ describe("mfaRequirement", () => {
     [[], null, "unknown"],
   ] as const)("factors %j at %s → %s", (factors, aal, expected) => {
     expect(mfaRequirement({ factors, aal })).toBe(expected);
+  });
+});
+
+describe("who is asked for the second factor — same set as caller_meets_institutional_aal (0231)", () => {
+  const p = (role: string, accountType: string) =>
+    ({ ...govtProfile, role, accountType }) as unknown as Parameters<
+      typeof isInstitutionalPrincipal
+    >[0];
+
+  it.each([
+    ["admin", "personal", true],
+    ["govt", "personal", true],
+    ["national", "personal", true],
+    ["owner", "institutional", true],
+    ["owner", "personal", false],
+    ["vet", "personal", false],
+  ])("role %s on a %s account → %s", (role, accountType, expected) => {
+    expect(isInstitutionalPrincipal(p(role, accountType))).toBe(expected);
   });
 });
 

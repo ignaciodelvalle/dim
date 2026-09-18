@@ -599,8 +599,16 @@ function withEmailConfirmed<T extends { email_confirmed_at?: string | null }>(
  * predicate that survives that looseness; requiring both would let a single
  * mismatched column silently opt an operator out of the boundary.
  *
+ * The platform roles are admin, govt AND national (migration 0214's read-only
+ * institutional role). Its database twin is `public.caller_meets_institutional_aal()`
+ * (migration 0231): account_type = 'institutional' OR role IN ('admin', 'govt',
+ * 'national'). The two must name the same set — a `national` on a personal
+ * account that this predicate missed would never be asked for the second
+ * factor, while RLS would refuse its aal1 token everywhere.
+ *
  * Exported for the org capability path, which applies the same policy to a
- * principal this predicate cannot see (org staff on a personal profile).
+ * principal this predicate cannot see (org staff on a personal profile), and
+ * for the MFA gate (src/modules/auth/application/mfa/mfa-session.ts).
  *
  * A null profile — the mid-signup window, where auth.users exists and the
  * profile row does not — is NOT institutional. There is no operator yet, and
@@ -609,6 +617,9 @@ function withEmailConfirmed<T extends { email_confirmed_at?: string | null }>(
 export function isInstitutionalPrincipal(profile: CachedProfile | null): boolean {
   if (!profile) return false;
   return (
-    profile.accountType === "institutional" || profile.role === "govt" || profile.role === "admin"
+    profile.accountType === "institutional" ||
+    profile.role === "govt" ||
+    profile.role === "admin" ||
+    profile.role === "national"
   );
 }

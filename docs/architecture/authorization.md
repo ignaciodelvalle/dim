@@ -181,12 +181,18 @@ dropped it in favour of app-layer enforcement. A `govt` row that says
 `personal`, or an `institutional` row still carrying `owner`, is a shape the
 database permits.
 
-`isInstitutionalPrincipal` (`lib/infra/live-user.ts:414`) is the predicate that
+`isInstitutionalPrincipal` (`lib/infra/live-user.ts`) is the predicate that
 survives that looseness. It is an **OR**, not an AND:
 
 ```
-accountType === "institutional" || role === "govt" || role === "admin"
+accountType === "institutional" || role === "govt" || role === "admin" || role === "national"
 ```
+
+`national` (migration 0214) is included: the SQL twin of this predicate,
+`public.caller_meets_institutional_aal()` (migration 0231), tests
+`account_type = 'institutional' OR role IN ('admin', 'govt', 'national')`, and the
+second-factor gate (`src/modules/auth/application/mfa/mfa-session.ts`) uses this
+predicate — the two must name the same set.
 
 Requiring both would let a single mismatched column silently opt an operator out
 of the shift boundary. It is exported because the org capability path
