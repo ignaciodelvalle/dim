@@ -1072,6 +1072,29 @@ jobs:
         # the drop — an accidental guard, not a designed one.
         run: pnpm test:verified -- --merge-reports=.vitest-reports --coverage
 
+      - name: Every shard succeeded (DB fences included)
+        # The merge above grades TEST FILES. It cannot see a shard that went
+        # red for a reason that is not a test: the shard-1-only DB fences
+        # (lint:rls, lint:subject-rights, lint:scope-authz, lint:spine,
+        # check:function-parity, …) run as steps of test-shard, and a red fence
+        # with a green suite produces a perfectly clean merged verdict. This
+        # job is the one named "Tests (vitest)" and, running under
+        # `!cancelled()`, it would otherwise go GREEN over a red shard and mask
+        # it wherever only this check is read (security review, 2026-09-18).
+        #
+        # LAST on purpose, and under `!cancelled()` rather than `always()`: the
+        # verdict step above must still run and print WHICH files did not make
+        # it before this one turns the job red.
+        if: ${{ !cancelled() }}
+        env:
+          SHARDS_RESULT: ${{ needs.test-shard.result }}
+        run: |
+          if [ "$SHARDS_RESULT" != "success" ]; then
+            echo "::error::test-shard finished as '$SHARDS_RESULT' — at least one shard (or a shard-1 DB fence) failed. See the shard jobs above."
+            exit 1
+          fi
+          echo "All test shards succeeded."
+
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
