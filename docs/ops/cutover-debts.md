@@ -45,6 +45,16 @@
   dashboard before the pilot's first day — its current password is published in the public repo
   (see above). Dated 2026-09-18.
 
+  **Extended 2026-09-18 (security review MEDIUM-1): every seeded `govt` account, not only the
+  superadmin.** `govt@dim.test`, `govt-local@dim.test`, `lucas@dim.test` and any other seeded
+  `govt`, plus `nacional@dim.test` (country-wide read scope, so it overlaps every pilot), share the
+  same published password and see real citizens' reports inside their assigned localities. Before a
+  jurisdiction is onboarded, each seeded account whose scope overlaps it is deactivated
+  (`/admin/govts/[userId]`, which also revokes its localities) or gets a new password — and
+  `orgadmin@`/`owner@` too when their seeded org or pets fall inside it. The runbook step is
+  `docs/pilotos/onboarding-municipio.md` §0.1. New passwords go to the password manager, never
+  into a doc.
+
 ## 2. Environments
 
 - [ ] **Stand up a production environment separate from "ensayo"** — its own Supabase project

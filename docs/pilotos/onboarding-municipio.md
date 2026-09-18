@@ -28,6 +28,36 @@ asignar, y una notificación interna "se genera correctamente y no la lee
 nadie" — es el punto que el propio documento de pedidos al Estado marca como
 el más barato de resolver y el que más rápido cambia algo.
 
+### 0.1 Antes de dar de alta a nadie: las cuentas demo que se superponen
+
+El ambiente del piloto es el mismo donde viven las cuentas sembradas para las
+demos, y su contraseña está en el repositorio público — no es secreta
+(`docs/ops/cutover-debts.md`, ítem "Demo accounts must not exist in a real
+environment"). Una cuenta demo con alcance sobre la jurisdicción del piloto ve
+—y en algunos casos decide— sobre datos reales de vecinos del municipio.
+
+Antes de crear la primera cuenta del municipio, **desactivá o cambiale la
+contraseña** a cada cuenta sembrada cuyo alcance se superpone con la
+jurisdicción del piloto:
+
+- **Las de gobierno** (`govt`): `govt@dim.test` (Ushuaia, El Calafate),
+  `govt-local@dim.test` (La Plata, CABA/Palermo), `lucas@dim.test` (CABA) y
+  cualquier otra cuenta `govt` sembrada — revisá la lista en `/admin/govts`,
+  no te quedes con esta. Desactivar desde `/admin/govts/[userId]` (§3) revoca
+  además sus localidades.
+- **`nacional@dim.test`** (`national`): lee todo el país, así que se
+  superpone con **cualquier** piloto.
+- **`admin@dim.test`**: superadmin, alcance total. No se desactiva (es la
+  cuenta con la que se opera), pero su contraseña tiene que dejar de ser la
+  publicada — cambiala desde el panel de Supabase.
+- **`orgadmin@dim.test`** y **`owner@dim.test`**: si la organización o las
+  mascotas sembradas caen dentro de la jurisdicción del piloto (la semilla usa
+  La Plata y CABA/Palermo), cambiales la contraseña o desactivalas.
+
+Nunca anotes la contraseña nueva en un documento del repo, ni en este ni en
+otro: va al gestor de contraseñas. Dejá constancia en `cutover-debts.md` de
+qué cuentas se cerraron y cuándo, sin contraseñas.
+
 ---
 
 ## 1. Crear las cuentas — `/admin/govts/new`
@@ -186,6 +216,8 @@ y esta ruta no cambia.
 ## Checklist del día 1
 
 - [ ] Correos institucionales y localidades recibidos del municipio (§0)
+- [ ] Cuentas demo que se superponen con la jurisdicción desactivadas o con
+      contraseña cambiada (§0.1), sin escribir ninguna contraseña en docs
 - [ ] Cuenta(s) `govt` creada(s) desde `/admin/govts/new`, con sus
       localidades iniciales
 - [ ] Si corresponde, la cuenta `national` de observador creada
