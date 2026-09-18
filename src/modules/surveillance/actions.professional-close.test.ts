@@ -250,6 +250,8 @@ describe("professionalCloseRabiesObservationAction — notifications", () => {
       `event:${ENDED_EVENT_ID}:co-owner-2:${OWNER_TYPE}`,
       `event:${ENDED_EVENT_ID}:owner-1:${OWNER_TYPE}`,
     ]);
-    for (const r of deadLettered) expect(r.errorMessage).toBe("connection reset by peer");
+    // Stored as the sanitized summary (name + first line), never the raw
+    // message — a Drizzle error's raw message carries the query's params.
+    for (const r of deadLettered) expect(r.errorMessage).toBe("Error: connection reset by peer");
   });
 });

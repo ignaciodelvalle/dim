@@ -2942,7 +2942,7 @@
     },
     {
       "id": "CANON-180",
-      "rule": "Every table in the public schema must be declared in exactly one of `IN_EXPORT`, `IN_ERASE`, `EXEMPT` (with a reason), or `KNOWN_GAP` (with a note) — verified both ways against the live `export_subject_data`/`erase_subject_data` function bodies; `KNOWN_GAP` must not grow past its declared ceiling (17) without the ceiling being raised in the same commit.",
+      "rule": "Every table in the public schema must carry a classification of BOTH rights — its art. 14 side (export) and its art. 16 side (erase) — each side `covered` (verified both ways against the live `export_subject_data`/`erase_subject_data` function bodies), `covered_outside_sql` (with the TypeScript site that reaches it), `exempt` (with a reason) or `gap` (with a note); live storage buckets are classified the same way; the count of tables with any gap side must not grow past its declared ceiling (16) without the ceiling being raised in the same commit.",
       "scope": "db",
       "sources": [
         "AGENTS.md:1689",
@@ -2950,9 +2950,9 @@
         "__tests__/check-subject-rights-coverage.test.ts:1-9,74-171"
       ],
       "enforcer": [
-        "scripts/check-subject-rights-coverage.ts:254",
-        "package.json:37 lint:subject-rights",
-        "__tests__/check-subject-rights-coverage.test.ts:154,160,170"
+        "scripts/check-subject-rights-coverage.ts:665",
+        "package.json:40 lint:subject-rights",
+        "__tests__/check-subject-rights-coverage.test.ts:57,95,272,279"
       ],
       "enforcementKind": "lint-script",
       "wired": "verify",
