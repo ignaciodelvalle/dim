@@ -4,7 +4,8 @@
 // real GoTrue: an admin password write there ALREADY ends every session, so the
 // "session that survived the reset" never exists locally. This file hands the
 // use-case a session that did survive — flag armed, token authenticated before
-// the arming — and asserts nothing was written.
+// the arming — and asserts nothing was written. It also pins that a GoTrue
+// refusal is shown as fixed Spanish copy, never GoTrue's own message.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,8 +19,10 @@ vi.mock("@/lib/infra/role-landing", () => ({ resolveUserLanding: async () => "/g
 vi.mock("@/lib/infra/report-error", () => ({ reportError: vi.fn() }));
 
 import { tokenWithClaims } from "@/__tests__/helpers/amr-token";
+import { reportError } from "@/lib/infra/report-error";
 import {
   FIRST_ACCESS_MESSAGES,
+  PASSWORD_NOT_SAVED_MESSAGE,
   setInitialPassword,
 } from "@/src/modules/auth/application/first-access/set-initial-password";
 
@@ -54,7 +57,10 @@ function client(amrSeconds: number | null, iatSeconds: number) {
   };
 }
 
-beforeEach(() => adminUpdate.mockClear());
+beforeEach(() => {
+  adminUpdate.mockClear();
+  vi.mocked(reportError).mockClear();
+});
 
 describe("setInitialPassword — the session must postdate the arming", () => {
   it("refuses a session authenticated before the arming, even with a refreshed token", async () => {
@@ -83,5 +89,42 @@ describe("setInitialPassword — the session must postdate the arming", () => {
     expect(adminUpdate).toHaveBeenCalledWith("user-001", {
       app_metadata: { password_setup_pending: false },
     });
+  });
+});
+
+describe("setInitialPassword — GoTrue's own error text never reaches the person", () => {
+  const RAW = "internal: user 0b7c factor state mismatch";
+
+  it("a refused password write shows the fixed Spanish message and reports the raw one", async () => {
+    const { supabase, updateUser } = client(ARMED_SECOND + 60, ARMED_SECOND + 60);
+    updateUser.mockResolvedValueOnce({
+      error: { code: "unexpected_failure", message: RAW },
+    } as never);
+    const result = await setInitialPassword(supabase, {
+      password: PASSWORD,
+      confirmPassword: PASSWORD,
+    });
+    expect(result).toEqual({ error: PASSWORD_NOT_SAVED_MESSAGE });
+    expect(reportError).toHaveBeenCalledWith(
+      "first-access/password-write",
+      expect.objectContaining({ message: RAW }),
+    );
+  });
+
+  it("a refused ADMIN password write (account keeps its factor) does the same", async () => {
+    const { supabase, updateUser } = client(ARMED_SECOND + 60, ARMED_SECOND + 60);
+    updateUser.mockResolvedValueOnce({
+      error: { code: "insufficient_aal", message: "AAL2 session is required" },
+    } as never);
+    adminUpdate.mockResolvedValueOnce({ error: { message: RAW } } as never);
+    const result = await setInitialPassword(supabase, {
+      password: PASSWORD,
+      confirmPassword: PASSWORD,
+    });
+    expect(result).toEqual({ error: PASSWORD_NOT_SAVED_MESSAGE });
+    expect(reportError).toHaveBeenCalledWith(
+      "first-access/admin-password-write",
+      expect.objectContaining({ message: RAW }),
+    );
   });
 });

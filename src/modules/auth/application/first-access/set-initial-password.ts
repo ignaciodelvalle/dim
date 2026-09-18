@@ -52,6 +52,14 @@ export const FIRST_ACCESS_MESSAGES = {
 } as const;
 
 /**
+ * A GoTrue refusal while writing the password. Fixed copy: GoTrue's own message
+ * is English, internal, and may describe the account's state; it is reported
+ * server-side (reportError) and never shown.
+ */
+export const PASSWORD_NOT_SAVED_MESSAGE =
+  "No se pudo guardar la contraseña. Probá de nuevo en unos minutos; si sigue fallando, pedile a quien te creó la cuenta un link nuevo.";
+
+/**
  * @param supabase The caller's SESSION client (cookie-bound on the web; the
  *   actions layer builds it — the application layer may not reach for
  *   next/headers). Its session is the one the first-access link minted.
@@ -109,12 +117,14 @@ export async function setInitialPassword(
       app_metadata: completedPasswordSetupMetadata(),
     });
     if (adminError) {
-      return { error: `No se pudo guardar la contraseña: ${adminError.message}` };
+      reportError("first-access/admin-password-write", adminError);
+      return { error: PASSWORD_NOT_SAVED_MESSAGE };
     }
     return { error: null, ok: true, landing: "/iniciar-sesion" };
   }
   if (updateError) {
-    return { error: `No se pudo guardar la contraseña: ${updateError.message}` };
+    reportError("first-access/password-write", updateError);
+    return { error: PASSWORD_NOT_SAVED_MESSAGE };
   }
 
   // The flag lives in app_metadata, which only the service role may write.
