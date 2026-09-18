@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 import { seedFixtureVerdict } from "./_seed-profile";
-import { ACCOUNTS, loginAs, resolveOrgToken } from "./demo/_helpers";
+import { endSponsorship, pickSponsorablePetToken, sponsorPet } from "./_shelter-custody";
+import { ACCOUNTS, loginAs } from "./demo/_helpers";
 
 /**
  * Print-surface regression armor (print-surfaces audit, 2026-08-04).
@@ -281,56 +282,58 @@ test.describe("print surfaces are not clipped by the operator shell", () => {
 test.describe("the adoption contract print surface", () => {
   test("answers a real browser POST and renders no contract for an unresolvable adopter", async ({
     page,
+    browser,
   }) => {
+    // THE PET UNDER CUSTODY IS PROVISIONED HERE (T1-C3, 2026-09-18). This used
+    // to take the first pet the seeded refugio listed, and on staging the
+    // refugio held none — the suite had adopted them all out and nothing
+    // reopened a custody — so the nightly was red on a missing fixture for 41
+    // nights. The titular asks the refugio to sponsor one of their pets, the
+    // org accepts (a live shelter custody this test owns), and the `finally`
+    // below ends it through the titular's own "Dar de baja".
+    test.setTimeout(120_000);
     await loginAs(page, ACCOUNTS.orgAdmin);
-    const orgToken = await resolveOrgToken(page, /Refugio Test/i);
+    const titularContext = await browser.newContext();
+    const titular = await titularContext.newPage();
+    let petToken = "";
+    try {
+      await loginAs(titular, ACCOUNTS.owner);
+      petToken = await pickSponsorablePetToken(titular);
+      const orgToken = await sponsorPet(titular, page, petToken);
 
-    await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle").catch(() => {});
+      const contractUrl = `/org/${orgToken}/mascotas/${petToken}/adoption/contrato`;
 
-    // Same discovery convention as crisis-seams.spec.ts — the pet segment of a
-    // real org link, never a hardcoded token.
-    const petHrefs = await page
-      .locator(`a[href*="/org/${orgToken}/mascotas/DIM"]`)
-      .evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).getAttribute("href") ?? ""));
-    const candidates = Array.from(
-      new Set(
-        petHrefs
-          .map((h) => h.split("/mascotas/")[1]?.split(/[/?#]/)[0] ?? "")
-          .filter((t) => t.startsWith("DIM")),
-      ),
-    );
+      // `page.request` shares the browser context's cookies, so this POST carries
+      // the orgadmin session the route's capability guard needs.
+      const refused = await page.request.post(contractUrl, {
+        // A syntactically valid DNI that resolves to no registered account: the
+        // route must refuse BEFORE rendering anything.
+        form: { adopterDni: "11111111", followupMonths: "", notes: "" },
+      });
+      const refusedBody = await refused.text();
+      // Status only as a coarse signal — the surface is the assertion (e2e/README:
+      // never pin a refusal on the exact status code).
+      expect(refused.status(), "an unresolvable adopter must not get a contract").not.toBe(200);
+      expect(refusedBody).not.toContain("Contrato de adopción");
+      expect(refusedBody).not.toContain("window.print()");
+      // 405 would mean the handler was never reached (wrong method wiring); the
+      // route answers POST and refuses on its own terms.
+      expect(refused.status(), "the route handler accepts POST").not.toBe(405);
 
-    const verdict = seedFixtureVerdict(
-      candidates.length,
-      "pet under the seeded refugio's custody",
-      "the adoption contract print route's HTTP wiring",
-    );
-    test.skip(verdict.verdict === "skip", verdict.verdict === "skip" ? verdict.reason : "");
-    expect(verdict.verdict, verdict.verdict === "fail" ? verdict.reason : "").not.toBe("fail");
-
-    const contractUrl = `/org/${orgToken}/mascotas/${candidates[0]}/adoption/contrato`;
-
-    // `page.request` shares the browser context's cookies, so this POST carries
-    // the orgadmin session the route's capability guard needs.
-    const refused = await page.request.post(contractUrl, {
-      // A syntactically valid DNI that resolves to no registered account: the
-      // route must refuse BEFORE rendering anything.
-      form: { adopterDni: "11111111", followupMonths: "", notes: "" },
-    });
-    const refusedBody = await refused.text();
-    // Status only as a coarse signal — the surface is the assertion (e2e/README:
-    // never pin a refusal on the exact status code).
-    expect(refused.status(), "an unresolvable adopter must not get a contract").not.toBe(200);
-    expect(refusedBody).not.toContain("Contrato de adopción");
-    expect(refusedBody).not.toContain("window.print()");
-    // 405 would mean the handler was never reached (wrong method wiring); the
-    // route answers POST and refuses on its own terms.
-    expect(refused.status(), "the route handler accepts POST").not.toBe(405);
-
-    // GET is not an entry point: the DNI must never be expressible in a URL.
-    const viaGet = await page.request.get(contractUrl);
-    expect(viaGet.status(), "the contract must not be GET-addressable").not.toBe(200);
-    expect(await viaGet.text()).not.toContain("window.print()");
+      // GET is not an entry point: the DNI must never be expressible in a URL.
+      const viaGet = await page.request.get(contractUrl);
+      expect(viaGet.status(), "the contract must not be GET-addressable").not.toBe(200);
+      expect(await viaGet.text()).not.toContain("window.print()");
+    } finally {
+      // Logged, not thrown: a cleanup failure must not replace the assertion
+      // that brought us here, and the next sponsorship walk resets every
+      // candidate pet first anyway.
+      if (petToken) {
+        await endSponsorship(titular, petToken).catch((err) =>
+          console.error(`[print-surfaces] could not end the sponsorship of ${petToken}:`, err),
+        );
+      }
+      await titularContext.close();
+    }
   });
 });

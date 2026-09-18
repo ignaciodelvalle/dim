@@ -66,6 +66,12 @@ jobs:
     # SKIP and restore nothing. The fix is for the specs to provision their own
     # custody; one of them already does — an `E2EPet-…` row on 2026-09-08 opened
     # and closed a custody four seconds apart.
+    #
+    # DONE (T1-C3, 2026-09-18), pending three green nights to confirm: the three
+    # specs now open their own custody through e2e/_shelter-custody.ts —
+    # crisis-seams (d) intakes a new pet and its adoption ends the custody;
+    # owner-ia-p6 #8 and print-surfaces open a rehome sponsorship and end it in
+    # a `finally`. None of them reads the seeded refugio's pets any more.
     env:
       STAGING_URL: https://dim-staging.vercel.app
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}

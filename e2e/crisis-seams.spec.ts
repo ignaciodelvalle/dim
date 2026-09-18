@@ -72,6 +72,8 @@ import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { provinceByName } from "@/lib/reference/ar-provincias";
 
+import { INTAKE_PET_PREFIX, intakeShelterPet } from "./_shelter-custody";
+import { deletePetsByNamePrefix } from "./demo/_db-cleanup";
 import {
   ACCOUNTS,
   MARK_FOUND_BUTTON,
@@ -137,6 +139,17 @@ async function libretaAsientos(page: Page, token: string): Promise<Locator> {
 }
 
 test.describe.configure({ mode: "serial" });
+
+// Seam (d) intakes its own pet and adopts it out to owner2 (T1-C3). The
+// adoption ends the custody; this removes the pet itself — before as well as
+// after, so an interrupted run cannot leave one behind for the next. LOCAL
+// DATABASE ONLY: a no-op against staging, like every sweep in _db-cleanup.
+test.beforeAll(async () => {
+  await deletePetsByNamePrefix(INTAKE_PET_PREFIX);
+});
+test.afterAll(async () => {
+  await deletePetsByNamePrefix(INTAKE_PET_PREFIX);
+});
 
 test.describe("crisis seams — cross-POV critical journeys", () => {
   // ------------------------------------------------------------------------
@@ -600,15 +613,19 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
   //    adoption-eligible pets there server-side. Neither exists in CI, so once
   //    seams (b)/(c) stopped failing — and stopped masking this one behind
   //    serial-mode skips — the account simply could not log in. It now runs as
-  //    orgadmin@dim.test against "Refugio Test (Seed)", whose three
-  //    shelter-custody pets `pnpm db:bootstrap` guarantees.
-  //  - Those pets are seeded WITHOUT `adoptionEligible`, so nothing is
-  //    published up front and the old spec's "find an already-published pet"
-  //    loop would have found nothing and self-skipped — a green that runs no
-  //    journey, which is the exact hole this suite exists to close. So the seam
-  //    now performs the publication itself: mark apta on the Elegibilidad tab,
-  //    then drive the 2-step listing wizard. That is a fuller reading of its own
-  //    title ("refugio publishes") than inheriting a server-side fixture was.
+  //    orgadmin@dim.test against "Refugio Test (Seed)".
+  //  - THE PET IS PROVISIONED HERE (T1-C3, 2026-09-18). This seam used to
+  //    adopt out one of the three shelter-custody pets `pnpm db:bootstrap`
+  //    seeds — and nothing ever gave the refugio another, so on staging, which
+  //    is never re-seeded, the fixture ran out and e2e-nightly.yml was red 41
+  //    nights (it also starved owner-ia-p6 #8 and print-surfaces, which read
+  //    the same custody). Now the refugio INTAKES a new animal through its own
+  //    wizard (e2e/_shelter-custody.ts), and the adoption below is what ends
+  //    that custody. The adopted pet lands in owner2's registry; the afterAll
+  //    sweeps it by name prefix on a local database.
+  //  - An intaken pet is not adoption-eligible, so the seam performs the
+  //    publication itself: mark apta on the Elegibilidad tab, then drive the
+  //    2-step listing wizard — the title's "refugio publishes".
   //  - The final assertion is the TRUTHFUL post-condition: the pet LEAVES the
   //    refugio's shelter custody (adoption finalized). Finalization resolves the
   //    adopter by DNI and creates a stub profile when no user matches — ownership
@@ -616,122 +633,58 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
   //    "owner2 owns the pet" is not an achievable outcome with the seed. The
   //    cross-POV thing this seam really proves is: owner2's application reaches
   //    the refugio queue, the refugio approves, and the custody transfer commits.
-  //  - Non-idempotent: each pass adopts one pet out of the shelter. Re-runs pick
-  //    the next still-in-custody pet and publish that one.
+  //  - Self-contained: each pass intakes, publishes and adopts out its OWN pet,
+  //    so a re-run never inherits a half-finished listing from an earlier one.
   test("(d) refugio publishes → owner2 applies → refugio approves + finalizes → pet transfers out", async ({
     page,
   }) => {
     test.setTimeout(180_000);
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    // --- Refugio (orgadmin): find an in-custody pet and PUBLISH it ----------
+    // --- Refugio (orgadmin): intake a pet of its own and PUBLISH it ----------
     await relogin(page, ACCOUNTS.orgAdmin);
     const orgToken = await resolveOrgToken(page, SEEDED_ORG_NAME);
-    await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
+    const petName = `${INTAKE_PET_PREFIX}${Date.now()}`;
+    const petToken = await intakeShelterPet(page, orgToken, petName);
+
+    // An intaken pet is not yet apta. Clear eligibility on its own tab, which is
+    // exactly where the listing page's blocking copy tells the operator to go.
+    await page.goto(`/org/${orgToken}/mascotas/${petToken}/eligibility`, {
+      waitUntil: "domcontentloaded",
+    });
     await page.waitForLoadState("networkidle").catch(() => {});
+    await page.getByRole("button", { name: /^apta para adopci[oó]n$/i }).click();
+    await page.getByRole("button", { name: /^confirmar elegibilidad$/i }).click();
+    // Assert the PERSISTED state, not the transient confirmation: the form
+    // commits and then does a full document reload onto the same URL
+    // (navigateAfterActionSuccess), which wipes its own "Marcada como apta…"
+    // output before it can be observed. "Estado actual" is SSR'd from the DB
+    // and survives — and "No apta" cannot satisfy this pattern.
+    await expect(
+      page.getByText(/estado actual:\s*apta/i).first(),
+      `${petToken} is recorded as apta para adopción after the decision`,
+    ).toBeVisible({ timeout: 20_000 });
 
-    // Collect org pet tokens UP FRONT — the loop navigates away from the list,
-    // so a `page`-bound locator would re-query the wrong page on later passes.
-    const petHrefs = await page
-      .locator(`a[href*="/org/${orgToken}/mascotas/DIM"]`)
-      .evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).getAttribute("href") ?? ""));
-    const candidates = Array.from(
-      new Set(
-        petHrefs
-          .map((h) => h.split("/mascotas/")[1]?.split(/[/?#]/)[0] ?? "")
-          .filter((t) => t.startsWith("DIM")),
-      ),
-    );
-    expect(
-      candidates.length,
-      `${orgToken} holds no pets — seed-test-users.ts seeds three under shelter custody, so an empty list is a real failure`,
-    ).toBeGreaterThan(0);
-
-    // A pet adopted out by a PRIOR run 404s on its org /adoptar surface (no
-    // active shelter_custody), so the loop naturally moves past it.
-    let petToken = "";
-    let petName = "";
-    for (const candidate of candidates) {
-      const res = await page.goto(`/org/${orgToken}/mascotas/${candidate}/adoptar`, {
-        waitUntil: "domcontentloaded",
-      });
-      if ((res?.status() ?? 500) >= 400) continue;
-      await page.waitForLoadState("networkidle").catch(() => {});
-      // h1 = "Publicar en adopción · {name}" — strip the prefix for the name.
-      const heading = (
-        await page
-          .getByRole("heading", { level: 1 })
-          .first()
-          .innerText()
-          .catch(() => "")
-      )
-        .replace(/^publicar en adopci[oó]n\s*·\s*/i, "")
-        .trim();
-
-      // SKIP a pet that is ALREADY published rather than adopting it out.
-      //
-      // The seam is named "refugio PUBLISHES", so inheriting somebody else's
-      // listing skips the very step under test. It also made the test
-      // un-rerunnable: a pass that stops halfway leaves its pet published WITH a
-      // live application from owner2, and the next run picks that same pet, finds
-      // "Ya postulaste" instead of the wizard, and fails on inherited state
-      // rather than on anything the code did. Publishing a fresh pet each run
-      // keeps every pass self-contained. A pet already adopted out by an earlier
-      // pass 404s above and never reaches here.
-      const alreadyPublished = await page
-        .getByText(/Publicada y visible/i)
-        .isVisible()
-        .catch(() => false);
-      if (alreadyPublished) continue;
-
-      // Not published. The only blocker a seeded shelter pet legitimately has is
-      // eligibility (the page lists lost / deceased / dispute / rabies-observation
-      // as the others); clear it on its own tab, which is exactly where the
-      // page's blocking copy tells the operator to go.
-      await page.goto(`/org/${orgToken}/mascotas/${candidate}/eligibility`, {
-        waitUntil: "domcontentloaded",
-      });
-      await page.waitForLoadState("networkidle").catch(() => {});
-      await page.getByRole("button", { name: /^apta para adopci[oó]n$/i }).click();
-      await page.getByRole("button", { name: /^confirmar elegibilidad$/i }).click();
-      // Assert the PERSISTED state, not the transient confirmation: the form
-      // commits and then does a full document reload onto the same URL
-      // (navigateAfterActionSuccess), which wipes its own "Marcada como apta…"
-      // output before it can be observed. "Estado actual" is SSR'd from the DB
-      // and survives — and "No apta" cannot satisfy this pattern.
-      await expect(
-        page.getByText(/estado actual:\s*apta/i).first(),
-        `${candidate} is recorded as apta para adopción after the decision`,
-      ).toBeVisible({ timeout: 20_000 });
-
-      // Back to the listing wizard: step 1 content → step 2 publish.
-      await page.goto(`/org/${orgToken}/mascotas/${candidate}/adoptar`, {
-        waitUntil: "domcontentloaded",
-      });
-      await page.waitForLoadState("networkidle").catch(() => {});
-      await page
-        .locator("#story")
-        .fill("Llegó al refugio como callejero y busca una familia tranquila y responsable.");
-      await page.getByRole("button", { name: /^guardar y continuar$/i }).click();
-      const publishBtn = page.getByRole("button", { name: /^publicar adopci[oó]n$/i });
-      await expect(publishBtn, "step 2 of the listing wizard").toBeVisible({ timeout: 20_000 });
-      await expect(
-        publishBtn,
-        `"Publicar adopción" is enabled for ${candidate} once it is apta — a disabled button here means an unresolved blocker the seed should not have`,
-      ).toBeEnabled();
-      await publishBtn.click();
-      await expect(
-        page.getByText(/Publicada y visible/i).first(),
-        `${candidate} is published and publicly visible`,
-      ).toBeVisible({ timeout: 20_000 });
-      petToken = candidate;
-      petName = heading;
-      break;
-    }
-    expect(
-      petToken,
-      "this run published an in-custody pet of the seeded refugio for adoption — an empty result means every seeded pet is already listed or already adopted out, i.e. the fixture is exhausted and the database needs re-seeding",
-    ).toBeTruthy();
+    // The listing wizard: step 1 content → step 2 publish.
+    await page.goto(`/org/${orgToken}/mascotas/${petToken}/adoptar`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await page
+      .locator("#story")
+      .fill("Llegó al refugio como callejero y busca una familia tranquila y responsable.");
+    await page.getByRole("button", { name: /^guardar y continuar$/i }).click();
+    const publishBtn = page.getByRole("button", { name: /^publicar adopci[oó]n$/i });
+    await expect(publishBtn, "step 2 of the listing wizard").toBeVisible({ timeout: 20_000 });
+    await expect(
+      publishBtn,
+      `"Publicar adopción" is enabled for ${petToken} once it is apta — a disabled button here means an unresolved blocker a fresh intake should not have`,
+    ).toBeEnabled();
+    await publishBtn.click();
+    await expect(
+      page.getByText(/Publicada y visible/i).first(),
+      `${petToken} is published and publicly visible`,
+    ).toBeVisible({ timeout: 20_000 });
 
     // --- owner2 postula (5-step application wizard) ------------------------
     await relogin(page, ACCOUNTS.owner2);
