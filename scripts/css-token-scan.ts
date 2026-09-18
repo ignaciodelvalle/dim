@@ -152,7 +152,7 @@ export function stripCssComments(css: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Loaded font weights — parsed from app/layout.tsx (next/font/google)
+// Loaded font weights — parsed from app/layout.tsx (next/font/local)
 // ---------------------------------------------------------------------------
 
 /**
@@ -170,11 +170,21 @@ export function stripCssComments(css: string): string {
  */
 export function parseFontWeightSets(layoutSrc: string): Map<string, Set<number>> {
   const out = new Map<string, Set<number>>();
-  // Matches `SomeFont({ … })` — the next/font/google call form. Bodies are flat
-  // (no nested braces) in app/layout.tsx; a nested brace would end the match
-  // early and simply drop that family, which fails OPEN (no false positives).
-  for (const m of layoutSrc.matchAll(/\b[A-Z]\w*\(\{([^{}]*)\}\)/g)) {
-    const body = m[1];
+  // Two call shapes, tried separately so neither's requirements leak into the
+  // other:
+  //  - `SomeFont({ … })` (next/font/google): body is flat, no nested braces,
+  //    may be all on one line — bounded by the first unmatched `})`.
+  //  - `localFont({ … })` (next/font/local, used since L-21, 2026-09-18):
+  //    body nests one level for `src: [{ path, weight, style }, ...]`, so it
+  //    can't be bounded by "no braces" — bounded by its own closing `\n})`
+  //    instead. A call whose closing `\n})` isn't found ends the match early
+  //    and simply drops that family, which fails OPEN (no false positives).
+  const bodies = [
+    ...layoutSrc.matchAll(/\b[A-Z]\w*\(\{([^{}]*)\}\)/g),
+    ...layoutSrc.matchAll(/\blocalFont\(\{([\s\S]*?)\n\}\)/g),
+  ].map((m) => m[1]);
+
+  for (const body of bodies) {
     const varM = /variable:\s*"([^"]+)"/.exec(body);
     if (!varM) continue;
     const weights = new Set<number>();
@@ -182,8 +192,10 @@ export function parseFontWeightSets(layoutSrc: string): Map<string, Set<number>>
     if (arrayM) {
       for (const w of arrayM[1].matchAll(/\d+/g)) weights.add(Number(w[0]));
     } else {
-      const single = /weight:\s*"(\d+)"/.exec(body);
-      if (single) weights.add(Number(single[1]));
+      // next/font/local repeats `weight: "NNN"` once per `src` entry; collect
+      // all of them (a single next/font/google variable-weight call has just
+      // one, so this also covers that shape).
+      for (const w of body.matchAll(/weight:\s*"(\d+)"/g)) weights.add(Number(w[1]));
     }
     // A variable-font call with no `weight` key loads the whole axis. Recording
     // nothing means the check skips that family rather than flagging every

@@ -1,11 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import {
-  Caveat,
-  Encode_Sans,
-  IBM_Plex_Mono,
-  IBM_Plex_Sans,
-  IBM_Plex_Serif,
-} from "next/font/google";
+import localFont from "next/font/local";
 
 import { ErrorSinkBootstrap } from "@/components/ErrorSinkBootstrap";
 import { Toaster } from "@/components/Toaster";
@@ -14,20 +8,30 @@ import { BRANDING } from "@/lib/ui/branding";
 import "./globals.css";
 
 // ---------- Encode Sans (gob.ar portals — the default --font-sans) ----------
-// Loaded via next/font/google (self-hosted by Next at build time, served from
-// /_next/static). Replaces the old @font-face that pointed at
-// /fonts/encode-sans/*.ttf — files that were never committed, so every page 404'd
-// on them and fell back to system fonts. Exposed as a CSS var wired to
-// --font-sans in globals.css.
-const encodeSans = Encode_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Loaded via next/font/local from committed .woff2 files (app/fonts/README.md
+// has source, version, subset and license) — self-hosted by Next, served
+// from /_next/static, same as before. Switched off next/font/google
+// 2026-09-18 (L-21, docs/plans/PENDIENTES.md): that loader fetches from
+// fonts.gstatic.com AT BUILD TIME, which took the CI "Lint, typecheck,
+// build" job down whole on 2026-08-10 when Google didn't answer — unrelated
+// to the commit under test. Vendoring removes the build-time network
+// dependency; runtime self-hosting behavior is unchanged. Exposed as a CSS
+// var wired to --font-sans in globals.css.
+const encodeSans = localFont({
+  src: [
+    { path: "./fonts/encode-sans/encode-sans-v23-latin-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/encode-sans/encode-sans-v23-latin-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/encode-sans/encode-sans-v23-latin-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/encode-sans/encode-sans-v23-latin-700.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--encode-sans-font",
   display: "swap",
 });
 
 // ---------- Libreta Nacional typefaces (IBM Plex family + Caveat) ----------
 // Exposed as CSS vars and wired into Tailwind @theme as --font-ln-* tokens.
+// All loaded via next/font/local from committed .woff2 (app/fonts/README.md)
+// — see the encodeSans comment above for why (L-21).
 
 // Weight lists are a CONTRACT with the utility classes the app actually uses.
 // A weight that is requested but not loaded does not fail — the browser silently
@@ -39,38 +43,95 @@ const encodeSans = Encode_Sans({
 // __tests__/font-weight-contract.test.ts, which re-derives the requested set
 // from the source and fails on any weight that is asked for but not loaded.
 
-const ibmPlexSerif = IBM_Plex_Serif({
-  subsets: ["latin"],
-  // 700: `font-bold` on font-ln-serif (LostCaseBlock's lost-pet initial, the
-  // design-tokens page h1) used to render 600.
-  weight: ["500", "600", "700"],
+const ibmPlexSerif = localFont({
+  src: [
+    // 700: `font-bold` on font-ln-serif (LostCaseBlock's lost-pet initial, the
+    // design-tokens page h1) used to render 600.
+    {
+      path: "./fonts/ibm-plex-serif/ibm-plex-serif-v20-latin-500.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-serif/ibm-plex-serif-v20-latin-600.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-serif/ibm-plex-serif-v20-latin-700.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--a-serif-font",
   display: "swap",
 });
 
-const ibmPlexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const ibmPlexSans = localFont({
+  src: [
+    {
+      path: "./fonts/ibm-plex-sans/ibm-plex-sans-v23-latin-400.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-sans/ibm-plex-sans-v23-latin-500.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-sans/ibm-plex-sans-v23-latin-600.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-sans/ibm-plex-sans-v23-latin-700.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--a-sans-font",
   display: "swap",
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  // 500: `.lp-ch-num`, `.lp-lib-y`, `.ln-band-title` and SuccessScreen's mono
-  // labels used to render 400 (CSS matching for 500 tries 400 before 600).
-  // 700: the whole operator micro-type tier (OpStatusPill / OpPill /
-  // OpScopeChip / OpCodeBadge / OpCrumbs, CaseQueue headers, `.ln-ledlbl`,
-  // `.lp-hcard-badge`) used to render 600 — including comments that read
-  // "9px bold" over text that was not bold.
-  weight: ["400", "500", "600", "700"],
+const ibmPlexMono = localFont({
+  src: [
+    // 500: `.lp-ch-num`, `.lp-lib-y`, `.ln-band-title` and SuccessScreen's mono
+    // labels used to render 400 (CSS matching for 500 tries 400 before 600).
+    // 700: the whole operator micro-type tier (OpStatusPill / OpPill /
+    // OpScopeChip / OpCodeBadge / OpCrumbs, CaseQueue headers, `.ln-ledlbl`,
+    // `.lp-hcard-badge`) used to render 600 — including comments that read
+    // "9px bold" over text that was not bold.
+    {
+      path: "./fonts/ibm-plex-mono/ibm-plex-mono-v20-latin-400.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-mono/ibm-plex-mono-v20-latin-500.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-mono/ibm-plex-mono-v20-latin-600.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "./fonts/ibm-plex-mono/ibm-plex-mono-v20-latin-700.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
   variable: "--a-mono-font",
   display: "swap",
 });
 
-const caveat = Caveat({
-  subsets: ["latin"],
-  weight: ["500", "700"],
+const caveat = localFont({
+  src: [
+    { path: "./fonts/caveat/caveat-v23-latin-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/caveat/caveat-v23-latin-700.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--a-caveat-font",
   display: "swap",
 });
