@@ -253,24 +253,45 @@ general: `docs/reviews/2026-09-fresh/SYNTHESIS.md` y
   comparación de texto entre la dirección invitada y la de quien aceptaba, **sin
   chequear que ese correo estuviera confirmado**. Quien conociera la dirección podía
   registrarse con ella y quedarse con el animal.
-- **Lo que acota el alcance, verificado el 2026-09-02 sobre las cuentas de la
+- ~~**Lo que acota el alcance, verificado el 2026-09-02 sobre las cuentas de la
   base de ensayo —la única base viva:** las confirmaciones **sí están
   activadas** ahí. De las cuentas existentes, una sola figura sin confirmar y
   nunca inició sesión. Es decir: para llegar a este camino hace falta una sesión
   ya confirmada, lo que baja el alcance real muy por debajo de lo que sugiere la
   lectura del código. El archivo de configuración local dice lo contrario porque
-  es solo de desarrollo.
-- **Estado: CERRADO.** `resolveRecipientMatch` / `validateRecipientMatch` toman
+  es solo de desarrollo.~~ **CORREGIDO 2026-09-18 — la afirmación de arriba era
+  falsa.** Medido contra la base de ensayo: de 65 cuentas en `auth.users`, 64
+  están confirmadas y 63 de ellas se confirmaron dentro de los 5 segundos de
+  creadas — la firma del autoconfirm, es decir: **las confirmaciones están
+  APAGADAS** en el proyecto hosteado, consistente con la postura del código
+  (`src/modules/auth/application/signup.ts:146-166`, decisión del PO
+  2026-07-10, reafirmada por el PO el 2026-09-18). El archivo de configuración
+  local no decía "lo contrario porque es solo de desarrollo": decía la verdad.
+  **La consecuencia hay que escribirla sin suavizarla**: mientras las
+  confirmaciones sigan apagadas, GoTrue sella `email_confirmed_at` en el momento
+  del signup, así que el arreglo de A09-1 (que gatea sobre `email_confirmed_at`)
+  es correcto en el código y **vacío en la práctica** para cuentas creadas por
+  auto-registro — cualquiera puede confirmar su propia dirección con solo
+  registrarse, así que el gate no distingue a quien de verdad controla esa
+  casilla.
+- **Estado: CERRADO EN EL CÓDIGO, VACÍO EN LA PRÁCTICA HOY.**
+  `resolveRecipientMatch` / `validateRecipientMatch` toman
   ahora `callerEmailConfirmed` —el `email_confirmed_at` de GoTrue, no nulo— y
   devuelven un resultado propio, `email_unconfirmed`, en vez de `email` cuando
   ese dato es falso. El brazo por identidad de cuenta no cambió. Commit
   `7a22a1c0f`.
 - **Fuente:** `src/modules/transfers/domain/owner-transfer-rules.ts:179,187`;
+  `src/modules/auth/application/signup.ts:146-166`;
   `docs/reviews/2026-09-fresh/lenses/A09.md`.
 - **Lo que sí se puede decir:** "La transferencia de titularidad tiene dos
   brazos: por identidad de cuenta y por dirección de correo cuando el destinatario
-  todavía no tiene cuenta. El segundo **exige que ese correo esté confirmado**;
-  una auditoría de septiembre encontró que no lo exigía y se corrigió." "
+  todavía no tiene cuenta. El segundo **exige que ese correo esté confirmado** en
+  el sistema. Hoy las confirmaciones de e-mail están apagadas por decisión de
+  producto, así que ese requisito se satisface automáticamente en el momento del
+  registro: no prueba todavía que la persona controla esa dirección. Una
+  auditoría de septiembre encontró y corrigió el gate en el código; probar la
+  dirección misma depende de activar las confirmaciones de e-mail, que es una
+  decisión aparte."
 
 ### D.2 — A02-1: la procedencia de un asiento es falsificable por la vía directa
 

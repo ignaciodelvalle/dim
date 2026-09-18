@@ -5,6 +5,9 @@
 > and it carries real testers, synthetic seed data and demo accounts side by side.
 > This page is the list of things that are acceptable in that environment and are NOT
 > acceptable in a real one. Append as they appear; strike through (`~~ ~~`) when done, with the date and evidence.
+>
+> **PO decision 2026-09-18**: the municipal pilot runs in this same "ensayo" environment;
+> production stays a later phase. This page remains the list for that day.
 
 ## 1. Credentials and secrets
 
@@ -38,6 +41,9 @@
 - [ ] **A tester's password was set by hand via SQL** (2026-09-13, one closed-test tester — the PO knows which;
   no personal data here), bypassing the password policy and leaked-password check). Ask her to choose her own before
   cutover, or force a reset.
+- [ ] **Change the password of the superadmin demo account `admin@dim.test`** from the Supabase
+  dashboard before the pilot's first day — its current password is published in the public repo
+  (see above). Dated 2026-09-18.
 
 ## 2. Environments
 
@@ -75,6 +81,9 @@
   and `compliance_targets`, all with `legal_basis = 'REGLA DE PRUEBA — no refleja una norma vigente'`,
   inserted 2026-09-14 for the government meeting (audited under the PO's account). They must never
   reach production, and in staging they should go once the meeting is over.
+- [ ] **Backups**: the Supabase organization is on plan Pro (verified via API 2026-09-18);
+  confirm daily backups in the dashboard and run one restore drill into the local stack (pilot
+  contract T5-D2); point-in-time recovery is a paid add-on for the PO to decide.
 
 ## 4. Mobile
 

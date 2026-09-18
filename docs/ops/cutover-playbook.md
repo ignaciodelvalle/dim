@@ -1,5 +1,12 @@
 # MiMAR — Cutover Playbook (authoritative)
 
+> **Obsolete in parts, noted 2026-09-18 — do not act on §0 or Phase 0 without re-reading current state.**
+> §0's inventory and Phase 0 are OBSOLETE: the `DIM` project is inactive and `DIM-staging` is the
+> live one; `integration/all-20260703` is gone and `main` is the working branch; D3 was decided
+> (`www.mimar.com.ar`); and the PO decided the pilot runs in ensayo, so production provisioning
+> (Phases 2-4) is a later phase. The golden rule, the standing directives and D1-D5 still hold.
+> A full rewrite is item T5-D1 of the pilot contract; the rest of this file is not rewritten now.
+>
 > **This is the governing document for going to production.** It is state-aware (reflects the real Vercel + Supabase inventory as of 2026-07-04) and decision-ordered. The mechanical step-by-step lives in [`production-deploy-plan.md`](./production-deploy-plan.md); **this file owns the phases, the gates, and who may do what.** When the two disagree, this file wins — update it as state changes.
 >
 > **Golden rule:** every remote-DB or production action is rehearsed on **staging first**, and the irreversible steps (prod migrations, prod secrets, DNS, billing) are **Ignacio-gated** — an agent proposes and prepares; Ignacio presses the button.
