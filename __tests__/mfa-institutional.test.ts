@@ -10,7 +10,7 @@
 //   3. reset-mfa-factors.ts — admin-assisted recovery (Supabase has no recovery
 //      codes): admin only, never on oneself, credentials reset FIRST (password,
 //      sessions, new link), then the hook's lockout counters cleared, then
-//      every factor removed, audited.
+//      every factor listed AFTER the credential reset removed, audited.
 //
 // Section 5: the harness factor managers (scripts/lib/seed-mfa.ts,
 // _helpers/aal2-session.ts) refuse a Supabase that is not the local machine.
@@ -583,6 +583,26 @@ describe("resetMfaFactorsForAuthority", () => {
     ).toBe(false);
     expect(likeMatches(pattern, `mfaXverifyXfail:${id}:hour:1`)).toBe(false);
     expect(likeMatches(pattern, `auth_mfa_code_user:${id}`)).toBe(false);
+  });
+
+  it("deletes the factors listed AFTER the credential reset, including one enrolled in between (LOW-3)", async () => {
+    const LATE = { id: "f-late", factor_type: "totp", status: "verified" };
+    h.adminListFactors
+      .mockResolvedValueOnce({ data: { factors: [VERIFIED] }, error: null })
+      .mockResolvedValueOnce({ data: { factors: [VERIFIED, LATE] }, error: null });
+    const result = await resetMfaFactorsForAuthority("admin-1", input);
+    expect(h.calls).toEqual(["credentials", "buckets", "delete:f-ok", "delete:f-late"]);
+    expect(result).toEqual({ ok: true, removed: 2, magicLink: "https://example.test/link" });
+  });
+
+  it("stops before deleting anything when the second read fails (credentials already reset)", async () => {
+    h.adminListFactors
+      .mockResolvedValueOnce({ data: { factors: [VERIFIED] }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: "boom" } });
+    const result = await resetMfaFactorsForAuthority("admin-1", input);
+    expect(h.adminDeleteFactor).not.toHaveBeenCalled();
+    expect(h.writeAuditLog).not.toHaveBeenCalled();
+    expect("error" in result && result.error).toMatch(/no pudimos leer los factores/);
   });
 
   it("leaves every factor in place when the credential reset fails, and relays its error", async () => {

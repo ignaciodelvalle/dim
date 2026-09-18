@@ -35,6 +35,13 @@
 // audited and the admin is told; the credentials are already reset, which is
 // the safe side.
 //
+// THE FACTOR LIST IS READ TWICE (review LOW-3). The first read is a pre-flight:
+// a GoTrue that cannot list factors stops the reset while the account is whole.
+// But between that read and the end of the credential reset, a still-live
+// session could enrol a new factor, and deleting only the pre-flight set would
+// leave it standing. So the set actually deleted is re-read AFTER the sessions
+// are gone, when nobody can enrol anything any more.
+//
 // THE LOCKOUT COUNTERS (review MEDIUM-1). The GoTrue MFA verification hook
 // (migrations 0232/0233) counts wrong codes per account in rate_limit_buckets
 // under `mfa_verify_fail:<user>:hour|day:<window>` and rejects every attempt
@@ -119,9 +126,20 @@ export async function resetMfaFactorsForAuthority(
     bucketsCleared = false;
   }
 
+  // Re-read now that nobody can enrol: this is the set that gets deleted.
+  const { data: current, error: relistError } = await admin.auth.admin.mfa.listFactors({
+    userId: input.targetUserId,
+  });
+  if (relistError || !current) {
+    return {
+      error:
+        "Restablecimos la contraseña y cerramos las sesiones, pero no pudimos leer los factores de la cuenta. Probá de nuevo en unos minutos.",
+    };
+  }
+
   const removedIds: string[] = [];
   let failed = false;
-  for (const factor of listed.factors) {
+  for (const factor of current.factors) {
     const { error } = await admin.auth.admin.mfa.deleteFactor({
       userId: input.targetUserId,
       id: factor.id,
