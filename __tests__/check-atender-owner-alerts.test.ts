@@ -5,6 +5,8 @@
 // `return []` — so every case here builds a synthetic module that SHOULD trip
 // it, and the last case is the real repo.
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,6 +15,7 @@ import {
   deriveWriterUseCases,
   extractExportedFunctions,
 } from "@/scripts/check-atender-owner-alerts";
+import { stripComments } from "@/scripts/check-scope-discipline";
 
 const ACTIONS = "app/org/[orgToken]/atender/actions.ts";
 const COMPLETION = "app/org/[orgToken]/atender/atender-signature-completion.ts";
@@ -203,5 +206,110 @@ ${silentWriter("atenderVaccinationAction")}
     expect(writerCount).toBe(0);
     expect(violations).toHaveLength(1);
     expect(violations[0].reason).toContain("derived ZERO clinical writers");
+  });
+});
+
+// 2026-09-18. The body scan balanced the parameter list and then took the NEXT
+// `{` — for a function with an inline object RETURN TYPE, that is the type's
+// brace. It read ~45 characters of `{ error: string | null; redirectTo?: string }`
+// as the body, found no call in it, and let a live writer through: the vet's
+// close of a rabies observation. The walk is now check-authz-guards.ts's
+// angle-aware phase machine, which fixed the same bug on 2026-08-06.
+describe("check-atender-owner-alerts — the body behind the signature", () => {
+  it("reads a function with an inline object return type to its REAL body", () => {
+    const src = `export async function atenderCloseAction(
+  orgToken: string,
+): Promise<{ error: string | null; redirectTo?: string }> {
+  await createNote({ pet });
+  return { error: null };
+}`;
+    const [fn] = extractExportedFunctions(src);
+
+    expect(fn.name).toBe("atenderCloseAction");
+    expect(fn.body.startsWith("{\n  await createNote(")).toBe(true);
+    expect(fn.body).not.toContain("redirectTo?: string");
+  });
+
+  it("FAILS a silent writer that hides behind an inline return type", () => {
+    const src = `${IMPORTS}
+export async function atenderCloseAction(
+  orgToken: string,
+): Promise<{ error: string | null; redirectTo?: string }> {
+  await createNote({ pet });
+  return { error: null, redirectTo: "/somewhere" };
+}`;
+    const { violations, writerCount } = checkAtenderOwnerAlerts({ [ACTIONS]: src }, CLEAN_SURFACE);
+
+    expect(writerCount).toBe(1);
+    expect(violations.map((v) => v.where)).toEqual([`${ACTIONS} › atenderCloseAction()`]);
+  });
+
+  it("does not take an arrow inside the annotation for a closing angle", () => {
+    // The arrow comes BEFORE the object type on purpose: read as a closing
+    // angle, its `>` drops the depth to zero and the TYPE's brace becomes the
+    // body.
+    const src = `export const atenderArrowAction = async (
+  orgToken: string,
+): Promise<(() => void) | { ok: boolean }> => {
+  await createNote({ pet });
+};`;
+    const [fn] = extractExportedFunctions(src);
+
+    expect(fn.name).toBe("atenderArrowAction");
+    expect(fn.body.startsWith("{\n  await createNote(")).toBe(true);
+  });
+
+  it("extracts a generic signature, type parameters and all", () => {
+    const src = `export async function atenderGenericAction<T extends { id: string }>(
+  input: T,
+): Promise<{ ok: boolean }> {
+  await createNote(input);
+  return { ok: true };
+}`;
+    const [fn] = extractExportedFunctions(src);
+
+    expect(fn.name).toBe("atenderGenericAction");
+    expect(fn.body.startsWith("{\n  await createNote(input)")).toBe(true);
+  });
+});
+
+describe("check-atender-owner-alerts — surveillance writers are writers", () => {
+  it("derives the surveillance use-cases a walk-in module imports", () => {
+    const src = `
+import { professionalCloseObservation } from "@/src/modules/surveillance/application/professional-close-observation";
+import type { RabiesObservationOutcome } from "@/src/modules/surveillance/domain/rabies-observation";
+`;
+    expect(deriveWriterUseCases(src)).toEqual(["professionalCloseObservation"]);
+  });
+
+  it("FAILS a rabies close that never tells the owner", () => {
+    const src = `
+import { professionalCloseObservation } from "@/src/modules/surveillance/application/professional-close-observation";
+export async function atenderCloseRabiesObservationAction(orgToken: string) {
+  const result = await professionalCloseObservation({ pet }, { repo });
+  return { error: null, redirectTo: "/org/x" };
+}`;
+    const { violations, writerCount } = checkAtenderOwnerAlerts({ [ACTIONS]: src }, CLEAN_SURFACE);
+
+    expect(writerCount).toBe(1);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].where).toBe(`${ACTIONS} › atenderCloseRabiesObservationAction()`);
+  });
+});
+
+// The real module, which is the case the header of this file promises. Not a
+// count of writers — that would pin a list — but the one writer this fence
+// failed to see: it must be derived as a writer, and it must close through the
+// completion.
+describe("check-atender-owner-alerts — the real walk-in module", () => {
+  it("sees the vet's rabies close as a writer that closes through completeAtenderSignature()", () => {
+    const source = stripComments(readFileSync("app/org/[orgToken]/atender/actions.ts", "utf8"));
+    const useCases = deriveWriterUseCases(source);
+    const writers = extractExportedFunctions(source).filter((fn) => callsAny(fn.body, useCases));
+    const close = writers.find((fn) => fn.name === "atenderCloseRabiesObservationAction");
+
+    expect(close, "the rabies close is not derived as a walk-in writer").toBeDefined();
+    expect(close?.body).toContain("professionalCloseObservation(");
+    expect(close?.body).toContain("completeAtenderSignature(");
   });
 });

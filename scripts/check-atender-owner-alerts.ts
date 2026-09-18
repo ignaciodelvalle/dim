@@ -23,7 +23,8 @@
 // ---------------------------------------------------------------------------
 // The writer set is DERIVED, never listed. For each walk-in action module:
 //   1. Read the identifiers it imports from `@/src/modules/events/application/`
-//      — those ARE the clinical writers, straight from the module's own imports.
+//      and `@/src/modules/surveillance/application/` — those ARE the writers,
+//      straight from the module's own imports.
 //   2. Any exported async function whose body calls one of them is a walk-in
 //      writer, whatever it is named.
 //   3. Every such writer MUST close through completeAtenderSignature(), the one
@@ -59,8 +60,21 @@ const ACTION_GLOBS = ["app/org/**/atender/**/actions.ts"];
 /** Every file of the walk-in surface — scanned for the receipt-literal bypass. */
 const SURFACE_GLOBS = ["app/org/**/atender/**/*.ts", "app/org/**/atender/**/*.tsx"];
 
-/** Import prefix whose named imports ARE the clinical writers. */
-const WRITER_MODULE_PREFIX = "@/src/modules/events/application/";
+/**
+ * Import prefixes whose named imports ARE the writers on an animal's record.
+ *
+ * The events application layer holds the clinical writers. The surveillance one
+ * joined on 2026-09-18: the veterinary close of a rabies observation writes a
+ * `rabies_observation_ended` event on a walk-in animal through
+ * professionalCloseObservation, and with the events prefix alone the fence
+ * could not see it. It had been counted only BY ACCIDENT — through an
+ * events-layer notification helper it imported — and would have dropped out
+ * of scope silently the moment that import went away.
+ */
+const WRITER_MODULE_PREFIXES = [
+  "@/src/modules/events/application/",
+  "@/src/modules/surveillance/application/",
+];
 
 /** The single function that fires the owner alert and mints the receipt. */
 const COMPLETION_FN = "completeAtenderSignature";
@@ -88,15 +102,15 @@ export function normalizePath(filePath: string): string {
 }
 
 /**
- * Named identifiers imported from the events application layer. These are the
- * clinical use-cases; a function that calls one of them writes an event.
+ * Named identifiers imported from the writer layers (WRITER_MODULE_PREFIXES).
+ * These are the use-cases; a function that calls one of them writes an event.
  */
 export function deriveWriterUseCases(strippedSource: string): string[] {
   const found = new Set<string>();
   const importRe = /import\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
   for (const match of strippedSource.matchAll(importRe)) {
     const specifier = match[2];
-    if (!specifier.startsWith(WRITER_MODULE_PREFIX)) continue;
+    if (!WRITER_MODULE_PREFIXES.some((prefix) => specifier.startsWith(prefix))) continue;
     for (const raw of match[1].split(",")) {
       // Handles `createNote`, `createNote as x`, and leading `type `.
       const cleaned = raw
@@ -111,27 +125,83 @@ export function deriveWriterUseCases(strippedSource: string): string[] {
 }
 
 /**
- * Split comment-stripped source into top-level exported async functions by
- * brace matching. Brace-counting is enough here because comments are already
- * gone and the walk-in modules contain no braces inside string literals at the
- * top level of a function signature.
+ * Index of the `{` that opens the function body, given the index where the
+ * signature continues after the name — a `<` opening a type-parameter list or
+ * the `(` opening the parameter list. Returns -1 when it never finds one.
+ *
+ * FIXED 2026-09-18, and the bug was the one check-authz-guards.ts had already
+ * fixed on 2026-08-06. This used to balance the parameter list and then take
+ * the NEXT `{` — which, for a function with an inline object return type
+ * (`): Promise<{ error: string | null; redirectTo?: string }> {`), is the TYPE's
+ * brace. The "body" read was the forty-odd characters of that type, containing
+ * no call at all, so the writer read as clean. It hid exactly one live writer:
+ * atenderCloseRabiesObservationAction, which wrote a legal result on a walk-in
+ * animal and never closed through completeAtenderSignature().
+ *
+ * The walk is the sibling fence's, ported: `signature` (an optional `<T…>`
+ * list) → `params` (paren-matched) → `returnType` (angle-aware) → the first `{`
+ * at angle-depth zero. `async` forces a Promise-shaped return type, so every
+ * brace in the annotation sits inside `<…>`. One addition the sibling does not
+ * need: a `>` preceded by `=` is an arrow, not a closing angle — the arrow
+ * form's own `=>`, and a function type inside an annotation
+ * (`Promise<{ onDone: () => void }>`).
  */
-/**
- * Index of the `{` that opens the function body, given the index of the `(`
- * that opens its parameter list. Returns -1 when either is unbalanced.
- */
-function bodyStartAfterParams(src: string, openParen: number): number {
-  let depth = 0;
-  for (let i = openParen; i < src.length; i++) {
-    if (src[i] === "(") depth += 1;
-    else if (src[i] === ")") {
-      depth -= 1;
-      if (depth === 0) return src.indexOf("{", i);
-    }
+function bodyStartAfterSignature(src: string, from: number): number {
+  const walk: SignatureWalk = { phase: "signature", angleDepth: 0, parenDepth: 0 };
+  for (let i = from; i < src.length; i++) {
+    const isArrow = src[i] === ">" && src[i - 1] === "=";
+    if (stepSignature(walk, src[i], isArrow)) return i;
   }
   return -1;
 }
 
+type SignatureWalk = {
+  phase: "signature" | "generics" | "params" | "returnType";
+  angleDepth: number;
+  parenDepth: number;
+};
+
+/** The angle depth after `ch`. An arrow's `>` is not a closing angle. */
+function nextAngleDepth(depth: number, ch: string, isArrow: boolean): number {
+  if (ch === "<") return depth + 1;
+  if (ch === ">" && !isArrow && depth > 0) return depth - 1;
+  return depth;
+}
+
+/** Advance the walk by one character; true when `ch` is the body's `{`. */
+function stepSignature(walk: SignatureWalk, ch: string, isArrow: boolean): boolean {
+  switch (walk.phase) {
+    case "signature":
+      if (ch === "<") {
+        walk.angleDepth = 1;
+        walk.phase = "generics";
+      } else if (ch === "(") {
+        walk.parenDepth = 1;
+        walk.phase = "params";
+      }
+      return false;
+    case "generics":
+      walk.angleDepth = nextAngleDepth(walk.angleDepth, ch, isArrow);
+      if (walk.angleDepth === 0) walk.phase = "signature";
+      return false;
+    case "params":
+      if (ch === "(") walk.parenDepth += 1;
+      else if (ch === ")") walk.parenDepth -= 1;
+      if (walk.parenDepth === 0) walk.phase = "returnType";
+      return false;
+    case "returnType":
+      walk.angleDepth = nextAngleDepth(walk.angleDepth, ch, isArrow);
+      return ch === "{" && walk.angleDepth === 0;
+  }
+}
+
+/**
+ * Split comment-stripped source into top-level exported async functions: the
+ * signature walk above finds where each body opens, and brace matching finds
+ * where it closes. Brace-counting the BODY is enough here because comments are
+ * already gone and the walk-in modules keep no unbalanced braces in string
+ * literals.
+ */
 export function extractExportedFunctions(strippedSource: string): ExportedFunction[] {
   const out: ExportedFunction[] = [];
   // WIDENED 2026-08-09. This matched only the `export async function NAME(`
@@ -142,14 +212,17 @@ export function extractExportedFunctions(strippedSource: string): ExportedFuncti
   // barrier standing behind the mitigation the PO accepted for non-custody
   // walk-ins. No live instance; the seven current writers all use the
   // declaration form. Closed before someone writes the eighth.
+  //
+  // WIDENED AGAIN 2026-09-18 to a generic signature (`NAME<T>(`), which the
+  // sibling fence already accepted: the match now ends just BEFORE the `<` or
+  // the `(`, and the signature walk takes it from there.
   const headerRe =
-    /export\s+(?:async\s+function\s+([A-Za-z0-9_$]+)\s*\(|const\s+([A-Za-z0-9_$]+)\s*(?::[^=]+)?=\s*async\s*(?:function\s*)?\()/g;
+    /export\s+(?:async\s+function\s+([A-Za-z0-9_$]+)\s*(?=[(<])|const\s+([A-Za-z0-9_$]+)\s*(?::[^=]+)?=\s*async\s*(?:function\s*)?(?=[(<]))/g;
   for (const match of strippedSource.matchAll(headerRe)) {
-    // The match ends ON the opening paren of the parameter list. Balance that
-    // paren first, then take the next `{` — searching for `{` directly would
-    // find a DESTRUCTURED PARAMETER (`async ({ orgToken }) => …`) and treat the
-    // destructuring object as the function body.
-    const start = bodyStartAfterParams(strippedSource, match.index + match[0].length - 1);
+    // Walk the signature instead of searching for `{`: a direct search finds a
+    // DESTRUCTURED PARAMETER (`async ({ orgToken }) => …`) or an inline object
+    // RETURN TYPE (`): Promise<{ ok: boolean }> {`) and treats it as the body.
+    const start = bodyStartAfterSignature(strippedSource, match.index + match[0].length);
     if (start === -1) continue;
     let depth = 0;
     let end = -1;
@@ -218,7 +291,7 @@ export function checkAtenderOwnerAlerts(
   if (writerCount === 0) {
     violations.push({
       where: actionPaths.join(", "),
-      reason: `derived ZERO clinical writers. Either every writer was removed, or the derivation broke (imports from "${WRITER_MODULE_PREFIX}" or the \`export async function\` shape changed). A guard that derives nothing guards nothing — fix the derivation.`,
+      reason: `derived ZERO clinical writers. Either every writer was removed, or the derivation broke (imports from "${WRITER_MODULE_PREFIXES.join('" or "')}" or the \`export async function\` shape changed). A guard that derives nothing guards nothing — fix the derivation.`,
     });
   }
 
