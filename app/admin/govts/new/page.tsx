@@ -12,7 +12,7 @@ export default async function NewGovtPage() {
         title="Crear cuenta gobierno"
         subtitle={
           <p className="text-sm text-ln-op-ink-2 mt-1">
-            El operador recibirá un magic link de acceso único.
+            El operador recibirá un mail para entrar y elegir su contraseña.
           </p>
         }
       />

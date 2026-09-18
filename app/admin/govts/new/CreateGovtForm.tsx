@@ -26,6 +26,7 @@ type SuccessState = {
   magicLink: string;
   displayName: string;
   email: string;
+  inviteEmailSent: boolean;
 };
 
 export function CreateGovtForm() {
@@ -81,6 +82,7 @@ export function CreateGovtForm() {
           magicLink: result.magicLink,
           displayName: displayName.trim(),
           email: email.trim(),
+          inviteEmailSent: result.inviteEmailSent,
         });
         notifySaved("Cuenta de gobierno creada");
       }
@@ -109,6 +111,7 @@ export function CreateGovtForm() {
         profileId={success.profileId}
         detailPath={`/admin/govts/${success.profileId}`}
         variant="create"
+        inviteEmailSent={success.inviteEmailSent}
         onCreateAnother={handleCreateAnother}
       />
     );

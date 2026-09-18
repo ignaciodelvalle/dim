@@ -16,7 +16,12 @@ import { eq } from "drizzle-orm";
 import { auditLog, db, notifications, profiles } from "@/db";
 import { canResetCredentials } from "@/lib/domain/institutional-scope";
 import { MOTIVO_MIN } from "@/lib/domain/revocation-validation";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  FIRST_ACCESS_PATH,
+  pendingPasswordSetupMetadata,
+} from "@/src/modules/auth/domain/first-access";
 
 import { loadActorProfile } from "./helpers";
 import type { ResetCredentialsResult } from "./types";
@@ -63,10 +68,20 @@ export async function resetInstitutionalCredentialsForAuthority(
   }
   const targetEmail = authUserData.user.email;
 
-  // 4. Generate magic link
+  // 4. Generate magic link. It lands on FIRST_ACCESS_PATH (pilot T1-P3), the
+  // one page that turns the link into a session — the site root, where it
+  // used to land, never read it. A reset also re-arms the first-access flag:
+  // "credenciales restablecidas" means the operator chooses a new password
+  // before anything else, exactly like a new account.
+  const { error: flagErr } = await supabase.auth.admin.updateUserById(input.targetUserId, {
+    app_metadata: pendingPasswordSetupMetadata(),
+  });
+  if (flagErr) return { error: `AUTH_UPDATE_FAILED: ${flagErr.message}` };
+
   const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email: targetEmail,
+    options: { redirectTo: `${resolveSiteUrl()}${FIRST_ACCESS_PATH}` },
   });
 
   if (linkErr || !linkData?.properties?.action_link) {
