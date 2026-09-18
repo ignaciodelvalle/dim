@@ -60,6 +60,7 @@ import {
   fetchPetEventsForProfileV2,
 } from "@/lib/analytics/owner-dashboard";
 import {
+  complianceRuleParams,
   microchipObligationRuleInfo,
   obligationRuleInfo,
 } from "@/lib/domain/business-rules-defaults";
@@ -677,6 +678,10 @@ export async function loadOwnerPetDetail<
       sterilization: obligationRuleInfo(sterilizationObligationRule),
       microchip: microchipObligationRuleInfo(microchipRule),
     },
+    // T1-G1: the payload half of the SAME resolved rules — booster cadence and
+    // the age gates are computed with, not only displayed.
+    ruleParams: complianceRuleParams(rabiesObligationRule, sterilizationObligationRule),
+    dateOfBirth: pet.dateOfBirth ?? null,
     pppRule: {
       legalBasis: pppBreedRule.legalBasis ?? null,
       authority: pppBreedRule.authority ?? null,

@@ -1098,6 +1098,210 @@ describe("citation composition (CS5/CS6)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// T1-G1 — the jurisdiction's rule FIELDS are computed, not only displayed.
+// Every test here holds the pet and its events fixed and moves ONLY the rule
+// parameters, so the verdict it observes can only have come from the rule.
+// ---------------------------------------------------------------------------
+
+describe("T1-G1 — rule fields drive the compliance verdict", () => {
+  type Params = NonNullable<ComplianceInput["ruleParams"]>;
+  function params(
+    over: {
+      rabies?: Partial<Params["rabies"]>;
+      sterilization?: Partial<Params["sterilization"]>;
+    } = {},
+  ): Params {
+    return {
+      rabies: { frequencyMonths: null, minAgeMonths: null, ...over.rabies },
+      sterilization: { minAgeMonths: null, mandatoryFromMonths: null, ...over.sterilization },
+    };
+  }
+  const card = (s: ReturnType<typeof deriveComplianceState>, key: string) =>
+    s.cards.find((c) => c.key === key);
+
+  // A vet-SIGNED rabies dose applied 15/09/2025 (AR) that carries NO next_due_at.
+  const signedDoseNoDue: ComplianceEvent = {
+    eventType: "vaccination_administered",
+    occurredAt: "2025-09-15T15:00:00Z",
+    payload: { vaccine_name: "Antirrábica", next_due_at: null },
+    ...VET,
+  };
+
+  it("the SAME dose flips Vigente → Vencida by changing only the jurisdiction's frequency_months", () => {
+    const events = [signedDoseNoDue];
+    // 12 months → due 15/09/2026, after NOW (01/07/2026).
+    const annual = card(
+      deriveComplianceState(
+        baseInput({ events, ruleParams: params({ rabies: { frequencyMonths: 12 } }) }),
+      ),
+      "rabies",
+    );
+    expect(annual?.state).toBe("Vigente");
+    expect(annual?.tone).toBe("ok");
+    expect(annual?.currencyKnown).toBe(true);
+    expect(annual?.currencyUntil).toBe("15/09");
+    expect(annual?.detail).toBe("Próxima 15/09 · refuerzo cada 12 meses");
+
+    // 6 months → due 15/03/2026, before NOW.
+    const semiannual = card(
+      deriveComplianceState(
+        baseInput({ events, ruleParams: params({ rabies: { frequencyMonths: 6 } }) }),
+      ),
+      "rabies",
+    );
+    expect(semiannual?.state).toBe("Vencida");
+    expect(semiannual?.tone).toBe("over");
+    expect(semiannual?.detail).toBe("Venció 15/03 · refuerzo cada 6 meses");
+  });
+
+  it("with no frequency_months the dose stays 'Registrada' with unknown currency (pre-T1-G1 behavior)", () => {
+    const rabies = card(
+      deriveComplianceState(baseInput({ events: [signedDoseNoDue], ruleParams: params() })),
+      "rabies",
+    );
+    expect(rabies?.state).toBe("Registrada");
+    expect(rabies?.currencyKnown).toBe(false);
+  });
+
+  it("an explicit next_due_at stays the override — the rule does not re-date a dose the vet dated", () => {
+    const dated = vaccination("Antirrábica", "2027-01-10", VET);
+    const rabies = card(
+      deriveComplianceState(
+        baseInput({ events: [dated], ruleParams: params({ rabies: { frequencyMonths: 1 } }) }),
+      ),
+      "rabies",
+    );
+    // occurred 01/01/2026 + 1 month would be long overdue; the vet's date wins.
+    expect(rabies?.state).toBe("Vigente");
+    expect(rabies?.detail).toBe("Próxima 10/01/2027");
+  });
+
+  it("rabies min_age_months: a puppy under it has nothing missing yet, and is not counted", () => {
+    // Born 01/04/2026 → 3 months old at NOW; no dose on record.
+    const input = { dateOfBirth: "2026-04-01" };
+    const young = deriveComplianceState(
+      baseInput({ ...input, ruleParams: params({ rabies: { minAgeMonths: 4 } }) }),
+    );
+    expect(card(young, "rabies")).toMatchObject({
+      state: "Aún no corresponde",
+      tone: "neutral",
+      detail: "Corresponde desde el 01/08 (a los 4 meses)",
+      notYetRequired: true,
+    });
+    // Legacy card set (rabies, sterilization, microchip): rabies leaves M.
+    expect(young.summary.total).toBe(2);
+
+    const old = deriveComplianceState(
+      baseInput({ ...input, ruleParams: params({ rabies: { minAgeMonths: 3 } }) }),
+    );
+    expect(card(old, "rabies")?.state).toBe("Sin registro");
+    expect(old.summary.total).toBe(3);
+  });
+
+  it("sterilization mandatory_from_months: a pet under it is not 'Sin registro'", () => {
+    // Born 01/01/2026 → 6 months old at NOW; nothing recorded.
+    const input = { dateOfBirth: "2026-01-01" };
+    const young = card(
+      deriveComplianceState(
+        baseInput({ ...input, ruleParams: params({ sterilization: { mandatoryFromMonths: 12 } }) }),
+      ),
+      "sterilization",
+    );
+    expect(young?.state).toBe("Aún no corresponde");
+    expect(young?.detail).toBe("Corresponde desde el 01/01/2027 (a los 12 meses)");
+
+    const due = card(
+      deriveComplianceState(
+        baseInput({ ...input, ruleParams: params({ sterilization: { mandatoryFromMonths: 5 } }) }),
+      ),
+      "sterilization",
+    );
+    expect(due?.state).toBe("Sin registro");
+  });
+
+  it("sterilization min_age_months: nobody is obliged before the procedure is allowed", () => {
+    const input = { dateOfBirth: "2026-01-01" };
+    const young = card(
+      deriveComplianceState(
+        baseInput({ ...input, ruleParams: params({ sterilization: { minAgeMonths: 8 } }) }),
+      ),
+      "sterilization",
+    );
+    expect(young?.state).toBe("Aún no corresponde");
+    expect(young?.detail).toBe("Corresponde desde el 01/09 (a los 8 meses)");
+
+    const due = card(
+      deriveComplianceState(
+        baseInput({ ...input, ruleParams: params({ sterilization: { minAgeMonths: 4 } }) }),
+      ),
+      "sterilization",
+    );
+    expect(due?.state).toBe("Sin registro");
+
+    // Both set: the LATER age governs.
+    const both = card(
+      deriveComplianceState(
+        baseInput({
+          ...input,
+          ruleParams: params({ sterilization: { minAgeMonths: 4, mandatoryFromMonths: 9 } }),
+        }),
+      ),
+      "sterilization",
+    );
+    expect(both?.detail).toBe("Corresponde desde el 01/10 (a los 9 meses)");
+  });
+
+  it("an unknown date of birth never exempts a pet on a guess", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        dateOfBirth: null,
+        ruleParams: params({
+          rabies: { minAgeMonths: 60 },
+          sterilization: { mandatoryFromMonths: 120 },
+        }),
+      }),
+    );
+    expect(card(state, "rabies")?.state).toBe("Sin registro");
+    expect(card(state, "sterilization")?.state).toBe("Sin registro");
+  });
+
+  it("a record that exists is shown for what it is, however young the pet", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        dateOfBirth: "2026-04-01",
+        events: [
+          vaccination("Antirrábica", "2027-04-01", VET),
+          { eventType: "sterilization_performed", occurredAt: "2026-06-01", payload: {}, ...VET },
+        ],
+        ruleParams: params({
+          rabies: { minAgeMonths: 12 },
+          sterilization: { mandatoryFromMonths: 12 },
+        }),
+      }),
+    );
+    expect(card(state, "rabies")?.state).toBe("Vigente");
+    expect(card(state, "sterilization")?.state).toBe("Verificada");
+  });
+
+  it("a not_regulated tier drops a not-yet card exactly like an empty one", () => {
+    const rule: ComplianceObligationRule = {
+      requirementLevel: "not_regulated",
+      legalBasis: null,
+      authority: null,
+      sourceUrl: null,
+    };
+    const state = deriveComplianceState(
+      baseInput({
+        dateOfBirth: "2026-04-01",
+        obligations: { rabies: rule, sterilization: rule, microchip: rule },
+        ruleParams: params({ rabies: { minAgeMonths: 12 } }),
+      }),
+    );
+    expect(card(state, "rabies")).toBeUndefined();
+  });
+});
+
 describe("regression fence — ZERO jurisdiction literals in the compliance module (RG1 ratified)", () => {
   // Scope (WU2 note): data/legal-baseline/ar-v1.ts legitimately carries these
   // literals as dataset CONTENT, so the fence scans ONLY the compliance module

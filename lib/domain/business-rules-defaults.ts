@@ -208,6 +208,40 @@ export function microchipObligationRuleInfo(
   return obligationRuleInfo(rule, microchipObligationApplies(rule) ? "mandatory" : "not_regulated");
 }
 
+/**
+ * The operational half of the resolved rabies + sterilization rules, as the
+ * compliance projection computes with it (T1-G1). `obligationRuleInfo` carries
+ * the tier + citation; this carries the payload numbers, which until T1-G1
+ * were only rendered ("refuerzo cada 12 meses") and never enforced. A value
+ * the jurisdiction did not set maps to null and is then not used — the
+ * defaults are empty on purpose (nothing is claimed about any jurisdiction's
+ * law without a row).
+ */
+export interface ComplianceRuleParamsInfo {
+  rabies: { frequencyMonths: number | null; minAgeMonths: number | null };
+  sterilization: { minAgeMonths: number | null; mandatoryFromMonths: number | null };
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function complianceRuleParams(
+  rabies: { payload: RabiesVaccination },
+  sterilization: { payload: Sterilization },
+): ComplianceRuleParamsInfo {
+  return {
+    rabies: {
+      frequencyMonths: finiteOrNull(rabies.payload.frequency_months),
+      minAgeMonths: finiteOrNull(rabies.payload.min_age_months),
+    },
+    sterilization: {
+      minAgeMonths: finiteOrNull(sterilization.payload.min_age_months),
+      mandatoryFromMonths: finiteOrNull(sterilization.payload.mandatory_from_months),
+    },
+  };
+}
+
 export interface BusinessRulePayloadByType {
   ppp_breed_list: PppBreedList;
   ppp_weight_threshold: PppWeightThreshold;

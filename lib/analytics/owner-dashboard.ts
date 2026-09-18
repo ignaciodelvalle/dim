@@ -46,6 +46,7 @@ import {
   welfareReports,
 } from "@/db";
 import {
+  complianceRuleParams,
   microchipObligationRuleInfo,
   obligationRuleInfo,
 } from "@/lib/domain/business-rules-defaults";
@@ -62,6 +63,7 @@ import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import {
   type Jurisdiction,
+  type ResolvedRule,
   canonicalJurisdictionKey,
   resolveBusinessRuleForJurisdictions,
 } from "@/lib/infra/business-rules-resolver";
@@ -73,6 +75,7 @@ import {
 import { batchFetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import {
   type ComplianceEvent,
+  type ComplianceInput,
   type ComplianceState,
   type RabiesReminder,
   type ReservedRabiesTurno,
@@ -1245,6 +1248,31 @@ const COMPLIANCE_EVENT_TYPES = [
 const RABIES_TITLE_RE = /antirr[aá]b|rabi/i;
 
 /**
+ * The jurisdiction half of one pet's ComplianceInput: the tier + citation
+ * (`obligations`) and the payload parameters (`ruleParams`, T1-G1) of the SAME
+ * resolved rules. All three maps are keyed off the same distinct-jurisdiction
+ * set, so they hit/miss together; a miss (pet row absent from petRows) falls
+ * back to the legacy universal behavior, exactly as `?? true` did.
+ */
+function jurisdictionComplianceInputs(
+  rabiesRule: ResolvedRule<"rabies_vaccination"> | undefined,
+  sterilizationRule: ResolvedRule<"sterilization"> | undefined,
+  microchipRule: ResolvedRule<"microchip_required"> | undefined,
+): Pick<ComplianceInput, "obligations" | "ruleParams"> {
+  if (!rabiesRule || !sterilizationRule || !microchipRule) {
+    return { obligations: undefined, ruleParams: undefined };
+  }
+  return {
+    obligations: {
+      rabies: obligationRuleInfo(rabiesRule),
+      sterilization: obligationRuleInfo(sterilizationRule),
+      microchip: microchipObligationRuleInfo(microchipRule),
+    },
+    ruleParams: complianceRuleParams(rabiesRule, sterilizationRule),
+  };
+}
+
+/**
  * Derive the compliance projection for a batch of pets in 4 bounded queries,
  * so list surfaces (/inicio registry, /mis-mascotas) can show the SAME
  * AL DÍA / REGISTRADA chip the pet-profile header derives — QA round 2
@@ -1353,6 +1381,9 @@ export async function fetchComplianceStatesForPets(
         species: pets.species,
         breed: pets.breed,
         estimatedWeightKg: pets.estimatedWeightKg,
+        // Age input for the rule-driven age gates (T1-G1) — the list must judge
+        // "aún no corresponde" exactly as the profile does.
+        dateOfBirth: pets.dateOfBirth,
         // Jurisdiction pair for the microchip_required rule resolution below —
         // the LIST must gate the microchip card exactly as the profile does
         // (adversarial review 2026-07-18 W2: omitting it re-shows "falta
@@ -1470,9 +1501,6 @@ export async function fetchComplianceStatesForPets(
       province: petInfo?.jurisdictionProvince ?? null,
       locality: petInfo?.jurisdictionLocality ?? null,
     });
-    const rabiesRule = rabiesRuleByKey.get(jurisdictionKey);
-    const sterilizationRule = sterilizationRuleByKey.get(jurisdictionKey);
-    const microchipRule = microchipRuleByKey.get(jurisdictionKey);
     result.set(
       petId,
       deriveComplianceState({
@@ -1482,17 +1510,12 @@ export async function fetchComplianceStatesForPets(
         reservedRabiesTurno: turnoByPet.get(petId) ?? null,
         microchipCode: identsByPet.get(petId)?.microchip?.code ?? null,
         pppApplies: Boolean(petInfo?.ppp),
-        // All three maps are keyed off the same distinct-jurisdiction set, so
-        // they hit/miss together; a miss (pet row absent from petRows) falls
-        // back to the legacy universal behavior, exactly as `?? true` did.
-        obligations:
-          rabiesRule && sterilizationRule && microchipRule
-            ? {
-                rabies: obligationRuleInfo(rabiesRule),
-                sterilization: obligationRuleInfo(sterilizationRule),
-                microchip: microchipObligationRuleInfo(microchipRule),
-              }
-            : undefined,
+        ...jurisdictionComplianceInputs(
+          rabiesRuleByKey.get(jurisdictionKey),
+          sterilizationRuleByKey.get(jurisdictionKey),
+          microchipRuleByKey.get(jurisdictionKey),
+        ),
+        dateOfBirth: petInfo?.dateOfBirth ?? null,
         // Same PPP-determinability inputs the profile passes (review 02-6).
         species: petInfo?.species ?? null,
         breed: petInfo?.breed ?? null,

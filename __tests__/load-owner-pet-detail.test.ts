@@ -489,3 +489,52 @@ describe("loadOwnerPetDetail — what each access path reads", () => {
     expect(detail.chromeSituation?.key).toBe("custodia-oficial");
   });
 });
+
+// ---------------------------------------------------------------------------
+// T1-G1 — the loader threads the resolved rules' PAYLOAD into the projection
+// ---------------------------------------------------------------------------
+
+describe("loadOwnerPetDetail — the jurisdiction's rule fields reach the compliance card (T1-G1)", () => {
+  /** resolveRule stub: `payloads` per rule type, the empty default for the rest. */
+  function rulesStub(payloads: Record<string, Record<string, unknown>>) {
+    return vi.fn(async (ruleType: string) => ({
+      ...EMPTY_RULE,
+      payload: payloads[ruleType] ?? {},
+    })) as unknown as OwnerPetDetailDeps["resolveRule"];
+  }
+  // A vet-signed rabies dose applied 01/06/2025 with no next_due_at.
+  const signedDose = {
+    eventType: "vaccination_administered",
+    occurredAt: new Date("2025-06-01T15:00:00Z"),
+    payload: { vaccine_name: "Antirrábica", next_due_at: null },
+    authorRole: "vet",
+    authorVerified: true,
+    authorOrganizationId: null,
+  };
+  const events = vi.fn(async () => ({ typedEvents: [signedDose], recentFive: [] }));
+  const rabiesState = async (frequency: number) => {
+    const detail = await loadFace(
+      { user: { id: "u1" }, pet: petRow(), accessPath: "owner" },
+      depsStub({
+        loadEvents: events as unknown as OwnerPetDetailDeps["loadEvents"],
+        resolveRule: rulesStub({ rabies_vaccination: { frequency_months: frequency } }),
+      }),
+    );
+    return detail.compliance.cards.find((c) => c.key === "rabies")?.state;
+  };
+
+  it("frequency_months from the pet's jurisdiction dates the dose: 24 → Vigente, 12 → Vencida", async () => {
+    expect(await rabiesState(24)).toBe("Vigente");
+    expect(await rabiesState(12)).toBe("Vencida");
+  });
+
+  it("mandatory_from_months and the pet's date of birth reach the sterilization card", async () => {
+    const detail = await loadFace(
+      { user: { id: "u1" }, pet: petRow({ dateOfBirth: "2026-05-01" }), accessPath: "owner" },
+      depsStub({ resolveRule: rulesStub({ sterilization: { mandatory_from_months: 12 } }) }),
+    );
+    expect(detail.compliance.cards.find((c) => c.key === "sterilization")?.state).toBe(
+      "Aún no corresponde",
+    );
+  });
+});
