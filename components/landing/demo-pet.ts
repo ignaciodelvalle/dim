@@ -7,7 +7,7 @@
 // not resolve. The token used to be a hardcoded constant in landing-content.ts
 // ("the flagship pet"), seeded by scripts/seed-flagship-pampa.ts — a script
 // that runs in NEITHER scripts/db-bootstrap.ts step 4 NOR
-// scripts/deploy-provision.ts step 8. docs/ops/cutover-playbook.md then
+// scripts/deploy-provision.ts step 8. dim-interno:docs/ops/cutover-playbook.md then
 // mandates production be loaded with "no seed pets, no demo accounts".
 //
 // So the front door of a government product shipped a QR that scans to a 404

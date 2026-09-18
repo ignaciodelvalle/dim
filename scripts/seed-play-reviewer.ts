@@ -58,7 +58,7 @@
  * On the PASSWORD: it is the same `Test1234!` every seed account in this repo
  * uses, and that is deliberate rather than lazy. This repository is public and
  * already publishes that literal for nine demo accounts
- * (docs/agents/prompt-cowork-demo-recorridos.md), so a different password here
+ * (dim-interno:docs/agents/prompt-cowork-demo-recorridos.md), so a different password here
  * would not be a secret — it would be a value that has to be kept in sync
  * between this file and a form in the Play Console, and those drift the first
  * time one side is rotated. If this account ever needs a real secret, it belongs

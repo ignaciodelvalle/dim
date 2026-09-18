@@ -384,7 +384,7 @@ export async function requireDecomisoPrincipal(): Promise<DecomisoPrincipalSessi
 // Denuncia moderation guard — 'denuncia.moderate' capability
 // ============================================================================
 //
-// Spec: docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md.
+// Spec: dim-interno:docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md.
 //
 // Capability string: 'denuncia.moderate'
 // Granted automatically to:

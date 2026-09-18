@@ -1,6 +1,6 @@
 // lib/metrics/kpi-catalog.ts — KPI-definition-as-code catalog (Wave B systemic fix).
 //
-// C1 — METRIC CONTRACT (docs/reviews/results/2026-07-22-plan-maestro-integridad.md,
+// C1 — METRIC CONTRACT (dim-interno:docs/reviews/results/2026-07-22-plan-maestro-integridad.md,
 // §2 "C1 · Contrato de Métrica"): this module graduates from KPI documentation
 // to an EXECUTABLE contract. The systemic failure C1 targets: "a KPI today is a
 // fetcher + a label + a color decided ad-hoc per screen" — nothing forces a
@@ -13,7 +13,7 @@
 //
 // WHY THIS EXISTS
 // ----------------
-// The four-actor critique + gob audit (docs/design/handoffs/critiques-smoke-2026-07-03/
+// The four-actor critique + gob audit (dim-interno:docs/design/handoffs/critiques-smoke-2026-07-03/
 // critique-govt-2026-07-03.md) found that "Cobertura antirrábica" showed 42% on the
 // Panel/Panorama surfaces and 54% on Analítica/Vigilancia — SAME label, TWO different
 // computations (dogs-only/12m/anchored-regex vs all-species/all-time/substring-match).
@@ -268,7 +268,7 @@ export type KpiConfidence = {
 };
 
 /**
- * FORECAST-A-META (docs/reviews — 2026-07-22): the forecast a KPI can carry
+ * FORECAST-A-META (dim-interno:docs/reviews — 2026-07-22): the forecast a KPI can carry
  * is a PROPERTY of the metric, declared here, not a new screen or chart.
  * `trendSource` documents WHICH already-fetched trend feeds it — the honesty
  * rule mirrors `target.source`: a render site must be able to point at a
@@ -359,7 +359,7 @@ export type KpiDefinition = {
   basis: KpiBasis;
   /** es-AR OpKpi ⓘ tooltip copy — omit while a KPI hasn't been wired through
    *  getKpiInfo() yet (inline `info={{ }}` prop at the render site until then).
-   *  Task #15a wired the first batch — see docs/reviews/2026-07-12-staging-readiness-triage.md. */
+   *  Task #15a wired the first batch — see dim-interno:docs/reviews/2026-07-12-staging-readiness-triage.md. */
   ui?: KpiInfoTooltip;
   /** K8: methodology-version stamp — 2 ONLY on descriptors whose numerator/
    *  label/target changed 2026-07-22/23 (see each entry's own comment); omitted = v1. Rendered in OpKpi's ⓘ footer. Do NOT set broadly. */
@@ -2439,7 +2439,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
 // ---------------------------------------------------------------------------
 // FORECAST-A-META (2026-07-22) — the honest remainder, condensed
-// (file-size fence, 2026-08-01 — see docs/reviews/2026-07-22 for the
+// (file-size fence, 2026-08-01 — see dim-interno:docs/reviews/2026-07-22 for the
 // original per-KPI prose if the reasoning below needs re-deriving).
 //
 // Every target-bearing KPI was checked for a genuine, ALREADY-FETCHED

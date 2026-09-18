@@ -1,4 +1,5 @@
-// Collect Playwright demo recordings into docs/demo/videos/ with stable names.
+// Collect Playwright demo recordings into tmp/demo-videos/ (gitignored) with stable names.
+// The curated demo cut lives in the private companion repo (dim-interno: docs/demo/).
 //
 // Playwright writes each test's video to test-results/demo/<folder>/video.webm.
 // One demo spec = one test = one segment, so we map each video to a segment file
@@ -9,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const SRC = "test-results/demo";
-const OUT = "docs/demo/videos";
+const OUT = "tmp/demo-videos";
 fs.mkdirSync(OUT, { recursive: true });
 
 function findVideos(dir) {

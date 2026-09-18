@@ -19,7 +19,7 @@
  * names) around it, then DELEGATES the narrowing to that core. We wrap the proven
  * fence once and route every call site through the wrapper.
  *
- * Security guarantees (see docs/plans/jurisdiction-scope-primitive.md §2, §4):
+ * Security guarantees (see dim-interno:docs/plans/jurisdiction-scope-primitive.md §2, §4):
  *   - Admin ⇒ filteredJurisdictions returned unchanged (empty = universal; SQL
  *     scope clauses short-circuit on role === "admin"). Narrowing is a no-op.
  *   - Govt ⇒ narrowing only ever intersects DOWN against the server-held
@@ -130,7 +130,7 @@ export type ResolvedJurisdictionScope = {
 /**
  * Resolve `(role, jurisdictions, {province, locality} searchParams)` into the full
  * jurisdiction-scope value a gob screen needs. See the module header for the fence
- * guarantees and docs/plans/jurisdiction-scope-primitive.md for the branch table.
+ * guarantees and dim-interno:docs/plans/jurisdiction-scope-primitive.md for the branch table.
  */
 export async function resolveJurisdictionScope(
   input: JurisdictionScopeInput,

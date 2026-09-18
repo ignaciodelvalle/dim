@@ -1,4 +1,4 @@
-// A01-2 (docs/reviews/2026-09-fresh/lenses/A01.md, closed 2026-09-09):
+// A01-2 (dim-interno:docs/reviews/2026-09-fresh/lenses/A01.md, closed 2026-09-09):
 // `fetchQueueHealthScoped` used to take a bare jurisdiction list and read `[]`
 // as "admin, universal". `resolveJurisdictionScope` narrows a govt's mandate
 // through `narrowGovtScope`, which returns `[]` for a `?province=` OUTSIDE the

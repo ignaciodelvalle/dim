@@ -23,7 +23,8 @@ if (!serviceKey) {
 // Same guard as scripts/seed-test-users.ts, minus its --allow-remote escape
 // hatch: this script creates admin@dim.test with a fixed, published password,
 // so there is no remote on which running it is legitimate. The first admin of
-// a real environment follows docs/ops/production-deploy-plan.md §1 step 9.
+// a real environment follows the internal production deploy plan
+// (dim-interno: docs/ops/production-deploy-plan.md §1 step 9).
 if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV=production.");
   process.exit(2);
@@ -33,7 +34,7 @@ assertNotSplitEnv(url, databaseUrl, "seed:genesis-admin");
 // URL that merely CONTAINS "localhost" must not pass as local here.
 if (!isLocalUrl(url) || !isLocalUrl(databaseUrl)) {
   console.error(
-    `[seed:genesis-admin] Me niego: el destino es REMOTO (${describeTarget(url)} / ${describeTarget(databaseUrl)}). Este script solo corre en local; no hay --allow-remote. El primer admin de un entorno real sigue docs/ops/production-deploy-plan.md §1 paso 9.`,
+    `[seed:genesis-admin] Me niego: el destino es REMOTO (${describeTarget(url)} / ${describeTarget(databaseUrl)}). Este script solo corre en local; no hay --allow-remote. El primer admin de un entorno real sigue el plan de despliegue a producción (documentación operativa interna).`,
   );
   process.exit(2);
 }

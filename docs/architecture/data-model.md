@@ -164,7 +164,7 @@ Two consequences to state rather than soften:
   transaction-scoped everywhere in this repo — every setter uses `set local` or
   `set_config(..., is_local => true)`, so it cannot leak across a pooled
   connection (`__tests__/_helpers/db-overrides.ts`, verified by lens A08 in
-  `docs/reviews/2026-09-fresh/DECK-FACTS.md`).
+  `dim-interno:docs/reviews/2026-09-fresh/DECK-FACTS.md`).
 - **`credential_scanned` rows are not permanent.** The retention window is a
   privacy decision, and the purge is the second hatch above. A scan is evidence
   for a season, not forever.
@@ -178,7 +178,7 @@ triggers in a migration since 0010.
 INSERT policy on **ownership** and not on **provenance**, so a pet's own owner
 can post an event claiming `author_role: "govt"`, `author_verified: true` — and
 the append-only spine then makes the forgery permanent. That is finding `A02-1`
-in `docs/reviews/2026-09-fresh/SYNTHESIS.md`, queued as migration 0212 and
+in `dim-interno:docs/reviews/2026-09-fresh/SYNTHESIS.md`, queued as migration 0212 and
 **open at this snapshot**. Any slide that says "the history cannot be forged"
 is wrong today.
 

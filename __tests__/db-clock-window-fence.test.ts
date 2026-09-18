@@ -54,7 +54,7 @@ const SCHEMA = path.join(process.cwd(), "db/schema.ts");
  *
  * Derived, not listed. A hand-kept list would be a second source of truth that
  * silently stops covering the column somebody adds next week — the exact
- * failure mode `docs/reviews` keeps recording for enumerated fences.
+ * failure mode `dim-interno:docs/reviews` keeps recording for enumerated fences.
  */
 function defaultNowFields(): Set<string> {
   const src = readFileSync(SCHEMA, "utf8");

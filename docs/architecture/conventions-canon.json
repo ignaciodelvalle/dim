@@ -388,7 +388,7 @@
       "scope": "process",
       "sources": [
         "AGENTS.md:59",
-        "docs/design/handoffs/README.md:14-16"
+        "dim-interno:docs/design/handoffs/README.md:14-16"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1433,7 +1433,7 @@
       "rule": "The gate proves the code matches its author's belief, not that the belief was right, so a green gate does not substitute for adversarial review.",
       "scope": "process",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:5-9"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:5-9"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1447,7 +1447,7 @@
       "rule": "A live conflict marker surviving inside a test file must be caught as a broken file by the sweeping vitest fences, since it is invisible to the `lint:*` chain.",
       "scope": "process",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:144-149"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:144-149"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1461,7 +1461,7 @@
       "rule": "Before validating a tree, pin Node to the version in `.nvmrc` (22.23.2) and refuse to proceed on any other version.",
       "scope": "process",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:432-441"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:432-441"
       ],
       "enforcer": [
         "scripts/check-node-version.ts:260-279"
@@ -1481,7 +1481,7 @@
       "rule": "`supabase status -o env` can exit 0 even with part of the stack down; read the \"Stopped services\" line rather than trusting the exit code.",
       "scope": "process",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:457-461"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:457-461"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1495,13 +1495,13 @@
       "rule": "`pnpm test:verified` must be run twice and both runs must agree exactly (verdict line and test counts) to satisfy the Definition of Done.",
       "scope": "process",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:471-487"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:471-487"
       ],
       "enforcementKind": "none",
       "wired": "none",
       "status": "UNENFORCED",
       "statusBasis": "No enforcer found: no scripts/check-*.ts, no vitest/jest fence, no biome override, no CI step and no DB constraint has this rule's subject as its predicate. It is a working norm applied by hand.",
-      "notes": "CLAUDE.md's own Definition of Done section states the single-run verdict rule; the 'twice, identical' requirement lives in docs/agents and is applied by hand (see docs/agents/open-work.md:2511-2563).",
+      "notes": "CLAUDE.md's own Definition of Done section states the single-run verdict rule; the 'twice, identical' requirement lives in docs/agents and is applied by hand (see dim-interno:docs/agents/open-work.md:2511-2563).",
       "confidence": 0.9,
       "verifiedAt": "d7dbf25f7"
     },
@@ -1510,7 +1510,7 @@
       "rule": "Before touching anything in a staging-clickthrough run, read and record the commit the build is serving from the `mimar-version` meta tag, and re-read it at the end of the run.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:9-24"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:9-24"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1524,7 +1524,7 @@
       "rule": "If the commit being served does not match the one the tester was told to review, stop and report it rather than continue testing.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:21"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:21"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1538,7 +1538,7 @@
       "rule": "Load historical facts with the date they actually occurred, not today's date, whenever the form permits it.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:50"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:50"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1552,7 +1552,7 @@
       "rule": "A tester must enter a flow through the path a real person would use, not a known direct URL; if a feature is not reachable by navigation, that unreachability is itself the finding.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:51"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:51"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1566,7 +1566,7 @@
       "rule": "A tester must record doubt at the moment it occurs, rather than search for the correct way to do something and then report success.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:52-54"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:52-54"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1580,7 +1580,7 @@
       "rule": "A test bitácora line must be written after every single hito (checkpoint), before moving to the next one, never batched to the end of the phase or run.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:388-393"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:388-393"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1594,7 +1594,7 @@
       "rule": "Every finding report must separate OBSERVATION (only what was seen on screen), HYPOTHESIS (why, or \"none\"), and SUGGESTION into distinct fields, never merged.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:424-437"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:424-437"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1608,7 +1608,7 @@
       "rule": "Only the UI may be used during the test; no SQL and no direct API access. If a flow cannot be completed through the interface, that is itself the finding.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:498"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:498"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1622,7 +1622,7 @@
       "rule": "A tester must never touch data they did not create themselves (the demo cast, other reviewers' fixtures) — no edits, deletes, or resolving of queues not opened by the tester.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:494-496"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:494-496"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1636,7 +1636,7 @@
       "rule": "A `[CORTE]` cross-role consistency check must be recorded at least once at each of the five named checkpoints, from every role that can view that case.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:84-101"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:84-101"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1650,7 +1650,7 @@
       "rule": "Rotation between the seven test personas must complete a full cycle every time, even when one person has nothing new, rather than chasing whoever is currently unblocked.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:115-125"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:115-125"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1664,7 +1664,7 @@
       "rule": "The final test report must include a \"Verificado y limpio\" section listing what was checked and found working, since without it a report with no findings is indistinguishable from a report where nothing was checked.",
       "scope": "process",
       "sources": [
-        "docs/agents/master-test-ciudadano-multiagente.md:461"
+        "dim-interno:docs/agents/master-test-ciudadano-multiagente.md:461"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1678,7 +1678,7 @@
       "rule": "Only the integrator may renumber the open-work board's table, and only after auditing every existing pointer to it rather than taking a prior lane's argument on trust.",
       "scope": "process",
       "sources": [
-        "docs/agents/open-work.md:113-126"
+        "dim-interno:docs/agents/open-work.md:113-126"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1693,7 +1693,7 @@
       "rule": "An independent code reviewer must not be told what was already fixed in the range under review, so as not to bias what they look for.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:7-10"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:7-10"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1707,7 +1707,7 @@
       "rule": "When a finding belongs to an enumerable class (policies, buckets, cache columns, sweeps, public routes, SECURITY DEFINER functions), the report must include the complete enumeration of that class, not just the discovered instance.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:78-89"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:78-89"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1721,7 +1721,7 @@
       "rule": "A finding's magnitude (real population size) must be verified before proposing a causal explanation for it.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:91-96"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:91-96"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1735,7 +1735,7 @@
       "rule": "A proposed fix's premises must be stated as either verified or assumed, explicitly distinguished, because an unverified premise can silently break production.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:97-101"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:97-101"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1749,7 +1749,7 @@
       "rule": "A conclusion that something does NOT exist must state what it was checked against, since \"not in the repo's migrations\" and \"not in the live database\" are different claims.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:102-111"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:102-111"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1763,7 +1763,7 @@
       "rule": "When evaluating a test, ask what specific production change would have to break for the test to fail, not whether the test currently passes.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:60-63"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:60-63"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1777,7 +1777,7 @@
       "rule": "A test fixture with only one instance of a grouped entity cannot cover a group-by defect; the fixture must contain at least two of the thing the code groups by.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:65-69"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:65-69"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1791,7 +1791,7 @@
       "rule": "Launch one reviewer agent per dimension (authz/RLS, spine integrity, projections, privacy, test quality) plus one adversarial agent that refutes the others' findings before they reach the report.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:54-58"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:54-58"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1805,7 +1805,7 @@
       "rule": "A finding report must order findings by potential damage, not by count, and must explicitly list what was checked and found fine.",
       "scope": "process",
       "sources": [
-        "docs/agents/prompt-cowork-review-codigo.md:113-116"
+        "dim-interno:docs/agents/prompt-cowork-review-codigo.md:113-116"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1923,7 +1923,7 @@
       "rule": "`lint:route-weight` and `lint:csp-prerender` must not be treated as evidence when run standalone (without a prior `pnpm build`); only inside `pnpm verify`, after the build, do they measure for real.",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:57-73"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:57-73"
       ],
       "enforcer": [
         "scripts/check-route-weight.ts:147-167",
@@ -1946,7 +1946,7 @@
       "rule": "State in `/CLAUDE.md`, next to the Definition of Done, that `pnpm test:verified` does not cover `apps/mobile` (a separate Jest run inside `verify:mobile`).",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:125-139"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:125-139"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1960,7 +1960,7 @@
       "rule": "A fence must not anchor on source text alone (e.g. `toContain(\"isNull(pets.deletedAt)\")`); anchor on compiled SQL (`PgDialect().sqlToQuery()`) or behavior instead.",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:208-222"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:208-222"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1974,7 +1974,7 @@
       "rule": "For every new test, name the exact production mutation that breaks it and actually apply it, watch the red, and restore — not merely predict it.",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:225-241"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:225-241"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -1988,7 +1988,7 @@
       "rule": "Two or three writer lanes should run at once, each running only targeted tests plus its own fences, with one integrator merging, re-deriving pins, and running the full gate.",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:250-259"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:250-259"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -2002,7 +2002,7 @@
       "rule": "The integrator may reject a lane out of a window for an open blocker rather than merge a broken lane in — a clean window of two beats a window of three with one broken inside it.",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:260-264"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:260-264"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -2016,7 +2016,7 @@
       "rule": "Hand back an out-of-scope or PO-gated item to the PO with the reason written, rather than half-attempting it.",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:299-303"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:299-303"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -2101,7 +2101,7 @@
       "rule": "External agents (non-Claude-Code reviewers, Cowork, QA agents) deliver recommendations only and must never write code into this repo.",
       "scope": "process",
       "sources": [
-        "docs/design/handoffs/README.md:9-13"
+        "dim-interno:docs/design/handoffs/README.md:9-13"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -2115,7 +2115,7 @@
       "rule": "Every audit must start by stating its ground truth: the canonical checkout's current branch and short SHA (`git -C C:/dev/dim branch --show-current && git -C C:/dev/dim rev-parse --short HEAD`).",
       "scope": "process",
       "sources": [
-        "docs/design/handoffs/README.md:25-29"
+        "dim-interno:docs/design/handoffs/README.md:25-29"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -2129,7 +2129,7 @@
       "rule": "The canonical checkout is `C:/dev/dim`; any path under `.claude/worktrees/**` is a frozen copy of the repo at an older commit and must not be read as current.",
       "scope": "process",
       "sources": [
-        "docs/design/handoffs/README.md:31-35"
+        "dim-interno:docs/design/handoffs/README.md:31-35"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -2143,7 +2143,7 @@
       "rule": "Any quantitative claim in a handoff (line counts, file counts, mention counts) must carry the exact command that produced it, run on the canonical checkout at the stated SHA.",
       "scope": "process",
       "sources": [
-        "docs/design/handoffs/README.md:36-39"
+        "dim-interno:docs/design/handoffs/README.md:36-39"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -3349,7 +3349,7 @@
       "scope": "db",
       "sources": [
         "CLAUDE.md:43",
-        "docs/agents/handoff-2026-08-30.md:152-160"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:152-160"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -5502,7 +5502,7 @@
     },
     {
       "id": "CANON-317",
-      "rule": "Biome must ignore .next, node_modules, dist, out, supabase/.temp, supabase/.branches, apps/mobile/android, apps/mobile/ios, docs/design/handoffs/** and docs/reviews/results/** entirely.",
+      "rule": "Biome must ignore .next, node_modules, dist, out, supabase/.temp, supabase/.branches, apps/mobile/android, apps/mobile/ios, dim-interno:docs/design/handoffs/** and dim-interno:docs/reviews/results/** entirely.",
       "scope": "web",
       "sources": [
         "biome.json:10"
@@ -5514,7 +5514,7 @@
       "wired": "none",
       "status": "UNENFORCED",
       "clause": "R2",
-      "statusBasis": "biome.json:10-21 IS the cited enforcer — the files.ignore array itself (.next, node_modules, dist, out, supabase/.temp, supabase/.branches, apps/mobile/android, apps/mobile/ios, docs/design/handoffs/**, docs/reviews/results/**). Nothing reads it back; rg for `biome.json` under __tests__/scripts/e2e returns only the application-fence pair, which parses the overrides array, never files.ignore.",
+      "statusBasis": "biome.json:10-21 IS the cited enforcer — the files.ignore array itself (.next, node_modules, dist, out, supabase/.temp, supabase/.branches, apps/mobile/android, apps/mobile/ios, dim-interno:docs/design/handoffs/**, dim-interno:docs/reviews/results/**). Nothing reads it back; rg for `biome.json` under __tests__/scripts/e2e returns only the application-fence pair, which parses the overrides array, never files.ignore.",
       "notes": "Self-executing declaration, true at this SHA. The previous basis conceded the point in its own note — 'a scope declaration cannot fail on its own' — and still recorded ENFORCED; under R2 that is UNENFORCED.",
       "confidence": 0.65,
       "verifiedAt": "d7dbf25f7"
@@ -5698,7 +5698,7 @@
       "rule": "An anonymous denuncia's rate-limiter bucket key must not leak the caller's user id into an unbounded reader population; `redactCallerId` closes this and reverting it must turn a test red.",
       "scope": "web",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:136-140"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:136-140"
       ],
       "enforcer": [
         "__tests__/api-v1-welfare-reports-route.test.ts:928-936"
@@ -7679,7 +7679,7 @@
       "rule": "A geocoder outage on the mobile denuncia flow must answer 503, never render an empty match list, since an infrastructure failure must not be disguised as a user error.",
       "scope": "mobile",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:37-42"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:37-42"
       ],
       "enforcer": [
         "__tests__/api-v1-welfare-reports-route.test.ts:99-107,244-249",
@@ -8574,7 +8574,7 @@
       "status": "PARTIAL",
       "partialShape": "subset",
       "clause": "R4",
-      "statusBasis": "__tests__/documented-subject-rights-counts.test.ts:212-244 sweeps for contradicting counts over PROSE_PATHS, which is a hand-listed TWO-document corpus (:55 — AGENTS.md and docs/agents/open-work.md); every other document stating the KNOWN_GAP count is outside the scan, and the header at :19-26 declares the sentence-anchor limit for the rest.",
+      "statusBasis": "__tests__/documented-subject-rights-counts.test.ts:212-244 sweeps for contradicting counts over PROSE_PATHS, which is a hand-listed TWO-document corpus (:55 — AGENTS.md and dim-interno:docs/agents/open-work.md); every other document stating the KNOWN_GAP count is outside the scan, and the header at :19-26 declares the sentence-anchor limit for the rest.",
       "notes": "The regex at :230 also only catches a number within 60 chars of KNOWN_GAP followed by tablas/tables, so a count stated in other wording escapes even inside the two swept documents.",
       "confidence": 0.68,
       "verifiedAt": "d7dbf25f7"
@@ -8601,11 +8601,11 @@
     },
     {
       "id": "CANON-488",
-      "rule": "`docs/archive/**` and anything superseded in `docs/superpowers/README.md` describe the past and must not be cited as the current state — AGENTS.md is the authoritative current spec.",
+      "rule": "`dim-interno:docs/archive/**` and anything superseded in `docs/superpowers/README.md` describe the past and must not be cited as the current state — AGENTS.md is the authoritative current spec.",
       "scope": "docs",
       "sources": [
         "docs/README.md:7",
-        "docs/design/handoffs/README.md:40-44"
+        "dim-interno:docs/design/handoffs/README.md:40-44"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -8616,7 +8616,7 @@
     },
     {
       "id": "CANON-489",
-      "rule": "Living planning docs must stay out of docs/archive/, e.g. docs/superpowers/plans/2026-05-27-spec-later-tracker.md, which code TODO(spec-later) markers link to.",
+      "rule": "Living planning docs must stay out of dim-interno:docs/archive/, e.g. docs/superpowers/plans/2026-05-27-spec-later-tracker.md, which code TODO(spec-later) markers link to.",
       "scope": "docs",
       "sources": [
         "docs/README.md:18"
@@ -8633,7 +8633,7 @@
       "rule": "Every number quoted in a handoff document must be recounted from the tree at the time of writing, not carried over from an earlier page.",
       "scope": "docs",
       "sources": [
-        "docs/agents/handoff-2026-08-30.md:1-19"
+        "dim-interno:docs/agents/handoff-2026-08-30.md:1-19"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -8647,7 +8647,7 @@
       "rule": "A landed work block on the open-work board must state what it decided AND what it did not solve, not just what shipped.",
       "scope": "docs",
       "sources": [
-        "docs/agents/open-work.md:157"
+        "dim-interno:docs/agents/open-work.md:157"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -8661,7 +8661,7 @@
       "rule": "A row removed from the open-work board must take its narrowed remainder with it, or leave the remainder explicitly written — a row deleted without its remainder is lost work.",
       "scope": "docs",
       "sources": [
-        "docs/agents/open-work.md:158-161"
+        "dim-interno:docs/agents/open-work.md:158-161"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -8675,8 +8675,8 @@
       "rule": "Numbers must be derived or fenced rather than transcribed into prose; where a number must appear in prose, a test should recompute it from source and pin it — a paragraph that reports a census of matches within the same file it lives in cannot be kept true, and must argue by location instead of count.",
       "scope": "docs",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:99-121",
-        "docs/agents/recommendations-2026-08-30.md:113-121"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:99-121",
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:113-121"
       ],
       "enforcer": [
         "__tests__/event-catalog-count.test.ts",
@@ -8697,7 +8697,7 @@
       "rule": "A handoff document must be named `YYYY-MM-DD-<topic>-{proposal|audit|handoff}.md`.",
       "scope": "docs",
       "sources": [
-        "docs/design/handoffs/README.md:13"
+        "dim-interno:docs/design/handoffs/README.md:13"
       ],
       "enforcementKind": "none",
       "wired": "none",
@@ -9301,7 +9301,7 @@
       "rule": "Writes to the database from `app/**` go ONLY through a `src/modules/<domain>` use case called from `actions.ts`; page-level READS from `app/**` straight through Drizzle are tolerated under a shrink-only baseline; and no `app/**` file beyond the one already recorded may insert into the `petEvents` spine.",
       "scope": "web",
       "sources": [
-        "docs/reviews/2026-09-fresh/BACKLOG.md:242-253"
+        "dim-interno:docs/reviews/2026-09-fresh/BACKLOG.md:242-253"
       ],
       "enforcer": [
         "scripts/check-app-db-boundary.ts",
@@ -9450,7 +9450,7 @@
       "status": "ENFORCED",
       "clause": "R1",
       "statusBasis": "scripts/check-secrets.ts:473-520 runs findSecrets (:332-341, every SCANNER over every line) on every `git ls-files` path except binaries and files over 2 MiB, applies the allowlist (:428-446) and exits 1 on any unallowlisted finding (file:line + kind, never the value) and on any allowlist entry that matched nothing; :474-479 fails a zero-file listing instead of passing it. The non-vacuity floor is __tests__/check-secrets.test.ts:79-97 — every SECRET_KINDS member must fire on a synthetic sample and a new kind without one fails — and :293-299 self-scans the fence and its test. package.json:80 lint:secrets is in the verify chain and .github/workflows/ci.yml runs it in its own step (lint:ci-parity holds the pairing).",
-      "notes": "Scope is tracked files at HEAD by design (header :63-65): untracked/ignored files such as .env.local are where secrets belong, and history is not scanned — a value already published is not unpublished by this fence, which is why the failure message says to rotate. Closes the 'no secrets' half of CANON-022 for the tree, not its 'clean history' half. L-24 in docs/plans/PENDIENTES.md; env_secret_assignment was added 2026-09-18 after a security review found a pasted CRON_SECRET matched nothing.",
+      "notes": "Scope is tracked files at HEAD by design (header :63-65): untracked/ignored files such as .env.local are where secrets belong, and history is not scanned — a value already published is not unpublished by this fence, which is why the failure message says to rotate. Closes the 'no secrets' half of CANON-022 for the tree, not its 'clean history' half. L-24 in dim-interno:docs/plans/PENDIENTES.md; env_secret_assignment was added 2026-09-18 after a security review found a pasted CRON_SECRET matched nothing.",
       "confidence": 0.9,
       "verifiedAt": "aa6df254c"
     }
@@ -9461,7 +9461,7 @@
       "rule": "A floor pinned with `toBeGreaterThanOrEqual` (e.g. `MIN_V1_ROUTE_FILES`, `MIN_IP_BUCKETS`) should be converted to exact equality with a recount, the way the CGNAT ceiling's `toBe` already works, since a floor loosens in silence.",
       "scope": "process",
       "sources": [
-        "docs/agents/recommendations-2026-08-30.md:77-96"
+        "dim-interno:docs/agents/recommendations-2026-08-30.md:77-96"
       ],
       "sourceQuote": "what it actually enforces is \"coverage never checked again\"",
       "enforcementKind": "none",
@@ -9744,7 +9744,7 @@
       "kind": "fence-test",
       "id": "__tests__/gob-synthetic-exclusion-fence.test.ts",
       "path": "__tests__/gob-synthetic-exclusion-fence.test.ts",
-      "note": "Added 2026-09-18 with pilot item T1-P1 (PO decision D3): the pilot runs in the one environment that also holds the national demo seed, so no seed-tagged row may reach a govt or national reader of /gob. The rule lives in docs/handoff/rumbo-al-piloto.md, which the d7dbf25f7 snapshot does not harvest, so no row can cite a source for it without claiming a verifiedAt for a document the extraction never read. The exclusion itself lives inside the scope helpers (lib/metrics/scope.ts withoutSyntheticRows); what this fence holds is the bypass: every raw jurisdictionPairClause( call under lib/, src/ and app/ must apply the exclusion within 12 lines, carry a `synthetic: covered` tag naming a same-file function whose body is CHECKED to apply it, or a `synthetic: exempt` tag with a reason (tables with no seed marker). Floors at 30 call sites / 20 real applications and names the govt read paths it must see, so a sweep that stops matching cannot go quietly green; mutation-tested against the real tree. The behaviour is proven against the database in __tests__/gob-synthetic-exclusion.test.ts."
+      "note": "Added 2026-09-18 with pilot item T1-P1 (PO decision D3): the pilot runs in the one environment that also holds the national demo seed, so no seed-tagged row may reach a govt or national reader of /gob. The rule lives in dim-interno:docs/handoff/rumbo-al-piloto.md, which the d7dbf25f7 snapshot does not harvest, so no row can cite a source for it without claiming a verifiedAt for a document the extraction never read. The exclusion itself lives inside the scope helpers (lib/metrics/scope.ts withoutSyntheticRows); what this fence holds is the bypass: every raw jurisdictionPairClause( call under lib/, src/ and app/ must apply the exclusion within 12 lines, carry a `synthetic: covered` tag naming a same-file function whose body is CHECKED to apply it, or a `synthetic: exempt` tag with a reason (tables with no seed marker). Floors at 30 call sites / 20 real applications and names the govt read paths it must see, so a sweep that stops matching cannot go quietly green; mutation-tested against the real tree. The behaviour is proven against the database in __tests__/gob-synthetic-exclusion.test.ts."
     }
   ]
 }

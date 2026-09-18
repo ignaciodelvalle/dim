@@ -4,7 +4,7 @@
  * Pure fixture tests — no filesystem I/O. Exercises the "guard-called-but-not-
  * jurisdiction-scoped" heuristic against known-bad and known-good inline source
  * strings modelled on the real actions inventoried in
- * docs/design/handoffs/2026-07-04-authz-inventory-raw.md.
+ * dim-interno:docs/design/handoffs/2026-07-04-authz-inventory-raw.md.
  */
 
 import { describe, expect, it } from "vitest";

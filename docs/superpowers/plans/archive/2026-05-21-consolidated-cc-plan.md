@@ -70,7 +70,7 @@ Each chunk below is **independently shippable** (CI green, no in-flight refactor
 ### Chunk C — Vaccine-due UX (Sprint 4 from master plan, ~3 days)
 
 **Plan ejecutable:** ⚠️ write first as `docs/superpowers/plans/2026-05-2X-vaccine-due-ux.md`.
-**Design spec:** `docs/design/06-vaccine-due.md`.
+**Design spec:** `dim-interno:docs/design/06-vaccine-due.md`.
 
 Sprint 4 from the master plan, **unchanged**. Independent of every other chunk. Can run in parallel with Chunk D if a second CC session is available.
 
@@ -101,7 +101,7 @@ Sprint 4 from the master plan, **unchanged**. Independent of every other chunk. 
 ### Chunk E — Govt dashboards (Sprint 5, ~6–7 days)
 
 **Plan ejecutable:** ⚠️ write first.
-**Design spec:** `docs/design/04-govt-dashboards.md`.
+**Design spec:** `dim-interno:docs/design/04-govt-dashboards.md`.
 
 Biggest remaining single sprint. `/gob` skeleton already exists (`vigilancia`, `perdidas`, `maltrato`, `casos`, `disputas`, etc.) but the shared dashboard primitives and `/gob/analytics` are missing.
 

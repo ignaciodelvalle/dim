@@ -15,7 +15,7 @@ import { leftSignIn } from "../e2e/_sign-in-route";
 
 const BASE = "http://localhost:3000";
 const PASS = "Test1234!";
-const SHOT_DIR = path.join("docs", "reviews", "results", "val-deep-C-screenshots");
+const SHOT_DIR = path.join("tmp", "qa", "val-deep-C-screenshots");
 
 type Sev = "BLOCKER" | "MAYOR" | "MENOR" | "OK";
 type Finding = { id: string; sev: Sev; ok: boolean; detail: string };
@@ -617,7 +617,7 @@ async function main(): Promise<void> {
     JSON.stringify({ blockers: blockers.length, majors: majors.length, findings }, null, 2),
   );
   fs.writeFileSync(
-    path.join("docs", "reviews", "results", "val-deep-C-findings.json"),
+    path.join("tmp", "qa", "val-deep-C-findings.json"),
     JSON.stringify(findings, null, 2),
   );
   process.exit(blockers.length > 0 ? 1 : 0);

@@ -82,7 +82,7 @@ describe("landing hero — credential + lost demo", () => {
 
   // RA-6 finding 1 — the hero used to hardcode a token that only
   // scripts/seed-flagship-pampa.ts writes, so on any deployment provisioned per
-  // docs/ops/cutover-playbook.md ("no seed pets") the QR scanned straight into
+  // dim-interno:docs/ops/cutover-playbook.md ("no seed pets") the QR scanned straight into
   // /p's notFound(). A 404 QR on a government front door is worse than no QR.
   it("promises NOTHING scannable when there is no demo pet to resolve", () => {
     const html = renderHeroWithoutDemoPet();

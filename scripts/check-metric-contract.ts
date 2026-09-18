@@ -1,4 +1,4 @@
-// Metric-contract fence — CI guard (C1, docs/reviews/results/
+// Metric-contract fence — CI guard (C1, dim-interno:docs/reviews/results/
 // 2026-07-22-plan-maestro-integridad.md, §2 "C1 · Contrato de Métrica").
 //
 // WHY THIS EXISTS

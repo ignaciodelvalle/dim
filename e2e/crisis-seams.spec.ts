@@ -2,7 +2,7 @@
  * Crisis-path cross-POV seams — hardened Playwright regression suite (#35).
  *
  * These are the four critical, multi-actor journeys from the crisis-e2e design
- * handoff (docs/design/handoffs/2026-07-04-crisis-e2e-design.md). Cursor's
+ * handoff (dim-interno:docs/design/handoffs/2026-07-04-crisis-e2e-design.md). Cursor's
  * browser MCP could not drive them end-to-end (re-login across roles, anon
  * contexts, server-action redirects); Playwright can. Unlike the recording
  * battery in final-seams.spec.ts — which collects soft pass/fail notes and

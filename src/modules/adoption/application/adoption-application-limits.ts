@@ -1,6 +1,6 @@
 // What a person may spend submitting adoption applications, derived once.
 //
-// THE BOARD ASKED FOR THIS BY NAME. `docs/agents/open-work.md`'s WU-U row reads
+// THE BOARD ASKED FOR THIS BY NAME. `dim-interno:docs/agents/open-work.md`'s WU-U row reads
 // "The application flow earns its own rate limit here", and the emphasis is on
 // FLOW: until now neither door had one. The web action has spent no budget
 // since the surface shipped, so the ceiling below is not a native-only control

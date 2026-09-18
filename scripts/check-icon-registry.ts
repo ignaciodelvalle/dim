@@ -1,6 +1,6 @@
 // Icon registry fence — CI guard (nav-chrome icon duplication + registry bypass).
 //
-// Audit 2026-07-21 (docs/reviews/results/2026-07-21-audit-1-consistencia.md §5,
+// Audit 2026-07-21 (dim-interno:docs/reviews/results/2026-07-21-audit-1-consistencia.md §5,
 // "Icons — score 8/10") found the central icon registry (components/Icon.tsx,
 // lucide-react backed) is respected almost everywhere in the app — 0 files
 // import lucide-react directly outside Icon.tsx — EXCEPT 5 nav-chrome files

@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 // The subject here is a PREDICATE and an ORDERING, and both are invisible to a
 // stub that answers with rows. `__tests__/api-v1-rate-limit-families.test.ts`'s
-// sibling lesson, recorded in `docs/agents/open-work.md`, is the reason: a
+// sibling lesson, recorded in `dim-interno:docs/agents/open-work.md`, is the reason: a
 // drizzle stub whose `.where()` discards its argument "does not merely fail to
 // test it: it makes every assertion in the file assert that the argument does
 // not matter", and a reviewer mutated an authorization `WHERE` into a tautology

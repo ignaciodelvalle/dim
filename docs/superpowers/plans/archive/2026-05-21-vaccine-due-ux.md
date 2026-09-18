@@ -5,7 +5,7 @@
 > **Audiencia:** Claude Code (input directo)
 > **Estimación:** ~3 días (C0 incluido en este doc)
 > **Origen:** `docs/superpowers/plans/2026-05-21-consolidated-cc-plan.md` §Chunk C
-> **Design spec:** `docs/design/06-vaccine-due.md`
+> **Design spec:** `dim-interno:docs/design/06-vaccine-due.md`
 > **Decisiones cerradas:** `docs/superpowers/plans/2026-05-21-pending-decisions-resolved.md` §Chunk C + §CX-1
 
 ---
@@ -23,7 +23,7 @@ Chunk C construye la capa de recordatorios de vacunas visible al owner: cinco va
 **Q:** Build `<Badge>` as part of Chunk C, or compose inline and extract later?
 **A:** Build now.
 **Implications:**
-- Add `components/poncho/Badge.tsx` to Chunk C's file list (already noted as conditional in `docs/design/06-vaccine-due.md` §G).
+- Add `components/poncho/Badge.tsx` to Chunk C's file list (already noted as conditional in `dim-interno:docs/design/06-vaccine-due.md` §G).
 - Use the shape confirmed in C-D4 below: pill with optional icon + `variant` prop (`info | success | warning | danger | neutral`).
 - Export from `components/poncho/index.ts` so Chunk E + Tier 7 specs can import without a follow-up extraction PR.
 - Cost: ~30-45 min added to Chunk C; amortized across at least 5 downstream consumers.
@@ -496,7 +496,7 @@ Verificación visual manual (documentar en el PR de C4):
 
 ## Referencias
 
-- `docs/design/06-vaccine-due.md` — design spec completa (fuente de verdad).
+- `dim-interno:docs/design/06-vaccine-due.md` — design spec completa (fuente de verdad).
 - `docs/superpowers/plans/2026-05-21-consolidated-cc-plan.md` — sequencing parent.
 - `docs/superpowers/plans/2026-05-21-pending-decisions-resolved.md` — decisiones cerradas §Chunk C + §CX-1.
 - PR #93 — `feat(poncho): design-system primitives (Chunk A.5)` — dependencia de primitivas.

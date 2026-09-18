@@ -91,7 +91,7 @@ function main(): void {
     console.error(
       "✗ .env.local not found. Copy .env.local.example and fill it in — or, if this\n" +
         "  project is Vercel-linked, run `vercel env pull .env.local`. Never hand-author\n" +
-        "  secrets you can pull. See docs/ops/env-handling.md.",
+        "  secrets you can pull. See docs/ops/local-dev-runbook.md.",
     );
     process.exit(1);
   }
@@ -138,7 +138,7 @@ function main(): void {
 
   if (errors.length > 0) {
     console.error(
-      `\n✗ env:doctor found ${errors.length} error(s)${warnings.length ? ` and ${warnings.length} warning(s)` : ""}. Fix .env.local (see docs/ops/env-handling.md) before starting the app.`,
+      `\n✗ env:doctor found ${errors.length} error(s)${warnings.length ? ` and ${warnings.length} warning(s)` : ""}. Fix .env.local (see .env.local.example and docs/ops/local-dev-runbook.md) before starting the app.`,
     );
     process.exit(1);
   }

@@ -1,6 +1,6 @@
 // Precompute REPRESENTATIVE POINTS (point-on-surface) for every province and
 // department polygon — the fix for "centroid dots in the water" (task #20
-// Part 2, item 1 / docs/plans/panorama-v2-polish.md Part B #6).
+// Part 2, item 1 / dim-interno:docs/plans/panorama-v2-polish.md Part B #6).
 //
 // WHY THIS EXISTS
 // ----------------

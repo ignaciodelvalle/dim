@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// /gob (home) — C6b "THE BRIEFING" render smoke test (docs/reviews/results/
+// /gob (home) — C6b "THE BRIEFING" render smoke test (dim-interno:docs/reviews/results/
 // 2026-07-22-plan-maestro-integridad.md §C6). Pins the PO-locked 4-block
 // order (Alertas priorizadas → Brechas vs meta → Cola operativa condensada →
 // Mi trabajo asignado → collapsed Novedades/Actividad reciente), the

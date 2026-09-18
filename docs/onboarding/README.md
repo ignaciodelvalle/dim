@@ -206,7 +206,7 @@ Esta es la parte que conviene leer aunque no leas las guías.
   degradó el texto porque el código está completo y enchufado, pero si la primera
   build en un teléfono falla ahí, estos dos párrafos son los que hay que corregir
   primero.
-- **`docs/agents/prompt-cowork-onboarding-externos.md` escribe "MiMAR"** con M
+- **`dim-interno:docs/agents/prompt-cowork-onboarding-externos.md` escribe "MiMAR"** con M
   mayúscula en cuatro lugares (líneas 10, 25, 89 y 102 — la 102 es justamente la
   regla que dice cómo se escribe la marca). La marca es **miMAR**. Hay una fence
   (`scripts/check-brand-casing.ts`) pero su alcance es `.ts`/`.tsx` de

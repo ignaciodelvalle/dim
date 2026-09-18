@@ -1,6 +1,6 @@
 // Characterization net for resolveJurisdictionScope — the jurisdiction-scope
 // primitive. Pins the full ResolvedJurisdictionScope across the branch matrix
-// (B1–B10 of docs/plans/jurisdiction-scope-primitive.md §2). The two DB reads
+// (B1–B10 of dim-interno:docs/plans/jurisdiction-scope-primitive.md §2). The two DB reads
 // (listLocalitiesByProvince, localityByName) are stubbed so the net is
 // deterministic and server-free — the fence-critical narrowing it delegates to
 // (resolveScopedJurisdictions) runs FOR REAL (already covered by gov-scope.test).

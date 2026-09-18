@@ -51,7 +51,7 @@ const FOCAL_LOCALITY = "Palermo";
 // test. When it is absent these tests SKIP, and announce it — see below for
 // where the announcement had to go.
 //
-// PO decision D2, recommended option (docs/plans/2026-07-27-plan-ejecucion-ola1.md §1).
+// PO decision D2, recommended option (dim-interno:docs/plans/2026-07-27-plan-ejecucion-ola1.md §1).
 const demoPetCount = await db
   .select({ n: sql<number>`count(*)::int` })
   .from(pets)

@@ -98,7 +98,7 @@ is gone.
 ## 3. The environment recipe
 
 Two rules, both paid for in lost hours (see
-`docs/agents/walkthrough-findings-2026-08-31.md`, "Running the local stack"):
+`dim-interno:docs/agents/walkthrough-findings-2026-08-31.md`, "Running the local stack"):
 
 1. **From the AVD, the host is `10.0.2.2`** — not `localhost`, which is the
    emulator itself.

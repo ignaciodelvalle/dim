@@ -2523,7 +2523,7 @@ export const AUDIT_LOG_ACTIONS = [
   // its 90-day TTL and writes ONE of these rows per deleted event.
   // Payload: { pet_event_id, pet_id, occurred_at, retention_days }.
   // MISSING FROM THIS CATALOG UNTIL 2026-08-16 — see the header note. It was
-  // reported as a LOW finding in docs/reviews/results/01-event-sourcing.md
+  // reported as a LOW finding in dim-interno:docs/reviews/results/01-event-sourcing.md
   // (item 11) alongside the two mutation_override actions; only those two were
   // ever added. Nothing could notice, because nothing compared the catalog to
   // what the database actually stored. Migration 0184's CHECK now does.
@@ -4071,7 +4071,7 @@ export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
 // (src/modules/panorama/infrastructure/cube-builder.ts), which REUSES the live
 // choropleth loaders and writes here in one transaction. Read only via
 // analyticsDb (service-role); deny-all RLS to PostgREST. See migration 0139 and
-// docs/plans/2026-07-11-cube-design.md (+ the TS-builder amendment).
+// dim-interno:docs/plans/2026-07-11-cube-design.md (+ the TS-builder amendment).
 
 /** The readable, k-anon'd cube surface. Suppressed department cells carry
  * value = NULL — a sub-k count is NEVER stored here. */

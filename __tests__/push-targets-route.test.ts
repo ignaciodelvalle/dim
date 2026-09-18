@@ -1,6 +1,6 @@
 // `/api/v1/me/push-targets` — the door a phone knocks on, and who it turns away.
 //
-// This is §7 item 7 of docs/handoff/push-notifications.md: "an unauthenticated
+// This is §7 item 7 of dim-interno:docs/handoff/push-notifications.md: "an unauthenticated
 // call, an expired token, and the limit being hit".
 //
 // WHAT THIS FILE HAS TO PROVE

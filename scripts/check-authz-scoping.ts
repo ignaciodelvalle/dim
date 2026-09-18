@@ -14,7 +14,7 @@
 //   is global by design, but a govt agent is bounded to their assigned
 //   jurisdiction and an org member to their tenant; a role check alone lets a
 //   scoped operator act outside their bounds if the downstream query forgets
-//   the WHERE clause. See docs/design/handoffs/2026-07-04-authz-inventory-raw.md
+//   the WHERE clause. See dim-interno:docs/design/handoffs/2026-07-04-authz-inventory-raw.md
 //   for the hand audit this automates (its ⚠ rows are the seed baseline).
 //
 // HEURISTIC (regex approximation, matching the sibling linters):

@@ -16,7 +16,7 @@
 // NONE OF IT WAS TRUE. There is no convenio with any state body. The Mi
 // Argentina agreement — the federation this whole architecture is premised on —
 // is still listed as an open, unstarted prerequisite in
-// docs/design/sdd/2026-07-07-miargentina-federation.md, and `mimar.gob.ar` is
+// dim-interno:docs/design/sdd/2026-07-07-miargentina-federation.md, and `mimar.gob.ar` is
 // deliberately absent from OWNED_WEB_DOMAINS in lib/infra/site-url.ts "until it
 // is delegated". Two costs: Play treats implied government affiliation as
 // impersonation, and a funcionario who opens the site and finds their own

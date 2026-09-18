@@ -47,7 +47,7 @@ Priority order: **A → B → C** (highest leverage / demo + gov credibility), t
 
 **States to standardize (citizen skin):** empty → `LnEmptyState`; loading → existing skeleton (`aria-busy`); error → inline message with retry, never a silent failure. Reuse existing primitives; no new tokens.
 
-**Acceptance.** A written walkthrough note (`docs/design/flow-audit-2026-07.md`) listing each loop with ✅/gap; the lost&found confirmation + back shipped and tested at 320px; `pnpm verify` green.
+**Acceptance.** A written walkthrough note (`dim-interno:docs/design/flow-audit-2026-07.md`) listing each loop with ✅/gap; the lost&found confirmation + back shipped and tested at 320px; `pnpm verify` green.
 
 **Escalate:** any gap whose fix changes a flow's steps or a server action (bring the proposed flow change back first).
 

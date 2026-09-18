@@ -1,6 +1,6 @@
 // lib/ui/screen-manifest.ts — the screen-decision manifest (C6a primitive).
 //
-// docs/reviews/results/2026-07-22-plan-maestro-integridad.md §C6: "Toda
+// dim-interno:docs/reviews/results/2026-07-22-plan-maestro-integridad.md §C6: "Toda
 // pantalla declara su decisión dueña (manifest por pantalla — la lente D3 de
 // nuestro audit, ahora obligatoria); si no hay decisión, es reporte o cola,
 // no dashboard." This module is the first primitive of that fence: a typed

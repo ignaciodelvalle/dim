@@ -2,7 +2,7 @@
 
 > **Quién lo corre**: Ignacio (PO). Nadie más tocó ni va a tocar la base remota.
 > **Qué acompaña**: `scripts/ops/staging-rls-remediation.sql`, en esta misma carpeta.
-> **Contexto completo**: `docs/reviews/results/2026-07-26-cutover-staging-readiness.md` §B1.
+> **Contexto completo**: `dim-interno:docs/reviews/results/2026-07-26-cutover-staging-readiness.md` §B1.
 > **Escrito el 2026-07-26. Ninguna de estas sentencias fue ejecutada contra ninguna base**
 > — están derivadas de leer `db/migrations/*.sql` y `scripts/check-rls-coverage.ts`.
 

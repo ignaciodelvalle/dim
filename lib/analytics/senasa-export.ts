@@ -1,6 +1,6 @@
 // SENASA / LSUCyF batch export — format-agnostic pipeline (pure core).
 //
-// See docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md.
+// See dim-interno:docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md.
 //
 // This module is the PURE core of the SENASA export: types, vocabulary
 // resolution, the privacy-allowlisting transform, the pluggable formatter

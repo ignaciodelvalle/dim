@@ -1,6 +1,6 @@
 // Professionalism lint fence — UI professionalism pass (PO directive
 // 2026-07-14: no emoji in the UI, standardized icons, gov-grade sobriety).
-// Companion audit: docs/reviews/2026-07-14-ui-professionalism-inventory.md.
+// Companion audit: dim-interno:docs/reviews/2026-07-14-ui-professionalism-inventory.md.
 //
 // Two rules, two enforcement styles (mirrors check-design-tokens.ts /
 // check-timezone-dates.ts: hard rule with no escape hatch + ratchet rule with

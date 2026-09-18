@@ -352,7 +352,7 @@ export function findSecrets(path: string, src: string): SecretFinding[] {
 export type AllowEntry = { path: string; prefix?: boolean; kind: SecretKind; reason: string };
 
 const DEMO_LOGIN =
-  "logs the seeded demo accounts in against the LOCAL stack (or staging, whose demo accounts share the seed); the password is published by the seed scripts and a rotation is tracked in docs/ops/cutover-debts.md";
+  "logs the seeded demo accounts in against the LOCAL stack (or staging, whose demo accounts share the seed); the password is published by the seed scripts and a rotation is tracked in dim-interno:docs/ops/cutover-debts.md";
 
 export const ALLOWLIST: AllowEntry[] = [
   // --- demo_password: the code that creates or logs in the demo accounts ---

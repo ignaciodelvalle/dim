@@ -1,5 +1,5 @@
 // Client-router navigation linter — CI guardrail for the nav burn-down (N2,
-// 2026-07-04, docs/design/handoffs/2026-07-04-router-refresh-tiers.md).
+// 2026-07-04, dim-interno:docs/design/handoffs/2026-07-04-router-refresh-tiers.md).
 //
 // WHY: Next.js 15.5.x's App Router has a production-mode defect where a
 // client-router transition (router.push / router.replace / router.refresh)
@@ -198,7 +198,7 @@ function main(argv: string[]): void {
     console.error("router.refresh() is banned in production code (nav burn-down N2).");
     console.error("Use navigateAfterActionSuccess() / closeSheetNavWithFullReload() for a full");
     console.error("document navigation, or Tier B optimistic local state with revert-on-error.");
-    console.error("See docs/design/handoffs/2026-07-04-router-refresh-tiers.md.\n");
+    console.error("See dim-interno:docs/design/handoffs/2026-07-04-router-refresh-tiers.md.\n");
     for (const o of offenders) {
       console.error(`  ${o.file}:${o.line}  ${o.text}`);
     }
@@ -217,7 +217,7 @@ function main(argv: string[]): void {
         "  router.push()/replace() carry the SAME App Router silent-drop defect as",
         "  router.refresh(); they are ratcheted rather than banned only because the",
         "  existing call sites have to be migrated flow by flow.",
-        "  See docs/design/handoffs/2026-07-04-router-refresh-tiers.md.",
+        "  See dim-interno:docs/design/handoffs/2026-07-04-router-refresh-tiers.md.",
       ].join("\n"),
     );
     process.exit(1);

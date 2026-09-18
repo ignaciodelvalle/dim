@@ -1,5 +1,5 @@
 // NovedadesCard — session-start "Novedades" orientation feed, shared by the
-// /gob and /admin operator HOMEs (viz-suite Wave 1, plan docs/plans/viz-suite.md).
+// /gob and /admin operator HOMEs (viz-suite Wave 1, plan dim-interno:docs/plans/viz-suite.md).
 //
 // The page fetches the feed (fetchNovedadesFeed) and passes it in, so this
 // stays render-only and inherits the page's data-load budget. Ledger-style

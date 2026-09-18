@@ -42,7 +42,7 @@
 //
 // NO OWNER NOTES. `appointments.notes_from_owner` and `notes_from_org` are two of
 // the twenty-one plaintext columns the Ley 25.326 fence named
-// (`docs/agents/open-work.md`), and neither is on this wire. The web's detail page
+// (`dim-interno:docs/agents/open-work.md`), and neither is on this wire. The web's detail page
 // does not render them either, so withholding them is parity and not a hole.
 //
 // NO DNI, in any form, and nothing in this feature has ever asked for one.

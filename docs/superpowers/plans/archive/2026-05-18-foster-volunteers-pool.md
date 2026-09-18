@@ -12,7 +12,7 @@
 > **Decisiones de review (post-spec, 2026-05-18):**
 > 1. **Cron:** reusar infra existente. Patrón = `app/api/cron/close-rabies-observations` + `materialize-slots` (CRON_SECRET + thin route + helper en `lib/`). Cuando admin page Fase 14 lande `/api/cron/auto-expire-approvals`, ese handler puede absorber este — el helper queda intacto.
 > 2. **Authorship del `foster_assigned` post-accept:** `authorRole='shelter'` + `authorOrganizationId=org.id`. La decisión institucional es del refugio; el accept del voluntario es trigger, no autoría.
-> 3. **Reason `'adoption'` en `foster_ended`:** está en el enum del Zod schema (canon por `docs/org-portal-plan.md:738`) **pero NO se ofrece en el UI dropdown** del `endFosterAction`. Solo lo emite programáticamente `finalizeAdoptionAction` desde dentro de Flow 7 (composite transaction). Esto matchea `docs/archive/org-portal-prompt.md:178` (prompt histórico archivado: "`adoption` is not selectable here because it only happens via Flow 7").
+> 3. **Reason `'adoption'` en `foster_ended`:** está en el enum del Zod schema (canon por `docs/org-portal-plan.md:738`) **pero NO se ofrece en el UI dropdown** del `endFosterAction`. Solo lo emite programáticamente `finalizeAdoptionAction` desde dentro de Flow 7 (composite transaction). Esto matchea `dim-interno:docs/archive/org-portal-prompt.md:178` (prompt histórico archivado: "`adoption` is not selectable here because it only happens via Flow 7").
 > 4. **Re-enroll prompt al volunteer post-termination:** prompt-first (vive en la notificación, requiere click explícito del voluntario para incrementar +1 slot). NO auto-restore.
 > 5. **`searchFosterVolunteers` ordering:** `availableSlots DESC, matchScore DESC, acceptedCount DESC`. Slots-first.
 
@@ -1355,7 +1355,7 @@ const fosterEnded = z.object(
 
 **Patrón canónico — `'adoption'` reason NO es UI-selectable.** Confirmado por:
 - `docs/org-portal-plan.md:738` — "If a foster ownership row is active for the pet, update its `ended_at` and insert a `foster_ended` event with `reason='adoption'`."
-- `docs/archive/org-portal-prompt.md:178` (prompt histórico archivado) — "A 'Cerrar tránsito' action on each active foster row opens a modal asking for `reason` (radio: `returned | escalated | other`; `adoption` is not selectable here because it only happens via Flow 7)."
+- `dim-interno:docs/archive/org-portal-prompt.md:178` (prompt histórico archivado) — "A 'Cerrar tránsito' action on each active foster row opens a modal asking for `reason` (radio: `returned | escalated | other`; `adoption` is not selectable here because it only happens via Flow 7)."
 
 **Implicación operativa para este plan:**
 - El **dropdown UI del endFosterAction** ofrece sólo: `returned`, `early_return_by_foster`, `lost_unrecovered`, `other`. **Omite** `adoption` y `pet_died`.

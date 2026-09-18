@@ -7,7 +7,7 @@
 This is the honest map of "how do we know it works": what runs before a commit,
 what runs in CI, what runs nightly against staging, and what does not run at
 all yet. It does not claim more than each gate actually checks — see
-`docs/presentation/2026-09-oficiales/12-calidad-y-auditoria.md` for the
+`dim-interno:docs/presentation/2026-09-oficiales/12-calidad-y-auditoria.md` for the
 Layer B version of the same claim, written for an official.
 
 ## 1. The gate chain
@@ -205,8 +205,8 @@ this class cannot recur silently.
 Whether the E2E job is *currently* reliable in the test-practice sense — real
 browser vs API-only seams, cleanup discipline, no hardcoded fixtures — has not
 been independently audited: lens **C09 (e2e practice)** in the 2026-09-fresh
-audit is listed **DEFERRED lote 2** in `docs/reviews/2026-09-fresh/BACKLOG.md:281`
-and in `docs/reviews/2026-09-fresh/README.md`. The row itself flags that
+audit is listed **DEFERRED lote 2** in `dim-interno:docs/reviews/2026-09-fresh/BACKLOG.md:281`
+and in `dim-interno:docs/reviews/2026-09-fresh/README.md`. The row itself flags that
 `e2e/demo/_db-cleanup.ts` changed materially after the (other) lenses ran, so
 even a future C09 pass would need to read that file at HEAD. Until C09 runs,
 "the e2e gate is trustworthy in the way its green result implies" is tracked
@@ -253,7 +253,7 @@ Four fences keep this documentation layer itself honest — none of them is a
 
 | Fence | Guards |
 |---|---|
-| `__tests__/architecture-facts.test.ts` | `docs/architecture/facts.json` matches a fresh run of `scripts/architecture-facts.ts`; every `<!-- fact:key -->` marker in `docs/architecture/**` and `docs/presentation/**` (once it exists) names a real key and states its exact value; every backticked repo path in those trees exists on disk (with a small, audited historical-path allowlist). This is the fence every file in this doc pack is written against. |
+| `__tests__/architecture-facts.test.ts` | `docs/architecture/facts.json` matches a fresh run of `scripts/architecture-facts.ts`; every `<!-- fact:key -->` marker in `docs/architecture/**` and `dim-interno:docs/presentation/**` (once it exists) names a real key and states its exact value; every backticked repo path in those trees exists on disk (with a small, audited historical-path allowlist). This is the fence every file in this doc pack is written against. |
 | `__tests__/conventions-canon-parity.test.ts` | `docs/architecture/conventions-canon.md` (and its per-scope pages) is a byte-for-byte render of `docs/architecture/conventions-canon.json` — not just matching verdicts, the full rule text, source quote and basis, so a hand edit anywhere in the rendered output turns this red. |
 | `__tests__/event-catalog-count.test.ts` | Every currently-authoritative doc that states the event-type count in prose agrees with `EVENT_TYPES.length`, and that the `AGENTS.md` heading's GitHub anchor slug (`#event-catalog--N-types`) matches every link that points at it — a heading and a slug can drift independently of each other. |
 | `__tests__/encoding-fitness.test.ts` | No tracked source file contains the classic UTF-8-read-as-CP1252 mojibake pattern or a literal replacement character, and no CODE/DATA file (docs are exempted, since prose legitimately quotes the bug) carries an invisible U+00AD soft hyphen. |
@@ -288,6 +288,6 @@ pack.
   that check it (§9 of that file) for one specific surface, `/api/v1`.
 - `docs/architecture/rls-coverage.md` — RLS as a backstop layer, not a gate;
   the DB-backed `lint:rls` fence is one input to it, not the whole picture.
-- `docs/presentation/2026-09-oficiales/12-calidad-y-auditoria.md` — the
+- `dim-interno:docs/presentation/2026-09-oficiales/12-calidad-y-auditoria.md` — the
   Layer B version of this file: "cómo sabemos que funciona", scoped for a
   municipal official rather than an engineer.

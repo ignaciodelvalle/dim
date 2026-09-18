@@ -9,7 +9,7 @@
 > **Path rectification (2026-08-21).** Earlier drafts of this file wrote the
 > first endpoint as `/api/v1/p/{token}`, copying the web page's short URL. The
 > path that shipped is **`/api/v1/pets/{publicToken}/credential`** — the shape
-> `docs/reviews/native-readiness/TRACKS.md` (Track 2, RN-5) specified, and the
+> `dim-interno:docs/reviews/native-readiness/TRACKS.md` (Track 2, RN-5) specified, and the
 > one that leaves room for sibling reads on the same resource. `/p/` is a
 > deliberately terse *human* URL printed on a chapa; an API path has no such
 > constraint and should name the resource. Every `/api/v1/p/{token}` below is
@@ -17,7 +17,7 @@
 
 Every claim in the "Verified today" column was read out of the code on
 `integration/all-20260703 @ 9abbfb5f`, not copied from a review document. Where
-this file disagrees with `docs/reviews/native-readiness/RN-1-api-boundary.md`,
+this file disagrees with `dim-interno:docs/reviews/native-readiness/RN-1-api-boundary.md`,
 this file is newer and says so explicitly — the review is a historical record of
 what was true on 2026-08-19 and is not edited.
 
@@ -799,7 +799,7 @@ A `/api/v1` route handler is not ready until every line has an answer.
 - [ ] A response-equality test exists for each oracle the route touches.
 - [ ] It answers ONLY through `apiV1Json` / `apiV1Error` (`lib/infra/api-v1.ts`) — never `NextResponse.json(`, `new NextResponse(`, `new Response(` or `Response.json(` — so lines 2, 3 and 5 are properties of the helper, not of the author. Reads build their envelope with `apiV1Envelope`. (2026-08-22)
 - [ ] If it MUTATES, it accepts an `Idempotency-Key` header and replays the first outcome for a repeated key. **No precedent yet** — the first write endpoint sets the shape; a native client on a flaky link retries, and a retry that creates a second custody transfer is not a retry.
-- [ ] Cross-origin / bearer: **PO decision #2 is taken — a bearer API, never native-direct-Supabase** (`docs/reviews/native-readiness/SYNTHESIS.md`). **BEARER LANDED 2026-08-25 (WU-A)**: `GET /api/v1/me` is the first caller of `createClientFromBearer`, and it resolves identity STRICTLY from the `Authorization` header — `createClientFromBearer` → `requireLiveUser({ supabase })`, no cookie fallback, 401 + a code instead of a redirect. An authenticated `/api/v1` route copies that chain; it does not invent a second one. **CORS is still not implemented, and now deliberately so rather than pending**: a native `fetch` does not preflight and sends no `Origin`, so `Access-Control-Allow-*` on these routes would buy nothing and would open the password grant to any web page in a browser. A route that needs it lands the shared preflight as its own change, when a real cross-origin *web* consumer exists.
+- [ ] Cross-origin / bearer: **PO decision #2 is taken — a bearer API, never native-direct-Supabase** (`dim-interno:docs/reviews/native-readiness/SYNTHESIS.md`). **BEARER LANDED 2026-08-25 (WU-A)**: `GET /api/v1/me` is the first caller of `createClientFromBearer`, and it resolves identity STRICTLY from the `Authorization` header — `createClientFromBearer` → `requireLiveUser({ supabase })`, no cookie fallback, 401 + a code instead of a redirect. An authenticated `/api/v1` route copies that chain; it does not invent a second one. **CORS is still not implemented, and now deliberately so rather than pending**: a native `fetch` does not preflight and sends no `Origin`, so `Access-Control-Allow-*` on these routes would buy nothing and would open the password grant to any web page in a browser. A route that needs it lands the shared preflight as its own change, when a real cross-origin *web* consumer exists.
 
 **Fences that check this list** (each runs in `pnpm verify` and in CI —
 `lint:ci-parity` keeps the two equal):

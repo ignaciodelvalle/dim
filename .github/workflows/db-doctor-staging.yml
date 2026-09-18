@@ -5,7 +5,7 @@ name: DB doctor (staging)
 # A-D — the E-3 "ledger says applied, DB disagrees" tripwire, automated).
 #
 # Requires the STAGING_DATABASE_URL secret (the Session-pooler connection
-# string, docs/ops/staging-deploy.md) — provisioning it is Ignacio-gated. The
+# string, dim-interno:docs/ops/staging-deploy.md) — provisioning it is Ignacio-gated. The
 # job SKIPS with a notice when the secret is absent, so merging this workflow
 # is safe before the secret exists.
 #

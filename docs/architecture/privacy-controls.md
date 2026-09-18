@@ -187,7 +187,7 @@ findings are downstream of exactly that (`A05-1`, `A10-G1`, `A10-G3`, `A06-G2`),
 and the correct predicate already exists one migration family over:
 `db/migrations/0188_revocations_upload_admin_govt_only.sql` writes
 `AND p.deleted_at IS NULL`. See
-`docs/reviews/2026-09-fresh/SYNTHESIS.md` §6.
+`dim-interno:docs/reviews/2026-09-fresh/SYNTHESIS.md` §6.
 
 ## 5. K-anonymity
 
@@ -365,6 +365,6 @@ nothing.
 - `docs/architecture/client-error-sink-pending-decision.md` — the open telemetry decision
 - `docs/architecture/authorization.md` — who may reach any of this
 - `docs/architecture/government-views.md` — the operator-facing aggregate surfaces
-- `docs/reviews/2026-09-fresh/lenses/A05.md` — erasure vs immutability
-- `docs/reviews/2026-09-fresh/lenses/A06.md` — privacy and PII flows
-- `docs/reviews/2026-09-fresh/lenses/A07.md` — uploads and storage
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A05.md` — erasure vs immutability
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A06.md` — privacy and PII flows
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A07.md` — uploads and storage

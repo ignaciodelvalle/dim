@@ -5,7 +5,7 @@ import "server-only";
 //
 // Session-start orientation on the /gob + /admin operator HOMEs: "esto cambió
 // en tu jurisdicción desde tu última visita" (viz-suite Wave 1, plan
-// docs/plans/viz-suite.md — "Novedades"). A compact, ledger-style projection
+// dim-interno:docs/plans/viz-suite.md — "Novedades"). A compact, ledger-style projection
 // over pet_events, filtered to the feed-relevant, operator-actionable event
 // types, newest-first (by transaction time), above a per-user watermark.
 //

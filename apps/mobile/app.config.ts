@@ -161,7 +161,7 @@
 // reaching a production install. Writing one here would apply to every build.
 //
 // Nothing has been PUBLISHED. As of 2026-08-26 `npx eas-cli whoami` answers
-// `ignaciodelvalle2014@gmail.com` (account `nachi7`) and one production build
+// the maintainer's Expo account and one production build
 // has been attempted — and failed, on the fingerprint check described above —
 // so the project now exists on EAS, but no `eas update` has ever run: no
 // channel and no runtime version has ever been served to anything. The

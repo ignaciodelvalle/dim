@@ -1,6 +1,6 @@
 // Panorama aggregate cube BUILDER (road-to-10 infra #1, migration 0139).
 //
-// ORCHESTRATOR AMENDMENT over docs/plans/2026-07-11-cube-design.md: the builder is
+// ORCHESTRATOR AMENDMENT over dim-interno:docs/plans/2026-07-11-cube-design.md: the builder is
 // a TypeScript worker that REUSES the existing choropleth loaders — NOT a plpgsql
 // re-expression. It calls the SAME `loadChoroplethByLevel` invocations the live
 // admin-national read uses (metric rollups → aggregateCellsToDepartment → k-anon →

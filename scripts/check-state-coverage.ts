@@ -1,5 +1,5 @@
 // State-coverage fence — CI guard (Wave 2 / Level 2 state completeness,
-// docs/reviews/results/2026-07-21-audit-2-estados.md).
+// dim-interno:docs/reviews/results/2026-07-21-audit-2-estados.md).
 //
 // The audit found three foundational gaps worth locking down cheaply, without
 // trying to be a perfect state-coverage oracle:
@@ -33,7 +33,7 @@
 //      dashboard) — and only a NEW gap (a new list screen shipped with no
 //      empty-state signal at all in its own folder) fails CI.
 //   5. EPISTEMIC NATURE ON SURVEILLANCE EMPTY-STATES (ratchet, best-effort,
-//      C4 — 2026-07-22, docs/reviews/results/2026-07-22-plan-maestro-integridad.md
+//      C4 — 2026-07-22, dim-interno:docs/reviews/results/2026-07-22-plan-maestro-integridad.md
 //      §C4 / S4). Wave 2's state system guarantees a state EXISTS, not that
 //      it tells the epistemic truth: an empty vigilancia/observaciones list
 //      reads as "todo tranquilo" when the honest reading can be "MiMAR no

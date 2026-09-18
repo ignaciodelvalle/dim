@@ -217,7 +217,7 @@ describe("the zone row — the control that names where the search looked", () =
   });
 
   it("starts the caption with the verb the tester guide tells people to look for", () => {
-    // `docs/mobile/guia-tester.md` says to tap "Cambiar". `ListRow` has no
+    // `dim-interno:docs/mobile/guia-tester.md` says to tap "Cambiar". `ListRow` has no
     // trailing action slot, so the caption IS the affordance's name — if the verb
     // stops leading the sentence, the guide is pointing at nothing.
     expect(

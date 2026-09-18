@@ -15,7 +15,7 @@
 **Q:** Build `<Badge>` as part of Chunk C, or compose inline and extract later?
 **A:** Build now.
 **Implications:**
-- Add `components/poncho/Badge.tsx` to Chunk C's file list (already noted as conditional in `docs/design/06-vaccine-due.md` §G).
+- Add `components/poncho/Badge.tsx` to Chunk C's file list (already noted as conditional in `dim-interno:docs/design/06-vaccine-due.md` §G).
 - Use the shape confirmed in C-D4 below: pill with optional icon + `variant` prop (`info | success | warning | danger | neutral`).
 - Export from `components/poncho/index.ts` so Chunk E + Tier 7 specs can import without a follow-up extraction PR.
 - Cost: ~30-45 min added to Chunk C; amortized across at least 5 downstream consumers.
@@ -228,8 +228,8 @@ These are not CC tasks; they're things the owner explicitly committed to handlin
 ## Reference
 
 - `docs/superpowers/plans/2026-05-21-consolidated-cc-plan.md` — the master sequenced plan this file decorates.
-- `docs/design/06-vaccine-due.md` — design spec for Chunk C.
-- `docs/design/04-govt-dashboards.md` — design spec for Chunk E.
+- `dim-interno:docs/design/06-vaccine-due.md` — design spec for Chunk C.
+- `dim-interno:docs/design/04-govt-dashboards.md` — design spec for Chunk E.
 - `docs/superpowers/specs/2026-05-19-performed-by-autocomplete-design.md` — Tier 7-A.
 - `docs/superpowers/specs/2026-05-19-pet-profile-v2-design.md` — Tier 7-B.
 - `docs/superpowers/specs/2026-05-19-pregnancy-tracking-design.md` — Tier 7-C.

@@ -14,7 +14,7 @@
  *   3. Wires memberships (Alejo as multi-org coordinator, Lilian as vet,
  *      Noelí + Graciela as foster volunteers).
  *   4. Creates the `seed-photos` Supabase Storage bucket and uploads pet
- *      avatars from `docs/archive/Fotos/`.
+ *      avatars from `scripts/assets/pet-photos/`.
  *   5. Inserts every Storyline registered in STORYLINES — currently the
  *      7 iconic-pet timelines from `seed-storylines-iconic.ts`. As additional
  *      storyline modules land (original-10 rewrite, Cujo, Roco, supporting
@@ -324,7 +324,7 @@ export type OrgKey = keyof typeof ORGS;
 // tested by a dedicated load-test seed (scripts/seed-perf.ts) than by
 // misrepresenting what a single official's jurisdiction looks like.
 
-const PHOTO_DIR_ABS = path.join(process.cwd(), "docs", "archive", "Fotos");
+const PHOTO_DIR_ABS = path.join(process.cwd(), "scripts", "assets", "pet-photos");
 
 // Map storyline acquisition_method strings (rescued, bred, unknown, etc.) to
 // the canonical DB enum values (adopted, purchased, found_stray, gift,

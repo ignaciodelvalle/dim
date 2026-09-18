@@ -5,10 +5,10 @@
 > Verificado ítem por ítem contra el árbol el 04/08: **8,5 de sus 11 ítems
 > accionables ya estaban hechos** (A2, A3, A4, A6, A7, A8, A9, A10, A11 y la
 > mitad-doc de A5). Este documento se declaraba "fuente única de pendientes" al
-> mismo tiempo que `docs/plans/PENDIENTES.md` — dos colas únicas es el defecto
+> mismo tiempo que `dim-interno:docs/plans/PENDIENTES.md` — dos colas únicas es el defecto
 > que ambas existen para cazar.
 >
-> **Las dos filas vivas se migraron a `docs/plans/PENDIENTES.md`** (sección
+> **Las dos filas vivas se migraron a `dim-interno:docs/plans/PENDIENTES.md`** (sección
 > "Features no construidas"): **A1** (chapa física `/t/[serial]`) y la
 > mitad-feature de **A5** (dual-routing del found-form). El residual de ops
 > (toggle de leaked-password en el dashboard de Supabase) quedó anotado ahí
@@ -104,7 +104,7 @@ Sellar como implementadas (header) y archivar (ver Parte C): `2026-05-19-cases-l
 ---
 
 ## Parte C — Archivado (limpieza estructural, hecho en este barrido)
-Movidos a archive (registro histórico): **37 specs** de features vivas → `docs/superpowers/specs/archive/`; **24 planes** ejecutados → `docs/superpowers/plans/archive/`; **9 critiques/audits/handoffs** remediados → `docs/archive/`. Quedan activos 13 specs (roadmaps + no-construidos + panorama de demo) y 16 planes (sprint de demo + features no terminadas + estos backlogs). Índices actualizados: `docs/superpowers/README.md` (banner "Archivado 2026-06-24") y `docs/README.md`. Detalle de cada movimiento en el mensaje de entrega.
+Movidos a archive (registro histórico): **37 specs** de features vivas → `docs/superpowers/specs/archive/`; **24 planes** ejecutados → `docs/superpowers/plans/archive/`; **9 critiques/audits/handoffs** remediados → `dim-interno:docs/archive/`. Quedan activos 13 specs (roadmaps + no-construidos + panorama de demo) y 16 planes (sprint de demo + features no terminadas + estos backlogs). Índices actualizados: `docs/superpowers/README.md` (banner "Archivado 2026-06-24") y `docs/README.md`. Detalle de cada movimiento en el mensaje de entrega.
 
 ---
 

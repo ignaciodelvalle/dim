@@ -228,7 +228,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     label: "Cumplimiento",
     description: "¿Qué jurisdicciones están por debajo de la meta de la métrica elegida?",
     // D1 preset merge (EXECUTED, PO-ratified 2026-08-15 — see
-    // docs/design/sdd/2026-07-25-panorama-d1-consolidacion-vistas.md): the five
+    // dim-interno:docs/design/sdd/2026-07-25-panorama-d1-consolidacion-vistas.md): the five
     // same-shaped compliance vistas (cumplimiento, registro-ppp,
     // control-poblacional, microchip, antiparasitario) are now ONE vista with a
     // metric selector. Same question (rate vs meta, province grain, national

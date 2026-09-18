@@ -16,7 +16,7 @@
 // different runtime fences nothing.
 //
 // The same shape as the drizzle stub that discarded its `where` predicate
-// (`docs/agents/open-work.md`, "Attempted and turned back"): the defect was in
+// (`dim-interno:docs/agents/open-work.md`, "Attempted and turned back"): the defect was in
 // the scaffolding, so every assertion standing on it inherited it. The cure is
 // the same too — make the harness reproduce the real runtime instead of the
 // author's belief about it.

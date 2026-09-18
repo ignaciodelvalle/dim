@@ -1,6 +1,6 @@
 // /gob/moderacion/[id] — jurisdiction-scoped denuncia moderation detail (SDD phase 1+2).
 //
-// Spec: docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md
+// Spec: dim-interno:docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md
 //
 // Mirrors /admin/moderacion/[id] but jurisdiction-scoped: a govt may only open a
 // flagged report whose (province, locality) is in their assignments. A report

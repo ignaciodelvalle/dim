@@ -25,7 +25,7 @@
 // that is genuinely monitored, so swapping it is a PO call about which
 // mailboxes exist, not a mechanical rename. Widen ROOTS to include "lib" the
 // moment that lands. (`scripts/` and `docs/` are operator surfaces and stay
-// out of scope; SECURITY.md's maintainer contact is deliberate and is not code.)
+// out of scope.)
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";

@@ -253,7 +253,7 @@ separados, `welfare-exports` y `ppp-exports`).
 
 ## F0 (este doc) — completado al escribir
 
-- [x] Design spec implícita escrita (ningún `docs/design/0X-*.md` cubría F).
+- [x] Design spec implícita escrita (ningún `dim-interno:docs/design/0X-*.md` cubría F).
 - [x] Confirmado: `docs/superpowers/plans/2026-05-21-pending-decisions-resolved.md` no tiene entradas para Chunk F.
 - [x] Decisiones a tomar surfaced: 6 ítems (F-D1..F-D6).
 - [x] Pipeline compartido con E6 definido (Storage + email + audit); divergencia de anonimización documentada.

@@ -26,7 +26,7 @@
 // fence that used to live here — asserting our deployment-wide ceiling stayed
 // under GoTrue's `token_verifications` — went with it and was deliberately NOT
 // replaced: that file is LOCAL DEV ONLY and is never pushed to a hosted project
-// (docs/ops/env-handling.md), so it never said anything about production.
+// (dim-interno:docs/ops/env-handling.md), so it never said anything about production.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -38,7 +38,7 @@ name: Authz audit (staging)
 #     already covered by `verify` on every push. This job asks the DATABASE.
 #
 # Requires the STAGING_DATABASE_URL secret (the Session-pooler string, see
-# docs/ops/staging-deploy.md) — provisioning it is Ignacio-gated. The job SKIPS
+# dim-interno:docs/ops/staging-deploy.md) — provisioning it is Ignacio-gated. The job SKIPS
 # with a notice when the secret is absent, so merging this is safe before the
 # secret exists. A skipped run is NOT a passing audit, and the `audited` output
 # below is what keeps the alert job from reading it as one.

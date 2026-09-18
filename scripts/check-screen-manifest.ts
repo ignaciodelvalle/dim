@@ -1,5 +1,5 @@
 // Screen-manifest fence — CI guard (C6a,
-// docs/reviews/results/2026-07-22-plan-maestro-integridad.md §C6).
+// dim-interno:docs/reviews/results/2026-07-22-plan-maestro-integridad.md §C6).
 //
 // "Toda pantalla declara su decisión dueña... si no hay decisión, es reporte
 // o cola, no dashboard." This fence enforces the FIRST half of that sentence

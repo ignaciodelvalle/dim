@@ -1085,7 +1085,7 @@ export function LocalityCombobox({ provinceCode, defaultValue, name, required, o
       {!disabled && query.length >= 2 && !pending && results.length === 0 && (
         <p className="absolute -bottom-5 left-0 text-xs text-neutral-500">
           Sin resultados. <a
-            href={`mailto:ignaciodelvalle2014@gmail.com?subject=DIM%20—%20Agregar%20localidad&body=Provincia:%20${provinceCode}%0ALocalidad:%20${encodeURIComponent(query)}`}
+            href={`mailto:<maintainer-email>?subject=DIM%20—%20Agregar%20localidad&body=Provincia:%20${provinceCode}%0ALocalidad:%20${encodeURIComponent(query)}`}
             className="underline"
           >Sugerí esta localidad</a>
         </p>

@@ -2,7 +2,7 @@
 
 **Norma:** Ley 26.653 (Accesibilidad de la Información en las Páginas Web) + Disp. ONTI 6/2019 (adopta WCAG 2.1 AA).
 
-**Fecha de auditoría:** 2026-05-28 (compliance handoff PR 2). **Realineado a la paleta LN vigente:** 2026-07-04 (a11y audit sweep — ver `docs/design/handoffs/2026-07-04-wcag-a11y-audit.md`).
+**Fecha de auditoría:** 2026-05-28 (compliance handoff PR 2). **Realineado a la paleta LN vigente:** 2026-07-04 (a11y audit sweep — ver `dim-interno:docs/design/handoffs/2026-07-04-wcag-a11y-audit.md`).
 
 ## Resumen ejecutivo
 
@@ -123,7 +123,7 @@ Audited as part of the `st-*` semantic token layer (design PR-1, branch `fix/ope
 
 ### Panorama a11y round — tokens de texto muted del operador (`ln-op-mute` / `ln-op-faint` / `ln-op-rail-mute`)
 
-La auditoría a11y de la consola Panorama (axe-core + medición manual, `docs/reviews/2026-07-12-panorama-a11y-audit.md`) oscureció tres tokens de texto secundario del skin operador. Las metas 9-10px del rail, la copia de ayuda por capa y el chip k-anon fallaban AA sobre sus superficies. Medido con la fórmula WCAG 2.1 (ver "Cómo se midió"), sobre las DOS superficies operador reales: la tarjeta blanca (`#ffffff`, chrome flotante sobre el mapa) y el lienzo de página (`--color-ln-op-page` `#eef1f4`, fondo del AppShell operador y color de tierra del basemap).
+La auditoría a11y de la consola Panorama (axe-core + medición manual, `dim-interno:docs/reviews/2026-07-12-panorama-a11y-audit.md`) oscureció tres tokens de texto secundario del skin operador. Las metas 9-10px del rail, la copia de ayuda por capa y el chip k-anon fallaban AA sobre sus superficies. Medido con la fórmula WCAG 2.1 (ver "Cómo se midió"), sobre las DOS superficies operador reales: la tarjeta blanca (`#ffffff`, chrome flotante sobre el mapa) y el lienzo de página (`--color-ln-op-page` `#eef1f4`, fondo del AppShell operador y color de tierra del basemap).
 
 | Token | Valor anterior | Valor vigente | Superficie | Ratio | Veredicto |
 | --- | --- | --- | --- | --- | --- |
