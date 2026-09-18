@@ -872,7 +872,12 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     await approveBtn.click();
     await expect(approveBtn, "the approval confirm step replaced the trigger row").toHaveCount(1);
     await approveBtn.click();
-    await page.waitForURL(/\/org\/[^/]+\/adopciones(?![/\w])/, { timeout: 20_000 });
+    // The decision ends on a receipt in place (L-13), no longer a push back to
+    // the queue — so wait for the receipt, not for a URL.
+    await expect(
+      page.getByRole("heading", { name: /^postulaci[oó]n aprobada$/i }),
+      "the approval ended on its receipt",
+    ).toBeVisible({ timeout: 20_000 });
 
     // --- Refugio finalizes the adoption to the APPROVED APPLICANT -----------
     // This used to type a DNI (30123456 / "Adoptante Demo Costuras") because the

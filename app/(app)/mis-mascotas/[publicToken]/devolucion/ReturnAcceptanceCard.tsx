@@ -9,6 +9,12 @@
 //
 // When accept returns autoCancelled=true, shows an explanation banner instead
 // of success and tells the user to go back to /mis-mascotas.
+//
+// A confirmed return ends on LnSuccessScreen (L-13): devolución is one of the
+// trámites AGENTS.md names as closing on a receipt. The accept action does not
+// revalidatePath, so no RSC refresh unmounts this card under its own receipt —
+// if that ever changes, keep this island mounted (see
+// app/(app)/cuidado/[grantToken]/CaretakerInvitationActions.tsx for the trap).
 
 import {
   type AcceptReturnFormState,
@@ -16,6 +22,7 @@ import {
   ownerAcceptReturnFormAction,
   ownerRejectReturnFormAction,
 } from "@/app/actions/return-to-owner-form";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { useActionState, useState } from "react";
 
@@ -45,17 +52,17 @@ export function ReturnAcceptanceCard({
 
   const [showRejectForm, setShowRejectForm] = useState(false);
 
-  // Accepted successfully — show success.
+  // Accepted successfully — the receipt.
   if (acceptState.error === null && !acceptState.autoCancelled && acceptState !== acceptInitial) {
     return (
-      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-2">
-        <p className="text-[var(--color-ln-ok)] font-medium">
-          Devolución confirmada. {petName} está de vuelta con vos.
-        </p>
-        <a href={backUrl} className="text-sm underline text-[var(--color-ln-ok)]">
-          Ir a mis mascotas
-        </a>
-      </div>
+      <LnSuccessScreen
+        title="Devolución confirmada"
+        description={`${petName} está de vuelta con vos. La custodia de ${actorName} quedó cerrada y le avisamos que la recibiste.`}
+        next={[
+          { label: `Ver la libreta de ${petName}`, href: `/mis-mascotas/${petPublicToken}` },
+          { label: "Ir a mis mascotas", href: backUrl },
+        ]}
+      />
     );
   }
 

@@ -33,9 +33,8 @@
 
 import { Icon } from "@/components/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { OpButton, OpFileInput, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import {
@@ -119,7 +118,6 @@ export function DecomisoForm({
   prefillWelfareReportRef,
   prefillPetToken,
 }: DecomisoFormProps) {
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // RA-9 BR-1: focus returns here when the DC2 confirm modal closes.
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -156,14 +154,20 @@ export function DecomisoForm({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const [formError, setFormError] = useState<string | null>(null);
-  // The decomiso was RECORDED but one or more notifications could not be
-  // delivered. Not an error — we do not undo a seizure over a delivery blip —
-  // but we stop navigating to the case, because the redirect would wipe the only
-  // message telling the funcionario that the owner or the refugio was never
-  // informed. An in-app row is the entire notification instrument here.
-  const [deliveryNotice, setDeliveryNotice] = useState<{
-    message: string;
+  // The decomiso was RECORDED: the form becomes its receipt (L-13). The public
+  // code IS the receipt — it used to be thrown into a redirect URL, so the
+  // funcionario never saw it as the thing to write on the acta. The case page
+  // is still one tap away, as the screen's first action.
+  //
+  // `warning` is set when one or more notifications could not be delivered.
+  // Not an error — we do not undo a seizure over a delivery blip — but it is
+  // the only message telling the funcionario that the owner or the refugio was
+  // never informed (an in-app row is the entire notification instrument here),
+  // so it renders ON the receipt, never behind a navigation.
+  const [success, setSuccess] = useState<{
     publicCode: string;
+    receiverName: string | null;
+    warning: string | null;
   } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -315,12 +319,12 @@ export function DecomisoForm({
         setFormError(result.error);
         return;
       }
-      if (result.warning) {
-        setShowConfirmModal(false);
-        setDeliveryNotice({ message: result.warning, publicCode: result.publicCode });
-        return;
-      }
-      router.push(`/casos/${result.publicCode}?origin=decomiso`);
+      setShowConfirmModal(false);
+      setSuccess({
+        publicCode: result.publicCode,
+        receiverName: receiverOrgs.find((o) => o.id === receiverOrgId)?.displayName ?? null,
+        warning: result.warning ?? null,
+      });
     });
   }
 
@@ -335,6 +339,31 @@ export function DecomisoForm({
   const selectedOrg = receiverOrgs.find((o) => o.id === receiverOrgId);
 
   // --- Render ---
+  if (success) {
+    const receiver = success.receiverName ?? "el refugio destinatario";
+    return (
+      <div className="space-y-4">
+        {success.warning && (
+          <output className="text-md text-ln-op-warn rounded-[var(--radius-md)] border border-ln-op-line px-4 py-3 block">
+            {success.warning}
+          </output>
+        )}
+        <LnSuccessScreen
+          title="Decomiso registrado"
+          code={success.publicCode}
+          codeLabel="Código del decomiso"
+          codeWarning="Anotá este código en el acta: identifica el decomiso en el registro."
+          description={`${receiver} recibe la propuesta de custodia y tiene 7 días para aceptarla o rechazarla. Mientras tanto, la custodia queda a cargo de tu autoridad.`}
+          official
+          next={[
+            { label: "Ver el caso", href: `/casos/${success.publicCode}?origin=decomiso` },
+            { label: "Volver a decomisos", href: "/gob/decomisos" },
+          ]}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -850,19 +879,6 @@ export function DecomisoForm({
             </ul>
           )}
         </section>
-
-        {/* --- Aviso de entrega parcial (el decomiso SI se registro) --- */}
-        {deliveryNotice && (
-          <output className="text-md text-ln-op-warn rounded-[var(--radius-md)] border border-ln-op-line px-4 py-3 block">
-            {deliveryNotice.message}{" "}
-            <Link
-              href={`/casos/${deliveryNotice.publicCode}?origin=decomiso`}
-              className="underline"
-            >
-              Ver caso {deliveryNotice.publicCode}
-            </Link>
-          </output>
-        )}
 
         {/* --- Error global --- */}
         {formError && (
