@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 
 import { db, notificationDeadLetter, profiles } from "@/db";
 import { type CreateNotificationInput, createNotification } from "@/lib/infra/notification-service";
+import { sendPushForNotifications } from "@/lib/infra/web-push";
 
 // Reconstruct a CreateNotificationInput from a stored dead-letter payload. The
 // payload was persisted verbatim from the service's insert `values`, so its
@@ -87,11 +88,18 @@ export type ReplayOutcome = "inserted" | "duplicate" | "dead_lettered" | "erased
 /**
  * Replay one dead letter under the locks described in the header (LOW-1):
  * profile FOR SHARE, then the dead-letter row FOR UPDATE, then re-check both
- * before the insert. createNotification runs on the pool, so the notification
- * commits while the profile lock is still held and the push leg is kept.
+ * before the insert. The push leg has no timeout (web-push / Expo push), and a
+ * stalled push must not hold the profile's FOR SHARE lock — that lock is what
+ * an art. 16 erasure's first write (UPDATE profiles) blocks on, and a push
+ * stuck past PostgREST's statement_timeout would carry the erasure with it.
+ * So createNotification runs here with `suppressPush: true` (in-app row only)
+ * and, once the transaction has committed, the push is sent separately for a
+ * row that actually landed. A post-commit push to a subject erased in the
+ * meantime is safe: the erasure's own scrub already ran, so there is no
+ * push_subscriptions row left to send to.
  */
 export async function replayLocked(id: string, input: CreateNotificationInput, now: Date) {
-  return db.transaction(async (tx): Promise<ReplayOutcome> => {
+  const outcome = await db.transaction(async (tx): Promise<ReplayOutcome> => {
     const [profile] = await tx
       .select({ deletedAt: profiles.deletedAt })
       .from(profiles)
@@ -116,9 +124,27 @@ export async function replayLocked(id: string, input: CreateNotificationInput, n
       return "erased";
     }
     // createNotification never throws — it re-dead-letters on failure — so a
-    // single bad row cannot poison the batch.
-    const result = await createNotification(input);
+    // single bad row cannot poison the batch. suppressPush keeps the push leg
+    // out of this transaction (see the function doc above).
+    const result = await createNotification({ ...input, suppressPush: true });
     await resolveAndRedact(tx, id, now);
     return result.status;
   });
+  // Only a row that actually landed as a NEW notification gets pushed — a
+  // "duplicate" outcome must not re-push (same rule createNotification itself
+  // applies), and "gone" / "erased" never had a row to push for.
+  if (outcome === "inserted") {
+    await sendPushForNotifications([
+      {
+        userId: input.userId,
+        severity: input.severity ?? "info",
+        notificationType: input.notificationType,
+        title: input.title,
+        body: input.body,
+        ctaUrl: input.ctaUrl,
+        dedupeKey: input.dedupeKey,
+      },
+    ]);
+  }
+  return outcome;
 }
