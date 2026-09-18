@@ -1,5 +1,6 @@
+import { deriveComplianceState } from "@/lib/projections/pet-compliance";
 import { describe, expect, it } from "vitest";
-import { suggestNextDueDate } from "./libreta-health-status";
+import { computeVaccinationSummary, suggestNextDueDate } from "./libreta-health-status";
 
 // The regression this file exists for: blind QA 2026-08-19 (O5). The vaccine
 // sheet counted the catalog interval from `new Date()` instead of from the
@@ -22,9 +23,11 @@ describe("suggestNextDueDate", () => {
   });
 
   it("honours real month lengths and year rollover", () => {
-    expect(suggestNextDueDate("2026-01-31", 1)).toBe("2026-03-03"); // Feb overflow, like setMonth
+    // Clamped to the month's last day — the calendar the compliance card uses.
+    // (It used to overflow like setMonth: 03/03 and 01/03.)
+    expect(suggestNextDueDate("2026-01-31", 1)).toBe("2026-02-28");
     expect(suggestNextDueDate("2026-11-15", 3)).toBe("2027-02-15");
-    expect(suggestNextDueDate("2024-02-29", 12)).toBe("2025-03-01"); // leap → non-leap
+    expect(suggestNextDueDate("2024-02-29", 12)).toBe("2025-02-28"); // leap → non-leap
   });
 
   it("does not slip a day under a negative UTC offset (es-AR is UTC-3)", () => {
@@ -41,5 +44,67 @@ describe("suggestNextDueDate", () => {
     expect(suggestNextDueDate("", 12)).toBe("");
     expect(suggestNextDueDate("2026-08", 12)).toBe("");
     expect(suggestNextDueDate("18/08/2026", 12)).toBe("");
+  });
+});
+
+// The libreta badge and the owner's compliance card derive the same booster
+// date. They used to disagree for up to a day: the libreta added the interval
+// with setMonth to the UTC instant (no month-end clamp), the card on the AR
+// calendar day (clamped). Each case pins BOTH surfaces at the same instant.
+describe("computeVaccinationSummary — the derived due date agrees with the compliance card", () => {
+  const VET = { authorRole: "vet", authorVerified: true, authorOrganizationId: null };
+  const dose = (occurredAt: string, nextDueAt: string | null = null) => ({
+    eventType: "vaccination_administered",
+    occurredAt,
+    payload: { vaccine_name: "Antirrábica", next_due_at: nextDueAt },
+    ...VET,
+  });
+  const libretaRow = (events: ReturnType<typeof dose>[], now: Date) =>
+    computeVaccinationSummary(events, "dog", now).perVaccine.find(
+      (v) => v.vaccineName === "Antirrábica",
+    );
+  const cardState = (events: ReturnType<typeof dose>[], now: Date) =>
+    deriveComplianceState({
+      now,
+      events,
+      rabiesReminder: null,
+      reservedRabiesTurno: null,
+      microchipCode: null,
+      pppApplies: false,
+      ruleParams: {
+        rabies: { frequencyMonths: 12, minAgeMonths: null },
+        sterilization: { minAgeMonths: null, mandatoryFromMonths: null },
+      },
+    }).cards.find((c) => c.key === "rabies")?.state;
+
+  it("a dose given at 22:00 AR is due on its AR calendar day, a year on", () => {
+    // 16/09/2025 01:00Z is 15/09/2025 22:00 in Argentina.
+    const events = [dose("2025-09-16T01:00:00Z")];
+    // 15/09/2026 20:30 AR — past the AR due day's noon anchor.
+    const now = new Date("2026-09-15T23:30:00Z");
+    const row = libretaRow(events, now);
+    expect(row?.nextDueAt?.toISOString()).toBe("2026-09-15T12:00:00.000Z");
+    expect(row?.status).toBe("expired");
+    expect(cardState(events, now)).toBe("Refuerzo sugerido vencido");
+  });
+
+  it("a dose given on 29/02 is due on 28/02 the next year, not 01/03", () => {
+    const events = [dose("2024-02-29T15:00:00Z")];
+    // 28/02/2025 17:00 AR.
+    const now = new Date("2025-02-28T20:00:00Z");
+    const row = libretaRow(events, now);
+    expect(row?.nextDueAt?.toISOString()).toBe("2025-02-28T12:00:00.000Z");
+    expect(row?.status).toBe("expired");
+    expect(cardState(events, now)).toBe("Refuerzo sugerido vencido");
+  });
+
+  it("a date-only next_due_at is read on its AR day, not from 21:00 the day before", () => {
+    const events = [dose("2025-09-15T15:00:00Z", "2026-09-15")];
+    // 14/09/2026 22:00 AR — the dose is due tomorrow in Argentina.
+    const now = new Date("2026-09-15T01:00:00Z");
+    const row = libretaRow(events, now);
+    expect(row?.nextDueAt?.toISOString()).toBe("2026-09-15T12:00:00.000Z");
+    expect(row?.status).toBe("due_soon");
+    expect(cardState(events, now)).toBe("Vigente");
   });
 });
