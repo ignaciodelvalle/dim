@@ -11,16 +11,28 @@
 // creation, credential reset), so only a session that came from one of those
 // links can set a password here. Anybody else is told to use /recuperar.
 //
+// WHY THE SESSION MUST POSTDATE THE ARMING. The flag is per ACCOUNT. A
+// credential reset re-arms it and then revokes every session; a session that
+// survived a failed revocation would still carry the flag, and could choose the
+// password the reset was meant to take from it. So only a session AUTHENTICATED
+// at or after the stamped arming instant is accepted (amr timestamp, not iat —
+// see isSessionAfterArming in the domain file). Anybody else is told the link
+// expired, which is exactly the remedy: ask for a new one.
+//
 // Same password rules as every other place that sets one
 // (`validateNewPassword`, src/modules/auth/domain/new-password-rules.ts).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { verifiedSessionStart } from "@/lib/infra/operator-shift";
+import { reportError } from "@/lib/infra/report-error";
 import { resolveUserLanding } from "@/lib/infra/role-landing";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   completedPasswordSetupMetadata,
   isPasswordSetupPending,
+  isSessionAfterArming,
+  passwordSetupArmedAt,
 } from "@/src/modules/auth/domain/first-access";
 import { validateNewPassword } from "@/src/modules/auth/domain/new-password-rules";
 
@@ -55,6 +67,22 @@ export async function setInitialPassword(
   } = await supabase.auth.getUser();
   if (userError || !user) return { error: FIRST_ACCESS_MESSAGES.no_session };
   if (!isPasswordSetupPending(user)) return { error: FIRST_ACCESS_MESSAGES.not_pending };
+
+  // The token getUser() just had GoTrue validate — the precondition
+  // verifiedSessionStart states. getSession() only reads it back.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const sessionStartedAt = verifiedSessionStart(session?.access_token);
+  if (!isSessionAfterArming(sessionStartedAt, passwordSetupArmedAt(user))) {
+    if (sessionStartedAt === null) {
+      reportError(
+        "first-access/session-start",
+        new Error("First-access session carried no usable amr timestamp; refused (fails closed)."),
+      );
+    }
+    return { error: FIRST_ACCESS_MESSAGES.no_session };
+  }
 
   const { password, confirmPassword } = input;
   const passwordProblem = validateNewPassword(password, confirmPassword);

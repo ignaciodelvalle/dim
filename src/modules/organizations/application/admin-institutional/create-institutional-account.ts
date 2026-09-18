@@ -28,11 +28,11 @@ import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   FIRST_ACCESS_PATH,
-  pendingPasswordSetupMetadata,
+  armedPasswordSetupMetadata,
 } from "@/src/modules/auth/domain/first-access";
 
 import { mailInstitutionalAccessLink } from "./access-link-mail";
-import { loadActorProfile } from "./helpers";
+import { databaseNow, loadActorProfile } from "./helpers";
 import type { CreateInstitutionalResult } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -156,10 +156,14 @@ export async function createInstitutionalAccountForAuthority(
   // account (security review, pilot T1-P3). A CONFIRMED user is refused as
   // "already registered". The price is that GoTrue will not send an invite to a
   // confirmed address, so the link is mailed by us in step 7.
+  //
+  // The arming instant (Postgres clock) rides in the same call: only a session
+  // authenticated after it may set the first password (domain/first-access.ts).
+  const armedAt = await databaseNow();
   const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
     email,
     email_confirm: true,
-    app_metadata: pendingPasswordSetupMetadata(),
+    app_metadata: armedPasswordSetupMetadata(armedAt),
     user_metadata: {
       display_name: displayName,
       // NOTE: do NOT pass role here. The handle_new_user trigger (db/triggers.sql)

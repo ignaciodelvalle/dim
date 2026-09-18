@@ -32,6 +32,28 @@ vi.mock("resend", () => ({
   },
 }));
 
+// A revocation that fails (security review 2026-09, reset item). Off by default:
+// every other test in this file runs the REAL revokeAllSessionsOf.
+const revoke = vi.hoisted(() => ({ fail: false }));
+vi.mock(
+  "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions",
+  async (importOriginal) => {
+    const real =
+      await importOriginal<
+        typeof import(
+          "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions",
+        )
+      >();
+    return {
+      ...real,
+      revokeAllSessionsOf: async (...args: Parameters<typeof real.revokeAllSessionsOf>) =>
+        revoke.fail
+          ? { error: "SESSION_REVOKE_FAILED: simulated" }
+          : real.revokeAllSessionsOf(...args),
+    };
+  },
+);
+
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import {
@@ -1309,6 +1331,11 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
     // chooses a new password before anything else.
     const { data: target } = await adminSdk.auth.admin.getUserById(resetGovtId);
     expect(target.user?.app_metadata?.password_setup_pending).toBe(true);
+    // ...and stamps WHEN it re-armed, so only a session opened after it may
+    // choose the password (security review 2026-09).
+    expect(
+      Number.isNaN(Date.parse(String(target.user?.app_metadata?.password_setup_armed_at))),
+    ).toBe(false);
 
     // Verify audit_log row
     const [logRow] = await db
@@ -1469,6 +1496,50 @@ describe("resetInstitutionalCredentialsForAuthority — validation: personal acc
 
     expect(result).toHaveProperty("error");
     expect((result as { error: string }).error).toContain("NOT_INSTITUTIONAL");
+  });
+});
+
+describe("resetInstitutionalCredentialsForAuthority — sessions not revoked: target deactivated", () => {
+  const REVOKE_FAIL_EMAIL = "fase5-reset-revoke-fails@dim-test.local";
+  afterEach(() => {
+    revoke.fail = false;
+  });
+
+  it("deactivates the target, issues no link, says so plainly and audits it", async () => {
+    const targetId = await seedGovtUser(REVOKE_FAIL_EMAIL);
+    createdNewUserEmails.push(REVOKE_FAIL_EMAIL);
+    revoke.fail = true;
+
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: targetId,
+      reason: RESET_REASON,
+    });
+
+    expect(result).not.toHaveProperty("magicLink");
+    expect((result as { error: string }).error).toBe(
+      "No pudimos cerrar las sesiones abiertas de la cuenta, así que la desactivamos para que nadie pueda seguir usándola. No se generó ningún link nuevo. Revisá la situación y reactivala cuando corresponda. (SESSION_REVOKE_FAILED: simulated)",
+    );
+
+    const [row] = await db
+      .select({ deactivatedAt: profiles.deactivatedAt })
+      .from(profiles)
+      .where(eq(profiles.id, targetId));
+    expect(row.deactivatedAt).not.toBeNull();
+
+    const [logRow] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.targetUserId, targetId), eq(auditLog.action, "operator_credentials_reset")),
+      )
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+    expect(logRow.payload).toMatchObject({
+      method: "none",
+      sessions_revoked: false,
+      deactivated: true,
+      reason: RESET_REASON,
+    });
   });
 });
 
@@ -1708,6 +1779,9 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
     // The account owes a password and cannot enter with one yet.
     const { data: born } = await adminSdk.auth.admin.getUserById(result.profileId);
     expect(born.user?.app_metadata?.password_setup_pending).toBe(true);
+    expect(Number.isNaN(Date.parse(String(born.user?.app_metadata?.password_setup_armed_at)))).toBe(
+      false,
+    );
     const tooEarly = await createClient(SUPABASE_URL, SECRET, {
       auth: { persistSession: false },
     }).auth.signInWithPassword({ email: INVITE_EMAIL, password: PASSWORD });
