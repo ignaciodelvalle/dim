@@ -539,35 +539,46 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
 // both forms via isWholeProvinceLocality. CABA is kept here because it is the
 // province this parity fixture has data for; the assertion is about cube-vs-live
 // parity, not about which sentinel form was used.
-describe("govt jurisdiction-scoped correctness (field-diff live-govt vs cube admin drill)", () => {
+describe("govt jurisdiction-scoped correctness (field-diff live-govt vs live-national drill)", () => {
   const GOVT: DashboardActor = { role: "govt" };
+  const NATIONAL: DashboardActor = { role: "national" };
   // The whole-CABA INDEC locality (lib/domain/jurisdiction-canonical.ts
   // WHOLE_PROVINCE_LOCALITY.CABA) — the ONE assignment form that subsumes
-  // every barrio, matching admin's adminProvince="CABA" (no adminLocality).
+  // every barrio, matching a national-read adminProvince="CABA" drill.
   const WHOLE_CABA = "Ciudad Autónoma de Buenos Aires";
   const GOVT_WHOLE_CABA: DashboardJurisdiction[] = [{ province: DRILL_CABA, locality: WHOLE_CABA }];
 
+  // WHY NOT THE CUBE (T1-P1, PO D3 2026-09-18): govt no longer sees seed-tagged
+  // (synthetic) rows, and the cube is built as ADMIN — it counts them. "govt
+  // live equals the cube admin drill" is therefore false BY DESIGN, and the
+  // cube cannot be filtered per viewer. The same scope-decomposition claim
+  // still holds, one link at a time, with no loosening of the field-diff:
+  //   (1) HERE: govt (whole CABA) live == a `national` CABA drill live. Both
+  //       apply the SAME synthetic exclusion (only admin sees synthetic rows),
+  //       so this proves the govt jurisdiction scope decomposes exactly like a
+  //       whole-province drill — envelope and every feature.
+  //   (2) ABOVE ("cube == live parity", drill CABA): the admin CABA drill live
+  //       == the cube admin drill. The cube keeps serving admin exactly.
   for (const layer of CHOROPLETH_LAYERS) {
     for (const level of ["province", "locality"] as const) {
-      it(`${layer} @ ${level} — govt (whole CABA) live equals the cube admin drill`, async () => {
-        const [liveGovt, cubeAdmin] = await Promise.all([
+      it(`${layer} @ ${level} — govt (whole CABA) live equals the national CABA drill live`, async () => {
+        const [liveGovt, liveNational] = await Promise.all([
           getLayerFeatures(layer, GOVT, GOVT_WHOLE_CABA, PERIOD, level),
-          loadLayerFeaturesFromCube(layer, ADMIN, level, DRILL_CABA),
+          getLayerFeatures(layer, NATIONAL, [], PERIOD, level, DRILL_CABA),
         ]);
-        expect(cubeAdmin, "cube must serve this admin province drill").not.toBeNull();
-        const cubeResult = cubeAdmin as NonNullable<typeof cubeAdmin>;
+        // A national viewer is never served from the admin-built cube.
+        expect(await loadLayerFeaturesFromCube(layer, NATIONAL, level, DRILL_CABA)).toBeNull();
 
         // Envelope parity.
-        expect(liveGovt.level).toBe(cubeResult.result.level);
-        expect(liveGovt.suppressedCount).toBe(cubeResult.result.suppressedCount);
-        expect(liveGovt.noLocalityCount).toBe(cubeResult.result.noLocalityCount);
-        expect(liveGovt.truncated).toBe(cubeResult.result.truncated);
+        expect(liveGovt.level).toBe(liveNational.level);
+        expect(liveGovt.suppressedCount).toBe(liveNational.suppressedCount);
+        expect(liveGovt.noLocalityCount).toBe(liveNational.noLocalityCount);
+        expect(liveGovt.truncated).toBe(liveNational.truncated);
 
         // Feature parity (order-independent, geometry + properties) — the same
-        // field-diff the admin parity block above runs, now under a real govt
-        // scope instead of an admin adminProvince drill.
-        expect(normFeatures(cubeResult.result)).toEqual(normFeatures(liveGovt));
-      }, 60_000);
+        // field-diff the admin parity block above runs.
+        expect(normFeatures(liveNational)).toEqual(normFeatures(liveGovt));
+      }, 180_000);
     }
   }
 

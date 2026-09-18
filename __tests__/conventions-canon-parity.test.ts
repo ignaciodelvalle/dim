@@ -95,7 +95,13 @@ const canon: Canon = loadCanon(REPO_ROOT);
 // harvest, so no row can cite a source for it without claiming a `verifiedAt`
 // for a document the extraction never read. That is a limit of where the canon
 // looks, not a judgement about the rule.
-const UNMAPPED_COUNT = 7;
+//
+// 7 -> 8 on 2026-09-18: `__tests__/gob-synthetic-exclusion-fence.test.ts`
+// (pilot item T1-P1). Its rule - no seed-tagged row reaches a govt or national
+// reader of /gob - is written in docs/handoff/rumbo-al-piloto.md (decision D3),
+// which the d7dbf25f7 snapshot does not harvest, so it joins the list for the
+// same mechanical reason as the clock fence above.
+const UNMAPPED_COUNT = 8;
 
 /**
  * Enforcement the filename glob below cannot see.
