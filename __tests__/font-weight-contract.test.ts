@@ -50,12 +50,19 @@ const STYLESHEETS: readonly string[][] = [
 /** The four families exposed as `font-ln-*` utilities + `--font-ln-*` vars. */
 type FamilyKey = "mono" | "serif" | "plexsans" | "caveat";
 
-/** next/font loader call name in app/layout.tsx → family key. */
+/**
+ * app/layout.tsx variable name assigned to each family's `localFont({...})`
+ * call. Was the next/font/google loader name (`IBM_Plex_Mono`, etc.) until
+ * L-21 (2026-09-18) moved every family to next/font/local with vendored
+ * .woff2 files — the google loader NAME no longer appears in the source, so
+ * the call is identified by the `const <name> = localFont({` it's assigned
+ * to instead.
+ */
 const LOADER_BY_FAMILY: Record<FamilyKey, string> = {
-  mono: "IBM_Plex_Mono",
-  serif: "IBM_Plex_Serif",
-  plexsans: "IBM_Plex_Sans",
-  caveat: "Caveat",
+  mono: "ibmPlexMono",
+  serif: "ibmPlexSerif",
+  plexsans: "ibmPlexSans",
+  caveat: "caveat",
 };
 
 /** Tailwind weight utility → numeric weight. */
@@ -96,13 +103,18 @@ function loadedWeights(): Record<FamilyKey, number[]> {
   const src = readFileSync(LAYOUT, "utf8");
   const out = {} as Record<FamilyKey, number[]>;
 
-  for (const [family, loader] of Object.entries(LOADER_BY_FAMILY) as [FamilyKey, string][]) {
-    // `Loader({ ... })` — take the first weight array inside that call's braces.
-    const call = new RegExp(`${loader}\\(\\{([\\s\\S]*?)\\n\\}\\)`).exec(src);
-    if (!call) throw new Error(`${loader}() not found in app/layout.tsx`);
-    const arr = /weight:\s*\[([^\]]*)\]/.exec(call[1]);
-    if (!arr) throw new Error(`${loader}() has no weight array in app/layout.tsx`);
-    out[family] = [...arr[1].matchAll(/["'](\d{3})["']/g)].map((m) => Number(m[1]));
+  for (const [family, varName] of Object.entries(LOADER_BY_FAMILY) as [FamilyKey, string][]) {
+    // `const <varName> = localFont({ ... })` — every `weight: "NNN"` inside a
+    // `src: [{ path, weight, style }, ...]` entry is a loaded weight.
+    const call = new RegExp(
+      `const\\s+${varName}\\s*=\\s*localFont\\(\\{([\\s\\S]*?)\\n\\}\\)`,
+    ).exec(src);
+    if (!call) throw new Error(`const ${varName} = localFont(...) not found in app/layout.tsx`);
+    const weights = [...call[1].matchAll(/weight:\s*["'](\d{3})["']/g)].map((m) => Number(m[1]));
+    if (weights.length === 0) {
+      throw new Error(`${varName} = localFont(...) has no weight entries in app/layout.tsx`);
+    }
+    out[family] = [...new Set(weights)];
   }
   return out;
 }
