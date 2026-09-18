@@ -48,6 +48,7 @@ import {
   findBlockingTransfers,
   selectPetsWithoutPendingTransfer,
 } from "../../scripts/seed-transfer-guards";
+import { elevateToAal2 } from "../_helpers/aal2-session";
 import { withMutationOverride } from "../_helpers/db-overrides";
 import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
 
@@ -334,6 +335,10 @@ async function runSetup(): Promise<void> {
       setupError = `sign-in failed for ${role} (${creds.email}): ${error?.message ?? "no user"}. Run \`pnpm seed:test\` first.`;
       return;
     }
+    // The admin cells describe the LEGITIMATE institutional path, which since
+    // T2-S6 is a password PLUS a second factor; an aal1 admin token is the
+    // attacker migration 0231 refuses (pinned in erased-admin-authority).
+    if (role === "admin") await elevateToAal2(client);
     contexts.set(role as RlsRole, { client, userId: data.user.id });
   }
 

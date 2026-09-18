@@ -143,6 +143,17 @@ cada portal y en cada acción (`requireLiveUser`, `src/modules/auth/domain/mfa-p
 leyendo el nivel de la sesión del token que GoTrue firmó — no algo que diga el
 navegador.
 
+Y lo exige también la base de datos (migración 0231). Esto importa porque la
+contraseña sola, mandada directo a la API de Supabase sin pasar por la web,
+sigue dando un token válido de nivel `aal1`. Con ese token una cuenta
+institucional **no lee nada** de las tablas donde tiene permisos de operador
+(casos, auditoría, identificaciones, transferencias, disputas, solicitudes,
+etc.) y **no puede exportar ni suprimir los datos de otra persona**
+(`export_subject_data` / `erase_subject_data`). Hasta la 0231 sí podía: el
+segundo factor protegía las pantallas, no los datos. Lo que queda afuera, a
+propósito y anotado en la migración: subir un archivo suelto al bucket de
+revocaciones (sin poder leerlo ni crear la revocación).
+
 - **Primer ingreso.** Después de elegir la contraseña en `/primer-acceso`, la
   persona cae en `/mfa/configurar`: escanea el QR (o carga la clave a mano),
   escribe el primer código y entra. Avisale antes de la reunión que va a

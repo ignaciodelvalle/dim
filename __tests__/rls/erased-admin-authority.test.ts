@@ -111,6 +111,7 @@ import {
   profiles,
 } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/infra/case-helpers";
+import { elevateToAal2 } from "../_helpers/aal2-session";
 import { setAuditMutationGucs, withMutationOverride } from "../_helpers/db-overrides";
 import { createFreshTestUser } from "../_helpers/fresh-test-user";
 
@@ -140,6 +141,10 @@ let auditRowId = "";
 let setupError: string | null = null;
 
 let govtClient: SupabaseClient | null = null;
+// Password-only twins of the two probes (migration 0231): the SAME accounts,
+// signed in separately and never taken past the second factor.
+let adminAal1Client: SupabaseClient | null = null;
+let govtAal1Client: SupabaseClient | null = null;
 let govtUserId = "";
 let govtPetId = "";
 let govtCaseId = "";
@@ -252,6 +257,7 @@ function govt(): SupabaseClient {
 type ProbeTable =
   | "cron_runs"
   | "audit_log"
+  | "cases"
   | "pets"
   | "custody_disputes"
   | "custody_dispute_parties"
@@ -327,11 +333,61 @@ async function probeError(table: ProbeTable, id: string): Promise<string | null>
 const ORG_MEMBERSHIPS_RECURSION =
   /infinite recursion detected in policy for relation "organization_memberships"/;
 
-async function callerIsAdmin(): Promise<boolean> {
-  const rows = (await db.execute(
-    sql`select pii.caller_is_admin(${adminUserId}::uuid) as ok`,
-  )) as unknown as Array<{ ok: boolean }>;
-  return rows[0]?.ok === true;
+/**
+ * pii.caller_is_admin as the RPCs call it: inside a request whose verified
+ * claims name the admin probe. Since migration 0231 the guard also reads the
+ * token's `aal`, so the claim is part of the question — aal2 by default, the
+ * state a legitimate admin session is in.
+ */
+async function callerIsAdmin(aal: "aal1" | "aal2" = "aal2"): Promise<boolean> {
+  return await db.transaction(async (tx) => {
+    const claims = JSON.stringify({ sub: adminUserId, role: "authenticated", aal });
+    await tx.execute(sql`select set_config('request.jwt.claims', ${claims}, true)`);
+    const rows = (await tx.execute(
+      sql`select pii.caller_is_admin(${adminUserId}::uuid) as ok`,
+    )) as unknown as Array<{ ok: boolean }>;
+    return rows[0]?.ok === true;
+  });
+}
+
+const ROLLBACK = new Error("rollback — subject-rights probe never commits");
+
+/**
+ * Run a subject-rights RPC as the admin probe at the given assurance level, on
+ * SOMEONE ELSE's id (the govt probe), and always roll back — an erase that
+ * wrongly succeeded must not survive the test that caught it. Returns the
+ * error text, or null when the call succeeded.
+ */
+async function subjectRightsRpcAs(
+  aal: "aal1" | "aal2",
+  call: "export" | "erase",
+): Promise<string | null> {
+  let outcome: string | null = null;
+  try {
+    await db.transaction(async (tx) => {
+      const claims = JSON.stringify({ sub: adminUserId, role: "authenticated", aal });
+      await tx.execute(sql`select set_config('request.jwt.claims', ${claims}, true)`);
+      await tx.execute(sql`savepoint probe`);
+      try {
+        if (call === "export") {
+          await tx.execute(sql`select public.export_subject_data(${govtUserId}::uuid)`);
+        } else {
+          await tx.execute(
+            sql`select public.erase_subject_data(${govtUserId}::uuid, 'aal probe — rolled back')`,
+          );
+        }
+        outcome = null;
+      } catch (err) {
+        const e = err as { message?: string; cause?: { message?: string } };
+        outcome = e.cause?.message ?? e.message ?? "error";
+        await tx.execute(sql`rollback to savepoint probe`);
+      }
+      throw ROLLBACK;
+    });
+  } catch (err) {
+    if (err !== ROLLBACK) throw err;
+  }
+  return outcome;
 }
 
 async function setDeletedAt(value: Date | null, userId = adminUserId): Promise<void> {
@@ -473,6 +529,11 @@ async function provisionGovt(): Promise<void> {
     setupError = `sign-in failed for ${GOVT_EMAIL}: ${authErr?.message ?? "no user"}`;
     throw new Error(setupError);
   }
+  govtAal1Client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  await govtAal1Client.auth.signInWithPassword({ email: GOVT_EMAIL, password: GOVT_PASSWORD });
+  await elevateToAal2(govtClient);
 }
 
 beforeAll(async () => {
@@ -553,6 +614,14 @@ beforeAll(async () => {
     setupError = `sign-in failed for ${ADMIN_EMAIL}: ${authErr?.message ?? "no user"}`;
     throw new Error(setupError);
   }
+  adminAal1Client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  await adminAal1Client.auth.signInWithPassword({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+  // Every control and refusal in the erased/restored blocks is about the
+  // LIFECYCLE marker, so it must be measured on a session that already has
+  // everything else: since T2-S6 that is password + second factor.
+  await elevateToAal2(adminClient);
 
   // The govt fixtures reference the admin probe (raiser, party, applicant),
   // so they are built after it.
@@ -562,6 +631,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await adminClient?.auth.signOut().catch(() => {});
   await govtClient?.auth.signOut().catch(() => {});
+  await adminAal1Client?.auth.signOut().catch(() => {});
+  await govtAal1Client?.auth.signOut().catch(() => {});
   // Govt first: its fixtures point at the admin probe.
   await deleteGovtFixture();
   await deleteFixture();
@@ -727,5 +798,89 @@ describe("erased govt — RESTORED: the refusal was the marker, not the session 
 
   it("reads everything again", async () => {
     expect(await govtReads()).toEqual(GOVT_ALL_VISIBLE);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The second factor at the database layer (migration 0231)
+// ---------------------------------------------------------------------------
+//
+// THE PROBE IS THE ATTACK, again: the same two live accounts, each also signed
+// in with the password alone — what anyone holding a stolen password gets by
+// posting straight to GoTrue, never touching the app. Both profiles are LIVE
+// here (the RESTORED blocks above ran), so every refusal is the assurance
+// level and nothing else; the aal2 twin reading the same row in the same test
+// is the control.
+
+function aal1(which: "admin" | "govt"): SupabaseClient {
+  const c = which === "admin" ? adminAal1Client : govtAal1Client;
+  if (!c) throw new Error(`${which} aal1 client not provisioned`);
+  return c;
+}
+
+async function tokenAal(c: SupabaseClient): Promise<string | undefined> {
+  const { data } = await c.auth.getSession();
+  const token = data.session?.access_token ?? "";
+  return JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8")).aal;
+}
+
+describe("password-only institutional sessions (aal1) — refused at the database layer (0231)", () => {
+  it("the twins really are aal1 and the probes aal2 — otherwise nothing below measures the claim", async () => {
+    expect(await tokenAal(aal1("admin"))).toBe("aal1");
+    expect(await tokenAal(aal1("govt"))).toBe("aal1");
+    expect(await tokenAal(client())).toBe("aal2");
+    expect(await tokenAal(govt())).toBe("aal2");
+  });
+
+  it("aal1 admin reads nothing on the admin-branch tables the aal2 admin reads", async () => {
+    expect(await rowsVisibleAs(client(), "cron_runs", cronRunId)).toBe(1);
+    expect(await rowsVisibleAs(client(), "audit_log", auditRowId)).toBe(1);
+    expect(await rowsVisibleAs(client(), "cases", caseId)).toBe(1);
+    expect(
+      await rowsVisibleAs(aal1("admin"), "cron_runs", cronRunId),
+      "a password-only admin token still reads cron_runs through PostgREST",
+    ).toBe(0);
+    expect(
+      await rowsVisibleAs(aal1("admin"), "audit_log", auditRowId),
+      "a password-only admin token still reads the audit log through PostgREST",
+    ).toBe(0);
+    expect(
+      await rowsVisibleAs(aal1("admin"), "cases", caseId),
+      "a password-only admin token still reads cases through PostgREST (can_read_case admin branch)",
+    ).toBe(0);
+  });
+
+  it("aal1 govt reads neither the case nor the approval request in its own jurisdiction", async () => {
+    expect(await rowsVisibleAs(govt(), "cases", govtCaseId)).toBe(1);
+    expect(await rowsVisibleAs(govt(), "approval_requests", approvalId)).toBe(1);
+    expect(
+      await rowsVisibleAs(aal1("govt"), "cases", govtCaseId),
+      "a password-only govt token still reads cases in its jurisdiction",
+    ).toBe(0);
+    expect(
+      await rowsVisibleAs(aal1("govt"), "approval_requests", approvalId),
+      "a password-only govt token still reads approval requests in its jurisdiction",
+    ).toBe(0);
+    expect(await rowsVisibleAs(aal1("govt"), "audit_log", auditRowId)).toBe(0);
+  });
+
+  it("pii.caller_is_admin says no at aal1 and yes at aal2", async () => {
+    expect(await callerIsAdmin("aal1")).toBe(false);
+    expect(await callerIsAdmin("aal2")).toBe(true);
+  });
+
+  it("export_subject_data on another person: refused at aal1, served at aal2 (control)", async () => {
+    expect(
+      await subjectRightsRpcAs("aal1", "export"),
+      "a password-only admin token can still dump another person's data (Ley 25.326 art. 14)",
+    ).toMatch(/forbidden/i);
+    expect(await subjectRightsRpcAs("aal2", "export")).toBeNull();
+  });
+
+  it("erase_subject_data on another person: refused at aal1", async () => {
+    expect(
+      await subjectRightsRpcAs("aal1", "erase"),
+      "a password-only admin token can still erase another person (Ley 25.326 art. 16)",
+    ).toMatch(/forbidden/i);
   });
 });

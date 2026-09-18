@@ -42,6 +42,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petIdentifications, petServiceDog, pets } from "@/db";
 
+import { elevateToAal2 } from "../_helpers/aal2-session";
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const SHARED_PASSWORD = "Test1234!";
@@ -84,6 +86,11 @@ beforeAll(async () => {
   govtClient = await signIn("govt-local@dim.test");
   adminClient = await signIn("admin@dim.test");
   if (setupError) throw new Error(setupFailureMessage(setupError));
+  // The admin (and govt) sessions here are the LEGITIMATE institutional path,
+  // which since T2-S6 is a password plus a second factor; an aal1 institutional
+  // token is what migration 0231 refuses (pinned in erased-admin-authority).
+  await elevateToAal2(govtClient as SupabaseClient);
+  await elevateToAal2(adminClient as SupabaseClient);
 
   // Fixture pet in an out-of-jurisdiction locality + a PII identification row and
   // an assistance-dog row. Inserted via Drizzle (service role bypasses RLS).
