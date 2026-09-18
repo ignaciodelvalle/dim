@@ -58,6 +58,8 @@ export const AUDIT_ACTION_LABELS = {
   pii_queried: "Búsqueda de información personal",
   admin_seeded: "Admin inicializado",
   operator_credentials_reset: "Credenciales de operador reiniciadas",
+  mfa_factor_enrolled: "Segundo factor configurado",
+  mfa_factors_reset_by_admin: "Segundo factor restablecido por un admin",
   institutional_create_orphan_auth_user: "Usuario institucional creado sin perfil",
   institutional_govt_created: "Cuenta gobierno creada",
   institutional_admin_created: "Cuenta admin creada",

@@ -66,11 +66,19 @@ import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import {
   OPERATOR_SHIFT_EXPIRED_MESSAGE,
   isOperatorShiftExpired,
-  verifiedSessionStart,
+  sessionStartFromClaims,
 } from "@/lib/infra/operator-shift";
+import { reportError } from "@/lib/infra/report-error";
 import { type CachedProfile, getProfileCached } from "@/lib/infra/request-cache";
+import { assuranceLevel, verifiedSessionClaims } from "@/lib/infra/verified-token-claims";
 import { createClient } from "@/lib/supabase/server";
 import { isPasswordSetupPending } from "@/src/modules/auth/domain/first-access";
+import {
+  MFA_CHALLENGE_MESSAGE,
+  MFA_ENROL_MESSAGE,
+  type MfaFactorLike,
+  mfaRequirement,
+} from "@/src/modules/auth/domain/mfa-policy";
 
 export type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -159,6 +167,17 @@ export type LiveUserFailure = {
    * "send them to /primer-acceso" apart from "send them to log in".
    */
   passwordSetupPending?: true;
+  /**
+   * Set only on the NO_SESSION refusal of an INSTITUTIONAL session that has not
+   * met the second-factor policy (T2-S6, src/modules/auth/domain/mfa-policy.ts):
+   * "enrol" when the account has no verified TOTP factor, "challenge" when it
+   * has one and this session has not reached aal2. Rides on NO_SESSION for the
+   * reason `passwordSetupPending` does — every write boundary and the /api/v1
+   * wire contract already know how to refuse it — and requireUserOrRedirect
+   * reads it to send a page load to /mfa or /mfa/configurar instead of to a
+   * login the person has already completed.
+   */
+  mfaPending?: "enrol" | "challenge";
 };
 
 export type LiveUserResult = LiveUserSuccess | LiveUserFailure;
@@ -270,7 +289,8 @@ export type OptionalLiveUserSuccess = {
 export type OptionalLiveUserResult =
   | OptionalLiveUserSuccess
   | (LiveUserFailure & { reason: Exclude<LiveUserFailureReason, "NO_SESSION"> })
-  | (LiveUserFailure & { reason: "NO_SESSION"; passwordSetupPending: true });
+  | (LiveUserFailure & { reason: "NO_SESSION"; passwordSetupPending: true })
+  | (LiveUserFailure & { reason: "NO_SESSION"; mfaPending: "enrol" | "challenge" });
 
 /**
  * Same guard, for the three write boundaries where an ANONYMOUS caller is
@@ -295,6 +315,11 @@ export async function resolveOptionalLiveUser(
   // holding an institutional account's access link. Laundering that into an
   // anonymous submission is the same mistake as laundering an erased one.
   if (live.reason === "NO_SESSION" && live.passwordSetupPending) {
+    return live as OptionalLiveUserResult;
+  }
+  // Same for an operator who has signed in but not passed the second factor:
+  // an identified institutional account, not an anonymous visitor.
+  if (live.reason === "NO_SESSION" && live.mfaPending) {
     return live as OptionalLiveUserResult;
   }
   if (live.reason === "NO_SESSION" && live.supabase) {
@@ -337,6 +362,11 @@ export function isPlatformInMaintenance(): boolean {
  *      refusal and the only recoverable one: the remedy is to sign in again. An
  *      erased or deactivated account must not be told "your shift ended", which
  *      would invite it to retry forever against an account that will never work.
+ *
+ * Between DEACTIVATED and SHIFT_EXPIRED sit two refusals that ride on NO_SESSION
+ * with a flag instead of owning a reason: a first access that still owes its
+ * password (`passwordSetupPending`), and — institutional principals only — a
+ * session that has not met the second-factor policy (`mfaPending`, T2-S6).
  */
 export async function requireLiveUser(options?: RequireLiveUserOptions): Promise<LiveUserResult> {
   if (isPlatformInMaintenance()) {
@@ -470,12 +500,46 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
     };
   }
 
-  // B9. The token was validated by `getUser()` immediately above, which is the
-  // precondition `verifiedSessionStart` documents — this is the one place in the
-  // codebase allowed to make that call, and it is a few lines from the proof.
-  const sessionStartedAt = await resolveSessionStart(supabase, options?.accessToken);
+  // B9 + T2-S6. The token was validated by `getUser()` immediately above, which
+  // is the precondition `verifiedSessionClaims` documents — this is the one place
+  // in the codebase that reads the session's age and assurance level for a
+  // guard, and it is a few lines from the proof.
+  const claims = await verifiedSessionClaims(supabase, options?.accessToken);
+  const sessionStartedAt = sessionStartFromClaims(claims);
 
   if (isInstitutionalPrincipal(profile)) {
+    // SECOND FACTOR (T2-S6), BEFORE the shift: an operator who has not passed
+    // it has not finished signing in, so "your shift ended" would be the wrong
+    // sentence. `user.factors` is GoTrue's answer from the getUser() above, the
+    // aal claim is from the token that same call validated — never client state.
+    const mfa = mfaRequirement({
+      factors: (user as { factors?: MfaFactorLike[] }).factors,
+      aal: assuranceLevel(claims),
+    });
+    if (mfa === "enrol" || mfa === "challenge") {
+      return {
+        ok: false,
+        supabase,
+        user: { id: user.id, email: user.email },
+        reason: "NO_SESSION",
+        error: mfa === "enrol" ? MFA_ENROL_MESSAGE : MFA_CHALLENGE_MESSAGE,
+        mfaPending: mfa,
+      };
+    }
+    // FAILS OPEN and reports — the operator-shift reasoning, see mfa-policy.ts.
+    // ONE report per degraded token: when the session start is unknown too, the
+    // shift check below reports the same unreadable token, and a second row for
+    // it would double every alert about one fault.
+    if (mfa === "unknown" && sessionStartedAt !== null) {
+      reportError(
+        "mfa-policy/live-user",
+        new Error(
+          "Institutional session carried no readable aal claim; the second-factor " +
+            "requirement could not be evaluated for this request.",
+        ),
+      );
+    }
+
     if (isOperatorShiftExpired({ sessionStartedAt, context: "live-user" })) {
       return {
         ok: false,
@@ -515,40 +579,13 @@ function withEmailConfirmed<T extends { email_confirmed_at?: string | null }>(
   return { ...user, emailConfirmed: user.email_confirmed_at != null };
 }
 
-/**
- * When the session behind this request was authenticated, or null. (B9)
- *
- * TWO SOURCES, PICKED BY PATH RATHER THAN BY FALLBACK. The bearer path was
- * handed the raw token, so it is used directly and `getSession()` is never
- * called — a bearer client stores no session and asking it would be a round trip
- * to learn nothing. The cookie path reads the token back from the SSR client.
- *
- * `getSession()` does NOT re-validate, which is exactly why it must never answer
- * "who". It does not need to here: `getUser()` has just accepted the same
- * cookie, so the token this returns is the one GoTrue vouched for moments ago.
- * Only `access_token` is read; `session.user` is deliberately ignored.
- *
- * SWALLOWS ITS OWN FAILURE, and the direction matches the rest of the shift
- * machinery. This is a supplementary read supporting a REFINEMENT of a bound
- * GoTrue still enforces globally. If it throws — an SDK shape change, a client
- * that does not implement it — the honest outcome is "session start unknown",
- * which `isOperatorShiftExpired` already handles by failing open AND reporting.
- * Letting it propagate would convert a degraded hardening into a total outage of
- * every authenticated surface, which is a far worse failure than the one it
- * guards against.
- */
-async function resolveSessionStart(
-  supabase: SupabaseServerClient,
-  accessToken: string | undefined,
-): Promise<Date | null> {
-  if (accessToken) return verifiedSessionStart(accessToken);
-  try {
-    const { data } = await supabase.auth.getSession();
-    return verifiedSessionStart(data.session?.access_token);
-  } catch {
-    return null;
-  }
-}
+// The session's claims come from `verifiedSessionClaims`
+// (lib/infra/verified-token-claims.ts): the bearer path hands its token in, the
+// cookie path reads it back with `getSession()` after `getUser()` accepted the
+// same cookie. It swallows its own failure and answers null, which the shift
+// reads as "start unknown" (fail open, report) and the second-factor policy as
+// "unknown" (fail open, report). Letting it throw would turn a degraded
+// hardening into a total outage of every authenticated surface.
 
 /**
  * Does the 8-hour shift apply to this profile? (B9)

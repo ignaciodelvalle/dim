@@ -509,3 +509,73 @@ describe("liveUserMessage()", () => {
     expect(liveUserMessage("ACCOUNT_ERASED")).toBe("Tu cuenta fue eliminada.");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Second factor (T2-S6) — institutional sessions must reach aal2
+// ---------------------------------------------------------------------------
+
+describe("requireLiveUser() — second factor for institutional accounts (T2-S6)", () => {
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const token = (claims: Record<string, unknown>) => `${b64({ alg: "HS256" })}.${b64(claims)}.sig`;
+  const now = () => Math.floor(Date.now() / 1000);
+  const verified = [{ id: "f-1", factor_type: "totp", status: "verified" }];
+
+  function operator(factors: unknown[] | undefined, claims: Record<string, unknown> | null) {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-001", email: "op@dim-test.local", factors } },
+      error: null,
+    });
+    mockGetSession.mockResolvedValue({
+      data: { session: claims ? { access_token: token(claims) } : null },
+      error: null,
+    });
+    mockGetProfileCached.mockResolvedValue(profile({ role: "govt", accountType: "institutional" }));
+  }
+
+  it("refuses an operator without a verified factor as NO_SESSION + mfaPending enrol", async () => {
+    operator(undefined, { aal: "aal1", amr: [{ method: "password", timestamp: now() }] });
+    const result = await requireLiveUser();
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.reason).toBe("NO_SESSION");
+    expect(result.mfaPending).toBe("enrol");
+    expect(result.error).toMatch(/segundo factor/);
+  });
+
+  it("refuses an aal1 session of an operator WITH a factor as mfaPending challenge", async () => {
+    operator(verified, { aal: "aal1", amr: [{ method: "password", timestamp: now() }] });
+    const result = await requireLiveUser();
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.mfaPending).toBe("challenge");
+    expect(result.error).toMatch(/código de verificación/);
+  });
+
+  it("admits the same operator at aal2", async () => {
+    operator(verified, { aal: "aal2", amr: [{ method: "totp", timestamp: now() }] });
+    expect((await requireLiveUser()).ok).toBe(true);
+  });
+
+  it("never asks a personal account, whatever the session", async () => {
+    operator(undefined, { aal: "aal1", amr: [{ method: "password", timestamp: now() }] });
+    mockGetProfileCached.mockResolvedValue(profile());
+    expect((await requireLiveUser()).ok).toBe(true);
+  });
+
+  it("fails OPEN when the aal claim cannot be read (mfa-policy.ts states why)", async () => {
+    operator(undefined, null);
+    expect((await requireLiveUser()).ok).toBe(true);
+  });
+
+  it("puts the second factor BEFORE the shift: an unpassed factor is not a finished shift", async () => {
+    const tenHoursAgo = now() - 10 * 60 * 60;
+    operator(verified, { aal: "aal1", amr: [{ method: "password", timestamp: tenHoursAgo }] });
+    const result = await requireLiveUser();
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.mfaPending).toBe("challenge");
+  });
+
+  it("resolveOptionalLiveUser does not launder an unpassed operator into an anonymous caller", async () => {
+    operator(verified, { aal: "aal1", amr: [{ method: "password", timestamp: now() }] });
+    const result = await resolveOptionalLiveUser();
+    expect(result.ok).toBe(false);
+  });
+});
