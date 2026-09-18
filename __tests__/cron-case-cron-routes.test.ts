@@ -332,3 +332,83 @@ describe("GET /api/cron/expire-cross-org-transfers", () => {
     expect(runCaseCronMock).toHaveBeenCalledOnce();
   });
 });
+
+// ---------------------------------------------------------------------------
+// runCaseCron itself — C04-1
+// ---------------------------------------------------------------------------
+//
+// expire-decomiso-handoffs passes `budgetHeaders` WITHOUT `batchSize`. The
+// dispatcher's parity fence (cron-budget-ceiling.test.ts READS_THE_BUDGET)
+// accepts that as "honours the budget" on the strength of the text alone, so
+// the honouring has to be proven here, against the real runner. Before C04-1
+// the deadline was computed inside the keyset branch only and the unbatched
+// loop processed every candidate however late it started.
+
+describe("runCaseCron — the deadline binds the unbatched mode too", () => {
+  let clock = 0;
+
+  async function loadRealRunner() {
+    vi.resetModules();
+    vi.doUnmock("@/lib/infra/case-cron");
+    const where = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("@/db", () => ({
+      cronRuns: { id: "id" },
+      db: {
+        insert: () => ({ values: () => ({ returning: async () => [{ id: "run-c04-1" }] }) }),
+        update: () => ({ set: () => ({ where }) }),
+      },
+    }));
+    vi.doMock("@/lib/infra/cron-alert", () => ({ sendCronAlert: vi.fn() }));
+    const mod = await import("@/lib/infra/case-cron");
+    return mod.runCaseCron;
+  }
+
+  beforeEach(() => {
+    clock = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.doUnmock("@/db");
+    vi.doUnmock("@/lib/infra/cron-alert");
+  });
+
+  // Five candidates, each costing 1 000 ms of wall clock.
+  const CANDIDATES = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
+
+  it("stops at the dispatcher's share when handed a tighter budget", async () => {
+    const runCaseCron = await loadRealRunner();
+    const processed: string[] = [];
+    const result = await runCaseCron({
+      name: "expire_decomiso_handoffs",
+      // 2 500 ms share: a, b and c start before it runs out (at 0, 1 000 and
+      // 2 000 ms); d would start at 3 000 ms, past it.
+      budgetHeaders: { get: (n: string) => (n === "x-cron-budget-ms" ? "2500" : null) },
+      scan: async () => CANDIDATES,
+      processOne: async (c) => {
+        processed.push(c.id);
+        clock += 1_000;
+      },
+    });
+    expect(processed).toEqual(["a", "b", "c"]);
+    expect(result.itemsProcessed).toBe(3);
+    // Stopping at the deadline is not a failure: the rest wait for the next run.
+    expect(result.status).toBe("ok");
+  });
+
+  it("runs to completion standalone, where only its own 45 s ceiling binds", async () => {
+    const runCaseCron = await loadRealRunner();
+    const processed: string[] = [];
+    const result = await runCaseCron({
+      name: "expire_decomiso_handoffs",
+      scan: async () => CANDIDATES,
+      processOne: async (c) => {
+        processed.push(c.id);
+        clock += 1_000;
+      },
+    });
+    expect(processed).toEqual(["a", "b", "c", "d", "e"]);
+    expect(result.itemsProcessed).toBe(5);
+  });
+});

@@ -38,6 +38,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     name: CRON_NAME,
     // RN #9 half b: bound by min(own 45 s default, the dispatcher's share) so
     // a late start cannot push the shared function past its 60 s hard kill.
+    // runCaseCron honours this in its unbatched mode too since C04-1 — before
+    // that it was read only by the keyset loop, and this route has none.
     budgetHeaders: req.headers,
     scan: () => findStaleDecomisoCandidates(),
     processOne: (candidate) => escalateStaleDecomiso(candidate),

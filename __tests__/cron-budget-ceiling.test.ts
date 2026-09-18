@@ -68,6 +68,15 @@ function readSource(relPath: string): string {
 const CEILING_CONSTANT = /(?:^|\n)\s*(?:export\s+)?const\s+[A-Z0-9_]*MAX_DURATION_MS\s*=\s*[\d_]+/;
 
 // Proof that a module derives its deadline from the run instead of a constant.
+//
+// The `budgetHeaders` alternative is DELEGATION: the route hands the headers to
+// a helper and the helper must honour them. That is only as true as the helper.
+// C04-1 (2026-09) was the case where it was not: expire-decomiso-handoffs passed
+// `budgetHeaders` to runCaseCron without `batchSize`, and runCaseCron read the
+// budget only inside its keyset loop — so this regex certified a route whose
+// loop ignored the deadline entirely. runCaseCron now bounds both modes, and
+// that is pinned BEHAVIOURALLY in __tests__/cron-case-cron-routes.test.ts
+// ("runCaseCron — the deadline binds the unbatched mode too"), not by this text.
 const READS_THE_BUDGET = /effectiveDeadlineMs|cronBudgetFromHeaders|budgetHeaders/;
 
 // A first-party import: `import { x } from "@/lib/…"` or a relative path.

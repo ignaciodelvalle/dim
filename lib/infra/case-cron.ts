@@ -93,17 +93,23 @@ export async function runCaseCron<TCandidate>(
   const errors: { id: string; reason: string }[] = [];
   const idOf = input.candidateId ?? ((c: TCandidate) => (c as { id: string }).id);
 
+  // The deadline binds BOTH modes (C04-1, 2026-09). It used to be computed
+  // inside the keyset branch only, so a route that passed `budgetHeaders`
+  // without `batchSize` (expire-decomiso-handoffs) was read by the dispatcher
+  // fence as honouring the budget while its legacy loop ran every candidate
+  // to completion, however late it started.
+  const ownCeilingMs = input.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
+  const maxDurationMs = input.budgetHeaders
+    ? effectiveDeadlineMs(ownCeilingMs, input.budgetHeaders)
+    : ownCeilingMs;
+  const start = Date.now();
+
   try {
     if (input.batchSize && input.batchSize > 0) {
       // Keyset mode: loop bounded pages until exhausted or budget hit. The
       // cursor advances past every candidate we fetch (processed or errored),
       // so an errored row is not re-fetched within the same run — no spin.
       const limit = input.batchSize;
-      const ownCeilingMs = input.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
-      const maxDurationMs = input.budgetHeaders
-        ? effectiveDeadlineMs(ownCeilingMs, input.budgetHeaders)
-        : ownCeilingMs;
-      const start = Date.now();
       let cursor: string | null = null;
 
       loop: for (;;) {
@@ -128,8 +134,14 @@ export async function runCaseCron<TCandidate>(
         if (batch.length < limit) break; // last page
       }
     } else {
+      // Legacy single scan: the scan is bounded by the caller (it must cap its
+      // own raw read), and the loop stops at the deadline. Its one caller today,
+      // expire-decomiso-handoffs, re-derives candidates from state on every run
+      // and escalates idempotently, so a candidate left behind is picked up by
+      // the next run rather than lost.
       const candidates = await input.scan();
       for (const candidate of candidates) {
+        if (Date.now() - start >= maxDurationMs) break;
         try {
           await input.processOne(candidate);
           itemsProcessed += 1;
