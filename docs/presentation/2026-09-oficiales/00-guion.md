@@ -509,7 +509,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Pantallas: <!-- fact:pages -->263<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->226<!-- /fact -->.
+    <!-- fact:migrations -->227<!-- /fact -->.
   - Tablas: <!-- fact:tables -->54<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que

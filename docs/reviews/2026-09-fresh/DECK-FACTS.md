@@ -118,7 +118,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `pages` | `<!-- fact:pages -->263<!-- /fact -->` |
 | `route_handlers` | `<!-- fact:route_handlers -->89<!-- /fact -->` |
 | `layouts` | `<!-- fact:layouts -->11<!-- /fact -->` |
-| `migrations` | `<!-- fact:migrations -->226<!-- /fact -->` |
+| `migrations` | `<!-- fact:migrations -->227<!-- /fact -->` |
 | `tables` | `<!-- fact:tables -->54<!-- /fact -->` |
 | `enums` | `<!-- fact:enums -->22<!-- /fact -->` |
 | `rls_enabled_tables` | `<!-- fact:rls_enabled_tables -->56<!-- /fact -->` |
