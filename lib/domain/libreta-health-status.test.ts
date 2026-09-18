@@ -108,3 +108,46 @@ describe("computeVaccinationSummary — the derived due date agrees with the com
     expect(cardState(events, now)).toBe("Vigente");
   });
 });
+
+// The bug this closes: the libreta badge said red "Vencida" for a
+// catalog-interval ESTIMATE (no vet-signed next_due_at on the asiento) while
+// the compliance card on the same profile said "Refuerzo sugerido vencido"
+// (warning tone) for the identical dose. `dueSource` lets the badge tell the
+// two apart the same way pet-compliance already does ("dose" vs "rule").
+describe("computeVaccinationSummary — dueSource", () => {
+  const NOW = new Date("2026-09-15T12:00:00Z");
+
+  it("a vet-signed next_due_at is dueSource 'payload'", () => {
+    const summary = computeVaccinationSummary(
+      [
+        {
+          eventType: "vaccination_administered",
+          occurredAt: "2026-01-01",
+          payload: { vaccine_name: "Antirrábica", next_due_at: "2026-06-01" },
+        },
+      ],
+      "dog",
+      NOW,
+    );
+    const row = summary.perVaccine.find((v) => v.vaccineName === "Antirrábica");
+    expect(row?.status).toBe("expired");
+    expect(row?.dueSource).toBe("payload");
+  });
+
+  it("a catalog-interval estimate (no next_due_at on the asiento) is dueSource 'derived'", () => {
+    const summary = computeVaccinationSummary(
+      [
+        {
+          eventType: "vaccination_administered",
+          occurredAt: "2025-01-01",
+          payload: { vaccine_name: "Antirrábica" },
+        },
+      ],
+      "dog",
+      NOW,
+    );
+    const row = summary.perVaccine.find((v) => v.vaccineName === "Antirrábica");
+    expect(row?.status).toBe("expired");
+    expect(row?.dueSource).toBe("derived");
+  });
+});

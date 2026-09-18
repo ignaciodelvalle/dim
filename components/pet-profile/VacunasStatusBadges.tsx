@@ -59,7 +59,20 @@ function fmtDate(d: Date | null): string {
   });
 }
 
-function metaFor(v: VaccineSnapshot): string {
+/**
+ * True when an "expired" item's due date is a catalog-interval ESTIMATE
+ * (`dueSource: "derived"`) rather than a date the vet actually signed
+ * (`dueSource: "payload"`). Mirrors pet-compliance's `dueSource === "rule"`
+ * rule: an estimate never renders as the strong "Vencida" state, on either
+ * surface — it renders as a suggestion, in warning tone, with the SAME copy
+ * the compliance card uses ("Refuerzo sugerido vencido el dd/mm"). A dose the
+ * vet signed keeps the strong "Venció dd/mm" state.
+ */
+export function isSuggestedLapse(v: VaccineSnapshot): boolean {
+  return v.status === "expired" && v.dueSource === "derived" && v.nextDueAt !== null;
+}
+
+export function metaFor(v: VaccineSnapshot): string {
   switch (v.status) {
     case "missing":
       return "Nunca aplicada";
@@ -70,7 +83,10 @@ function metaFor(v: VaccineSnapshot): string {
     case "due_soon":
       return v.nextDueAt ? `Vence ${fmtDate(v.nextDueAt)}` : "Por vencer";
     case "expired":
-      return v.nextDueAt ? `Venció ${fmtDate(v.nextDueAt)}` : "Vencida";
+      if (!v.nextDueAt) return "Vencida";
+      return isSuggestedLapse(v)
+        ? `Refuerzo sugerido vencido el ${fmtDate(v.nextDueAt)}`
+        : `Venció ${fmtDate(v.nextDueAt)}`;
   }
 }
 
@@ -112,15 +128,24 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
       border: "var(--color-ln-warn-050)",
       text: "var(--color-ln-warn)",
     },
-    {
-      key: "vencida",
-      label: "Vencida",
-      count: counts.vencida,
-      items: summary.perVaccine.filter((v) => v.status === "expired"),
-      bg: "var(--color-ln-err-050)",
-      border: "var(--color-ln-err-100)",
-      text: "var(--color-ln-seal)",
-    },
+    (() => {
+      const vencidaItems = summary.perVaccine.filter((v) => v.status === "expired");
+      // Never the strong red state when EVERY expired vaccine in the bucket is
+      // a catalog-interval ESTIMATE (no vet-signed date on any of them) — same
+      // rule pet-compliance enforces for dueSource "rule". A single vet-signed
+      // vencida in the mix keeps the bucket red; that is a real, established
+      // vigencia and must not be softened by estimates sitting next to it.
+      const allSuggested = vencidaItems.length > 0 && vencidaItems.every(isSuggestedLapse);
+      return {
+        key: "vencida" as const,
+        label: "Vencida",
+        count: counts.vencida,
+        items: vencidaItems,
+        bg: allSuggested ? "var(--color-ln-warn-025)" : "var(--color-ln-err-050)",
+        border: allSuggested ? "var(--color-ln-warn-050)" : "var(--color-ln-err-100)",
+        text: allSuggested ? "var(--color-ln-warn)" : "var(--color-ln-seal)",
+      };
+    })(),
     {
       // Neither a reassurance nor an alarm — an ASK. The animal has a dose on
       // file whose name the catalog could not resolve, so this core vaccine
@@ -220,7 +245,17 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
             {openBadge.items.map((v) => (
               <div key={v.vaccineName} className="ln-vac-list-item">
                 <span className="ln-vac-list-name">{v.vaccineName}</span>
-                <span className="ln-vac-list-meta">{metaFor(v)}</span>
+                <span
+                  className="ln-vac-list-meta"
+                  // A suggested (estimate) lapse reads in warning tone even
+                  // inside a bucket that also holds a vet-signed vencida —
+                  // the per-item copy already says "Refuerzo sugerido"; the
+                  // color must not contradict it by staying the same as a
+                  // real vencida's.
+                  style={isSuggestedLapse(v) ? { color: "var(--color-ln-warn)" } : undefined}
+                >
+                  {metaFor(v)}
+                </span>
               </div>
             ))}
           </section>
