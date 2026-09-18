@@ -124,6 +124,32 @@ export async function markSeenAction() {
     expect(found[0].audited).toBe(true);
   });
 
+  it("accepts a CALL to a repository audit writer (`repo.insert…AuditLog(…)`) as the audit write", () => {
+    const src = `${HEADER}
+export async function closeThingAction(id: string) {
+  await requireAdminOrGovtOrRedirect();
+  await db.transaction(async (tx) => {
+    await tx.update(things).set({ closed: true }).where(eq(things.id, id));
+    await repo.insertThingCloseAuditLog({ action: "thing_closed", actorUserId: "x" }, tx);
+  });
+}
+`;
+    const found = findCandidates("app/actions/fake.ts", src);
+    expect(found).toHaveLength(1);
+    expect(found[0].audited).toBe(true);
+  });
+
+  it("does not accept a repository audit writer that is only NAMED, never called", () => {
+    const src = `${HEADER}
+export async function closeThingAction(id: string) {
+  await requireAdminOrGovtOrRedirect();
+  const writer = "insertThingCloseAuditLog";
+  await db.update(things).set({ closed: true }).where(eq(things.id, id));
+}
+`;
+    expect(findCandidates("app/actions/fake.ts", src)[0].audited).toBe(false);
+  });
+
   it("does not accept an audit identifier that appears only in a COMMENT", () => {
     const src = `${HEADER}
 export async function banEverythingAction(orgId: string) {

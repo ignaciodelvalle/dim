@@ -104,8 +104,17 @@ export const OPERATOR_GUARDS = [
 // audit-only fact (an export receipt, a page-view trail), not a mutation.
 const MUTATION_RE = /\.(insert|update|delete)\s*\(\s*(?!auditLog\b)/;
 
-// Reaching the audit trail: the helper, the drizzle table, or the raw SQL name.
-const AUDIT_RE = /\b(writeAuditLog|auditLog|audit_log)\b/;
+// Reaching the audit trail: the helper, the drizzle table, the raw SQL name, or
+// a CALL to a repository's audit writer — the repo-wide convention
+// `repo.insert<Something>AuditLog(…)` (org, transfers, events and surveillance
+// repositories all name it so, and every one inserts into audit_log). Added
+// 2026-09-18: the State's rabies close writes its audit row through
+// `repo.insertObservationCloseAuditLog` inside the use case — one hop from the
+// action — and the old pattern (case-sensitive `auditLog`) could not see the
+// `…AuditLog` suffix, so the action read as unaudited the moment it started
+// calling a mutating module directly. Anchored on a CALL, so a type or a
+// comment naming such a method does not count.
+const AUDIT_RE = /\b(writeAuditLog|auditLog|audit_log)\b|\binsert\w*AuditLog\s*\(/;
 
 /** Marker opting a specific export out, with a documented reason. */
 export const NO_AUDIT_COMMENT = "@no-audit-required";
