@@ -1022,6 +1022,11 @@ export async function updateLostLastSeenAction(
 
   if (result.error) return { error: result.error };
 
+  // The new last-seen point is on the owner's profile and on the public lost
+  // poster (/p/{token}); without this the owner lands on the redirect below and
+  // sees the OLD point, which reads as "didn't save". Same set as lost/found.
+  await revalidateLostStatePages(pet.publicToken);
+
   return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 

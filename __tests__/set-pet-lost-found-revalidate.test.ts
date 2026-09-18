@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   requirePetAccess: vi.fn(),
   setPetLostWriter: vi.fn(),
   setPetFound: vi.fn(),
+  updateLostLastSeen: vi.fn(),
   resolveFoundConfirmationRecipient: vi.fn(),
   findBroadcastRecipientUserIds: vi.fn(),
   revalidatePath: vi.fn(),
@@ -35,6 +36,10 @@ vi.mock("@/src/modules/events/application/lifecycle/set-pet-lost-use-case", () =
 
 vi.mock("@/src/modules/events/application/lifecycle/set-pet-found-use-case", () => ({
   setPetFound: mocks.setPetFound,
+}));
+
+vi.mock("@/src/modules/events/application/lifecycle/update-lost-last-seen-use-case", () => ({
+  updateLostLastSeen: mocks.updateLostLastSeen,
 }));
 
 vi.mock("@/src/modules/events/application/lifecycle/found-notification-audience", () => ({
@@ -62,7 +67,11 @@ vi.mock("next/cache", () => ({
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
-import { setPetFoundAction, setPetLostAction } from "@/src/modules/events/actions";
+import {
+  setPetFoundAction,
+  setPetLostAction,
+  updateLostLastSeenAction,
+} from "@/src/modules/events/actions";
 
 const TOKEN = "DIM-TEST-0003";
 
@@ -101,6 +110,7 @@ beforeEach(() => {
   mocks.requirePetAccess.mockResolvedValue(access);
   mocks.setPetLostWriter.mockResolvedValue({ error: null, ok: true });
   mocks.setPetFound.mockResolvedValue({ ok: true, alreadyActive: false });
+  mocks.updateLostLastSeen.mockResolvedValue({ error: null, ok: true });
   mocks.resolveFoundConfirmationRecipient.mockResolvedValue("user-1");
 });
 
@@ -137,6 +147,29 @@ describe("setPetFoundAction — revalidation", () => {
   it("revalidates nothing when access is refused", async () => {
     mocks.requirePetAccess.mockResolvedValue({ ok: false, error: "Sin acceso." });
     await setPetFoundAction(TOKEN, { error: null }, new FormData());
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+// The owner moving the last-seen point of a LOST pet changes the same two
+// pages the lost flip does: their profile and the public lost poster. Without
+// this the redirect lands on the old point, which reads as "did not save".
+describe("updateLostLastSeenAction — revalidation", () => {
+  const lostAccess = { ...access, pet: { ...access.pet, status: "lost" } };
+
+  it("revalidates the owner page, the public credential and the pet list", async () => {
+    mocks.requirePetAccess.mockResolvedValue(lostAccess);
+    const res = await updateLostLastSeenAction(TOKEN, { error: null }, lostForm());
+    expect(res).toEqual({ error: null, ok: true, redirectTo: `/mis-mascotas/${TOKEN}` });
+    expect(mocks.updateLostLastSeen).toHaveBeenCalledTimes(1);
+    expect(revalidatedPaths()).toEqual(EXPECTED);
+  });
+
+  it("revalidates nothing when the write refused", async () => {
+    mocks.requirePetAccess.mockResolvedValue(lostAccess);
+    mocks.updateLostLastSeen.mockResolvedValue({ error: "La mascota no está perdida." });
+    const res = await updateLostLastSeenAction(TOKEN, { error: null }, lostForm());
+    expect(res.error).toBe("La mascota no está perdida.");
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
