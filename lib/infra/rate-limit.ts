@@ -184,6 +184,10 @@ export interface HeaderGetter {
  *   2. last non-empty segment of x-forwarded-for (assumed edge-appended;
  *      UNVERIFIED — see "SOURCE 2 IS NOT MEASURED" above)
  *   3. "unknown"
+ *
+ * Sources 1 and 2 pass through `callerSubject` (below): an IPv6 caller comes
+ * back as its /64 prefix, an IPv4-mapped one as its IPv4, anything unparseable
+ * exactly as it arrived.
  */
 export function callerIp(hdrs: HeaderGetter): string {
   // 1. x-real-ip — Vercel's trusted edge IP header. A client-supplied value
@@ -194,7 +198,7 @@ export function callerIp(hdrs: HeaderGetter): string {
   //    the local probe can still ask for a fresh bucket, and why an origin
   //    without a rewriting proxy in front of it must never be exposed.
   const realIp = hdrs.get("x-real-ip")?.trim();
-  if (realIp) return realIp;
+  if (realIp) return callerSubject(realIp);
 
   // 2. Last segment of x-forwarded-for — on the assumption that the edge
   //    appends the observed source IP as the rightmost entry. UNMEASURED: see
@@ -207,11 +211,113 @@ export function callerIp(hdrs: HeaderGetter): string {
     const segments = xff.split(",");
     for (let i = segments.length - 1; i >= 0; i--) {
       const seg = segments[i].trim();
-      if (seg) return seg;
+      if (seg) return callerSubject(seg);
     }
   }
 
   return "unknown";
+}
+
+// ---------------------------------------------------------------------------
+// callerSubject — WHO a per-IP bucket is about, which for IPv6 is not one
+// address.
+//
+// THE HOLE. Every per-IP ceiling in this repo was keyed on the full address.
+// For IPv4 that is roughly one subscriber (or one NAT full of them). For IPv6 it
+// is not: the unit an ISP or a hosting provider hands out is a /64 at the least
+// (RFC 6177; a home line or a VPS typically gets a /64 or a /56, a hosting
+// account a /48), and every host picks its own interface identifier inside it —
+// privacy extensions (RFC 8981) rotate it on their own. So one machine owns 2^64
+// addresses, and a limiter keyed on the full address gave it 2^64 fresh
+// buckets: every per-address ceiling was decoration for anyone on IPv6. The
+// sharpest case was the anonymous-report surfaces (anonymous-report-limits.ts),
+// where the per-address bucket is what keeps one sender from spending an
+// animal's whole budget.
+//
+// THE FIX. An IPv6 caller is keyed on its /64 — the smallest block that is
+// still one subscriber — written as the canonical prefix `a:b:c:d::/64`, after
+// normalising the address so every spelling of the same /64 lands in one
+// bucket (compressed `::`, leading zeros, upper case, a zone id, brackets). An
+// IPv4-mapped IPv6 address (`::ffff:a.b.c.d`, as a dual-stack socket reports an
+// IPv4 peer) IS that IPv4 caller and is keyed as the dotted quad. IPv4 stays per
+// address.
+//
+// WHY NOT /56 OR /48. A /48 is what a hosting account gets, and grouping on it
+// would put unrelated subscribers of a consumer ISP in one bucket (they are
+// handed /56s or /64s out of shared /48s). The /64 is the one grouping that
+// never merges two subscribers; an attacker with a /48 still has 65 536 /64s,
+// which is why the anonymous-report surfaces do not rely on this bucket alone.
+//
+// GARBAGE IN, TODAY'S BEHAVIOUR OUT. Anything that is not a well-formed IPv4 or
+// IPv6 literal is returned exactly as it arrived (trimmed by the caller), so a
+// header shape nobody anticipated degrades to the old per-string key rather
+// than to a shared or empty one.
+// ---------------------------------------------------------------------------
+
+const IPV4_LITERAL = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+/** The eight 16-bit groups of an IPv6 literal, or null when it is not one. */
+function ipv6Groups(literal: string): number[] | null {
+  let text = literal;
+  // An embedded dotted quad (`::ffff:1.2.3.4`, `64:ff9b::1.2.3.4`) is the last
+  // 32 bits spelled in decimal; turn it into two hex groups first.
+  const lastColon = text.lastIndexOf(":");
+  if (text.includes(".", lastColon)) {
+    const quad = text.slice(lastColon + 1);
+    if (!IPV4_LITERAL.test(quad)) return null;
+    const [a, b, c, d] = quad.split(".").map(Number);
+    text = `${text.slice(0, lastColon + 1)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const parse = (part: string): number[] | null => {
+    if (part === "") return [];
+    const out: number[] = [];
+    for (const group of part.split(":")) {
+      if (!/^[0-9a-f]{1,4}$/i.test(group)) return null;
+      out.push(Number.parseInt(group, 16));
+    }
+    return out;
+  };
+  const head = parse(halves[0]);
+  const tail = halves.length === 2 ? parse(halves[1]) : [];
+  if (!head || !tail) return null;
+
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  // `::` stands for at least one zero group.
+  const missing = 8 - head.length - tail.length;
+  if (missing < 1) return null;
+  return [...head, ...new Array<number>(missing).fill(0), ...tail];
+}
+
+/**
+ * The rate-limit subject for one trusted address: IPv4 as-is, IPv6 as its /64,
+ * IPv4-mapped IPv6 as the IPv4. Exported for its unit test; callers go through
+ * `callerIp`.
+ */
+export function callerSubject(address: string): string {
+  if (IPV4_LITERAL.test(address)) return address;
+
+  // `[2001:db8::1]` (URL form) and `fe80::1%eth0` (zone id) name the same host.
+  let literal = address;
+  if (literal.startsWith("[") && literal.endsWith("]")) literal = literal.slice(1, -1);
+  const zone = literal.indexOf("%");
+  if (zone !== -1) literal = literal.slice(0, zone);
+  if (!literal.includes(":")) return address;
+
+  const groups = ipv6Groups(literal);
+  if (!groups) return address;
+
+  // ::ffff:0:0/96 — an IPv4 peer as a dual-stack socket reports it.
+  if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+    return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join(".");
+  }
+
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.toString(16))
+    .join(":")}::/64`;
 }
 
 export type RateLimitConfig = {
