@@ -56,8 +56,9 @@ import { randomUUID } from "node:crypto";
 
 import { db, pets } from "@/db";
 import {
-  ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL,
   ANONYMOUS_REPORT_TOKEN_LIMIT,
+  OVER_CEILING_REPORT_DELIVERY,
+  anonymousReportOverflowNotices,
 } from "@/lib/infra/anonymous-report-limits";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
@@ -169,14 +170,19 @@ export async function notifyOwnerOfFoundPet(
   // meant 10 × N "alguien encontró a tu mascota" an hour. This one is keyed on
   // the token alone, and placed after every refusal that writes nothing; the
   // derivation and the placement are in lib/infra/anonymous-report-limits.ts.
-  // The refusal tells a finder who HAS the animal what still works.
+  //
+  // OVER THE CEILING THIS DEGRADES, IT NEVER REFUSES. The sender may be holding
+  // the animal, and the ceiling can be filled by a handful of addresses in six
+  // minutes — a refusal here would let whoever filled it decide that no real
+  // finder reaches the owner for the rest of the hour. So an over-ceiling
+  // report is still written, contact and all; it just stops ringing, and the
+  // owner hears once an hour that reports are piling up.
+  let overAnimalCeiling = false;
   try {
     await enforceRateLimit("found_notify_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);
   } catch (err) {
-    if (err instanceof RateLimitError) {
-      return { ok: false, error: ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL };
-    }
-    throw err;
+    if (!(err instanceof RateLimitError)) throw err;
+    overAnimalCeiling = true;
   }
 
   // Truncate finder-supplied strings so a notification cannot be used as a
@@ -227,8 +233,24 @@ export async function notifyOwnerOfFoundPet(
       ctaLabel: "Ver mascota",
       ctaUrl: `/mis-mascotas/${pet.publicToken}`,
       dedupeKey: `found_report:${reportId}:${recipient.userId}`,
+      // Over the animal's ceiling: same row, same contact, no push.
+      ...(overAnimalCeiling ? OVER_CEILING_REPORT_DELIVERY : {}),
     })),
   );
+
+  // Once per animal per clock hour, by dedupe key — every over-ceiling report
+  // asks, the first one of the hour writes it.
+  if (overAnimalCeiling) {
+    await createNotificationsBulk(
+      anonymousReportOverflowNotices({
+        publicToken,
+        petId: pet.id,
+        petName: pet.name,
+        recipientUserIds: recipients.map((recipient) => recipient.userId),
+        nowMs: Date.now(),
+      }),
+    );
+  }
 
   // The Web Push leg used to be a separate dynamic import here. It lives inside
   // the service now, which fires it only for rows that were genuinely new — so

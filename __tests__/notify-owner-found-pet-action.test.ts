@@ -34,7 +34,9 @@
 // migration, the anonymous-report cases (PO 2026-07-24), and the rule that a
 // rejected submission does not burn the (IP, token) budget.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { sendPushForNotifications } from "@/lib/infra/web-push";
 
 import { makeFakeRateLimiter } from "./_helpers/fake-rate-limiter";
 
@@ -122,6 +124,12 @@ let holderRows: Row[] = [];
 let notificationsInsertThrows = false;
 let insertedNotifications: Row[] = [];
 let deadLetteredRows: Row[] = [];
+/**
+ * The partial unique index `notifications_dedupe_key_unique`, which the
+ * service's ON CONFLICT DO NOTHING leans on. Without it every "once an hour"
+ * claim below would be untestable: the double would persist every duplicate.
+ */
+let persistedDedupeKeys = new Set<string>();
 
 /**
  * A hand-rolled Drizzle builder double: every method returns the chain, and the
@@ -158,14 +166,27 @@ function selectChain(): Chain {
 
 function insertChain(table: unknown): Chain {
   const failing = table === TABLES.notifications && notificationsInsertThrows;
+  let written: Row[] = [{}];
   const settle = (): Promise<Row[]> => {
     if (failing) return Promise.reject(new Error("pool blip: connection terminated"));
-    return Promise.resolve([{ id: "notif-1" }]);
+    return Promise.resolve(written.map((_, i) => ({ id: `notif-${i + 1}` })));
   };
   const chain: Chain = {
     values: (v: Row | Row[]) => {
       const rows = Array.isArray(v) ? v : [v];
-      if (table === TABLES.notifications) insertedNotifications.push(...rows);
+      if (table === TABLES.notifications) {
+        // A failing insert records what was ATTEMPTED (the dead-letter tests
+        // read it); a succeeding one persists only keys it has not seen.
+        written = failing
+          ? rows
+          : rows.filter((row) => {
+              const key = String(row.dedupeKey);
+              if (persistedDedupeKeys.has(key)) return false;
+              persistedDedupeKeys.add(key);
+              return true;
+            });
+        insertedNotifications.push(...written);
+      }
       if (table === TABLES.notificationDeadLetter) deadLetteredRows.push(...rows);
       return chain;
     },
@@ -223,6 +244,7 @@ function reset(options: { petFound?: boolean; holders?: Row[] } = {}): void {
   notificationsInsertThrows = false;
   insertedNotifications = [];
   deadLetteredRows = [];
+  persistedDedupeKeys = new Set();
   callerAddress.value = "203.0.113.42";
   mockEnforceRateLimit.mockReset().mockResolvedValue(undefined);
   mockDb.select.mockReset().mockImplementation(() => selectChain());
@@ -488,10 +510,18 @@ describe("notifyOwnerOfFoundPetAction — who hears it (ROUTE-1 ranking)", () =>
 // token) bucket alone meant 10 × N "alguien encontró a tu mascota" an hour for
 // anyone with N addresses. The second bucket is keyed on the token alone. Its
 // ceiling is stated here as 5/min + 30/hour, independently of the constant.
+//
+// Over that ceiling this surface DEGRADES instead of refusing: the report is
+// still written with the finder's contact, it just stops ringing, and the owner
+// gets one "muchos avisos" notice per clock hour.
 
 describe("notifyOwnerOfFoundPetAction — the animal's own ceiling (A03-2)", () => {
   beforeEach(() => {
     reset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("spends two buckets: the address's, keyed (token, ip), and the animal's, keyed on the token alone", async () => {
@@ -503,7 +533,12 @@ describe("notifyOwnerOfFoundPetAction — the animal's own ceiling (A03-2)", () 
     ]);
   });
 
-  it("refuses a FRESH address once thirty others have reported within the hour, and says what still works", async () => {
+  it("keeps ACCEPTING a fresh address once thirty others have reported within the hour: the report degrades, it is never refused", async () => {
+    // Fixed clock windows + 1/min per address: five addresses fill the 30/h
+    // ceiling in six minutes. A refusal from here on would let whoever filled
+    // it keep every real finder away from the owner until the hour turns.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:10:00.000Z"));
     const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
     mockEnforceRateLimit.mockImplementation(limiter.enforce);
     const action = await loadAction();
@@ -514,18 +549,75 @@ describe("notifyOwnerOfFoundPetAction — the animal's own ceiling (A03-2)", () 
       expect(ok.ok, `report ${n} should have landed`).toBe(true);
       limiter.advance(61_000);
     }
+    // Inside the ceiling nothing changed: thirty urgent alerts, no notice.
     expect(insertedNotifications).toHaveLength(30);
+    expect(insertedNotifications.every((row) => row.severity === "urgent")).toBe(true);
 
+    insertedNotifications = [];
+    vi.mocked(sendPushForNotifications).mockClear();
     callerAddress.value = "198.51.100.200";
-    const refused = await action(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(BASE_FIELDS));
+    const accepted = await action(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ finderName: "Marta", finderContact: "11-4444-7777" }),
+    );
 
-    expect(refused.ok).toBe(false);
-    expect(refused.error).toMatch(/muchos avisos sobre esta mascota/);
-    // The sender may be standing next to the animal: the copy names what does
-    // not depend on us.
-    expect(refused.error).toMatch(/microchip/);
-    expect(refused.error).not.toMatch(/Ya enviaste/);
-    expect(insertedNotifications).toHaveLength(30);
+    // The finder sees the normal success: no refusal, no "probá más tarde".
+    expect(accepted).toEqual({ ok: true, error: null });
+
+    // Their contact reached the owner, on a row that does not ring.
+    const reports = insertedNotifications.filter((r) => r.notificationType === "pet_found_report");
+    expect(reports).toHaveLength(1);
+    expect(reports[0].userId).toBe(OWNER_USER_ID);
+    expect(reports[0].body).toContain("11-4444-7777");
+    expect(reports[0].severity).toBe("warning");
+    expect(insertedNotifications.filter((r) => r.severity === "urgent")).toEqual([]);
+    expect(sendPushForNotifications).not.toHaveBeenCalled();
+
+    // And the owner is told, once, that reports are piling up.
+    const notices = insertedNotifications.filter(
+      (r) => r.notificationType === "anonymous_reports_overflow",
+    );
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      userId: OWNER_USER_ID,
+      severity: "warning",
+      category: "perdidas",
+      relatedPetId: PET_ID,
+      title: "Muchos avisos sobre Pochi",
+      dedupeKey: `found_overflow:${PUBLIC_TOKEN}:2026-09-18T15:00:00.000Z:${OWNER_USER_ID}`,
+    });
+    expect(notices[0].body).toMatch(/Llegaron muchos avisos sobre Pochi en la última hora/);
+  });
+
+  it("writes ONE overflow notice for the hour however many reports cross the ceiling, and every report still arrives", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const action = await loadAction();
+
+    // 45 reports, one address each, 61 s apart: 45 minutes, one clock hour.
+    for (let n = 1; n <= 45; n++) {
+      callerAddress.value = `203.0.113.${n}`;
+      const result = await action(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData({ finderContact: `11-0000-${String(n).padStart(4, "0")}` }),
+      );
+      expect(result, `report ${n}`).toEqual({ ok: true, error: null });
+      limiter.advance(61_000);
+      vi.setSystemTime(new Date(Date.now() + 61_000));
+    }
+
+    const reports = insertedNotifications.filter((r) => r.notificationType === "pet_found_report");
+    expect(reports).toHaveLength(45);
+    expect(reports[44].body).toContain("11-0000-0045");
+    expect(reports.filter((r) => r.severity === "urgent")).toHaveLength(30);
+    expect(reports.filter((r) => r.severity === "warning")).toHaveLength(15);
+    expect(
+      insertedNotifications.filter((r) => r.notificationType === "anonymous_reports_overflow"),
+    ).toHaveLength(1);
   });
 
   it("a report refused before any write does not spend the animal's budget", async () => {

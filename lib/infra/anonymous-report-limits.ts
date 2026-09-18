@@ -25,18 +25,49 @@
 //     IS one token from thousands of addresses. For a report it is not: a
 //     report is somebody who saw the animal typing a form, and thirty distinct
 //     reports about one animal inside one hour is already a crowd around it.
-//   · It is a griefing primitive. Still true, and bounded rather than denied:
-//       1. The per-address bucket runs FIRST, so one address spends at most its
-//          own 10/hr of the animal's 30. Silencing an animal for an hour takes
-//          three addresses working the whole hour.
-//       2. Every surface has its own bucket, so a flood of fake sightings cannot
-//          silence a "la tengo conmigo".
-//       3. The refusal says what still works (below) instead of the per-address
-//          copy "ya enviaste un aviso", which is false for a caller who sent
-//          nothing.
-//     And the alternative is not "no griefing": without a cap the same griefer
-//     buries the real report under an unlimited number of false ones, and the
-//     owner cannot find the one that matters. The cap makes the flood finite.
+//   · It is a griefing primitive. Still true — and cheaper than this file first
+//     claimed. It used to say "silencing an animal for an hour takes three
+//     addresses working the whole hour". The windows are FIXED CLOCK WINDOWS
+//     (lib/infra/rate-limit.ts, `Math.floor(now / 3_600_000)`), not sliding
+//     ones, and the per-address bucket allows 1/min, so the real arithmetic is:
+//
+//       five addresses × 1/min each = 5/min, which is also the token's minute
+//       cap → 30 reports land in 30 / 5 = 6 minutes. Fired at hh:00, that
+//       leaves ~54 minutes of the hour with the animal's bucket full. Three
+//       addresses need 10 minutes (3/min; 10 each is exactly their hourly
+//       cap). Neither needs to work the whole hour.
+//
+//     And addresses are cheap: before callerIp() grouped IPv6 by /64 one host
+//     had effectively unlimited ones, and even grouped, a hosting account
+//     hands out a /48 — 65 536 /64s. So a HARD refusal on the token bucket is a
+//     denial of rescue: a stranger who read the token off /perdidas posts ~30
+//     fake "la tengo conmigo" at the top of each hour, every REAL finder is
+//     refused for the rest of it, and the owner receives only the fakes.
+//     Before the cap the same flood buried the real report, but the real report
+//     still ARRIVED, with the finder's contact on it.
+//
+//     So the cap does two different things depending on what silencing costs:
+//
+//       1. SIGHTINGS AND DISPUTE TIPS REFUSE. A sighting is one of many ("vi un
+//          perro así en la plaza"), and a tip goes to a reviewing authority, not
+//          to the family; losing one for the rest of an hour costs little, and
+//          the refusal copy says so honestly (ANONYMOUS_REPORT_TOKEN_BUSY).
+//       2. THE TWO "I HAVE THE ANIMAL" REPORTS DEGRADE, NEVER REFUSE
+//          (`found_notify_token`, `finder_possession_token`). Over the ceiling
+//          the report is still accepted and written exactly as it would be
+//          otherwise — the event on the spine, the notification with the
+//          finder's contact — but the owner's copy stops ringing: it is written
+//          at OVER_CEILING_REPORT_DELIVERY (no push), and the owner gets ONE
+//          notice per animal per clock hour saying reports are piling up
+//          (anonymousReportOverflowNotices, below). The finder sees the normal
+//          success screen. What the cap bounds here is the INTERRUPTIONS —
+//          thirty pushes an hour — not the reports, because the one real
+//          report inside a flood is the whole reason the surface exists.
+//
+//     What is still true from the original list: the per-address bucket runs
+//     FIRST and still refuses one noisy address outright, and every surface has
+//     its own token bucket, so a flood of fake sightings cannot touch a
+//     "la tengo conmigo".
 //
 // ---------------------------------------------------------------------------
 // THE NUMBERS — anchored on the per-(address, token) bucket all four spend
@@ -46,10 +77,12 @@
 //   per hour     30 = 3 × one address's hourly 10 — the fewest addresses that
 //                     can exhaust it together is three
 //
-// So what an owner can receive from anonymous reporters, per surface, is at
-// most thirty notifications an hour — and for the three that write, thirty
-// rows on the spine or the case timeline — instead of 10 × however many
-// addresses somebody can rent.
+// So what an owner can be INTERRUPTED by from anonymous reporters, per surface,
+// is at most thirty pushes an hour, instead of 10 × however many addresses
+// somebody can rent. For sightings and dispute tips that is also the ceiling on
+// rows written. For the two degrading surfaces it is not: rows past the ceiling
+// still land (quietly, plus one overflow notice an hour), because a ceiling on
+// rows there is a ceiling on rescue.
 //
 // NO DAY WINDOW, deliberately. It would bound a sustained campaign harder, and
 // it would stretch a griefer's silence from an hour to a day, on the surface
@@ -65,6 +98,7 @@
 // tokens that do not exist. The per-address bucket stays where it is — first,
 // before the lookup — because it is what bounds the existence oracle.
 
+import type { CreateNotificationInput } from "@/lib/infra/notification-service";
 import type { RateLimitConfig } from "@/lib/infra/rate-limit";
 
 /** Per token, no address. One bucket per surface; derivation above. */
@@ -74,17 +108,65 @@ export const ANONYMOUS_REPORT_TOKEN_LIMIT: RateLimitConfig = {
 };
 
 /**
- * Refusal when the ANIMAL's ceiling is full — sightings and dispute tips. Says
- * nothing about the caller, who may have sent nothing.
+ * Refusal when the ANIMAL's ceiling is full — sightings and dispute tips only.
+ * Says nothing about the caller, who may have sent nothing. The two "I have the
+ * animal" surfaces never show a refusal for this bucket; see above.
  */
 export const ANONYMOUS_REPORT_TOKEN_BUSY =
   "Recibimos muchos avisos sobre esta mascota en la última hora. Probá de nuevo más tarde.";
 
 /**
- * The same refusal for the two reports whose sender HAS the animal: it has to
- * say what still works without us.
+ * How the owner's copy of a report is delivered once the animal's bucket is
+ * full, on the two degrading surfaces. Still written, still carrying the
+ * finder's contact, still in the Bandeja under Perdidas — but `warning` rather
+ * than `urgent`, which is what keeps it off both push legs
+ * (lib/infra/push-eligibility.ts pushes `urgent` and `pet_sighting` only), and
+ * `suppressPush` so that stays true even if eligibility later widens.
  */
-export const ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL =
-  "Recibimos muchos avisos sobre esta mascota en la última hora y no podemos enviar otro ahora. " +
-  "Si la credencial muestra un teléfono, llamá directamente; si no, una veterinaria o un refugio " +
-  "puede leer su microchip. Probá de nuevo más tarde.";
+export const OVER_CEILING_REPORT_DELIVERY = {
+  severity: "warning",
+  suppressPush: true,
+} as const satisfies Pick<CreateNotificationInput, "severity" | "suppressPush">;
+
+/** Notification type of the once-an-hour "reports are piling up" notice. */
+export const ANONYMOUS_REPORT_OVERFLOW_NOTIFICATION_TYPE = "anonymous_reports_overflow";
+
+const HOUR_MS = 3_600_000;
+
+/**
+ * The owner-side notice that the animal's ceiling was crossed, one row per
+ * recipient. Called on EVERY over-ceiling report; the dedupe key is what makes
+ * it once per animal per clock hour: `found_overflow:{token}:{hourStart}:{user}`
+ * with `hourStart` floored exactly as rate-limit.ts floors the hour bucket, so
+ * the notice's hour is the bucket's hour. Shared by both degrading surfaces on
+ * purpose — the owner needs to hear "look at the list" once, not once per form.
+ *
+ * Not a push, like the reports it summarises: the owner has already had up to
+ * thirty this hour, and a thirty-first adds nothing but noise.
+ */
+export function anonymousReportOverflowNotices(input: {
+  publicToken: string;
+  petId: string;
+  petName: string;
+  recipientUserIds: readonly string[];
+  nowMs: number;
+}): CreateNotificationInput[] {
+  const hourStart = new Date(Math.floor(input.nowMs / HOUR_MS) * HOUR_MS).toISOString();
+  const body = [
+    `Llegaron muchos avisos sobre ${input.petName} en la última hora.`,
+    "Para no llenarte de alertas, los que sigan llegando hasta que termine la hora se guardan sin sonar:",
+    `revisá tus notificaciones de Perdidas y el historial de ${input.petName} para verlos todos.`,
+  ].join(" ");
+  return input.recipientUserIds.map((userId) => ({
+    userId,
+    notificationType: ANONYMOUS_REPORT_OVERFLOW_NOTIFICATION_TYPE,
+    title: `Muchos avisos sobre ${input.petName}`,
+    body,
+    ...OVER_CEILING_REPORT_DELIVERY,
+    category: "perdidas",
+    relatedPetId: input.petId,
+    ctaLabel: "Ver mascota",
+    ctaUrl: `/mis-mascotas/${input.publicToken}`,
+    dedupeKey: `found_overflow:${input.publicToken}:${hourStart}:${userId}`,
+  }));
+}

@@ -1164,6 +1164,7 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   pet_sighting: "Avistaje reportado",
   pet_found_report: "Reporte de mascota encontrada",
   pet_in_possession: "Mascota en posesión",
+  anonymous_reports_overflow: "Muchos avisos sobre tu mascota",
   // Org
   free_pet_claimed: "Mascota libre reclamada",
   org_invitation_accepted: "Invitación a organización aceptada",
