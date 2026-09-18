@@ -15,6 +15,16 @@
 // Seeded: the same --seed reproduces the exact storm sequence, so a finding is
 // re-runnable. The seed is printed in the report.
 //
+// REPORT, NOT GATE (T1-C4, 2026-09-18). It runs nightly in
+// .github/workflows/panorama-qa-nightly.yml, which is report-only — and this
+// script ended with `process.exit(passed ? 0 : 1)`, so a recovery check that
+// did not recover (geojson-kill, 2026-09) turned the night red, twenty nights
+// running. Violations and failed recoveries are now report rows, in the JSON
+// report and in the GitHub job summary, and the run exits 0. Only the harness
+// being unable to run — chromium does not launch, the report cannot be
+// written, a bug in this script escapes the run — exits non-zero. The mapping
+// lives in scripts/lib/qa-report-outcome.ts, with its test.
+//
 // Usage (server must already be running — e.g. pwsh scripts/qa-up.ps1):
 //   pnpm exec tsx scripts/qa-panorama-chaos.ts \
 //     --viewport=1920x1080 --email=admin@dim.test --seed=1337 --rounds=10
@@ -36,6 +46,15 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { type Browser, type Page, chromium } from "@playwright/test";
+
+import {
+  type QaFinding,
+  type QaRunOutcome,
+  appendJobSummary,
+  errorMessage,
+  outcomeSummaryMarkdown,
+  reportOnlyExitCode,
+} from "./lib/qa-report-outcome";
 
 // ---------------------------------------------------------------------------
 // AR_MAX_BOUNDS — the camera clamp (mirrors SituationalMap.AR_MAX_BOUNDS:
@@ -728,7 +747,7 @@ async function waitForMap(page: Page): Promise<boolean> {
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
-async function main(): Promise<void> {
+async function main(): Promise<QaRunOutcome> {
   const args = parseArgs();
   mkdirSync(args.outDir, { recursive: true });
   const label = `${args.viewport.width}x${args.viewport.height}/${args.email}`;
@@ -739,9 +758,13 @@ async function main(): Promise<void> {
   const cw = new ConsoleWatch();
   const fw = new FetchWatch();
 
-  let browser: Browser | null = null;
+  let browser: Browser;
   try {
     browser = await chromium.launch({ headless: !args.headed });
+  } catch (err) {
+    return { kind: "harness-crash", message: `chromium did not launch: ${errorMessage(err)}` };
+  }
+  try {
     const context = await browser.newContext({ viewport: args.viewport });
     const page = await context.newPage();
     cw.attach(page);
@@ -817,8 +840,14 @@ async function main(): Promise<void> {
     );
 
     await context.close();
+  } catch (err) {
+    // A login that does not land, a navigation that times out: the run could
+    // not continue, and THAT is the finding. It is recorded like any other
+    // violation instead of crashing the process — the report still gets
+    // written, with everything measured up to this point.
+    report.violation("run", "run-aborted", errorMessage(err));
   } finally {
-    await browser?.close();
+    await browser.close().catch(() => {});
   }
 
   // --- Report ---
@@ -835,7 +864,14 @@ async function main(): Promise<void> {
     args.outDir,
     `panorama-hard-qa-${args.viewport.width}-${args.email.split("@")[0]}-report.json`,
   );
-  writeFileSync(reportPath, JSON.stringify(summary, null, 2));
+  try {
+    writeFileSync(reportPath, JSON.stringify(summary, null, 2));
+  } catch (err) {
+    return {
+      kind: "harness-crash",
+      message: `could not write ${reportPath}: ${errorMessage(err)}`,
+    };
+  }
 
   console.log(`\n=== ${label} — seed ${args.seed} ===`);
   console.log(`  storm rounds: ${args.rounds}`);
@@ -844,8 +880,26 @@ async function main(): Promise<void> {
     `  recoveries: ${report.recoveries.filter((r) => r.ok).length}/${report.recoveries.length} ok`,
   );
   console.log(`  report: ${reportPath}`);
-  console.log(summary.passed ? "  RESULT: PASS ✓" : "  RESULT: FAIL ✗");
-  process.exit(summary.passed ? 0 : 1);
+  const findings = chaosFindings(report.violations, report.recoveries);
+  console.log(
+    summary.passed
+      ? "  RESULT: no findings ✓"
+      : `  RESULT: ${findings.length} finding(s) ✗ — report-only, the run exits 0`,
+  );
+  return { kind: "completed", findings };
+}
+
+/** Violations and FAILED recoveries, as report rows. A recovery that worked is not a finding. */
+export function chaosFindings(
+  violations: Violation[],
+  recoveries: { name: string; ok: boolean; detail: string }[],
+): QaFinding[] {
+  return [
+    ...violations.map((v) => ({ where: v.round, kind: v.kind, detail: v.detail })),
+    ...recoveries
+      .filter((r) => !r.ok)
+      .map((r) => ({ where: `recovery ${r.name}`, kind: "recovery-failed", detail: r.detail })),
+  ];
 }
 
 // Only run the harness when this file is executed directly (`tsx
@@ -857,8 +911,20 @@ const isDirectRun =
   typeof process.argv[1] === "string" &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirectRun) {
-  main().catch((err) => {
-    console.error("chaos harness crashed:", err);
-    process.exit(2);
-  });
+  const title = "Panorama chaos harness";
+  main()
+    .then((outcome) => {
+      appendJobSummary(outcomeSummaryMarkdown(title, outcome));
+      if (outcome.kind === "harness-crash")
+        console.error(`chaos harness crashed: ${outcome.message}`);
+      process.exit(reportOnlyExitCode(outcome));
+    })
+    .catch((err) => {
+      // A throw that escaped the run is a bug in THIS script, not a finding
+      // about the console — the one case that may still turn the run red.
+      console.error("chaos harness crashed:", err);
+      const outcome: QaRunOutcome = { kind: "harness-crash", message: errorMessage(err) };
+      appendJobSummary(outcomeSummaryMarkdown(title, outcome));
+      process.exit(reportOnlyExitCode(outcome));
+    });
 }
