@@ -37,6 +37,10 @@ export async function queryAdoptionListing(
     // advertising the dead URL, making "erased" distinguishable from "never
     // existed". Same filter, same reason, as queryLostListing.
     isNull(pets.deletedAt),
+    // Seeded (synthetic) pets are never offered to the public: a real
+    // application on one would be a real act the govt queues then hide
+    // (lib/domain/synthetic-pet.ts). The sitemap inherits this.
+    isNull(pets.seedTag),
     isNotNull(pets.adoptionListedAt),
     isNull(pets.adoptionListingPausedAt),
 

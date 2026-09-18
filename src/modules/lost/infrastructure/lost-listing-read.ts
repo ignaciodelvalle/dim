@@ -60,7 +60,11 @@ export async function queryLostListing(
   // 404 makes "erased" distinguishable from "never existed", which is precisely
   // what the erasure decision says must not be observable. Pets are never
   // anonymised, so everything on the card survives the erasure intact.
-  const baseConditions = [eq(pets.status, "lost"), isNull(pets.deletedAt)];
+  //
+  // Seeded (synthetic) pets are excluded too, here and in both counts below: a
+  // real sighting on one would be a real act the govt queues then hide
+  // (lib/domain/synthetic-pet.ts). The sitemap inherits this.
+  const baseConditions = [eq(pets.status, "lost"), isNull(pets.deletedAt), isNull(pets.seedTag)];
 
   if (filters.species) baseConditions.push(eq(pets.species, filters.species));
   if (filters.province) baseConditions.push(eq(pets.jurisdictionProvince, filters.province));
@@ -431,6 +435,7 @@ export async function countLostInWindow(sinceMs: number): Promise<number> {
         // page, and a count that includes erased pets contradicts the list
         // underneath it — "12 perdidas esta semana" over eleven cards.
         isNull(pets.deletedAt),
+        isNull(pets.seedTag),
         eq(petEvents.eventType, "status_changed"),
         sql`(${petEvents.payload}->>'to_status') = 'lost'`,
         sql`${petEvents.occurredAt} >= ${since.toISOString()}::timestamptz`,
@@ -444,6 +449,6 @@ export async function countAllLost(): Promise<number> {
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(pets)
     // PO-4, third of the three predicates on this page. See queryLostListing.
-    .where(and(eq(pets.status, "lost"), isNull(pets.deletedAt)));
+    .where(and(eq(pets.status, "lost"), isNull(pets.deletedAt), isNull(pets.seedTag)));
   return rows[0]?.count ?? 0;
 }

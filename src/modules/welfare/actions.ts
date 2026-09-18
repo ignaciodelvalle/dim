@@ -38,6 +38,7 @@ import {
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { SYNTHETIC_PET_WRITE_REFUSED, isSyntheticPet } from "@/lib/domain/synthetic-pet";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import {
   requireAdminOrGovtOrRedirect,
@@ -961,6 +962,15 @@ export async function createWelfareReportAction(
     return { error: "Describí brevemente al animal o el lugar denunciado." };
   }
 
+  // A seeded pet records no real act (lib/domain/synthetic-pet.ts): a real
+  // denuncia about one would be hidden from the govt queue by the synthetic
+  // exclusion. Refused BEFORE the report row exists.
+  const subjectPet =
+    subjectKind === "registered_pet" && subjectPetToken
+      ? await repo.findPetByToken(subjectPetToken)
+      : null;
+  if (subjectPet && isSyntheticPet(subjectPet)) return { error: SYNTHETIC_PET_WRITE_REFUSED };
+
   let locationLat: string | null = null;
   let locationLng: string | null = null;
   if (locationLatRaw || locationLngRaw) {
@@ -1057,7 +1067,7 @@ export async function createWelfareReportAction(
   let subjectPetId: string | null = null;
   let isOwnerOfSubjectPet = false;
   if (subjectKind === "registered_pet" && subjectPetToken) {
-    subjectPetId = (await repo.findPetByToken(subjectPetToken))?.id ?? null;
+    subjectPetId = subjectPet?.id ?? null;
     // Gate ownership resolution on the effective reporter id: an anonymous
     // submission must not reveal that the reporter is the pet's owner (that
     // would make the report attributable), so it is treated as a third party.

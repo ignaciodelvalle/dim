@@ -9,7 +9,7 @@
 //
 // DB and Supabase are fully mocked so no local stack is required.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeFakeRateLimiter } from "./_helpers/fake-rate-limiter";
 
@@ -157,6 +157,9 @@ const mockDb = {
  */
 let activeHolderRows: Array<{ userId: string | null; role: string }> = [];
 
+/** `pets.seed_tag` of the resolved pet — null is a real pet (the default). */
+let petSeedTag: string | null = null;
+
 // Rebuild mock DB state before each test.
 function buildMockDb() {
   let selectCallCount = 0;
@@ -184,7 +187,7 @@ function buildMockDb() {
       if (selectCallCount === 1) {
         // pet query
         callOrder.push("publicPetByToken");
-        return [{ id: PET_ID, name: "Luna", status: "lost" }];
+        return [{ id: PET_ID, name: "Luna", status: "lost", seedTag: petSeedTag }];
       }
       // open case query
       return [{ id: CASE_ID }];
@@ -564,6 +567,39 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 // ---------------------------------------------------------------------------
 // Recipient resolution — the regression that a role filter INTRODUCED
 // ---------------------------------------------------------------------------
+
+describe("reportPetSightingAction — a seeded (synthetic) pet records nothing", () => {
+  beforeEach(() => {
+    capturedPetEventInsert = null;
+    capturedNotificationInsert = null;
+    callOrder = [];
+    mockEnforceRateLimit.mockResolvedValue(undefined);
+    mockUpload.mockReset();
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+    buildMockDb();
+    petSeedTag = "panorama";
+  });
+  afterEach(() => {
+    petSeedTag = null;
+  });
+
+  it("refuses with the neutral message and writes no event and no notification", async () => {
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "No es posible registrar esta acción para esta mascota.",
+    });
+    expect(capturedPetEventInsert).toBeNull();
+    expect(capturedNotificationInsert).toBeNull();
+  });
+});
 
 describe("reportPetSightingAction — who hears the sighting", () => {
   beforeEach(() => {

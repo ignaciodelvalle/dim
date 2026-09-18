@@ -55,6 +55,7 @@
 import { randomUUID } from "node:crypto";
 
 import { db, pets } from "@/db";
+import { SYNTHETIC_PET_WRITE_REFUSED, isSyntheticPet } from "@/lib/domain/synthetic-pet";
 import {
   ANONYMOUS_REPORT_TOKEN_HARD_LIMIT,
   ANONYMOUS_REPORT_TOKEN_HARD_REFUSAL,
@@ -127,6 +128,7 @@ export async function notifyOwnerOfFoundPet(
       status: pets.status,
       publicToken: pets.publicToken,
       inCustodyDispute: pets.inCustodyDispute,
+      seedTag: pets.seedTag,
     })
     .from(pets)
     // PO-4: the ONE public predicate, never a hand-rolled token equality. An
@@ -135,6 +137,8 @@ export async function notifyOwnerOfFoundPet(
     .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
+  // A seeded pet records no real act (lib/domain/synthetic-pet.ts).
+  if (isSyntheticPet(pet)) return { ok: false, error: SYNTHETIC_PET_WRITE_REFUSED };
 
   // D2 hardening (red-team 2026-07): while titularidad is under review the
   // system must not relay the finder's name/contact to the contested owner —

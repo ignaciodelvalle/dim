@@ -64,6 +64,7 @@ type PetOverrides = {
   adoptionListingPausedAt?: Date | null;
   adoptionAgeBucket?: "puppy" | "junior" | "young" | "adult" | "senior" | null;
   species?: string;
+  seedTag?: string | null;
 };
 
 async function insertPet(opts: PetOverrides): Promise<string> {
@@ -92,6 +93,7 @@ async function insertPet(opts: PetOverrides): Promise<string> {
       adoptionListedAt: "adoptionListedAt" in opts ? opts.adoptionListedAt : new Date(),
       adoptionListingPausedAt: opts.adoptionListingPausedAt ?? null,
       adoptionAgeBucket: opts.adoptionAgeBucket ?? "adult",
+      seedTag: opts.seedTag ?? null,
     })
     .returning();
   await db.insert(ownerships).values({
@@ -161,6 +163,14 @@ describe("queryAdoptionListing — cross-spec guards", () => {
     await insertPet({ name: "AL-Paused", adoptionListingPausedAt: new Date() });
     const { items } = await queryAdoptionListing({ organizationToken: ORG_TOKEN }, null, 50);
     expect(items.some((i) => i.name === "AL-Paused")).toBe(false);
+  });
+
+  // Security review 2026-09: a real application on a seeded pet is a real act
+  // the govt queues then hide as synthetic. Seeded pets are never offered.
+  it("excludes seed-tagged (synthetic) pets", async () => {
+    await insertPet({ name: "AL-Seeded", seedTag: "panorama" });
+    const { items } = await queryAdoptionListing({ organizationToken: ORG_TOKEN }, null, 50);
+    expect(items.some((i) => i.name === "AL-Seeded")).toBe(false);
   });
 
   it("excludes pets without a listed_at timestamp", async () => {
