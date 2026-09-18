@@ -127,7 +127,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `vercel_crons_declared` | `<!-- fact:vercel_crons_declared -->2<!-- /fact -->` |
 | `cron_jobs` | `<!-- fact:cron_jobs -->24<!-- /fact -->` |
 | `ci_workflows` | `<!-- fact:ci_workflows -->8<!-- /fact -->` |
-| `vitest_files` | `<!-- fact:vitest_files -->1554<!-- /fact -->` |
+| `vitest_files` | `<!-- fact:vitest_files -->1557<!-- /fact -->` |
 | `e2e_specs` | `<!-- fact:e2e_specs -->45<!-- /fact -->` |
 | `mobile_jest_files` | `<!-- fact:mobile_jest_files -->113<!-- /fact -->` |
 | `org_capabilities` | `<!-- fact:org_capabilities -->16<!-- /fact -->` |
@@ -140,7 +140,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `throttle_per_hour` | `<!-- fact:throttle_per_hour -->6000<!-- /fact -->` |
 | `signed_url_ttl_seconds` | `<!-- fact:signed_url_ttl_seconds -->3600<!-- /fact -->` |
 | `projections` | `<!-- fact:projections -->13<!-- /fact -->` |
-| `service_role_call_sites` | `<!-- fact:service_role_call_sites -->40<!-- /fact -->` |
+| `service_role_call_sites` | `<!-- fact:service_role_call_sites -->41<!-- /fact -->` |
 | `canon_rows` | `<!-- fact:canon_rows -->518<!-- /fact -->` |
 | `canon_enforced` | `<!-- fact:canon_enforced -->180<!-- /fact -->` |
 | `canon_partial` | `<!-- fact:canon_partial -->93<!-- /fact -->` |

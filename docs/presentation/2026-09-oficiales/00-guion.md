@@ -333,7 +333,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - `docs/architecture/rls-coverage.md` — qué cubre y qué no cubre el cerrojo de base.
 - **Lo que NO se dice en esta lámina.**
   - **No se dice que el cerrojo de base sea universal.** Hay
-    <!-- fact:service_role_call_sites -->40<!-- /fact --> lugares donde el servidor
+    <!-- fact:service_role_call_sites -->41<!-- /fact --> lugares donde el servidor
     usa una llave que lo saltea, y es por diseño: el servidor ya resolvió el permiso.
     Decirlo en la misma lámina donde se muestra el cerrojo es lo que hace creíble al
     cerrojo.
@@ -424,7 +424,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->70<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1554<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1557<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
