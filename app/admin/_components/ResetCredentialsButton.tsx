@@ -70,7 +70,7 @@ export function ResetCredentialsButton({
 
   return (
     <OpButton type="button" onClick={() => setMode("confirming")} variant="ghost" size="sm">
-      Resetear credentials
+      Resetear credenciales
     </OpButton>
   );
 }
@@ -120,7 +120,7 @@ function ResetCredentialsForm({
   return (
     <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
       <p className="text-xs font-bold uppercase tracking-wider text-ln-op-danger">
-        Resetear credentials &mdash; {displayName}
+        Resetear credenciales &mdash; {displayName}
       </p>
       <p className="text-xs text-ln-op-danger">
         Esto genera un nuevo link de acceso y cierra la sesión activa del operador. Queda registrado
@@ -142,7 +142,7 @@ function ResetCredentialsForm({
 
       <div className="flex items-center gap-2">
         <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">
-          {pending ? "Generando link..." : "Resetear credentials"}
+          {pending ? "Generando link..." : "Resetear credenciales"}
         </OpButton>
         <OpButton type="button" onClick={onCancel} disabled={pending} variant="ghost" size="sm">
           Cancelar

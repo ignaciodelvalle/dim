@@ -139,7 +139,7 @@ export function MagicLinkResultPanel({
               ? revealed
                 ? magicLink
                 : maskLink(magicLink)
-              : "(link no disponible — usá Resetear credentials)"}
+              : "(link no disponible — usá Resetear credenciales)"}
           </code>
           {magicLink && (
             <>
