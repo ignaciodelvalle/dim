@@ -125,6 +125,15 @@ export const ALLOWED_EDGES = new Set<string>([
   // retraction event would false-positive the drift detector on every erased pet.
   // `pets` imports nothing from `auth`, so the graph stays acyclic.
   "auth:pets",
+  // organizations → auth (added 2026-09-18, pilot contract T1-P3): the
+  // institutional account writers (create-institutional-account.ts,
+  // reset-institutional-credentials.ts) mark a new or reset account as
+  // "must set its password on first access" and send the invite to that page.
+  // The marker and the path are auth's own domain (auth/domain/first-access.ts),
+  // imported read-only — duplicating them in organizations would let the invite
+  // and the guard that enforces it drift apart. `auth` imports nothing from
+  // `organizations`, so the graph stays acyclic.
+  "organizations:auth",
 ]);
 
 // All module names (directory names under src/modules/).

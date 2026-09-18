@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 
 import { type SetInitialPasswordState, setInitialPasswordAction } from "@/app/actions/first-access";
+import { LnButton } from "@/components/ui/Button";
 import { LnField, LnPasswordInput } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { createClient } from "@/lib/supabase/client";
@@ -169,13 +170,9 @@ export function FirstAccessStep() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={isPending}
-          className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isPending ? "Guardando…" : "Guardar contraseña y entrar"}
-        </button>
+        <LnButton type="submit" block size="lg" loading={isPending}>
+          Guardar contraseña y entrar
+        </LnButton>
       </form>
     </>
   );
