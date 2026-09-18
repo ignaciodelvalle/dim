@@ -283,8 +283,16 @@ describe("<ImportWizard> — a tanda that throws (L-15)", () => {
     expect(alert).toHaveTextContent("La importación se cortó en la tanda 2 de 3.");
     expect(alert).toHaveTextContent("Quedan 7 filas sin confirmar");
     expect(alert).toHaveTextContent(
-      "volvé a subir el mismo archivo, sin modificarlo. Las filas que ya están registradas se reconocen y no se duplican",
+      "volvé a subir el mismo archivo, sin modificarlo. Las filas sin chip ni tatuaje que ya quedaron registradas se reconocen solas y no se duplican",
     );
+    // The bug this test now also pins: a row WITH chip/tattoo that was already
+    // written does NOT re-appear as "importada" on re-upload — the identifier
+    // precheck rejects it as a possible match, and the banner must say so
+    // instead of promising a re-import label these rows will never show.
+    expect(alert).toHaveTextContent(
+      'Las filas CON chip o tatuaje que ya se cargaron van a aparecer con un error de "posible coincidencia" en vez de como importadas',
+    );
+    expect(alert).toHaveTextContent("no las cargues de nuevo a mano por el formulario individual");
 
     // Resuming goes back to the upload step.
     fireEvent.click(screen.getByRole("button", { name: "Volver a subir el archivo" }));
