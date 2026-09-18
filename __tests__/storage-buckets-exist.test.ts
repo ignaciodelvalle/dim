@@ -24,7 +24,14 @@ import { globSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { ATTACHMENT_BUCKET } from "@/src/modules/decomiso/domain/types";
+import {
+  DECOMISO_EVIDENCE_BUCKET,
+  decomisoEvidenceRowPath,
+  eventAttachmentLocation,
+} from "@/lib/infra/attachment-location";
+import { DECOMISO_EVIDENCE_MIME_LIST, MAX_DECOMISO_EVIDENCE_BYTES } from "@/lib/media/limits";
+import { DECOMISO_EVIDENCE_TYPES } from "@/lib/media/validate";
+import { ATTACHMENT_BUCKET, MAX_ATTACHMENT_BYTES } from "@/src/modules/decomiso/domain/types";
 
 /** Bucket ids created by the schema, parsed from the storage migrations. */
 function declaredBuckets(): Set<string> {
@@ -78,9 +85,37 @@ describe("storage buckets", () => {
 
   // The bucket the upload targets must also be the one the signer reads, or the
   // rows land in `attachments` and no surface can ever render them.
+  // Since D10 (PO 2026-09-18) the evidence bucket is not event-attachments: the
+  // signer routes by the row path's prefix (lib/infra/attachment-location.ts),
+  // so the pin is that the path the action records resolves back to the bucket
+  // it uploaded to — and that the signer actually routes through the resolver.
   it("decomiso evidence lands in the bucket lib/infra/storage.ts signs", () => {
+    expect(ATTACHMENT_BUCKET).toBe(DECOMISO_EVIDENCE_BUCKET);
+    expect(eventAttachmentLocation(decomisoEvidenceRowPath("dir/acta.pdf"))).toEqual({
+      bucket: ATTACHMENT_BUCKET,
+      objectPath: "dir/acta.pdf",
+    });
+    // Legacy evidence (before 0234) still resolves to event-attachments.
+    expect(eventAttachmentLocation("decomiso/dir/foto.jpg")).toEqual({
+      bucket: "event-attachments",
+      objectPath: "decomiso/dir/foto.jpg",
+    });
     const signer = readFileSync("lib/infra/storage.ts", "utf8");
-    expect(signer).toContain(`.from("${ATTACHMENT_BUCKET}")`);
+    expect(signer).toContain("eventAttachmentLocation(storagePath)");
+  });
+
+  // The places that state the evidence ceiling and type list must agree with
+  // the bucket 0234 declares: a client limit that disagrees with the bucket
+  // moves the failure to after the officer filled the whole form.
+  it("decomiso-evidence bounds agree across the migration, the server and the form", () => {
+    const sql = readFileSync("db/migrations/0234_decomiso_evidence_bucket.sql", "utf8");
+    expect(DECLARED.has(DECOMISO_EVIDENCE_BUCKET)).toBe(true);
+    expect(MAX_ATTACHMENT_BYTES).toBe(MAX_DECOMISO_EVIDENCE_BYTES);
+    expect(sql).toContain(`  ${MAX_DECOMISO_EVIDENCE_BYTES},`);
+    const mimeArray = DECOMISO_EVIDENCE_MIME_LIST.map((m) => `'${m}'`).join(", ");
+    expect(sql).toContain(`array[${mimeArray}]`);
+    // The server's byte-detected whitelist is the same list the form offers.
+    expect(Object.keys(DECOMISO_EVIDENCE_TYPES)).toEqual([...DECOMISO_EVIDENCE_MIME_LIST]);
   });
 
   it("every hardcoded storage.from(...) target exists", () => {

@@ -12,16 +12,17 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, organizations } from "@/db";
+import { decomisoEvidenceRowPath } from "@/lib/infra/attachment-location";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import {
   type EndedCaretakerGrant,
   notifyCaretakersOfHandoff,
 } from "@/lib/infra/end-pet-ownerships";
 import {
-  MAX_IMAGE_BYTES,
-  type RasterMime,
-  detectRasterMime,
-  rasterExtension,
+  type DecomisoEvidenceMime,
+  MAX_DECOMISO_EVIDENCE_BYTES,
+  decomisoEvidenceExtension,
+  detectDecomisoEvidenceMime,
 } from "@/lib/media/validate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -147,7 +148,10 @@ export async function executeDecomisoAction(
 
   type UploadedAttachment = {
     filename: string;
+    /** The `attachments.storage_path` — bucket-prefixed (attachment-location.ts). */
     storagePath: string;
+    /** The key inside ATTACHMENT_BUCKET, for the compensating remove. */
+    objectPath: string;
     mimeType: string;
     size: number;
   };
@@ -158,49 +162,47 @@ export async function executeDecomisoAction(
   // is the detected one and the object key's extension is derived from it. A
   // refusal here leaves nothing in the bucket to clean up.
   //
-  // Only raster JPG/PNG/WEBP, up to 5 MiB: bucket `event-attachments`
-  // (db/migrations/0213) accepts nothing else, so widening this whitelist
-  // without widening the bucket just moves the failure from "before upload"
-  // to "at upload", after the officer filled the whole form. PDF actas
-  // (and video/HEIC) await a PO decision on the bucket before they can be
-  // accepted here. The bytes are stored as they arrived — no re-encode, no
-  // metadata strip — by PO decision D7 (2026-09-18): the EXIF/GPS of seizure
-  // evidence is itself evidence. Readers sign it only for viewers who read the
-  // decomiso itself (lib/infra/decomiso-evidence-access.ts), never for
-  // everyone with pet access.
+  // JPG/PNG/WEBP photos and the PDF acta, up to 10 MiB each: exactly what the
+  // private `decomiso-evidence` bucket (db/migrations/0234) admits — PO
+  // decision D10 (2026-09-18). A PDF is recognised by its `%PDF-` signature,
+  // never by its name or declared type. Only the service role writes there.
+  // The bytes are stored as they arrived — no re-encode, no metadata strip —
+  // by PO decision D7 (2026-09-18): the EXIF/GPS of seizure evidence is itself
+  // evidence. Readers sign it only for viewers who read the decomiso itself
+  // (lib/infra/decomiso-evidence-access.ts), never for everyone with pet access.
   const typedFiles: Array<{
     file: File;
     buffer: Buffer;
-    mimeType: RasterMime;
+    mimeType: DecomisoEvidenceMime;
   }> = [];
   for (const file of input.attachmentFiles) {
     const buffer = Buffer.from(await file.arrayBuffer());
-    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+    if (buffer.byteLength > MAX_DECOMISO_EVIDENCE_BYTES) {
       return {
-        error: `"${file.name}" supera el límite de 5 MB.`,
+        error: `"${file.name}" supera el límite de ${MAX_DECOMISO_EVIDENCE_BYTES / (1024 * 1024)} MB.`,
       };
     }
-    const mimeType = detectRasterMime(buffer);
+    const mimeType = detectDecomisoEvidenceMime(buffer);
     if (!mimeType) {
       return {
-        error: `El archivo "${file.name}" no es una imagen JPG, PNG o WEBP.`,
+        error: `El archivo "${file.name}" no es una imagen JPG, PNG o WEBP ni un PDF.`,
       };
     }
     typedFiles.push({ file, buffer, mimeType });
   }
 
   for (const { file, buffer, mimeType } of typedFiles) {
-    const storagePath = `decomiso/${attachmentDir}/${randomUUID()}.${rasterExtension(mimeType)}`;
+    const objectPath = `${attachmentDir}/${randomUUID()}.${decomisoEvidenceExtension(mimeType)}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(ATTACHMENT_BUCKET)
-      .upload(storagePath, buffer, { contentType: mimeType });
+      .upload(objectPath, buffer, { contentType: mimeType });
 
     if (uploadError) {
       if (uploadedAttachments.length > 0) {
         await supabaseAdmin.storage
           .from(ATTACHMENT_BUCKET)
-          .remove(uploadedAttachments.map((u) => u.storagePath));
+          .remove(uploadedAttachments.map((u) => u.objectPath));
       }
       return {
         error: `No se pudo subir el adjunto "${file.name}": ${uploadError.message}`,
@@ -208,7 +210,8 @@ export async function executeDecomisoAction(
     }
     uploadedAttachments.push({
       filename: file.name,
-      storagePath,
+      storagePath: decomisoEvidenceRowPath(objectPath),
+      objectPath,
       mimeType,
       size: buffer.byteLength,
     });
@@ -247,7 +250,7 @@ export async function executeDecomisoAction(
     if (uploadedAttachments.length > 0) {
       await supabaseAdmin.storage
         .from(ATTACHMENT_BUCKET)
-        .remove(uploadedAttachments.map((u) => u.storagePath))
+        .remove(uploadedAttachments.map((u) => u.objectPath))
         .catch((cleanupErr) => {
           console.error("storage cleanup after failed decomiso tx (best-effort)", cleanupErr);
         });

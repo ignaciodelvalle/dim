@@ -64,7 +64,13 @@ export type UseCaseResult<T = void> =
   | { ok: true; value: T; notifications: NewNotification[] }
   | { ok: false; error: string };
 
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 MB per DC5
+// Per-file ceiling of decomiso evidence: 10 MiB, the `file_size_limit` of the
+// `decomiso-evidence` bucket (db/migrations/0234) and MAX_DECOMISO_EVIDENCE_BYTES
+// in lib/media/limits.ts (pinned equal in __tests__/storage-buckets-exist.test.ts).
+// It said 25 MB (DC5) while every file above 5 MiB was refused anyway.
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+// History of this constant:
+//
 // FIXED 2026-08-10. This said "pet-attachments", a bucket that does not exist —
 // verified against BOTH the local database and staging. Every decomiso uploads
 // its evidence here before opening the transaction, and evidence is a hard
@@ -77,5 +83,13 @@ export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 MB per DC5
 // private bucket that lib/infra/storage.ts signs against
 // (eventAttachmentSignedUrl). Pointing the upload anywhere else would have
 // written rows into `attachments` that no surface could ever render.
-export const ATTACHMENT_BUCKET = "event-attachments";
+//
+// MOVED 2026-09-18 (PO decision D10): evidence now goes to its own private
+// bucket, `decomiso-evidence` (0234), so the acta can be a PDF without widening
+// the shared bucket every signed-in account may write to. The rendering
+// constraint above still holds and is met differently: the row path carries the
+// bucket as a prefix and lib/infra/storage.ts routes the signature by it
+// (lib/infra/attachment-location.ts). Legacy evidence stays in
+// event-attachments under `decomiso/` and keeps resolving.
+export const ATTACHMENT_BUCKET = "decomiso-evidence";
 export const ALLOWED_SPECIES = ["dog", "cat", "other"];

@@ -399,11 +399,12 @@ admin.storage.from("revocations").remove(paths);`;
     expect(evaluateBuckets([], extra).map((v) => v.kind)).toEqual(["bucket_erased_but_undeclared"]);
   });
 
-  it("records the two evidence buckets as gaps — no retention decision is documented", () => {
+  it("records the three evidence buckets as gaps — no retention decision is documented", () => {
     expect(Object.keys(BUCKETS_KNOWN_GAP)).toEqual(
-      expect.arrayContaining(["revocations", "welfare-evidence"]),
+      expect.arrayContaining(["revocations", "welfare-evidence", "decomiso-evidence"]),
     );
     expect(BUCKETS_ERASED).not.toContain("revocations");
     expect(BUCKETS_ERASED).not.toContain("welfare-evidence");
+    expect(BUCKETS_ERASED).not.toContain("decomiso-evidence");
   });
 });

@@ -48,7 +48,11 @@ import {
   type GovtPetLookupResult,
   lookupPetForDecomisoAction,
 } from "@/app/actions/decomiso-pet-lookup";
-import { MAX_IMAGE_BYTES } from "@/lib/media/limits";
+import {
+  DECOMISO_EVIDENCE_MIME_LIST,
+  MAX_DECOMISO_EVIDENCE_BYTES,
+  MAX_DECOMISO_EVIDENCE_TOTAL_BYTES,
+} from "@/lib/media/limits";
 import { formatRate, sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
@@ -95,13 +99,17 @@ const SEIZURE_MOTIVE_LABELS: Record<SeizureMotive, string> = {
 };
 
 const MAX_ATTACHMENTS = 10;
-// Bucket `event-attachments` (db/migrations/0213) accepts ONLY raster
-// JPG/PNG/WEBP up to 5 MiB — MAX_IMAGE_BYTES is that same server-enforced
-// ceiling, shared here so the client rejects early with the same number the
-// bucket would refuse anyway. PDF/video/HEIC await a PO decision on the
-// bucket before they can be offered here.
-const MAX_ATTACHMENT_BYTES = MAX_IMAGE_BYTES;
-const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+// Bucket `decomiso-evidence` (db/migrations/0234, PO decision D10) accepts
+// JPG/PNG/WEBP photos and the PDF acta, up to 10 MiB each — the same
+// server-enforced values from lib/media/limits.ts, so the client rejects early
+// with the numbers the server and the bucket would refuse anyway. The TOTAL
+// cap keeps the whole form under the Server Action body limit. The server
+// re-decides every type by its bytes; this pre-check is a courtesy.
+// (Only lib/media/limits.ts here: lib/media/validate.ts pulls sharp.)
+const MAX_ATTACHMENT_BYTES = MAX_DECOMISO_EVIDENCE_BYTES;
+const MAX_ATTACHMENT_MB = MAX_DECOMISO_EVIDENCE_BYTES / (1024 * 1024);
+const MAX_TOTAL_MB = MAX_DECOMISO_EVIDENCE_TOTAL_BYTES / (1024 * 1024);
+const ALLOWED_MIME = new Set<string>(DECOMISO_EVIDENCE_MIME_LIST);
 
 // ---------------------------------------------------------------------------
 // DecomisoForm
@@ -202,15 +210,23 @@ export function DecomisoForm({
     }
     for (const f of newFiles) {
       if (!ALLOWED_MIME.has(f.type)) {
-        setAttachmentError(`Tipo no permitido: "${f.name}". Aceptamos imágenes JPG, PNG o WEBP.`);
+        setAttachmentError(
+          `Tipo no permitido: "${f.name}". Aceptamos imágenes JPG, PNG o WEBP y actas en PDF.`,
+        );
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
       if (f.size > MAX_ATTACHMENT_BYTES) {
-        setAttachmentError(`"${f.name}" supera el límite de 5 MB.`);
+        setAttachmentError(`"${f.name}" supera el límite de ${MAX_ATTACHMENT_MB} MB.`);
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
+    }
+    const totalBytes = combined.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > MAX_DECOMISO_EVIDENCE_TOTAL_BYTES) {
+      setAttachmentError(`Los archivos juntos superan los ${MAX_TOTAL_MB} MB.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
     }
     const added: AttachmentEntry[] = newFiles.map((f) => ({
       file: f,
@@ -809,9 +825,9 @@ export function DecomisoForm({
             </span>
           </div>
           <p className="text-sm text-ln-op-mute">
-            Obligatorio: al menos 1 foto del animal y 1 foto del acta administrativa (o captura del
-            oficio judicial). Hasta {MAX_ATTACHMENTS} imágenes JPG, PNG o WEBP de hasta 5 MB cada
-            una.
+            Obligatorio: al menos 1 foto del animal y el acta administrativa (foto o PDF, o el
+            oficio judicial). Hasta {MAX_ATTACHMENTS} archivos JPG, PNG, WEBP o PDF de hasta{" "}
+            {MAX_ATTACHMENT_MB} MB cada uno ({MAX_TOTAL_MB} MB en total).
           </p>
 
           {/* `status={null}` — the attachment list right below already names
@@ -819,7 +835,7 @@ export function DecomisoForm({
           <OpFileInput
             ref={fileInputRef}
             multiple
-            accept="image/jpeg,image/png,image/webp"
+            accept={DECOMISO_EVIDENCE_MIME_LIST.join(",")}
             onChange={(e) => handleFilesSelected(e.target.files)}
             status={null}
           />

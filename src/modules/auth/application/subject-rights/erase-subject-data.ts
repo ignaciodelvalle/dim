@@ -3,6 +3,7 @@ import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { attachments, db, ownerships, petCaretakerGrants, petIdentifications, pets } from "@/db";
+import { isDecomisoEvidencePath } from "@/lib/infra/attachment-location";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   endCaretakerArrangementsForPet,
@@ -186,7 +187,7 @@ async function purgeOwnedPetAttachments(userId: string): Promise<void> {
 
   // Event attachments carry pet_id too (schema.ts), so `pet_id IN (owned)`
   // captures both pet photos and event attachments on the subject's pets.
-  const rows = await db
+  const petRows = await db
     .select({
       id: attachments.id,
       storagePath: attachments.storagePath,
@@ -194,6 +195,16 @@ async function purgeOwnedPetAttachments(userId: string): Promise<void> {
     })
     .from(attachments)
     .where(inArray(attachments.petId, petIds));
+  // DECOMISO EVIDENCE IS LEFT ALONE — row and object. It is the authority's
+  // record of a seizure, not the titular's upload (a subject can hold the pet
+  // again after a return to owner, which is how it reaches this set), and it
+  // is legal-hold shaped like welfare-evidence. No retention decision is
+  // documented for it either, so scripts/check-subject-rights-coverage.ts
+  // declares the `decomiso-evidence` bucket a KNOWN GAP instead of claiming
+  // retention; the legacy `decomiso/` objects in event-attachments ride the
+  // same rule. Deleting only the row would orphan the object in a bucket
+  // nothing here names.
+  const rows = petRows.filter((r) => !isDecomisoEvidencePath(r.storagePath));
   if (rows.length === 0) return;
 
   const eventPaths = rows.filter((r) => r.eventId !== null).map((r) => r.storagePath);

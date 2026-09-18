@@ -585,6 +585,9 @@ const REQUIRED_BUCKETS = [
   "ppp-exports",
   "travel-exports",
   "revocations",
+  // Decomiso evidence (0234, PO decision D10): without it every decomiso dies
+  // on its first upload, before the transaction opens.
+  "decomiso-evidence",
 ] as const;
 
 interface VerificationReport {

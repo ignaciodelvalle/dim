@@ -56,6 +56,10 @@
 //     an orphan by construction (a changing key under `upsert: true`), which is
 //     the actual garbage worth collecting. The art. 16 erasure path no longer
 //     depends on any of this: `purgeSubjectAvatars` sweeps the uid prefix.
+//   decomiso-evidence (0234, 2026-09-18) — the first bucket whose rows DO say
+//     where they live: its paths are prefixed `decomiso-evidence/`
+//     (lib/infra/attachment-location.ts). Legal-hold shaped like the two below,
+//     so reachability is not the question; out of scope for the same reason.
 //   revocations, welfare-evidence — evidence hanging off an audit entry and off
 //     a cruelty complaint. Both are legal-hold shaped and neither has a stated
 //     retention policy, which is exactly why `data-lifecycle.ts` leaves the four

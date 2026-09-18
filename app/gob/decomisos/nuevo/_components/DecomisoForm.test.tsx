@@ -142,9 +142,11 @@ describe("executing a decomiso ends on its receipt", () => {
   });
 });
 
+// Bucket `decomiso-evidence` (0234, PO decision D10): JPG/PNG/WEBP photos
+// and the PDF acta, up to 10 MB each and 45 MB together.
 describe("attachments only accept what the bucket stores", () => {
-  it("rejects a PDF with the type error, and never calls the action", async () => {
-    const { container } = render(
+  function renderForm() {
+    return render(
       <DecomisoForm
         receiverOrgs={[RECEIVER]}
         prefillWelfareReportId={null}
@@ -152,32 +154,70 @@ describe("attachments only accept what the bucket stores", () => {
         prefillPetToken={null}
       />,
     );
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const acta = new File(["acta"], "acta.pdf", { type: "application/pdf" });
-    fireEvent.change(fileInput, { target: { files: [acta] } });
+  }
+  const fileInput = (container: HTMLElement) =>
+    container.querySelector('input[type="file"]') as HTMLInputElement;
+
+  it("accepts a PDF acta and offers PDF in the picker", async () => {
+    const { container } = renderForm();
+    expect(fileInput(container).accept).toBe("image/jpeg,image/png,image/webp,application/pdf");
+    const acta = new File(["%PDF-1.7"], "acta.pdf", { type: "application/pdf" });
+    fireEvent.change(fileInput(container), { target: { files: [acta] } });
+
+    expect(await screen.findByText("acta.pdf")).toBeInTheDocument();
+    expect(screen.queryByText(/Tipo no permitido/)).toBeNull();
+    expect(
+      screen.getByText(/Hasta 10 archivos JPG, PNG, WEBP o PDF de hasta 10 MB cada uno/),
+    ).toBeInTheDocument();
+  });
+
+  it("rejects a type the bucket does not store, and never calls the action", async () => {
+    const { container } = renderForm();
+    const zip = new File(["PK"], "acta.zip", { type: "application/zip" });
+    fireEvent.change(fileInput(container), { target: { files: [zip] } });
 
     expect(
-      await screen.findByText('Tipo no permitido: "acta.pdf". Aceptamos imágenes JPG, PNG o WEBP.'),
+      await screen.findByText(
+        'Tipo no permitido: "acta.zip". Aceptamos imágenes JPG, PNG o WEBP y actas en PDF.',
+      ),
     ).toBeInTheDocument();
     expect(executeDecomisoAction).not.toHaveBeenCalled();
   });
 
-  it("rejects a file over 5 MB, and never calls the action", async () => {
-    const { container } = render(
-      <DecomisoForm
-        receiverOrgs={[RECEIVER]}
-        prefillWelfareReportId={null}
-        prefillWelfareReportRef={null}
-        prefillPetToken={null}
-      />,
-    );
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "foto.jpg", {
-      type: "image/jpeg",
+  it("rejects a file over 10 MB, and never calls the action", async () => {
+    const { container } = renderForm();
+    const big = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "acta.pdf", {
+      type: "application/pdf",
     });
-    fireEvent.change(fileInput, { target: { files: [big] } });
+    fireEvent.change(fileInput(container), { target: { files: [big] } });
 
-    expect(await screen.findByText('"foto.jpg" supera el límite de 5 MB.')).toBeInTheDocument();
+    expect(await screen.findByText('"acta.pdf" supera el límite de 10 MB.')).toBeInTheDocument();
+    expect(executeDecomisoAction).not.toHaveBeenCalled();
+  });
+
+  it("accepts a file of exactly 10 MB", async () => {
+    const { container } = renderForm();
+    const edge = new File([new Uint8Array(10 * 1024 * 1024)], "acta.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(fileInput(container), { target: { files: [edge] } });
+
+    expect(await screen.findByText("acta.pdf")).toBeInTheDocument();
+    expect(screen.queryByText(/supera el límite/)).toBeNull();
+  });
+
+  it("rejects files that together pass 45 MB, before the request would", async () => {
+    const { container } = renderForm();
+    const files = Array.from(
+      { length: 5 },
+      (_, i) =>
+        new File([new Uint8Array(10 * 1024 * 1024)], `acta-${i}.pdf`, {
+          type: "application/pdf",
+        }),
+    );
+    fireEvent.change(fileInput(container), { target: { files } });
+
+    expect(await screen.findByText("Los archivos juntos superan los 45 MB.")).toBeInTheDocument();
     expect(executeDecomisoAction).not.toHaveBeenCalled();
   });
 });
