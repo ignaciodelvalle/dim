@@ -7,7 +7,7 @@
 // The orgToken (organizations.publicToken) is the URL-stable identifier used
 // throughout this portal instead of inferring an "active org" from session.
 
-import { loadWithTimeout } from "@/lib/analytics/analytics-load";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { BRANDING } from "@/lib/ui/branding";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -20,6 +20,7 @@ import { buildOrgNav } from "@/components/layout/nav-presets";
 import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import type { NavSection } from "@/components/ui/dashboard";
 import { OpMaintenanceScreen, OpOfflineBanner, OpOmnibox } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
@@ -34,6 +35,8 @@ import {
   orgQueueCacheKey,
 } from "@/lib/infra/request-cache";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
+
+import { loadOrgShellAccess } from "./_lib/org-shell-access";
 
 // A funcionario works with three portals open at once, and all four of them
 // returned the ROOT title verbatim — "miMAR — Mi Mascota Argentina" — so the
@@ -65,13 +68,17 @@ export default async function OrgLayout({
   }
 
   const { orgToken } = await params;
-  // Validates membership. Returns notFound() on failure — never leaks org existence.
-  const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
 
-  // getProfileCached is warmed by requireOrgAccessByToken → requireUserOrRedirect;
-  // this is a memoized hit within the same render pass, not a second DB round-trip.
-  const profile = await getProfileCached(user.id);
-  const displayName = profile?.displayName ?? "";
+  // BOUNDED (T1-L18). The membership check, the profile and the capabilities
+  // used to be awaited bare right here, in front of the badge block below whose
+  // own comment explains why that hangs the whole portal. One deadline now
+  // covers all three — see ./_lib/org-shell-access.ts for how each degrades.
+  //
+  // Membership validation still returns notFound() on failure — never leaks
+  // org existence — because loadWithTimeout re-throws Next's control flow.
+  // getProfileCached is warmed by requireOrgAccessByToken → requireUserOrRedirect,
+  // so the profile read is a memoized hit within the same render pass.
+  //
   // Capability-gated items (Ingresos, Check-ins, Permisos) only render for
   // members holding the matching capability. The pages re-check defensively;
   // the nav filter is UX, not the security boundary — so a query failure here
@@ -81,10 +88,95 @@ export default async function OrgLayout({
   // to the fullscreen root boundary (error-path audit 2026-07-04, finding E4).
   // Default to no granted capabilities: nav items simply stay hidden, and the
   // page-level defensive re-check still protects the actual security boundary.
-  const granted = await getGrantedCapabilities(membership).catch((err) => {
-    console.error("[OrgLayout] getGrantedCapabilities failed", err);
-    return new Set<OrganizationCapability>();
+  const shell = await loadOrgShellAccess(orgToken, {
+    requireAccess: requireOrgAccessByToken,
+    getProfile: getProfileCached,
+    getGranted: (session) =>
+      getGrantedCapabilities(session.membership).catch((err) => {
+        console.error("[OrgLayout] getGrantedCapabilities failed", err);
+        return new Set<OrganizationCapability>();
+      }),
   });
+
+  // Right-side topbar actions: personal cross-portal links + a reliable sign-out.
+  // ContextSwitcher is not added here: owner/vet with no additional org memberships
+  // returns an empty switcher.
+  //
+  // Two distinct affordances (portal-logout consistency, PO QA §4): the old
+  // "← Salir" pointed at /mis-mascotas — an ambiguous label whose back-arrow
+  // read as "sign out" but actually only switched to the personal app, leaving
+  // the org portal with NO real logout. Now:
+  //   - "Ir a mi app" → the personal owner surface (/mis-mascotas), labelled for
+  //     what it does (navigate, not sign out).
+  //   - "Cerrar sesión" → logoutAction, matching /gob and /admin so every
+  //     operator portal owns a reliable, consistently-placed sign-out.
+  const topbarActions = (
+    <div className="flex items-center gap-3">
+      <Link href="/cuenta" className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink">
+        Mi cuenta
+      </Link>
+      <Link
+        href="/mis-mascotas"
+        className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink"
+      >
+        Ir a mi app
+      </Link>
+      <form action={logoutAction}>
+        <button
+          type="submit"
+          className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
+        >
+          Cerrar sesión →
+        </button>
+      </form>
+    </div>
+  );
+
+  const banner = (
+    <>
+      <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
+      <OpOfflineBanner />
+    </>
+  );
+
+  if (!shell.ok) {
+    // The membership check did not finish: this layout has NOT authorised the
+    // children, so it must not render them. It keeps the shell's frame — the
+    // sign-out above all — and says the portal could not load, with a retry
+    // into the org home (a layout does not know the child's path).
+    return (
+      <AppShell
+        variant="operator"
+        banner={banner}
+        rail={
+          <OpRail
+            sections={[]}
+            variant="org"
+            brandSubtitle="Organización"
+            user={{ name: "", role: "ORG" }}
+          />
+        }
+        topbar={
+          <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+            <div className="flex-1" />
+            {topbarActions}
+          </header>
+        }
+      >
+        <AnalyticsLoadFallback
+          reason={shell.reason}
+          correlationId={shell.id}
+          retryHref={analyticsRetryHref(`/org/${orgToken}`)}
+        />
+      </AppShell>
+    );
+  }
+
+  const {
+    session: { organization, membership },
+    displayName,
+    granted,
+  } = shell.value;
   const orgNavSections = buildOrgNav(orgToken, {
     granted,
     orgType: organization.orgType,
@@ -161,49 +253,10 @@ export default async function OrgLayout({
   // Omnibox: show only for members with pet read access.
   const canSearchPets = granted.has("pet.read_held") || membership.role === "admin";
 
-  // Right-side topbar actions: personal cross-portal links + a reliable sign-out.
-  // ContextSwitcher is not added here: owner/vet with no additional org memberships
-  // returns an empty switcher.
-  //
-  // Two distinct affordances (portal-logout consistency, PO QA §4): the old
-  // "← Salir" pointed at /mis-mascotas — an ambiguous label whose back-arrow
-  // read as "sign out" but actually only switched to the personal app, leaving
-  // the org portal with NO real logout. Now:
-  //   - "Ir a mi app" → the personal owner surface (/mis-mascotas), labelled for
-  //     what it does (navigate, not sign out).
-  //   - "Cerrar sesión" → logoutAction, matching /gob and /admin so every
-  //     operator portal owns a reliable, consistently-placed sign-out.
-  const topbarActions = (
-    <div className="flex items-center gap-3">
-      <Link href="/cuenta" className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink">
-        Mi cuenta
-      </Link>
-      <Link
-        href="/mis-mascotas"
-        className="text-xs text-ln-op-mute no-underline hover:text-ln-op-ink"
-      >
-        Ir a mi app
-      </Link>
-      <form action={logoutAction}>
-        <button
-          type="submit"
-          className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
-        >
-          Cerrar sesión →
-        </button>
-      </form>
-    </div>
-  );
-
   return (
     <AppShell
       variant="operator"
-      banner={
-        <>
-          <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
-          <OpOfflineBanner />
-        </>
-      }
+      banner={banner}
       rail={
         <OpRail
           sections={navSections}
