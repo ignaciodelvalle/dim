@@ -87,7 +87,7 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
     // ejercitar al perdedor lo sobreescriben con false.
     closeObservationIfOpen: vi.fn().mockResolvedValue(true),
     autoExpireBiteCase: vi.fn().mockResolvedValue(undefined),
-    findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-cron-1" }),
+    findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-cron-1"]),
     insertNotifications: vi.fn().mockResolvedValue(undefined),
     findGovtTargetsForJurisdiction: vi.fn().mockResolvedValue([]),
     ...overrides,
@@ -100,14 +100,25 @@ function makeDeps(repoOverrides: FakeRepo = {}) {
     return cb("fake-tx");
   });
   const findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue([]);
-  return { repo, transaction, findAuthoritiesForJurisdiction };
+  const createNotificationsBulk = vi.fn().mockResolvedValue(undefined);
+  return { repo, transaction, findAuthoritiesForJurisdiction, createNotificationsBulk };
 }
 
-/** Every notification row handed to the repo across all calls, flattened. */
-function allNotifications(repo: SurveillanceRepository): Record<string, unknown>[] {
-  return (repo.insertNotifications as unknown as ReturnType<typeof vi.fn>).mock.calls.flatMap(
-    (c) => c[0] as Record<string, unknown>[],
-  );
+/** Rows handed to the DURABLE service (dedupe key + dead-letter), flattened. */
+function durableNotifications(deps: ReturnType<typeof makeDeps>): Record<string, unknown>[] {
+  return deps.createNotificationsBulk.mock.calls.flatMap((c) => c[0] as Record<string, unknown>[]);
+}
+
+/**
+ * Every notification row written, through either path, flattened — so the
+ * owners' notice, which moved to the durable service, is still found by the
+ * assertions that only care about content.
+ */
+function allNotifications(deps: ReturnType<typeof makeDeps>): Record<string, unknown>[] {
+  const raw = (
+    deps.repo.insertNotifications as unknown as ReturnType<typeof vi.fn>
+  ).mock.calls.flatMap((c) => c[0] as Record<string, unknown>[]);
+  return [...raw, ...durableNotifications(deps)];
 }
 
 const BASE_OPTIONS: CloseEligibleObservationsOptions = { now: NOW };
@@ -162,7 +173,7 @@ describe("closeEligibleObservations — expired window, no professional closure"
   it("tells the owner the observation is still open and who can close it", async () => {
     const deps = makeDeps();
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    const owner = allNotifications(deps.repo).find((n) => n.userId === "owner-cron-1");
+    const owner = allNotifications(deps).find((n) => n.userId === "owner-cron-1");
     expect(owner).toBeDefined();
     expect(owner?.notificationType).toBe("rabies_observation_window_expired_owner");
     const body = String(owner?.body);
@@ -170,6 +181,39 @@ describe("closeEligibleObservations — expired window, no professional closure"
     expect(body).toContain("veterinario matriculado");
     // The all-clear the old message gave must be gone in every spelling.
     expect(body).not.toMatch(/sin incidentes|sigue normal|negativ/i);
+  });
+
+  it("tells EVERY active owner and co-owner, through the durable service, keyed on the observation", async () => {
+    const deps = makeDeps({
+      findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-cron-1", "coowner-cron-2"]),
+    });
+    await closeEligibleObservations(BASE_OPTIONS, deps);
+
+    expect(deps.repo.findActiveOwnerUserIds).toHaveBeenCalledWith("pet-cron-1", "fake-tx");
+    const owners = durableNotifications(deps).filter(
+      (n) => n.notificationType === "rabies_observation_window_expired_owner",
+    );
+    expect(owners.map((n) => n.userId)).toEqual(["owner-cron-1", "coowner-cron-2"]);
+    expect(owners.map((n) => n.dedupeKey)).toEqual([
+      `event:${FAKE_STARTED_ID}:owner-cron-1:rabies_observation_window_expired_owner`,
+      `event:${FAKE_STARTED_ID}:coowner-cron-2:rabies_observation_window_expired_owner`,
+    ]);
+    // Not through the raw repo insert any more.
+    const raw = (deps.repo.insertNotifications as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .flatMap((c) => c[0] as Record<string, unknown>[])
+      .filter((n) => n.notificationType === "rabies_observation_window_expired_owner");
+    expect(raw).toEqual([]);
+  });
+
+  it("tells no owner when the guard lost the race to a professional close", async () => {
+    const deps = makeDeps({ closeObservationIfOpen: vi.fn().mockResolvedValue(false) });
+    await closeEligibleObservations(BASE_OPTIONS, deps);
+    expect(deps.repo.findActiveOwnerUserIds).not.toHaveBeenCalled();
+    expect(
+      durableNotifications(deps).filter(
+        (n) => n.notificationType === "rabies_observation_window_expired_owner",
+      ),
+    ).toEqual([]);
   });
 
   it("hands the expired observation to the jurisdiction's authorities", async () => {
@@ -180,7 +224,7 @@ describe("closeEligibleObservations — expired window, no professional closure"
       province: "Santa Fe",
       locality: "Rosario",
     });
-    const auth = allNotifications(deps.repo).find((n) => n.userId === "auth-1");
+    const auth = allNotifications(deps).find((n) => n.userId === "auth-1");
     expect(auth?.notificationType).toBe("rabies_observation_pending_review");
     expect(String(auth?.body)).toContain("sin cierre profesional");
   });
@@ -190,7 +234,7 @@ describe("closeEligibleObservations — expired window, no professional closure"
       findLatestObservationStarted: vi.fn().mockResolvedValue(makeStartedEvent(PAST_DUE, 14)),
     });
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    const owner = allNotifications(deps.repo).find((n) => n.userId === "owner-cron-1");
+    const owner = allNotifications(deps).find((n) => n.userId === "owner-cron-1");
     expect(String(owner?.body)).toContain("de 14 días");
     expect(String(owner?.body)).not.toContain("10 días");
   });
@@ -200,7 +244,7 @@ describe("closeEligibleObservations — expired window, no professional closure"
       findLatestObservationStarted: vi.fn().mockResolvedValue(makeStartedEvent(PAST_DUE, null)),
     });
     await closeEligibleObservations(BASE_OPTIONS, deps);
-    const body = String(allNotifications(deps.repo).find((n) => n.userId === "owner-cron-1")?.body);
+    const body = String(allNotifications(deps).find((n) => n.userId === "owner-cron-1")?.body);
     expect(body).not.toMatch(/\d+ días/);
     // …but it still names the exact deadline, which is always computable.
     expect(body).toContain("vencía el");
@@ -247,7 +291,7 @@ describe("closeEligibleObservations — escalation path", () => {
       province: "Santa Fe",
       locality: "Rosario",
     });
-    const auth = allNotifications(deps.repo).find((n) => n.userId === "auth-1");
+    const auth = allNotifications(deps).find((n) => n.userId === "auth-1");
     expect(auth?.severity).toBe("urgent");
     expect(String(auth?.body)).toContain("de 14 días");
     expect(String(auth?.body)).not.toContain("10 días");

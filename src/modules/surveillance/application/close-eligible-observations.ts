@@ -36,6 +36,7 @@
 // Closing the bite expediente was downstream of asserting a negative outcome.
 // With no outcome asserted there is nothing resolved, so the case stays open.
 
+import type { CreateNotificationInput } from "@/lib/infra/notification-service";
 import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 import {
   resolveObservationDeadline,
@@ -97,10 +98,16 @@ type Deps = {
     | "findEscalatingSymptom"
     | "findOpenBiteCase"
     | "closeObservationIfOpen"
-    | "findActiveOwnership"
+    | "findActiveOwnerUserIds"
     | "insertNotifications"
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
+  /**
+   * The durable write path (lib/infra/notification-service.ts): dedupe key +
+   * dead-letter. The owners' notice goes through it; injected so the use case
+   * stays testable without a database.
+   */
+  createNotificationsBulk: (inputs: CreateNotificationInput[]) => Promise<unknown>;
   findAuthoritiesForJurisdiction: (jurisdiction: {
     province: string;
     locality: string;
@@ -115,7 +122,7 @@ export async function closeEligibleObservations(
   options: CloseEligibleObservationsOptions,
   deps: Deps,
 ): Promise<CloseRabiesObservationsStats> {
-  const { repo, transaction, findAuthoritiesForJurisdiction } = deps;
+  const { repo, transaction, findAuthoritiesForJurisdiction, createNotificationsBulk } = deps;
   const now = options.now ?? new Date();
 
   const stats: CloseRabiesObservationsStats = {
@@ -229,7 +236,9 @@ export async function closeEligibleObservations(
       //    rabies_observation_ended event is written — nobody acted.
       const biteCase = await repo.findOpenBiteCase(pet.id);
 
-      await transaction(async (tx) => {
+      // The owners to tell, read under the same transaction as the transition;
+      // null when the guard lost the race and nothing transitioned.
+      const ownerIds = await transaction(async (tx): Promise<string[] | null> => {
         // Guarda adentro del UPDATE: si un veterinario ya asento un resultado
         // clinico entre el escaneo y esta transaccion, la observacion dejo de
         // estar abierta y el cron no debe tocarla. Marcar la ventana vencida
@@ -245,37 +254,49 @@ export async function closeEligibleObservations(
           now,
           tx as Parameters<typeof repo.closeObservationIfOpen>[3],
         );
-        if (!marco) return;
+        if (!marco) return null;
 
-        // 5. Owner notification INSIDE tx (cron path — parity with original).
-        //    It states the window is over and that the observation is STILL
-        //    OPEN. The message it replaced ("terminó automáticamente sin
-        //    incidentes. {pet} sigue normal.") was an all-clear nobody was
-        //    entitled to give.
-        const activeOwnership = await repo.findActiveOwnership(
+        // EVERY active owner and co-owner (2026-09-18). This read
+        // `findActiveOwnership` — a single `role = 'owner'` row — so a co-owner
+        // never heard that the window on their animal was over and that the
+        // observation was still open; the professional close was fixed the
+        // same way the same day.
+        return repo.findActiveOwnerUserIds(
           pet.id,
-          tx as Parameters<typeof repo.findActiveOwnership>[1],
+          tx as Parameters<typeof repo.findActiveOwnerUserIds>[1],
         );
-        if (activeOwnership?.ownerUserId) {
-          const ownerNotifications: NewNotification[] = [
-            {
-              userId: activeOwnership.ownerUserId,
-              notificationType: "rabies_observation_window_expired_owner",
-              severity: "info",
-              title: `Período de observación cumplido — ${pet.name}`,
-              body: `Se cumplió el período de observación antirrábica${window} de ${pet.name} (vencía el ${deadlineLabel}). La observación sigue abierta: el resultado clínico solo puede registrarlo un veterinario matriculado o la autoridad sanitaria. Llevá a ${pet.name} con su credencial a tu veterinario para que lo registre, o presentate ante la autoridad sanitaria de tu localidad.`,
-              relatedPetId: pet.id,
-              relatedCaseId: biteCase?.id ?? null,
-              relatedEventId: startedEvent.id,
-              ctaLabel: "Ver mascota",
-              ctaUrl: `/mis-mascotas/${pet.publicToken}`,
-            },
-          ];
-          await repo.insertNotifications(
-            ownerNotifications as Parameters<typeof repo.insertNotifications>[0],
-          );
-        }
       });
+
+      // 5. Owner notification, AFTER the transition committed, through the
+      //    durable service. It was a raw `repo.insertNotifications` with no
+      //    dedupe key and no dead-letter: a failed write threw into the
+      //    per-pet catch AFTER the status had already moved, the pet left the
+      //    in_progress scan, and the owner was never told — by this run or any
+      //    later one. Keyed on the started event, which is one observation, so
+      //    a replay cannot tell the same owner twice.
+      //
+      //    It states the window is over and that the observation is STILL
+      //    OPEN. The message it replaced ("terminó automáticamente sin
+      //    incidentes. {pet} sigue normal.") was an all-clear nobody was
+      //    entitled to give.
+      if (ownerIds && ownerIds.length > 0) {
+        const notificationType = "rabies_observation_window_expired_owner";
+        await createNotificationsBulk(
+          [...new Set(ownerIds)].map((ownerUserId) => ({
+            userId: ownerUserId,
+            notificationType,
+            severity: "info" as const,
+            title: `Período de observación cumplido — ${pet.name}`,
+            body: `Se cumplió el período de observación antirrábica${window} de ${pet.name} (vencía el ${deadlineLabel}). La observación sigue abierta: el resultado clínico solo puede registrarlo un veterinario matriculado o la autoridad sanitaria. Llevá a ${pet.name} con su credencial a tu veterinario para que lo registre, o presentate ante la autoridad sanitaria de tu localidad.`,
+            relatedPetId: pet.id,
+            relatedCaseId: biteCase?.id ?? null,
+            relatedEventId: startedEvent.id,
+            ctaLabel: "Ver mascota",
+            ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+            dedupeKey: `event:${startedEvent.id}:${ownerUserId}:${notificationType}`,
+          })),
+        );
+      }
 
       // 6. Authority hand-off (post-tx, best-effort): the expired observation is
       //    actionable work for whoever can actually close it. A routing miss

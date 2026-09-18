@@ -8,6 +8,7 @@
 
 import { db } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import {
   type CloseRabiesObservationsStats,
   closeEligibleObservations,
@@ -26,6 +27,7 @@ export async function closeEligibleRabiesObservations(options?: {
   return closeEligibleObservations(options ?? {}, {
     repo,
     transaction: db.transaction.bind(db),
+    createNotificationsBulk: (inputs) => createNotificationsBulk(inputs),
     // Route label lives at the composition root so an empty fan-out's audit row
     // names the notification that went nowhere.
     findAuthoritiesForJurisdiction: (jurisdiction) =>
