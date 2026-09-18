@@ -36,6 +36,7 @@ vi.mock("@/src/modules/notifications/application/notification-actions", () => us
 import {
   DEACTIVATED_MESSAGE_INSTITUTIONAL,
   DEACTIVATED_MESSAGE_PERSONAL,
+  PASSWORD_SETUP_PENDING_MESSAGE,
   liveUserMessage,
 } from "@/lib/infra/live-user";
 
@@ -145,6 +146,29 @@ describe("notification marks refuse a non-live caller", () => {
     );
 
     await expect(archiveNotificationAction("n-1")).rejects.toThrow(DEACTIVATED_MESSAGE_PERSONAL);
+    expectNoUseCaseReached();
+  });
+
+  // Pilot T1-P3, security review item 4: a session minted by an institutional
+  // access link must choose its password before it can WRITE anything, not only
+  // before it can load a page.
+  it("refuses a session that still owes its first password — no write reached", async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-notif",
+          email: "user-notif@dim-test.local",
+          app_metadata: { password_setup_pending: true },
+        },
+      },
+      error: null,
+    });
+    mockGetProfileCached.mockResolvedValue(profile({ accountType: "institutional", role: "govt" }));
+
+    await expect(markNotificationReadAction("n-1")).rejects.toThrow(PASSWORD_SETUP_PENDING_MESSAGE);
+    await expect(markAllNotificationsReadAction()).rejects.toThrow(
+      "Antes de seguir tenés que elegir tu contraseña.",
+    );
     expectNoUseCaseReached();
   });
 

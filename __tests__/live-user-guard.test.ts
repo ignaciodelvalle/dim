@@ -47,6 +47,7 @@ import {
   DEACTIVATED_MESSAGE_INSTITUTIONAL,
   DEACTIVATED_MESSAGE_PERSONAL,
   type LiveUserFailureReason,
+  PASSWORD_SETUP_PENDING_MESSAGE,
   liveUserMessage,
   requireLiveUser,
   resolveOptionalLiveUser,
@@ -291,6 +292,63 @@ describe("requireLiveUser() — session and account state", () => {
     });
   });
 
+  // First access (pilot T1-P3, security review item 4). Page loads were already
+  // sent to /primer-acceso; every server action and /api/v1 route resolves the
+  // caller here, and used to let the unfinished session act.
+  it("refuses a session that still owes its first password, as NO_SESSION with its own copy", async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-001",
+          email: "invitado@dim-test.local",
+          app_metadata: { password_setup_pending: true },
+        },
+      },
+      error: null,
+    });
+    mockGetProfileCached.mockResolvedValue(profile({ accountType: "institutional", role: "govt" }));
+
+    const result = await requireLiveUser();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("NO_SESSION");
+    expect(result.passwordSetupPending).toBe(true);
+    expect(result.error).toBe(
+      "Antes de seguir tenés que elegir tu contraseña. Abrí el link de acceso que te llegó por mail.",
+    );
+    expect(result.error).toBe(PASSWORD_SETUP_PENDING_MESSAGE);
+    expect(result.user).toEqual({ id: "user-001", email: "invitado@dim-test.local" });
+  });
+
+  it("admits the same account once the flag is false, and ignores a non-boolean flag", async () => {
+    mockGetProfileCached.mockResolvedValue(profile({ accountType: "institutional", role: "govt" }));
+    for (const flag of [false, "true", undefined]) {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "user-001", app_metadata: { password_setup_pending: flag } } },
+        error: null,
+      });
+      const result = await requireLiveUser();
+      expect(result.ok).toBe(true);
+    }
+  });
+
+  it("a deactivated account that also owes its password is refused as DEACTIVATED", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-001", app_metadata: { password_setup_pending: true } } },
+      error: null,
+    });
+    mockGetProfileCached.mockResolvedValue(
+      profile({ accountType: "institutional", role: "govt", deactivatedAt: new Date() }),
+    );
+
+    const result = await requireLiveUser();
+
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe("DEACTIVATED");
+    expect(result.passwordSetupPending).toBeUndefined();
+  });
+
   // Signup writes auth.users before the profile row exists; the pre-existing
   // guards all used `profile?.deletedAt != null`, i.e. a missing row passed.
   it("admits a session whose profile row does not exist yet (mid-signup)", async () => {
@@ -393,6 +451,22 @@ describe("resolveOptionalLiveUser()", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
     expect(result.reason).toBe("ACCOUNT_ERASED");
+  });
+
+  // An unfinished first access is somebody holding an institutional account's
+  // access link — not an anonymous citizen. Refused, never laundered.
+  it("refuses a session that still owes its first password rather than treating it as anonymous", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-001", app_metadata: { password_setup_pending: true } } },
+      error: null,
+    });
+    mockGetProfileCached.mockResolvedValue(profile({ accountType: "institutional", role: "govt" }));
+
+    const result = await resolveOptionalLiveUser();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toBe(PASSWORD_SETUP_PENDING_MESSAGE);
   });
 
   it("refuses a deactivated institutional account", async () => {
