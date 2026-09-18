@@ -76,6 +76,11 @@
 //    Its own floor (MIN_FILTER_BAR_SCREENS) keeps a broken filter-bar anchor
 //    from reading as "every screen is budgeted".
 //
+//    PRECISELY WHAT "CALL A BUDGET WRAPPER" MEANS HERE: any call to a
+//    BUDGET_WRAPPERS entry ANYWHERE in the file — not proven to be the call
+//    that bounds the filter bar's own read. See the doc on
+//    findUnbudgetedScreen for what that leaves unchecked.
+//
 // USAGE
 //   pnpm lint:degraded-chrome
 //   pnpm exec tsx scripts/check-degraded-chrome.ts --write-baseline
@@ -459,9 +464,26 @@ export function isFilterBarScreen(rawSrc: string, dsChrome: Set<string>): boolea
 }
 
 /**
- * The offender decision 5 reports: a filter-bar screen that never calls a
- * budget wrapper, and therefore has no degraded branch for decisions 1-4 to
- * judge.
+ * The offender decision 5 reports: a filter-bar screen whose source contains
+ * NO call to any BUDGET_WRAPPERS entry anywhere in the file, and therefore
+ * has no degraded branch for decisions 1-4 to judge.
+ *
+ * WHAT THIS DOES NOT CHECK (say it plainly, adversarial review 2026-09):
+ * `referencesBudgetWrapper` is `BUDGET_WRAPPERS.some(w => file contains a
+ * CALL to w)` — file-wide, not scoped to the filter bar's own reads. A single
+ * wrapper call ANYWHERE in the file satisfies it, including one that bounds
+ * an unrelated read the filter bar never touches, or one that lives above an
+ * `if`/early-return the filter-bar's own await never reaches. This function
+ * does NOT verify that the wrapper call actually bounds the awaited read
+ * `isFilterBarScreen` found. Tightening that would mean tracing which
+ * specific `await` the wrapper's return value flows into — infeasible for a
+ * regex-based scanner without risking false positives on legitimate
+ * multi-wrapper files (see the KNOWN LIMIT notes on check-db-budget.ts's
+ * DELEGATING_ROUTES lane for why that tracing is hard even with named-import
+ * resolution). So: this check proves "the file calls a budget wrapper
+ * somewhere", a necessary but not sufficient signal — it is not proof the
+ * FILTER BAR'S reads are the ones being bounded. Treat a pass as "worth a
+ * closer look if the page still hangs", not as a certification.
  */
 export function findUnbudgetedScreen(
   file: string,
@@ -581,7 +603,7 @@ function runScan(): void {
     if (baseline[m.file]?.chrome.includes(m.name)) continue;
     if (m.name === UNBUDGETED) {
       console.error(
-        `${m.file}: renders a filter bar over reads that no budget wrapper (${BUDGET_WRAPPERS.join("/")}) bounds. A degraded pooler leaves this screen on its skeleton forever, and there is no \`if (!x.ok)\` branch for this check to judge. Race the reads in loadWithTimeout/withDbBudget and add a degraded branch that keeps the filter bar (see app/admin/casos/page.tsx). If the budget genuinely lives elsewhere, add "${UNBUDGETED}" to ${BASELINE_FILE} WITH a reason.`,
+        `${m.file}: renders a filter bar over an awaited read, and this file calls NO budget wrapper (${BUDGET_WRAPPERS.join("/")}) at all. A degraded pooler leaves this screen on its skeleton forever, and there is no \`if (!x.ok)\` branch for this check to judge. Race the reads in loadWithTimeout/withDbBudget and add a degraded branch that keeps the filter bar (see app/admin/casos/page.tsx). If the budget genuinely lives elsewhere, add "${UNBUDGETED}" to ${BASELINE_FILE} WITH a reason. Note: a PASS here only means some wrapper call exists in the file — it is not proof that call bounds THIS read; verify that by eye.`,
       );
       hits += 1;
       continue;
