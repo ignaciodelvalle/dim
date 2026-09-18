@@ -3,7 +3,7 @@
 // The fence's whole value is that it fails. A classification file that only
 // ever prints a green line is indistinguishable from one whose checks are
 // vacuous — this repo has been bitten by exactly that (the content-report
-// exemption list said "four" while the code had twelve), so the four checks are
+// exemption list said "four" while the code had twelve), so the five checks are
 // each shown FIRING here, against lists derived from the fence itself rather
 // than retyped. If these lists are ever copied into this file instead of
 // imported, the test stops testing the fence and starts testing a snapshot.
@@ -11,18 +11,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CLASSIFICATION,
+  type Classification,
   EXEMPT,
   IN_ERASE,
   IN_EXPORT,
   KNOWN_GAP,
   bodyMentions,
   evaluate,
+  sideGaps,
 } from "@/scripts/check-subject-rights-coverage";
 
 /** Every table the fence declares, derived — never a second copy of the set. */
-const ALL_DECLARED: string[] = [
-  ...new Set([...IN_EXPORT, ...IN_ERASE, ...Object.keys(EXEMPT), ...Object.keys(KNOWN_GAP)]),
-];
+const ALL_DECLARED: string[] = Object.keys(CLASSIFICATION);
 
 /** A synthetic function body naming exactly the tables it is handed. */
 function bodyNaming(tables: readonly string[]): string {
@@ -85,9 +86,10 @@ describe("evaluate — each check actually fires", () => {
   it("CHECK 2: a declared table that no longer exists is a violation", () => {
     const withoutOne = ALL_DECLARED.filter((t) => t !== "foster_volunteers");
     const { violations } = evaluate(withoutOne, FULL_EXPORT_BODY, FULL_ERASE_BODY);
-    // Listed in both IN_EXPORT and IN_ERASE, so it is stale in both.
-    expect(violations.every((v) => v.kind === "stale")).toBe(true);
-    expect(violations).toHaveLength(2);
+    // One classification entry, so one stale violation — no longer one per list.
+    expect(violations).toHaveLength(1);
+    expect(violations[0].kind).toBe("stale");
+    expect(violations[0].message).toContain("foster_volunteers");
   });
 
   it("CHECK 3 (forward): a declared table missing from the LIVE body is a violation", () => {
@@ -117,15 +119,115 @@ describe("evaluate — each check actually fires", () => {
     expect(violations[0].message).toContain(gapTable);
   });
 
-  it("CHECK 4 (reverse) fires for EXEMPT too, and names that list", () => {
+  it("CHECK 4 (reverse) fires for an exempt side too, and names the state", () => {
     const { violations } = evaluate(
       ALL_DECLARED,
       FULL_EXPORT_BODY,
-      `${FULL_ERASE_BODY}\nUPDATE public.attachments SET caption = NULL;`,
+      `${FULL_ERASE_BODY}\nDELETE FROM public.cron_runs;`,
     );
     expect(violations).toHaveLength(1);
-    expect(violations[0].message).toContain("EXEMPT");
+    expect(violations[0].message).toContain("exempt");
     expect(violations[0].message).toContain("erase_subject_data");
+  });
+});
+
+// A05-2. The fence used to classify TABLES, so a table one RPC named was
+// "covered" and its missing half had nowhere to be written. These show the
+// per-side machinery firing, each against a single side.
+describe("evaluate — each SIDE is classified and checked on its own", () => {
+  it("CHECK 4 is per side: naming an export-only table in the ERASE body fires", () => {
+    // organization_memberships: export covered, erase gap (ERRATA #2). Under the
+    // table-level design this mention was invisible — the table was "covered".
+    const { violations } = evaluate(
+      ALL_DECLARED,
+      FULL_EXPORT_BODY,
+      `${FULL_ERASE_BODY}\nUPDATE public.organization_memberships SET title = NULL;`,
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0].kind).toBe("covered_but_listed_uncovered");
+    expect(violations[0].message).toContain("organization_memberships");
+    expect(violations[0].message).toContain("erase side is declared gap");
+  });
+
+  it("CHECK 1: a side that is not stated is a violation, not a default", () => {
+    const broken = {
+      ...CLASSIFICATION,
+      pets: { export: { state: "covered" } } as unknown as Classification,
+    };
+    const { violations } = evaluate(ALL_DECLARED, FULL_EXPORT_BODY, FULL_ERASE_BODY, broken);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].kind).toBe("unclassified_side");
+    expect(violations[0].message).toContain("pets");
+    expect(violations[0].message).toContain("erase side is not stated");
+  });
+
+  it("CHECK 1: a non-covered side with no written reason is a violation", () => {
+    const broken: Record<string, Classification> = {
+      ...CLASSIFICATION,
+      reminders: {
+        export: { state: "gap", reason: "todo" },
+        erase: CLASSIFICATION.reminders.erase,
+      },
+    };
+    const { violations } = evaluate(ALL_DECLARED, FULL_EXPORT_BODY, FULL_ERASE_BODY, broken);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].kind).toBe("unreasoned_side");
+    expect(violations[0].message).toContain("reminders");
+  });
+
+  it("CHECK 5: a covered_outside_sql side whose function is gone is a violation", () => {
+    // The erasure module loses its functions — the rename that would otherwise
+    // leave the "TypeScript reaches it" claim standing as a bare sentence.
+    const readSource = (p: string) => (p.endsWith("erase-subject-data.ts") ? "// empty\n" : null);
+    const { violations } = evaluate(
+      ALL_DECLARED,
+      FULL_EXPORT_BODY,
+      FULL_ERASE_BODY,
+      CLASSIFICATION,
+      readSource,
+    );
+    expect(violations.map((v) => v.kind)).toEqual([
+      "outside_sql_site_missing",
+      "outside_sql_site_missing",
+    ]);
+    expect(violations.map((v) => v.message).join("\n")).toContain("purgeOwnedPetAttachments");
+    expect(violations.map((v) => v.message).join("\n")).toContain("releaseMicrochipsForErasedPets");
+  });
+
+  it("CHECK 5 reads the real module: both named erasure steps exist today", () => {
+    const { violations } = evaluate(ALL_DECLARED, FULL_EXPORT_BODY, FULL_ERASE_BODY);
+    expect(violations.filter((v) => v.kind === "outside_sql_site_missing")).toEqual([]);
+  });
+});
+
+describe("the one-sided debt is written down, and pinned", () => {
+  // Stated by hand, not derived: these are the halves A05-2 found missing. A new
+  // one-sided gap, or one closed, turns this red so the change is seen in a diff.
+  const EXPORT_SIDE_GAPS_OUTSIDE_KNOWN_GAP = ["attachments", "case_events", "libreta_share_tokens"];
+  const ERASE_SIDE_GAPS_OUTSIDE_KNOWN_GAP = ["organization_memberships"];
+
+  it("lists exactly the tables whose art. 14 side alone is a gap", () => {
+    const got = sideGaps().export.filter((t) => !Object.hasOwn(KNOWN_GAP, t));
+    expect(got).toEqual(EXPORT_SIDE_GAPS_OUTSIDE_KNOWN_GAP);
+  });
+
+  it("lists exactly the tables whose art. 16 side alone is a gap", () => {
+    const got = sideGaps().erase.filter((t) => !Object.hasOwn(KNOWN_GAP, t));
+    expect(got).toEqual(ERASE_SIDE_GAPS_OUTSIDE_KNOWN_GAP);
+  });
+
+  it("attachments is no longer EXEMPT: it names the uploader and holds their caption", () => {
+    expect(Object.hasOwn(EXEMPT, "attachments")).toBe(false);
+    expect(CLASSIFICATION.attachments.export.state).toBe("gap");
+    expect(CLASSIFICATION.attachments.erase.state).toBe("covered_outside_sql");
+  });
+
+  it("EXEMPT holds fourteen tables, every one exempt on BOTH sides", () => {
+    expect(Object.keys(EXEMPT)).toHaveLength(14);
+    for (const t of Object.keys(EXEMPT)) {
+      expect(CLASSIFICATION[t].export.state, t).toBe("exempt");
+      expect(CLASSIFICATION[t].erase.state, t).toBe("exempt");
+    }
   });
 });
 

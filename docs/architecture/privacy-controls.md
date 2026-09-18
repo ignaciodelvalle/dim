@@ -157,23 +157,27 @@ claim this system can make.
 
 ### The coverage fence, and what it cannot express
 
-`scripts/check-subject-rights-coverage.ts` classifies every public table into
-exactly one of four lists — `IN_EXPORT` (`:106`), `IN_ERASE` (`:130`), `EXEMPT`
-(`:171`), `KNOWN_GAP` (`:197`) — and verifies the two covered lists **in both
-directions** against the live function bodies. A `KNOWN_GAP` table the RPC
-actually reaches is itself a failure, so the gap can only close by the RPC
-reaching the table, never by editing the list.
+`scripts/check-subject-rights-coverage.ts` classifies every public table **per
+right**: `CLASSIFICATION` states its export (art. 14) side and its erase
+(art. 16) side separately, each `covered`, `covered_outside_sql` (a named
+TypeScript step of the erasure, checked to exist), `exempt(reason)` or
+`gap(reason)`, and a side left unstated or unreasoned is a failure. Every
+`covered` side is verified **in both directions** against the live function
+body; a non-covered side the body actually names is itself a failure, so a gap
+can only close by the RPC reaching the table, never by editing the list.
+`IN_EXPORT`, `IN_ERASE`, `EXEMPT` and `KNOWN_GAP` are derived from it.
 
 The fence states its own limit at `scripts/check-subject-rights-coverage.ts:19-28`:
 **it proves MENTION, not predicate correctness.** A table can be named with a
 WHERE clause matching the wrong subject and this fence passes it.
 
-The structural gap on top of that is `A05-2` (HIGH): the design is two flat
-lists, so a table reached by exactly ONE of the two RPCs reads as fully covered.
-Five tables are live in that state — `pet_identifications`, `custody_disputes`
-and `organization_memberships` are export-only; `case_events` and
-`libreta_share_tokens` are erase-only. The concrete consequence: an erased
-subject stays an open organization member forever.
+`A05-2` (HIGH) was that the first design sorted TABLES into flat lists, so a
+table reached by exactly ONE of the two RPCs read as fully covered. The per-side
+classification closed the blind spot, not the debt: the one-sided gaps are now
+written down and printed on every run — the export side of `attachments`,
+`case_events` and `libreta_share_tokens`, and the erase side of
+`organization_memberships`. The concrete consequence of that last one is
+unchanged: an erased subject stays an open organization member.
 
 ### Erased-actor semantics: the column is set and almost nothing reads it
 
