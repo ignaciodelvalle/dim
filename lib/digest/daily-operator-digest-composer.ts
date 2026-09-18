@@ -12,6 +12,8 @@
 // asserting the rendered HTML/text never contains a value outside the
 // {label, count} shape.
 
+import { pluralizeEs } from "@/lib/utils/format";
+
 /** One row in the digest: a queue this operator can act on right now. */
 export type DigestQueueItem = {
   /** es-AR label, taken verbatim from the queue catalog (never re-typed). */
@@ -64,7 +66,7 @@ export function totalPendingCount(items: readonly DigestQueueItem[]): number {
 
 export function digestSubject(items: readonly DigestQueueItem[]): string {
   const total = totalPendingCount(items);
-  return total === 1 ? "1 pendiente te espera en miMAR" : `${total} pendientes te esperan en miMAR`;
+  return `${total} ${pluralizeEs(total, "pendiente")} te ${pluralizeEs(total, "espera", "esperan")} en miMAR`;
 }
 
 function sectionHtml(section: DigestSection): string {

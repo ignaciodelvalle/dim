@@ -17,16 +17,13 @@
 // it into an error the person cannot act on.
 
 import { resolveMailSender } from "@/lib/infra/outbound-channels";
+import { formatDateTime } from "@/lib/utils/format";
 
 export const MFA_ENROLLED_MAIL_SUBJECT =
   "Se activó la verificación en dos pasos en tu cuenta de miMAR";
 
 export function mfaEnrolledMailHtml(enrolledAt: Date): string {
-  const when = enrolledAt.toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    dateStyle: "long",
-    timeStyle: "short",
-  });
+  const when = formatDateTime(enrolledAt);
   return `
     <p>Hola:</p>
     <p>El ${when} (hora de Argentina) se vinculó una app de autenticación a tu cuenta institucional de miMAR. Desde ahora, para entrar se pide tu contraseña y el código de esa app.</p>
