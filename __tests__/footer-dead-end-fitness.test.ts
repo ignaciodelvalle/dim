@@ -22,13 +22,16 @@ import { describe, expect, it } from "vitest";
 import { FOOTER_NAV } from "@/components/landing/landing-content";
 import { DEFAULT_COLUMNS } from "@/components/layout/AppFooter";
 
-/** Routes that exist but cannot yet do the thing their link name promises. */
-const DEAD_END_ROUTES: Array<{ href: string; why: string }> = [
-  {
-    href: "/sugerencias",
-    why: 'renders a "muy pronto" placeholder — no submission mechanism exists',
-  },
-];
+/**
+ * Routes that exist but cannot yet do the thing their link name promises.
+ *
+ * Empty since pilot T1-P5: `/sugerencias` now names the mailbox a person reads
+ * instead of promising a channel "muy pronto". Its footer links were NOT
+ * restored in that change — whether the footers carry it again is a separate
+ * call — so the list is empty rather than the links being back. The second
+ * test below keeps this from passing vacuously.
+ */
+const DEAD_END_ROUTES: Array<{ href: string; why: string }> = [];
 
 const landingHrefs = FOOTER_NAV.flatMap(([, links]) => links.map(([, href]) => href));
 const appHrefs = DEFAULT_COLUMNS.flatMap((column) => column.links.map((link) => link.href));

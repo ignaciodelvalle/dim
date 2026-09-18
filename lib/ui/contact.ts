@@ -73,3 +73,18 @@ export function mailtoHref(address: string, parts?: { subject?: string; body?: s
     .join("&");
   return query.length > 0 ? `mailto:${address}?${query}` : `mailto:${address}`;
 }
+
+/**
+ * The one channel an operator (gob / org / admin) uses to reach a person —
+ * the rail's "¿Necesitás ayuda?", the crons-down banner and /sugerencias all
+ * name THIS address (pilot T1-P5), so "avisá a soporte" always points at a
+ * mailbox somebody reads. It is the general mailbox on purpose: there is no
+ * separate support desk yet, and inventing an address nobody reads would be
+ * the painted door this module's header describes.
+ */
+export const OPERATOR_HELP_EMAIL = CONTACT_EMAILS.general;
+
+/** `mailto:` for OPERATOR_HELP_EMAIL with a subject that sorts it in the inbox. */
+export function operatorHelpHref(): string {
+  return mailtoHref(OPERATOR_HELP_EMAIL, { subject: "miMAR — pedido de ayuda" });
+}

@@ -11,6 +11,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Drawer } from "vaul";
+import { OpHelpLink } from "./OpHelpLink";
 import type { NavSection } from "./OpRailNav";
 
 type Props = {
@@ -225,6 +226,8 @@ export function OpMobileDrawer({
               );
             })}
           </nav>
+          {/* Same channel as the desktop rail (pilot T1-P5). */}
+          <OpHelpLink />
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

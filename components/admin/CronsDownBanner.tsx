@@ -4,7 +4,9 @@
 //
 // WHY: an operator does not need — and should not be alarmed by — curl/Vercel
 // internals. The headline states the impact in plain es-AR and the action
-// ("avisá a soporte"); the technical identifiers (the failing cron names) live
+/// (write to OPERATOR_HELP_EMAIL — the same mailbox the rail's "¿Necesitás
+// ayuda?" names, pilot T1-P5; it used to say "avisá a soporte" and name no
+// channel at all); the technical identifiers (the failing cron names) live
 // under a collapsed "Detalle técnico" disclosure.
 //
 // Honest in both environments: locally a failure is usually vitest polluting
@@ -17,6 +19,7 @@
 
 import { Icon } from "@/components/Icon";
 import { cronDisplayLabel } from "@/lib/infra/cron-registry";
+import { OPERATOR_HELP_EMAIL, mailtoHref } from "@/lib/ui/contact";
 
 export function CronsDownBanner({
   failedCronNames,
@@ -39,7 +42,16 @@ export function CronsDownBanner({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <b className="text-sm font-bold text-ln-op-danger">
-          Procesos automáticos caídos {"·"} avisá a soporte
+          Procesos automáticos caídos {"·"} escribinos a{" "}
+          <a
+            href={mailtoHref(OPERATOR_HELP_EMAIL, {
+              subject: "miMAR — procesos automáticos caídos",
+              body: `Procesos que figuran caídos: ${failedCronNames.join(", ")}`,
+            })}
+            className="underline underline-offset-2"
+          >
+            {OPERATOR_HELP_EMAIL}
+          </a>
         </b>
         {showSistemaLink && (
           // Plain <a> (not next/link) — operator-trust T2: a soft <Link> on this
@@ -56,8 +68,8 @@ export function CronsDownBanner({
       </div>
       <p className="text-sm text-ln-op-danger opacity-85">
         {failedCronNames.length === 1
-          ? "Un proceso automático no está corriendo. Avisale al equipo de soporte para que lo revise; algunas tareas del sistema pueden estar demoradas."
-          : `${failedCronNames.length} procesos automáticos no están corriendo. Avisale al equipo de soporte para que los revise; algunas tareas del sistema pueden estar demoradas.`}
+          ? `Un proceso automático no está corriendo. Escribinos a ${OPERATOR_HELP_EMAIL} para que lo revisemos; algunas tareas del sistema pueden estar demoradas.`
+          : `${failedCronNames.length} procesos automáticos no están corriendo. Escribinos a ${OPERATOR_HELP_EMAIL} para que los revisemos; algunas tareas del sistema pueden estar demoradas.`}
       </p>
       <details className="text-sm text-ln-op-danger opacity-85">
         <summary className="cursor-pointer select-none font-medium">Detalle técnico</summary>

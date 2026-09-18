@@ -39,8 +39,9 @@ export const DEFAULT_COLUMNS: Column[] = [
       { href: "/acerca", label: "Acerca de miMAR" },
       { href: "/ayuda", label: "Ayuda" },
       { href: "/accesibilidad", label: "Accesibilidad" },
-      // /sugerencias — no feedback channel exists yet; link hidden to avoid dead end.
-      // Restore once a real submission mechanism is implemented.
+      // /sugerencias — hidden while it was a "muy pronto" placeholder. Since
+      // pilot T1-P5 it names a mailbox a person reads; restoring the link (in
+      // BOTH footers) is a separate call, not taken in that change.
     ],
   },
   {
