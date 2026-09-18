@@ -3,7 +3,9 @@
 // user opt another one out — both are the exact failure this token exists to
 // prevent.
 
-import { describe, expect, it } from "vitest";
+import { createHmac } from "node:crypto";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   generateDigestUnsubscribeToken,
@@ -51,5 +53,51 @@ describe("generateDigestUnsubscribeToken / validateDigestUnsubscribeToken", () =
     // replay must fail even though the shape is superficially identical.
     const foreignShapedToken = Buffer.from("00".repeat(32), "hex").toString("base64url");
     expect(validateDigestUnsubscribeToken(USER_A, foreignShapedToken)).toBe(false);
+  });
+});
+
+describe("digest unsubscribe token — key separation and the shape gate (security review 2026-09-18)", () => {
+  const BASE_KEY = "test-base-key-for-digest-unsubscribe";
+  const originalSecret = process.env.DIGEST_UNSUBSCRIBE_SECRET;
+
+  beforeEach(() => {
+    process.env.DIGEST_UNSUBSCRIBE_SECRET = BASE_KEY;
+  });
+  afterEach(() => {
+    if (originalSecret === undefined) {
+      // biome-ignore lint/performance/noDelete: assigning undefined stores the string "undefined".
+      delete process.env.DIGEST_UNSUBSCRIBE_SECRET;
+    } else {
+      process.env.DIGEST_UNSUBSCRIBE_SECRET = originalSecret;
+    }
+  });
+
+  function macUnder(key: string | Buffer, userId: string): string {
+    const hex = createHmac("sha256", key)
+      .update(`daily_digest_unsubscribe:${userId}`)
+      .digest("hex");
+    return Buffer.from(hex, "hex").toString("base64url");
+  }
+  const subkey = () => createHmac("sha256", BASE_KEY).update("dim/digest-unsubscribe/v1").digest();
+
+  it("signs with the purpose-bound SUBKEY, never with the base key itself", () => {
+    const token = generateDigestUnsubscribeToken(USER_A);
+    expect(token).toBe(macUnder(subkey(), USER_A));
+    // A MAC made directly under the base key (the service-role key, in most
+    // environments) is NOT a valid link — the oracle is closed.
+    const underBase = macUnder(BASE_KEY, USER_A);
+    expect(underBase).not.toBe(token);
+    expect(validateDigestUnsubscribeToken(USER_A, underBase)).toBe(false);
+  });
+
+  it("refuses a non-UUID `u` even when its MAC is correct under the real subkey", () => {
+    // If the shape gate were missing, this would validate: the MAC is right.
+    for (const bad of ["not-a-uuid", "admin", `${USER_A}x`, `${USER_A}\n`, "../cuenta"]) {
+      expect(validateDigestUnsubscribeToken(bad, macUnder(subkey(), bad))).toBe(false);
+    }
+  });
+
+  it("refuses to mint a link for a non-UUID id", () => {
+    expect(() => generateDigestUnsubscribeToken("not-a-uuid")).toThrow();
   });
 });

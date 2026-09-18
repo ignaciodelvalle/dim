@@ -20,15 +20,31 @@
 // to revoke every outstanding link at once is to rotate the signing key,
 // which is the same global-revoke story the siblings tell.
 //
-// Signing key: DIGEST_UNSUBSCRIBE_SECRET → SUPABASE_SERVICE_ROLE_KEY → dev
+// Base key: DIGEST_UNSUBSCRIBE_SECRET → SUPABASE_SERVICE_ROLE_KEY → dev
 // fallback, failing closed in production — same resolution order as every
 // sibling token in this file's header comment.
+//
+// DOMAIN-SEPARATED SUBKEY (security review, 2026-09-18). The base key is, in
+// every environment that has not set DIGEST_UNSUBSCRIBE_SECRET, the service-
+// role key itself — the one credential that bypasses RLS. MACing user-chosen
+// input directly under it means every link this module hands out is an HMAC
+// oracle over that key. So the MAC is never computed with the base key: it is
+// computed with HMAC(baseKey, SUBKEY_LABEL), a key that exists for this one
+// purpose. Bumping the label's version revokes every outstanding link without
+// touching the base key.
+//
+// SHAPE GATE. `u` arrives from a query string. It is refused unless it is a
+// UUID BEFORE any MAC is computed, so an attacker cannot feed arbitrary
+// strings through the HMAC at all — only the shape a profile id can have.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-const PURPOSE = "daily_digest_unsubscribe";
+import { isUuid } from "@/lib/utils/uuid";
 
-function getSigningKey(): string {
+const PURPOSE = "daily_digest_unsubscribe";
+const SUBKEY_LABEL = "dim/digest-unsubscribe/v1";
+
+function getBaseKey(): string {
   if (process.env.DIGEST_UNSUBSCRIBE_SECRET) return process.env.DIGEST_UNSUBSCRIBE_SECRET;
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) return process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (process.env.NODE_ENV === "production") {
@@ -39,25 +55,39 @@ function getSigningKey(): string {
   return "dim-dev-fallback-key-not-for-production";
 }
 
+/** The purpose-bound subkey — never the base key itself (see header). */
+function getSigningKey(): Buffer {
+  return createHmac("sha256", getBaseKey()).update(SUBKEY_LABEL).digest();
+}
+
 function payload(userId: string): string {
   return `${PURPOSE}:${userId}`;
 }
 
+function macHex(userId: string): string {
+  return createHmac("sha256", getSigningKey()).update(payload(userId)).digest("hex");
+}
+
 /** Mint an unsubscribe capability for `userId`. Deterministic (no timestamp) —
- * the same link can be reissued into every digest without re-minting. */
+ * the same link can be reissued into every digest without re-minting. Throws
+ * on a non-UUID id: minting a link nobody can redeem is a caller bug. */
 export function generateDigestUnsubscribeToken(userId: string): string {
-  const mac = createHmac("sha256", getSigningKey()).update(payload(userId)).digest("hex");
-  return Buffer.from(mac, "hex").toString("base64url");
+  if (!isUuid(userId)) {
+    throw new Error("generateDigestUnsubscribeToken: userId must be a UUID");
+  }
+  return Buffer.from(macHex(userId), "hex").toString("base64url");
 }
 
 /**
  * True when `token` is a live unsubscribe capability for exactly `userId`.
- * Fails closed on every malformed input; comparison is timing-safe.
+ * Fails closed on every malformed input (a non-UUID `userId` is refused before
+ * any MAC is computed); comparison is timing-safe.
  */
 export function validateDigestUnsubscribeToken(userId: string, token: string): boolean {
   try {
     if (!userId || !token) return false;
-    const expectedMac = createHmac("sha256", getSigningKey()).update(payload(userId)).digest("hex");
+    if (!isUuid(userId)) return false;
+    const expectedMac = macHex(userId);
     const expectedBuf = Buffer.from(expectedMac, "hex");
     const actualBuf = Buffer.from(token, "base64url");
     if (expectedBuf.length !== actualBuf.length) return false;
