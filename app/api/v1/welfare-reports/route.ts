@@ -51,12 +51,12 @@
 // The temptation is a second upload route "just for denuncia photos". Two
 // reasons not to, and the second is the sharper one. First, this repo already
 // carries two blanket storage grants that exist because somebody built a
-// parallel path once. Second: the web's denuncia form accepts HEIC, so an
-// iPhone photo attached to a denuncia carries the GPS EXIF of wherever it was
-// taken — frequently an anonymous reporter's own home. That leak is DECLARED and
-// deferred: fixing it needs server-side transcoding, and it is not this lane's
-// territory. A door that takes no photos cannot widen it, and this one takes
-// none. Anyone adding uploads here must land the transcoding first.
+// parallel path once. Second: a phone photo carries the GPS EXIF of wherever it
+// was taken — frequently an anonymous reporter's own home. The web door handles
+// that in `lib/infra/welfare-uploads.ts`: HEIC/HEIF is refused (PO decision D4,
+// 2026-09-18) and the JPEG/PNG/WebP strip fails closed. Video still carries its
+// position until the D4b neutraliser lands. Anyone adding uploads here must go
+// through that helper, not beside it.
 //
 // THE BUDGETS
 // ---------------------------------------------------------------------------

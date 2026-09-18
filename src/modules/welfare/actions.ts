@@ -53,7 +53,11 @@ import { resolveOptionalLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
-import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
+import {
+  checkWelfareEvidence,
+  removeWelfareEvidence,
+  uploadWelfareEvidence,
+} from "@/lib/infra/welfare-uploads";
 import { parseDateInput } from "@/lib/utils/format";
 import { canReceiveDerivedWelfare } from "@/src/modules/welfare/domain/derivation-eligibility";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
@@ -982,6 +986,12 @@ export async function createWelfareReportAction(
     .filter((e): e is File => e instanceof File)
     .filter((f) => f.size > 0);
 
+  // The storage-free evidence checks (count, type, size, HEIC — D4) run BEFORE
+  // the report row is inserted: a refusal from inside the upload below would
+  // leave that row behind with no evidence ("report row stays — parity").
+  const evidenceRefusal = await checkWelfareEvidence(files);
+  if (evidenceRefusal) return { error: evidenceRefusal };
+
   let uploadResult: Awaited<ReturnType<typeof uploadWelfareEvidence>> | null = null;
   // We need a temporary ID for the upload path — we'll use a pre-generated UUID.
   // The report row is inserted first (outside tx), so we use insertedId from the use-case
@@ -1288,6 +1298,9 @@ export async function createOrgWelfareReportAction(
   if (files.length === 0) {
     return { error: "Una denuncia profesional requiere al menos un adjunto de evidencia." };
   }
+  // Before the insert, for the same reason as the citizen action above.
+  const evidenceRefusal = await checkWelfareEvidence(files);
+  if (evidenceRefusal) return { error: evidenceRefusal };
 
   // Insert the report row (outside tx — parity with original createOrgWelfareReportAction)
   const insertResult = await repo

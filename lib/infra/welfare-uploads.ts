@@ -18,32 +18,46 @@
 // DELETE policy, so every `.remove()` in the failure paths was silently denied
 // and leaked orphaned objects.
 
+import {
+  HEIF_SNIFF_BYTES,
+  heicRefusalMessage,
+  isDeclaredHeic,
+  isHeifContainer,
+  metadataStripRefusalMessage,
+} from "@/lib/media/heic";
+import { reencodeRaster } from "@/lib/media/validate";
+
 const BUCKET = "welfare-evidence";
 const MAX_FILES = 5;
 const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
+// HEIC/HEIF are NOT here, and that is a decision, not an omission: PO D4
+// (2026-09-18) refuses them rather than transcoding. See lib/media/heic.ts.
+// Video stays accepted with its metadata until the D4b neutraliser lands
+// (docs/handoff/rumbo-al-piloto.md, T2-P3).
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
-  "image/heic",
-  "image/heif",
   "image/gif",
   "video/mp4",
   "video/webm",
   "video/quicktime",
 ]);
 
-// Raster image types that sharp can re-encode to strip EXIF/GPS metadata.
-// HEIC/HEIF and GIF are excluded — sharp support is optional/unreliable for
-// those formats, so we leave them untouched rather than risk a corrupt upload.
+// Raster image types re-encoded through sharp to strip EXIF/GPS metadata. The
+// strip FAILS CLOSED: a file of one of these types is stored stripped or not at
+// all. GIF is not re-encoded (sharp would flatten an animation); it has no
+// camera EXIF block, which is where a phone writes its GPS position.
 const STRIP_EXIF_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 /**
  * ¿Podemos garantizar que este archivo se guardó SIN metadatos (GPS incluido)?
  *
- * Sólo para los tipos que `sharp` re-encodea acá. Para HEIC/HEIF/GIF y video los
- * bytes se suben tal cual, así que el GPS de la cámara sobrevive — y HEIC es el
- * formato por defecto del iPhone, o sea el camino más común de un denunciante.
+ * Sólo para los tipos que `sharp` re-encodea acá, y para esos la garantía es
+ * dura: si el re-encode falla, la subida se rechaza y se deshace (D4, fail
+ * closed), nunca se guarda el original. HEIC/HEIF ya no se aceptan (D4). Para
+ * GIF y video los bytes se suben tal cual: un GIF no lleva EXIF de cámara, y el
+ * video del iPhone SÍ lleva GPS hasta que llegue el neutralizador de D4b.
  *
  * POR QUÉ SIGUE EXPORTADA AUNQUE HOY NO GATEA NINGUNA SUPERFICIE VIVA. Guardaba
  * el comprobante público (`/denuncias/codigo/[code]`): esa lectura SIN sesión
@@ -62,17 +76,6 @@ const STRIP_EXIF_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
  */
 export function isMetadataStripped(mimeType: string | null | undefined): boolean {
   return mimeType !== null && mimeType !== undefined && STRIP_EXIF_MIME.has(mimeType);
-}
-
-/**
- * Strips EXIF metadata (including GPS) from a raster image buffer via sharp.
- * `.rotate()` bakes orientation into pixels; omitting `.withMetadata()` means
- * sharp outputs the result with NO metadata attached.
- * Non-fatal: callers catch and fall back to the original bytes on any error.
- */
-async function stripExif(buffer: Buffer): Promise<Buffer> {
-  const sharp = (await import("sharp")).default;
-  return sharp(buffer).rotate().toBuffer();
 }
 
 export type WelfareUploadResult = {
@@ -108,35 +111,41 @@ export async function removeWelfareEvidence(storagePaths: string[]): Promise<voi
   }
 }
 
+/**
+ * The checks that need no storage: count, HEIC/HEIF, type, size. Returns the
+ * es-AR refusal, or null when the set may be uploaded.
+ *
+ * Exported so a caller that writes a row BEFORE uploading (the denuncia
+ * actions insert the report first, by design) can refuse up front instead of
+ * leaving a report behind with no evidence. `uploadWelfareEvidence` runs it
+ * again, so a caller that skips it is still refused — just later.
+ *
+ * HEIC is recognised by its declared type or extension AND by the bytes: a
+ * picker can hand over an iPhone photo labelled `image/jpeg` or with no type at
+ * all, and the first bytes are the only thing the client does not choose.
+ */
+export async function checkWelfareEvidence(files: File[]): Promise<string | null> {
+  const real = files.filter((f) => f && f.size > 0);
+  if (real.length > MAX_FILES) return `No podés adjuntar más de ${MAX_FILES} archivos.`;
+  for (const f of real) {
+    const head = new Uint8Array(await f.slice(0, HEIF_SNIFF_BYTES).arrayBuffer());
+    if (isDeclaredHeic(f) || isHeifContainer(head)) return heicRefusalMessage(f.name || null);
+    if (!ALLOWED_MIME.has(f.type)) {
+      return `Tipo de archivo no soportado: ${f.type || "desconocido"}. Solo imágenes y videos.`;
+    }
+    if (f.size > MAX_FILE_BYTES) return `Archivo "${f.name}" supera el límite de 25 MB.`;
+  }
+  return null;
+}
+
 export async function uploadWelfareEvidence(
   reportId: string,
   files: File[],
 ): Promise<WelfareUploadResult> {
   const real = files.filter((f) => f && f.size > 0);
   if (real.length === 0) return { error: null, uploaded: [], uploadedPaths: [] };
-  if (real.length > MAX_FILES) {
-    return {
-      error: `No podés adjuntar más de ${MAX_FILES} archivos.`,
-      uploaded: [],
-      uploadedPaths: [],
-    };
-  }
-  for (const f of real) {
-    if (!ALLOWED_MIME.has(f.type)) {
-      return {
-        error: `Tipo de archivo no soportado: ${f.type || "desconocido"}. Solo imágenes y videos.`,
-        uploaded: [],
-        uploadedPaths: [],
-      };
-    }
-    if (f.size > MAX_FILE_BYTES) {
-      return {
-        error: `Archivo "${f.name}" supera el límite de 25 MB.`,
-        uploaded: [],
-        uploadedPaths: [],
-      };
-    }
-  }
+  const refusal = await checkWelfareEvidence(real);
+  if (refusal) return { error: refusal, uploaded: [], uploadedPaths: [] };
 
   const uploaded: WelfareUploadResult["uploaded"] = [];
   const uploadedPaths: string[] = [];
@@ -163,18 +172,30 @@ export async function uploadWelfareEvidence(
 
     // Strip EXIF (including GPS) from raster images before storage so an
     // anonymous reporter's home location can't be inferred from photo metadata.
-    // Non-fatal: if sharp throws (corrupt/unsupported file), fall back to the
-    // original bytes — we'd rather store metadata than fail the whole denuncia.
+    //
+    // FAILS CLOSED (D4). This used to fall back to the ORIGINAL bytes when sharp
+    // threw, on the reasoning "we'd rather store metadata than fail the whole
+    // denuncia" — which stored exactly the position the strip exists to drop,
+    // for exactly the files sharp could not read. Now the submission is refused
+    // and everything this call already stored is removed, the same shape as
+    // `claimStagedEventAttachment` (lib/infra/staged-event-attachment.ts).
     let uploadBody: File | Buffer = f;
     let storedSize = f.size;
     if (STRIP_EXIF_MIME.has(f.type)) {
       try {
-        const arrayBuffer = await f.arrayBuffer();
-        const processed = await stripExif(Buffer.from(arrayBuffer));
+        const processed = await reencodeRaster(Buffer.from(await f.arrayBuffer()));
         uploadBody = processed;
         storedSize = processed.length;
       } catch (err) {
-        console.warn("[welfare-uploads] EXIF strip failed (non-fatal), uploading original:", err);
+        console.warn("[welfare-uploads] EXIF strip failed, refusing rather than storing raw:", {
+          message: err instanceof Error ? err.message : String(err),
+        });
+        await removeWelfareEvidence(uploadedPaths);
+        return {
+          error: metadataStripRefusalMessage(f.name || null),
+          uploaded: [],
+          uploadedPaths: [],
+        };
       }
     }
 
@@ -209,8 +230,6 @@ function inferExtension(filename: string, mime: string): string {
   if (mime === "image/jpeg") return ".jpg";
   if (mime === "image/png") return ".png";
   if (mime === "image/webp") return ".webp";
-  if (mime === "image/heic") return ".heic";
-  if (mime === "image/heif") return ".heif";
   if (mime === "image/gif") return ".gif";
   if (mime === "video/mp4") return ".mp4";
   if (mime === "video/webm") return ".webm";

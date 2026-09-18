@@ -4,7 +4,9 @@
 //   1. stripMetadata:true routes through sharp and uploads a processed Buffer.
 //   2. stripMetadata false/absent uploads the original File (back-compat).
 //   3. Non-image file → validation error regardless of stripMetadata.
-//   4. sharp throwing → non-fatal fallback to original file.
+//   4. sharp throwing → the upload is REFUSED (D4, fail closed): the original,
+//      GPS-bearing bytes are never stored as a fallback.
+//   5. HEIC bytes → refused with the D4 message.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -162,7 +164,7 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     expect(mockSharpInstance).not.toHaveBeenCalled();
   });
 
-  it("sharp throws → non-fatal fallback: uploads original File", async () => {
+  it("sharp throws → the opt-in strip FAILS CLOSED: nothing is uploaded", async () => {
     vi.resetModules();
     mockToBuffer.mockRejectedValue(new Error("sharp unsupported format"));
     mockRotate.mockReturnValue({ toBuffer: mockToBuffer });
@@ -181,12 +183,37 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
       },
     );
 
-    // Non-fatal: upload should still succeed with the original file.
-    expect(result.error).toBeNull();
-    expect(result.uploadedPath).toBeTruthy();
-    // Upload body is the original File (not a Buffer).
-    const [, uploadedBody] = supabase.uploadMock.mock.calls[0] as unknown as [string, unknown];
-    expect(uploadedBody).toBe(file);
+    // D4: the caller asked for the strip, so a failed strip is a refusal —
+    // it used to upload the original File, GPS included.
+    expect(result.error).toMatch(/lugar donde se sacó/);
+    expect(result.error).toMatch(/no guardamos nada/);
+    expect(result).toMatchObject({ uploadedPath: null, mimeType: null, size: null });
+    expect(supabase.uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("HEIC bytes are refused with the D4 message, whatever the declared type", async () => {
+    vi.resetModules();
+    const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
+    const supabase = makeSupabaseClient();
+    // box size 0x18, "ftyp", major brand "heic", minor 0, compatible "mif1" "heic".
+    const heicHead = new Uint8Array([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63, 0x00, 0x00, 0x00,
+      0x00, 0x6d, 0x69, 0x66, 0x31, 0x68, 0x65, 0x69, 0x63,
+    ]);
+    const file = makeImageFile(heicHead, "IMG_0001.jpg", "image/jpeg");
+
+    const result = await uploadAttachmentIfPresent(
+      supabase as Parameters<typeof uploadAttachmentIfPresent>[0],
+      file,
+      "event-attachments",
+      { stripMetadata: true },
+    );
+
+    expect(result.error).toMatch(/formato HEIC/);
+    expect(result.error).toMatch(/Más compatible/);
+    expect(result.uploadedPath).toBeNull();
+    expect(supabase.uploadMock).not.toHaveBeenCalled();
+    expect(mockSharpInstance).not.toHaveBeenCalled();
   });
 });
 
