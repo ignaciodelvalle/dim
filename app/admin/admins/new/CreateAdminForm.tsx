@@ -8,6 +8,7 @@ import { useState } from "react";
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { OpButton, OpInput } from "@/components/ui/dashboard";
+import { emailConfirmationProblem } from "@/lib/domain/email-confirmation";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
@@ -21,6 +22,8 @@ type SuccessState = {
 
 export function CreateAdminForm() {
   const [email, setEmail] = useState("");
+  // Typed twice (security review, T1-P3): the access link is mailed to it.
+  const [emailConfirmation, setEmailConfirmation] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,6 +31,11 @@ export function CreateAdminForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const confirmationProblem = emailConfirmationProblem(email, emailConfirmation);
+    if (confirmationProblem) {
+      setError(confirmationProblem);
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -61,6 +69,7 @@ export function CreateAdminForm() {
   function handleCreateAnother() {
     setSuccess(null);
     setEmail("");
+    setEmailConfirmation("");
     setDisplayName("");
     setError(null);
   }
@@ -98,6 +107,30 @@ export function CreateAdminForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="nuevo.admin@dim.gob.ar"
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="emailConfirmation"
+            className="block text-sm font-medium text-ln-op-ink-2 mb-1"
+          >
+            Escribí el correo de nuevo{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
+          </label>
+          <OpInput
+            id="emailConfirmation"
+            type="email"
+            required
+            autoComplete="off"
+            value={emailConfirmation}
+            onChange={(e) => setEmailConfirmation(e.target.value)}
+            placeholder="nuevo.admin@dim.gob.ar"
+          />
+          <p className="mt-1 text-sm text-ln-op-mute">
+            El link de acceso se manda a esta dirección: si tiene un error, le llega a otra persona.
+          </p>
         </div>
 
         <div>

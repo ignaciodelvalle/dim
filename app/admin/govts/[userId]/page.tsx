@@ -2,7 +2,7 @@ import { requireUuidParam } from "@/lib/infra/route-params";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 
 import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
 import { AssignLocalityForm } from "@/app/admin/govts/_components/AssignLocalityForm";
@@ -28,6 +28,12 @@ import { formatDateShort, formatDateTimeNumericAr } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.
+//
+// Also the detail page of a NATIONAL observer (pilot T1-P9): the read-only,
+// country-wide role holds no localities, so those sections do not render, but
+// deactivation and credential reset do — through the same use cases a govt
+// uses. Before this, a national had no page at all and could not be switched
+// off from the admin UI.
 
 export default async function GovtDetailPage({ params }: { params: Promise<{ userId: string }> }) {
   await requireAdminOrRedirect();
@@ -46,7 +52,9 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
       createdAt: profiles.createdAt,
     })
     .from(profiles)
-    .where(and(eq(profiles.id, userId), eq(profiles.role, "govt")))
+    .where(
+      and(eq(profiles.id, userId), or(eq(profiles.role, "govt"), eq(profiles.role, "national"))),
+    )
     .limit(1);
 
   if (!govt) notFound();
@@ -101,6 +109,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
   }
 
   const isActive = govt.deactivatedAt === null;
+  const isNational = govt.role === "national";
 
   return (
     <div className="space-y-6">
@@ -132,7 +141,9 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
             <dt className="text-ln-op-mute">Tipo de cuenta</dt>
             <dd className="text-ln-op-ink">{accountTypeLabel(govt.accountType)}</dd>
             <dt className="text-ln-op-mute">Rol</dt>
-            <dd className="text-ln-op-ink">Gobierno</dd>
+            <dd className="text-ln-op-ink">
+              {isNational ? "Observador nacional (solo lectura)" : "Gobierno"}
+            </dd>
             <dt className="text-ln-op-mute">Creado</dt>
             <dd className="text-ln-op-ink">{formatDateShort(govt.createdAt)}</dd>
             {!isActive && govt.deactivatedAt && (
@@ -145,60 +156,62 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         </OpCardBody>
       </OpCard>
 
-      {/* Active localities */}
-      <section className="space-y-3">
-        <h2 className="text-md font-semibold text-ln-op-ink">
-          Localidades activas ({activeAssignments.length})
-        </h2>
+      {/* Active localities — a national holds none by construction */}
+      {!isNational && (
+        <section className="space-y-3">
+          <h2 className="text-md font-semibold text-ln-op-ink">
+            Localidades activas ({activeAssignments.length})
+          </h2>
 
-        {activeAssignments.length === 0 ? (
-          // V4: an active govt with zero localities cannot enter /gob. State the
-          // consequence AND the remedy here — the assign form sits right below,
-          // so this turns a dead end into a one-step operation.
-          isActive ? (
-            // `nature` is for data epistemics (measured zero vs no signal); this
-            // is an operational blocker, so it takes the default jurisdiction-
-            // warning treatment the callout already serves.
-            <OpCallout
-              title="Sin localidades — no puede operar"
-              body={DEAD_GOVT_REMEDY}
-              icon={<Icon name="alerta" decorative />}
-            />
+          {activeAssignments.length === 0 ? (
+            // V4: an active govt with zero localities cannot enter /gob. State the
+            // consequence AND the remedy here — the assign form sits right below,
+            // so this turns a dead end into a one-step operation.
+            isActive ? (
+              // `nature` is for data epistemics (measured zero vs no signal); this
+              // is an operational blocker, so it takes the default jurisdiction-
+              // warning treatment the callout already serves.
+              <OpCallout
+                title="Sin localidades — no puede operar"
+                body={DEAD_GOVT_REMEDY}
+                icon={<Icon name="alerta" decorative />}
+              />
+            ) : (
+              <p className="text-sm text-ln-op-mute">Sin localidades activas.</p>
+            )
           ) : (
-            <p className="text-sm text-ln-op-mute">Sin localidades activas.</p>
-          )
-        ) : (
-          <ul className="space-y-2">
-            {activeAssignments.map((a) => {
-              const label = isWholeProvinceAssignment({
-                province: a.jurisdictionProvince,
-                locality: a.jurisdictionLocality,
-              })
-                ? `Toda la provincia · ${a.jurisdictionProvince}`
-                : `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
-              return (
-                <li key={a.id}>
-                  <OpCard>
-                    <OpCardBody className="flex items-center justify-between gap-3">
-                      <span className="text-md text-ln-op-ink">{label}</span>
-                      {isActive && (
-                        <RevokeLocalityRowActions assignmentId={a.id} localityLabel={label} />
-                      )}
-                    </OpCardBody>
-                  </OpCard>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+            <ul className="space-y-2">
+              {activeAssignments.map((a) => {
+                const label = isWholeProvinceAssignment({
+                  province: a.jurisdictionProvince,
+                  locality: a.jurisdictionLocality,
+                })
+                  ? `Toda la provincia · ${a.jurisdictionProvince}`
+                  : `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
+                return (
+                  <li key={a.id}>
+                    <OpCard>
+                      <OpCardBody className="flex items-center justify-between gap-3">
+                        <span className="text-md text-ln-op-ink">{label}</span>
+                        {isActive && (
+                          <RevokeLocalityRowActions assignmentId={a.id} localityLabel={label} />
+                        )}
+                      </OpCardBody>
+                    </OpCard>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
 
-        {/* Assign locality — PR-C */}
-        {isActive && (
-          <div className="mt-2">
-            <AssignLocalityForm targetUserId={userId} />
-          </div>
-        )}
-      </section>
+          {/* Assign locality — PR-C */}
+          {isActive && (
+            <div className="mt-2">
+              <AssignLocalityForm targetUserId={userId} />
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Revoked localities (collapsible) */}
       {revokedAssignments.length > 0 && (
@@ -243,6 +256,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                 id: govt.id,
                 displayName: govt.displayName,
                 activeLocalityCount: activeAssignments.length,
+                role: isNational ? "national" : "govt",
               }}
             />
             <ResetCredentialsButton

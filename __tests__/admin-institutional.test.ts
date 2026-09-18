@@ -1124,6 +1124,72 @@ describe("deactivateGovtForAuthority — happy path with cascading locality revo
   });
 });
 
+// Security review item 2: a national observer could be created but never
+// switched off. It goes through the SAME use case as a govt.
+describe("deactivateGovtForAuthority — a national observer can be deactivated", () => {
+  const NATIONAL_DEACT_EMAIL = "fase5-deactivate-national@dim-test.local";
+
+  it("deactivates a national, audits it with its role, and notifies it", async () => {
+    await deleteTestUser(NATIONAL_DEACT_EMAIL);
+    createdNewUserEmails.push(NATIONAL_DEACT_EMAIL);
+    const nationalId = await createUserOrThrow(NATIONAL_DEACT_EMAIL);
+    await db
+      .update(profiles)
+      .set({ role: "national", accountType: "institutional" })
+      .where(eq(profiles.id, nationalId));
+    const [att] = await db
+      .insert(attachments)
+      .values({
+        storagePath: "test/deactivate-national-evidence.pdf",
+        mimeType: "application/pdf",
+        uploadedByUserId: deactivateActorId,
+        fileSize: 1000,
+      })
+      .returning({ id: attachments.id });
+
+    const result = await deactivateGovtForAuthority(deactivateActorId, {
+      targetGovtUserId: nationalId,
+      motivo: "Fin del convenio con el organismo nacional, se da de baja la lectura.",
+      attachmentIds: [att.id],
+    });
+    expect(result).toEqual({ ok: true });
+
+    const [row] = await db
+      .select({ deactivatedAt: profiles.deactivatedAt })
+      .from(profiles)
+      .where(eq(profiles.id, nationalId))
+      .limit(1);
+    expect(row.deactivatedAt).not.toBeNull();
+
+    const [logRow] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetUserId, nationalId),
+          eq(auditLog.action, "govt_deactivated_by_admin"),
+        ),
+      )
+      .limit(1);
+    const payload = logRow.payload as Record<string, unknown>;
+    expect(payload.target_role).toBe("national");
+    expect(payload.revoked_assignments_count).toBe(0);
+    expect(payload.evidence_attachment_ids).toEqual([att.id]);
+
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, nationalId),
+          eq(notifications.notificationType, "govt_deactivated"),
+        ),
+      )
+      .limit(1);
+    expect(notif).toBeDefined();
+  });
+});
+
 describe("deactivateGovtForAuthority — already deactivated is an error", () => {
   it("returns error when target is already deactivated", async () => {
     // deactivateGovtTargetId was just deactivated above
