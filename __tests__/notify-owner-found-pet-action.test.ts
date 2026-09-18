@@ -524,11 +524,13 @@ describe("notifyOwnerOfFoundPetAction — the animal's own ceiling (A03-2)", () 
     vi.useRealTimers();
   });
 
-  it("spends two buckets: the address's, keyed (token, ip), and the animal's, keyed on the token alone", async () => {
+  it("spends three buckets: the address's, keyed (token, ip), and the animal's two, keyed on the token alone", async () => {
     await (await loadAction())(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(BASE_FIELDS));
 
     expect(mockEnforceRateLimit.mock.calls).toEqual([
       [`found_notify:${PUBLIC_TOKEN}`, "203.0.113.42", { maxPerMinute: 1, maxPerHour: 10 }],
+      // The hard ceiling: 300/h = 10 x the degrade ceiling of 30. Hour only.
+      ["found_notify_token_hard", PUBLIC_TOKEN, { maxPerHour: 300 }],
       ["found_notify_token", PUBLIC_TOKEN, { maxPerMinute: 5, maxPerHour: 30 }],
     ]);
   });
@@ -571,17 +573,20 @@ describe("notifyOwnerOfFoundPetAction — the animal's own ceiling (A03-2)", () 
     expect(reports[0].userId).toBe(OWNER_USER_ID);
     expect(reports[0].body).toContain("11-4444-7777");
     expect(reports[0].severity).toBe("warning");
-    expect(insertedNotifications.filter((r) => r.severity === "urgent")).toEqual([]);
-    expect(sendPushForNotifications).not.toHaveBeenCalled();
 
-    // And the owner is told, once, that reports are piling up.
+    // And the owner is told, once, that reports are piling up - and THAT one
+    // rings: it is the only signal the silent reports exist at all.
     const notices = insertedNotifications.filter(
       (r) => r.notificationType === "anonymous_reports_overflow",
     );
     expect(notices).toHaveLength(1);
+    const pushed = vi
+      .mocked(sendPushForNotifications)
+      .mock.calls.flatMap((call) => call[0] as Array<Record<string, unknown>>);
+    expect(pushed.map((row) => row.notificationType)).toEqual(["anonymous_reports_overflow"]);
     expect(notices[0]).toMatchObject({
       userId: OWNER_USER_ID,
-      severity: "warning",
+      severity: "urgent",
       category: "perdidas",
       relatedPetId: PET_ID,
       title: "Muchos avisos sobre Pochi",
@@ -618,6 +623,53 @@ describe("notifyOwnerOfFoundPetAction — the animal's own ceiling (A03-2)", () 
     expect(
       insertedNotifications.filter((r) => r.notificationType === "anonymous_reports_overflow"),
     ).toHaveLength(1);
+  });
+
+  it("the hard ceiling: reports 1-30 ring, 31-300 arrive degraded, the 301st is refused and writes nothing", async () => {
+    // 300 reports 12 s apart = 5 a minute (exactly the degrade minute cap, so
+    // only the hour decides who degrades): the 300th at 299 x 12 s = 59 min
+    // 48 s and the 301st at the same instant - one clock hour. One IPv6 /64
+    // each, which is what a /48 hands out 65 536 of.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const action = await loadAction();
+    const address = (n: number) => `2001:db8:0:${n.toString(16)}::1`;
+
+    for (let n = 1; n <= 300; n++) {
+      if (n > 1) {
+        limiter.advance(12_000);
+        vi.setSystemTime(new Date(Date.now() + 12_000));
+      }
+      callerAddress.value = address(n);
+      const result = await action(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData({ finderContact: `11-0000-${String(n).padStart(4, "0")}` }),
+      );
+      expect(result, `report ${n}`).toEqual({ ok: true, error: null });
+    }
+    const reports = insertedNotifications.filter((r) => r.notificationType === "pet_found_report");
+    expect(reports.filter((r) => r.severity === "urgent")).toHaveLength(30);
+    expect(reports.filter((r) => r.severity === "warning")).toHaveLength(270);
+
+    const before = insertedNotifications.length;
+    callerAddress.value = address(301);
+    const refused = await action(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ finderContact: "11-9999-0301" }),
+    );
+
+    expect(refused).toEqual({
+      ok: false,
+      error:
+        "Recibimos demasiados avisos sobre esta mascota en la última hora y no podemos registrar otro ahora. " +
+        "Si la credencial muestra un teléfono, llamá directamente; si no, una veterinaria o un refugio " +
+        "puede leer su microchip. Probá de nuevo cuando empiece la próxima hora.",
+    });
+    expect(insertedNotifications.length).toBe(before);
   });
 
   it("a report refused before any write does not spend the animal's budget", async () => {

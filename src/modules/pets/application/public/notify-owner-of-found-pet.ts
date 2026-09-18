@@ -56,6 +56,8 @@ import { randomUUID } from "node:crypto";
 
 import { db, pets } from "@/db";
 import {
+  ANONYMOUS_REPORT_TOKEN_HARD_LIMIT,
+  ANONYMOUS_REPORT_TOKEN_HARD_REFUSAL,
   ANONYMOUS_REPORT_TOKEN_LIMIT,
   OVER_CEILING_REPORT_DELIVERY,
   anonymousReportOverflowNotices,
@@ -171,12 +173,29 @@ export async function notifyOwnerOfFoundPet(
   // the token alone, and placed after every refusal that writes nothing; the
   // derivation and the placement are in lib/infra/anonymous-report-limits.ts.
   //
-  // OVER THE CEILING THIS DEGRADES, IT NEVER REFUSES. The sender may be holding
+  // OVER THE (FIRST) CEILING THIS DEGRADES, IT DOES NOT REFUSE. The sender may be holding
   // the animal, and the ceiling can be filled by a handful of addresses in six
   // minutes — a refusal here would let whoever filled it decide that no real
   // finder reaches the owner for the rest of the hour. So an over-ceiling
   // report is still written, contact and all; it just stops ringing, and the
-  // owner hears once an hour that reports are piling up.
+  // owner is pushed once an hour that reports are piling up.
+  //
+  // BUT NOT WITHOUT END: past the degrade ceiling the only bound left was the
+  // per-/64 bucket, which a /48 multiplies by 65 536. The hard bucket (300/h,
+  // derivation in anonymous-report-limits.ts) refuses, and runs first so a
+  // refused report does not also spend the degrade bucket.
+  try {
+    await enforceRateLimit(
+      "found_notify_token_hard",
+      publicToken,
+      ANONYMOUS_REPORT_TOKEN_HARD_LIMIT,
+    );
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return { ok: false, error: ANONYMOUS_REPORT_TOKEN_HARD_REFUSAL };
+    }
+    throw err;
+  }
   let overAnimalCeiling = false;
   try {
     await enforceRateLimit("found_notify_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);

@@ -932,7 +932,7 @@ describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", 
     buildMockDb("lost");
   });
 
-  it("spends two buckets: the address's, keyed (token, ip), and the animal's, keyed on the token alone", async () => {
+  it("spends three buckets: the address's, keyed (token, ip), and the animal's two, keyed on the token alone", async () => {
     const { reportFinderInPossessionAction } = await import(
       "@/app/(public)/p/[publicToken]/encontre/action"
     );
@@ -940,11 +940,13 @@ describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", 
 
     expect(mockEnforceRateLimit.mock.calls).toEqual([
       [`finder_possession:${PUBLIC_TOKEN}`, "10.0.0.1", { maxPerMinute: 1, maxPerHour: 10 }],
+      // The hard ceiling: 300/h = 10 x the degrade ceiling of 30. Hour only.
+      ["finder_possession_token_hard", PUBLIC_TOKEN, { maxPerHour: 300 }],
       ["finder_possession_token", PUBLIC_TOKEN, { maxPerMinute: 5, maxPerHour: 30 }],
     ]);
-    // Address bucket, lookup, animal bucket: the second waits for the refusals
-    // that write nothing.
-    expect(callOrder).toEqual(["rate-limit", "pet-lookup", "rate-limit"]);
+    // Address bucket, lookup, animal buckets: those wait for the refusals that
+    // write nothing.
+    expect(callOrder).toEqual(["rate-limit", "pet-lookup", "rate-limit", "rate-limit"]);
   });
 
   it("keeps ACCEPTING a fresh address once thirty others have reported within the hour: the report degrades, it is never refused", async () => {
@@ -1003,17 +1005,20 @@ describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", 
     expect(reports[0].body).toContain("11-4444-7777");
     expect(reports[0].severity).toBe("warning");
     expect(reports[0].relatedEventId).toBe("evt-real-finder");
-    expect(capturedNotificationRows.filter((r) => r.severity === "urgent")).toEqual([]);
-    expect(sendPushForNotifications).not.toHaveBeenCalled();
 
-    // And the owner is told, once, that reports are piling up.
+    // And the owner is told, once, that reports are piling up - and THAT one
+    // rings: it is the only signal the silent reports exist at all.
     const notices = capturedNotificationRows.filter(
       (r) => r.notificationType === "anonymous_reports_overflow",
     );
     expect(notices).toHaveLength(1);
+    const pushed = vi
+      .mocked(sendPushForNotifications)
+      .mock.calls.flatMap((call) => call[0] as Array<Record<string, unknown>>);
+    expect(pushed.map((row) => row.notificationType)).toEqual(["anonymous_reports_overflow"]);
     expect(notices[0]).toMatchObject({
       userId: OWNER_USER_ID,
-      severity: "warning",
+      severity: "urgent",
       category: "perdidas",
       relatedPetId: PET_ID,
       title: "Muchos avisos sobre Luna",
@@ -1058,6 +1063,132 @@ describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", 
     expect(
       capturedNotificationRows.filter((r) => r.notificationType === "anonymous_reports_overflow"),
     ).toHaveLength(1);
+  });
+
+  it("over the degrade ceiling the report lands WITHOUT its photo, and the finder is told the photo was not kept", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:10:00.000Z"));
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    mockUpload.mockReset().mockResolvedValue({
+      uploadedPath: "finder-photo.jpg",
+      mimeType: "image/jpeg",
+      size: 3000,
+      error: null,
+    });
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const photo = () => new File(["fake-image-bytes"], "luna.jpg", { type: "image/jpeg" });
+
+    // Inside the ceiling the photo is stored, exactly as before.
+    for (let n = 1; n <= 30; n++) {
+      buildMockDb("lost", `evt-in-${n}`);
+      callerAddress.value = `203.0.113.${n}`;
+      const result = await reportFinderInPossessionAction(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData({ ...FIELDS, photoNow: photo() }),
+      );
+      expect(result, `report ${n}`).toEqual({ ok: true, error: null, warning: null });
+      limiter.advance(61_000);
+    }
+    expect(mockUpload).toHaveBeenCalledTimes(30);
+
+    mockUpload.mockClear();
+    buildMockDb("lost", "evt-over");
+    capturedPetEventInsert = null;
+    capturedAttachmentInsert = null;
+    callerAddress.value = "198.51.100.200";
+    const over = await reportFinderInPossessionAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...FIELDS, finderPhone: "11-4444-7777", photoNow: photo() }),
+    );
+
+    expect(over).toEqual({
+      ok: true,
+      error: null,
+      warning:
+        "El aviso fue registrado, pero la foto no se guardó porque llegaron muchos avisos sobre esta mascota en la última hora.",
+    });
+    expect(mockUpload).not.toHaveBeenCalled();
+    expect(capturedAttachmentInsert).toBeNull();
+    const payload = (capturedPetEventInsert as unknown as { payload: Record<string, unknown> })
+      .payload;
+    expect(payload.finderContact).toBe("11-4444-7777");
+    expect(payload.photoStoragePath == null).toBe(true);
+  });
+
+  it("the hard ceiling: reports 1-30 ring, 31-300 land degraded without a photo, the 301st is refused and writes nothing", async () => {
+    // 300 reports, 12 s apart = 5 a minute (exactly the degrade minute cap, so
+    // only the hour decides who degrades): the 300th lands at 299 x 12 s =
+    // 59 min 48 s, and the 301st at the same instant - one clock hour.
+    // One IPv6 /64 each - what a /48 hands out 65 536 of.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    mockUpload.mockReset().mockResolvedValue({
+      uploadedPath: "finder-photo.jpg",
+      mimeType: "image/jpeg",
+      size: 3000,
+      error: null,
+    });
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const address = (n: number) => `2001:db8:0:${n.toString(16)}::1`;
+
+    let events = 0;
+    for (let n = 1; n <= 300; n++) {
+      if (n > 1) {
+        limiter.advance(12_000);
+        vi.setSystemTime(new Date(Date.now() + 12_000));
+      }
+      buildMockDb("lost", `evt-${n}`);
+      capturedPetEventInsert = null;
+      callerAddress.value = address(n);
+      const result = await reportFinderInPossessionAction(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData({
+          ...FIELDS,
+          finderPhone: `11-0000-${String(n).padStart(4, "0")}`,
+          photoNow: new File(["x"], "p.jpg", { type: "image/jpeg" }),
+        }),
+      );
+      expect(result.ok, `report ${n}`).toBe(true);
+      if (capturedPetEventInsert) events++;
+    }
+
+    expect(events).toBe(300);
+    // Only the thirty inside the degrade ceiling stored a photo.
+    expect(mockUpload).toHaveBeenCalledTimes(30);
+    const reports = capturedNotificationRows.filter(
+      (r) => r.notificationType === "pet_in_possession",
+    );
+    expect(reports.filter((r) => r.severity === "urgent")).toHaveLength(30);
+    expect(reports.filter((r) => r.severity === "warning")).toHaveLength(270);
+
+    buildMockDb("lost", "evt-refused");
+    capturedPetEventInsert = null;
+    const before = capturedNotificationRows.length;
+    callerAddress.value = address(301);
+    const refused = await reportFinderInPossessionAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...FIELDS, finderPhone: "11-9999-0301" }),
+    );
+
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toBe(
+      "Recibimos demasiados avisos sobre esta mascota en la última hora y no podemos registrar otro ahora. " +
+        "Si la credencial muestra un teléfono, llamá directamente; si no, una veterinaria o un refugio " +
+        "puede leer su microchip. Probá de nuevo cuando empiece la próxima hora.",
+    );
+    expect(capturedPetEventInsert).toBeNull();
+    expect(capturedNotificationRows.length).toBe(before);
   });
 
   it("a report refused before any write (pet not lost) does not spend the animal's budget", async () => {

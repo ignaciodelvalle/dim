@@ -54,13 +54,15 @@
 //          the refusal copy says so honestly (ANONYMOUS_REPORT_TOKEN_BUSY).
 //       2. THE TWO "I HAVE THE ANIMAL" REPORTS DEGRADE, NEVER REFUSE
 //          (`found_notify_token`, `finder_possession_token`). Over the ceiling
-//          the report is still accepted and written exactly as it would be
-//          otherwise — the event on the spine, the notification with the
-//          finder's contact — but the owner's copy stops ringing: it is written
-//          at OVER_CEILING_REPORT_DELIVERY (no push), and the owner gets ONE
-//          notice per animal per clock hour saying reports are piling up
-//          (anonymousReportOverflowNotices, below). The finder sees the normal
-//          success screen. What the cap bounds here is the INTERRUPTIONS —
+//          the report is still accepted and written — the event on the spine,
+//          the notification with the finder's contact — but WITHOUT its photo,
+//          and the owner's copy stops ringing: it is written at
+//          OVER_CEILING_REPORT_DELIVERY (no push), and the owner gets ONE
+//          notice per animal per clock hour, pushed, saying reports are piling
+//          up (anonymousReportOverflowNotices, below). The finder sees the
+//          normal success screen, plus one line when a photo they attached was
+//          not kept. Past a second, much higher ceiling (300/h, below) even
+//          these surfaces refuse. What the cap bounds here is the INTERRUPTIONS —
 //          thirty pushes an hour — not the reports, because the one real
 //          report inside a flood is the whole reason the surface exists.
 //
@@ -84,6 +86,37 @@
 // still land (quietly, plus one overflow notice an hour), because a ceiling on
 // rows there is a ceiling on rescue.
 //
+// ---------------------------------------------------------------------------
+// AND THE DEGRADING SURFACES STILL HAVE A HARD CEILING — just a much higher one
+// ---------------------------------------------------------------------------
+// "Rows past the ceiling still land" left ONE bound on those rows: the
+// per-address bucket. That is 10/h per address, and callerIp() groups IPv6 by
+// /64, so a /48 from any hosting account is 65 536 addresses × 10 = 655 360
+// permanent `note_added` rows (and, before this change, as many photos) on one
+// lost animal's append-only spine in an hour. A spine nobody can prune is not a
+// place to leave a ceiling open.
+//
+// So each degrading surface also spends a SECOND token bucket that refuses:
+//
+//   per hour    300 = 10 × the degrade ceiling of 30 = thirty addresses at their
+//                     full 10/h each, all reporting the same animal. No real
+//                     rescue produces three hundred "la tengo conmigo" for one
+//                     animal in one hour; a flood does.
+//
+// What that buys: at most 300 spine rows per animal per hour (7 200 a day)
+// instead of 655 360 an hour, and — because a DEGRADED report no longer stores
+// its photo (the actions skip the upload over the degrade ceiling) — at most 30
+// finder photos per animal per hour. What it costs, stated plainly: this bucket
+// IS a griefing primitive again. With no minute window, 300 addresses can fill
+// it in one minute and every real finder is refused for the rest of that hour.
+// That is the trade the review asked for: an unbounded permanent spine is worse,
+// and the refusal (ANONYMOUS_REPORT_TOKEN_HARD_REFUSAL) says what still works
+// without us — the phone on the credential, a microchip read at a vet.
+//
+// NO MINUTE WINDOW on it, deliberately: a per-minute cap would not slow a
+// griefer (they refill it at the top of every minute) and would refuse real
+// finders inside every one of those minutes instead of once.
+//
 // NO DAY WINDOW, deliberately. It would bound a sustained campaign harder, and
 // it would stretch a griefer's silence from an hour to a day, on the surface
 // whose whole point is that a report arrives while the animal is still there.
@@ -106,6 +139,34 @@ export const ANONYMOUS_REPORT_TOKEN_LIMIT: RateLimitConfig = {
   maxPerMinute: 5,
   maxPerHour: 30,
 };
+
+/**
+ * The hard per-token ceiling on the two DEGRADING surfaces
+ * (`found_notify_token_hard`, `finder_possession_token_hard`): 300/h = 10 × the
+ * degrade ceiling of 30. Derivation and cost above. Hour only, on purpose.
+ */
+export const ANONYMOUS_REPORT_TOKEN_HARD_LIMIT: RateLimitConfig = {
+  maxPerHour: 10 * 30,
+};
+
+/**
+ * Refusal once the hard ceiling is full. The sender may be holding the animal,
+ * so it has to say what still works without us.
+ */
+export const ANONYMOUS_REPORT_TOKEN_HARD_REFUSAL =
+  "Recibimos demasiados avisos sobre esta mascota en la última hora y no podemos registrar otro ahora. " +
+  "Si la credencial muestra un teléfono, llamá directamente; si no, una veterinaria o un refugio " +
+  "puede leer su microchip. Probá de nuevo cuando empiece la próxima hora.";
+
+/**
+ * What a finder is told when their report went through over the degrade
+ * ceiling but the photo they attached was NOT stored (degraded reports store no
+ * photo — that is what bounds the photos to 30 per animal per hour). Only shown
+ * when a photo was actually attached: a finder who believes the owner saw their
+ * photo will not think to describe the animal or leave a contact.
+ */
+export const OVER_CEILING_PHOTO_DROPPED_WARNING =
+  "El aviso fue registrado, pero la foto no se guardó porque llegaron muchos avisos sobre esta mascota en la última hora.";
 
 /**
  * Refusal when the ANIMAL's ceiling is full — sightings and dispute tips only.
@@ -141,8 +202,13 @@ const HOUR_MS = 3_600_000;
  * the notice's hour is the bucket's hour. Shared by both degrading surfaces on
  * purpose — the owner needs to hear "look at the list" once, not once per form.
  *
- * Not a push, like the reports it summarises: the owner has already had up to
- * thirty this hour, and a thirty-first adds nothing but noise.
+ * IT PUSHES (`urgent`, no suppressPush), unlike the reports it summarises. It
+ * used to ride OVER_CEILING_REPORT_DELIVERY on the theory that a thirty-first
+ * push adds nothing — but it is the ONLY signal that the reports after the
+ * thirtieth exist at all, and those are exactly the ones that no longer ring.
+ * A notice nobody is told to look at leaves the one real finder inside a flood
+ * sitting silently in the Bandeja. The dedupe key already bounds it to one push
+ * per recipient per clock hour, so pushing costs one interruption an hour.
  */
 export function anonymousReportOverflowNotices(input: {
   publicToken: string;
@@ -154,7 +220,7 @@ export function anonymousReportOverflowNotices(input: {
   const hourStart = new Date(Math.floor(input.nowMs / HOUR_MS) * HOUR_MS).toISOString();
   const body = [
     `Llegaron muchos avisos sobre ${input.petName} en la última hora.`,
-    "Para no llenarte de alertas, los que sigan llegando hasta que termine la hora se guardan sin sonar:",
+    "Para no llenarte de alertas, los que sigan llegando hasta que termine la hora se guardan sin sonar y sin foto:",
     `revisá tus notificaciones de Perdidas y el historial de ${input.petName} para verlos todos.`,
   ].join(" ");
   return input.recipientUserIds.map((userId) => ({
@@ -162,7 +228,7 @@ export function anonymousReportOverflowNotices(input: {
     notificationType: ANONYMOUS_REPORT_OVERFLOW_NOTIFICATION_TYPE,
     title: `Muchos avisos sobre ${input.petName}`,
     body,
-    ...OVER_CEILING_REPORT_DELIVERY,
+    severity: "urgent" as const,
     category: "perdidas",
     relatedPetId: input.petId,
     ctaLabel: "Ver mascota",

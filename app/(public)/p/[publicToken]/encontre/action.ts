@@ -8,7 +8,8 @@
 //   - pet_events row: note_added, kind="finder_in_possession", full payload
 //   - notifications row: pet_in_possession, severity=urgent, category=perdidas
 //     (warning + no push once the animal's own ceiling is full — the report is
-//     still written; see lib/infra/anonymous-report-limits.ts)
+//     still written, without its photo; past the hard ceiling it is refused;
+//     see lib/infra/anonymous-report-limits.ts)
 //
 // Rate-limited by (IP, publicToken): 1/min, 10/hr, consumed AFTER pure form
 // validation and BEFORE the token is resolved — see the block comment at the
@@ -32,7 +33,10 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
+  ANONYMOUS_REPORT_TOKEN_HARD_LIMIT,
+  ANONYMOUS_REPORT_TOKEN_HARD_REFUSAL,
   ANONYMOUS_REPORT_TOKEN_LIMIT,
+  OVER_CEILING_PHOTO_DROPPED_WARNING,
   OVER_CEILING_REPORT_DELIVERY,
   anonymousReportOverflowNotices,
 } from "@/lib/infra/anonymous-report-limits";
@@ -229,13 +233,31 @@ export async function reportFinderInPossessionAction(
   // and placement in lib/infra/anonymous-report-limits.ts. Its own bucket, so a
   // flood of fake sightings cannot silence this report.
   //
-  // OVER THE CEILING THIS DEGRADES, IT NEVER REFUSES. The sender says they are
+  // OVER THE (FIRST) CEILING THIS DEGRADES, IT DOES NOT REFUSE. The sender says they are
   // holding the animal, and a handful of addresses can fill the ceiling in six
   // minutes — a refusal here would hand whoever filled it the power to keep
   // every real finder away from the owner for the rest of the hour. So an
-  // over-ceiling report is written exactly as below (event, photo, contact in
-  // the owner's notification); only the owner's alert stops ringing, and the
-  // owner hears once an hour that reports are piling up.
+  // over-ceiling report is written as below (event, contact in the owner's
+  // notification) MINUS its photo; the owner's alert stops ringing, and the
+  // owner is pushed once an hour that reports are piling up.
+  //
+  // BUT NOT WITHOUT END. Past the degrade ceiling the only bound on spine rows
+  // was the per-/64 bucket, which a /48 multiplies by 65 536. The hard bucket
+  // (300/h, derivation in anonymous-report-limits.ts) refuses, with copy that
+  // says what still works without us. It runs first so a refused report does
+  // not also spend the degrade bucket.
+  try {
+    await enforceRateLimit(
+      "finder_possession_token_hard",
+      publicToken,
+      ANONYMOUS_REPORT_TOKEN_HARD_LIMIT,
+    );
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return { ok: false, error: ANONYMOUS_REPORT_TOKEN_HARD_REFUSAL };
+    }
+    throw err;
+  }
   let overAnimalCeiling = false;
   try {
     await enforceRateLimit("finder_possession_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);
@@ -310,7 +332,17 @@ export async function reportFinderInPossessionAction(
   let photoWarning: string | null = null;
   // Not on a retry: the first attempt already uploaded and linked it, and a
   // second copy would be an orphan blob nothing renders.
-  if (existingEventId === null && photoFile && photoFile.size > 0) {
+  //
+  // Not over the animal's ceiling either: a degraded report is written, but
+  // its photo is not stored. That is what bounds finder photos to 30 per animal
+  // per hour — the rows are kept because a row carries the finder's contact,
+  // and the contact is the rescue; the photo is not worth an unbounded bucket.
+  // The finder is told, because a finder who believes the owner saw the photo
+  // will not think to describe the animal or leave a contact.
+  const hasPhoto = photoFile !== null && photoFile.size > 0;
+  if (existingEventId === null && hasPhoto && overAnimalCeiling) {
+    photoWarning = OVER_CEILING_PHOTO_DROPPED_WARNING;
+  } else if (existingEventId === null && photoFile && hasPhoto) {
     const adminSupabase = createAdminClient();
     const uploadResult = await uploadAttachmentIfPresent(
       adminSupabase,
