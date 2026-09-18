@@ -240,8 +240,9 @@ Configurable business rules are live. They live in `govt_business_rules` (migrat
 
 Ownership follows the layered model as designed:
 
-- **Govt** configures rules within their assigned jurisdictions. A govt of CABA can set rules that apply in CABA. A govt of Mendoza Capital can set rules for Mendoza Capital.
-- **Admin** configures rules universally (Argentina-wide defaults) or in any specific jurisdiction (override). Admin acts as both the universal-scope setter and the escalation path for jurisdictional rules when no govt is in scope.
+- **Corrected 2026-09-18**: the line below used to say govt can configure rules within their assigned jurisdictions. That is false — writers are **admin-only**: `app/actions/business-rules.ts` gates every writer (lines ~106, 147, 182) behind `requireAdminOrRedirect`, never `requireAdminOrGovtOrRedirect`. `/gob/reglas` is read-only for govt; the page's own copy says so ("La administracion de reglas la hace el admin nacional", `app/gob/reglas/page.tsx:116`).
+- **Admin** configures rules universally (Argentina-wide defaults) or in any specific jurisdiction. Admin is the only writer.
+- **Govt** reads rules within their assigned jurisdictions on `/gob/reglas`; they cannot write.
 
 When multiple rules conflict, **more specific wins**: locality > province > country > hardcoded default, resolved by `resolveBusinessRule` in `lib/infra/business-rules-resolver.ts`. A Belgrano rule overrides a CABA rule overrides an Argentina rule overrides the code default.
 
@@ -270,17 +271,26 @@ Institutional accounts do not author `pet_events` in normal operation — they m
 
 ### Bootstrap
 
-The first `admin` account is seeded once per environment via Supabase Studio:
+**Corrected 2026-09-18 — the old recipe here `insert`ed into `profiles` directly, which collides
+with the `on_auth_user_created` trigger** (`db/triggers.sql:88-92`, wired to `handle_new_user()`,
+created by migration `0134`): every `auth.users` insert already creates a `profiles` row via that
+trigger, so a second manual `insert` on the same id is either a duplicate-key error or the wrong
+instrument. The correct recipe, from `docs/ops/production-deploy-plan.md` §1.9 ("First admin
+account (W6)"):
 
-```sql
--- 1. Create the auth user via Studio → Authentication → Add user (email + temporary password).
--- 2. Insert the profile row:
-insert into public.profiles (id, account_type, role, display_name)
-values ('<seeded_auth_user_id>', 'institutional', 'admin', 'DIM Admin');
--- 3. Log the seed:
-insert into public.audit_log (actor_user_id, action, target_user_id, payload)
-values ('<seeded_auth_user_id>', 'admin_seeded', '<seeded_auth_user_id>', '{"source":"studio"}');
-```
+1. Have the operator sign up through the **normal** `/signup` flow, with their real email. This
+   fires `handle_new_user` like every other signup and creates a `profiles` row with
+   `role='owner'`, `account_type='personal'`.
+2. In the Supabase Studio SQL editor (service-role context), promote that one profile:
+   ```sql
+   update profiles
+   set role = 'admin', account_type = 'institutional', updated_at = now()
+   where id = '<the new user''s auth.users.id>';
+   ```
+3. Do **not** repeat this manual SQL step for additional `admin`/`govt` accounts. Once one admin
+   exists, use the in-app institutional-account flow
+   (`createInstitutionalAccountForAuthority`, `app/actions/admin-institutional.ts`, gated by
+   `requireAdminOrRedirect`) through the UI. The manual SQL flip is a one-time bootstrap.
 
 From there, every institutional account is created via the admin page. Every personal account is created via self-serve signup. Both flows go through `auth.users` like any other Supabase auth path.
 
