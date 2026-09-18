@@ -5,7 +5,7 @@
 // edit can't silently invert the honesty guarantee at line ~83.
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -49,6 +49,17 @@ vi.mock("../atender-access", () => ({
 // fixture's non-UUID pet id.
 vi.mock("../atender-declared-events", () => ({
   fetchPendingDeclaredEvents: vi.fn().mockResolvedValue([]),
+}));
+
+// The observation's started event — the page reads its deadline only when the
+// close card is on screen. Mocked for the same reason as the card above.
+const findLatestObservationStartedMock = vi.fn();
+vi.mock("@/src/modules/surveillance/infrastructure/surveillance-repository", () => ({
+  SurveillanceRepository: class {
+    findLatestObservationStarted(...args: unknown[]) {
+      return findLatestObservationStartedMock(...args);
+    }
+  },
 }));
 
 import AtenderSignPage from "./page";
@@ -106,5 +117,81 @@ describe("atender sign page — ?firmado=1 receipt must match the signer's tier"
     const html = await renderPage({ firmado: "1", evento: "chip" });
     expect(html).not.toContain("Evento registrado a nombre de la organización.");
     expect(html).not.toContain("Evento clínico firmado.");
+  });
+});
+
+// PO decision 2026-09-18 — a veterinarian may not close a rabies observation as
+// NEGATIVE before it ends. The server refuses it; this screen must show when the
+// observation ends and must not offer that close as if it were available.
+describe("atender sign page — the observation close waits for the deadline", () => {
+  // 12:00 UTC = 09:00 in Argentina.
+  const DEADLINE = new Date("2026-09-24T12:00:00.000Z");
+
+  function observedAccess(matriculaVerified: boolean) {
+    const base = fixtureAccess(matriculaVerified);
+    return { ...base, pet: { ...base.pet, rabiesObservationStatus: "in_progress" } };
+  }
+
+  beforeEach(() => {
+    findLatestObservationStartedMock.mockResolvedValue({
+      id: "started-1",
+      occurredAt: new Date("2026-09-14T12:00:00.000Z"),
+      payload: { observation_until: DEADLINE.toISOString() },
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows the estimated end, in the State screen's words", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
+
+    const html = await renderPage({ evento: "observacion" });
+
+    expect(html).toContain("Observación activa");
+    expect(html).toContain("Cierre estimado: 24 de sept de 2026");
+  });
+
+  it("before the deadline, offers the negative DISABLED and says from when", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
+
+    const html = await renderPage({ evento: "observacion" });
+
+    expect(html).toContain(
+      '<option value="negative" disabled="">Negativo — disponible desde el 24 de septiembre de 2026 a las 09:00</option>',
+    );
+    expect(html).toContain("El resultado negativo se habilita cuando termina el período");
+    // The outcomes that do not wait stay on offer.
+    expect(html).toMatch(/<option value="positive_rabies">/);
+    expect(html).toMatch(/<option value="dead">/);
+  });
+
+  it("after the deadline, the negative is an ordinary option again", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-24T13:00:00.000Z"));
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
+
+    const html = await renderPage({ evento: "observacion" });
+
+    expect(html).toContain(
+      '<option value="negative">Negativo — animal sano tras observación</option>',
+    );
+    expect(html).not.toContain("disponible desde el");
+  });
+
+  it("shows the estimated end to a member without matrícula too — it is not a licence matter", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(false));
+
+    const html = await renderPage({ evento: "observacion" });
+
+    expect(html).toContain("Cierre estimado: 24 de sept de 2026");
+    expect(html).toContain("lo registra un profesional con matrícula validada");
   });
 });

@@ -35,6 +35,10 @@
 // organización verificada cuyo miembro no es matriculado NO firma como
 // profesional. El llamador rechaza antes de llegar hasta acá.
 //
+// THE VETERINARIAN WAITS FOR THE WINDOW (PO decision 2026-09-18): a vet may not
+// close NEGATIVE before the observation's deadline — step 5b. Admin and govt
+// keep the power to close negative early; their path does not pass the gate.
+//
 // authorRole: 'govt' para admin y govt (el enum de petEvents no tiene 'admin'),
 // 'vet' para el veterinario, con su organización y `authorVerified` en true.
 // payload.closed_by_role mantiene la distinción precisa (admin|govt|vet).
@@ -55,12 +59,14 @@
 
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { rabiesObservationOutcomeLabel } from "@/lib/utils/format";
+import { formatDate, formatTime, rabiesObservationOutcomeLabel } from "@/lib/utils/format";
 
 import {
   PROFESSIONAL_OUTCOMES,
   isObservationOpen,
+  mustWaitForObservationEnd,
   outcomeToStatus,
+  resolveObservationDeadline,
 } from "../domain/rabies-observation";
 import type { RabiesObservationOutcome } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
@@ -132,6 +138,18 @@ const ACTOR_PROSE: Record<"admin" | "govt" | "vet", string> = {
   govt: "una autoridad sanitaria",
   vet: "un veterinario matriculado",
 };
+
+/**
+ * How the end of an observation is named to a person — "24 de septiembre de
+ * 2026 a las 09:00", Argentine time, 24-hour clock.
+ *
+ * Exported so the Atender screen names the date with the same words the refusal
+ * below uses: a screen saying "disponible desde el 24" next to a server saying
+ * "termina el 25" would leave the veterinarian guessing which one is the law.
+ */
+export function formatObservationEnd(deadline: Date): string {
+  return `${formatDate(deadline)} a las ${formatTime(deadline)}`;
+}
 
 // ---------------------------------------------------------------------------
 // Use-case
@@ -205,6 +223,33 @@ export async function professionalCloseObservation(
   // the close no longer throws a raw zod "bite_event_id invalid_type" error.
   const biteEventId = (startedPayload.bite_event_id as string | undefined) ?? null;
   const now = new Date();
+
+  // 5b. The legal window binds the VETERINARIAN's negative (PO decision
+  // 2026-09-18: "tiene que esperar, es un tema de plazos legales").
+  //
+  // Rabies signs can appear up to the last day of the window, so a negative
+  // before it ends is medically empty and legally terminal. Outcomes that report
+  // signs, a death or a lost animal are not held back (see
+  // mustWaitForObservationEnd). The State's closers keep the power to close
+  // negative early, which is why this branches on the role and not on the
+  // outcome alone.
+  //
+  // The deadline goes through resolveObservationDeadline, the ONE fallback rule
+  // for payloads written before `observation_until` existed: without it, an
+  // older observation would carry no deadline and the gate would silently open.
+  // No extra I/O — the started event is already loaded.
+  if (actor.profile.role === "vet") {
+    const deadline = resolveObservationDeadline(
+      startedPayload.observation_until,
+      startedEvent.occurredAt,
+    );
+    if (mustWaitForObservationEnd(input.outcome, deadline, now)) {
+      return {
+        ok: false,
+        error: `Todavía no podés registrar un resultado negativo: el período de observación termina el ${formatObservationEnd(deadline)}, y los signos de rabia pueden aparecer hasta el último día. Antes de esa fecha podés registrar un resultado positivo, el fallecimiento o la falta de seguimiento.`,
+      };
+    }
+  }
 
   // 6. Determine close reason: lost_to_followup → cancelled; else → resolved.
   const closedReason: "resolved" | "cancelled" =

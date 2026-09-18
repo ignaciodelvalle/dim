@@ -94,6 +94,42 @@ export const PROFESSIONAL_OUTCOMES: readonly RabiesObservationOutcome[] = [
   "lost_to_followup",
 ];
 
+/**
+ * Outcomes that CERTIFY THE ABSENCE of rabies signs — the one kind of close a
+ * veterinarian may not assert before the observation window ends (PO decision
+ * 2026-09-18: "tiene que esperar, es un tema de plazos legales").
+ *
+ * WHY THE WINDOW BINDS THIS OUTCOME AND NO OTHER. The window exists because
+ * rabies signs can appear up to its last day, so a negative on day one is
+ * medically empty — and it is legally terminal: it ends the observation, flips
+ * the public banner and closes the bite case. The other outcomes REPORT
+ * something that already happened (signs, a death, an animal that can no
+ * longer be followed) and end an observation early by nature; gating them would
+ * hold a confirmed rabies back for a week.
+ *
+ * `lost_to_followup` stays ungated, and it is the one that could be argued: it
+ * asserts nothing clinical either way, and the decision named "loss of the
+ * animal" among the outcomes that do not wait.
+ *
+ * Only the VETERINARY door applies this. The State's closers (admin, govt) keep
+ * the power to close negative early; the caller decides by role.
+ */
+export const OUTCOMES_CERTIFYING_NO_SIGNS: readonly RabiesObservationOutcome[] = ["negative"];
+
+/**
+ * True when `outcome` certifies no signs and `now` is still before the
+ * observation's `deadline` — the veterinarian has to wait. Pure, so the close
+ * use case (the authority) and the Atender screen (which only mirrors it) ask
+ * the same question.
+ */
+export function mustWaitForObservationEnd(
+  outcome: RabiesObservationOutcome,
+  deadline: Date,
+  now: Date,
+): boolean {
+  return OUTCOMES_CERTIFYING_NO_SIGNS.includes(outcome) && now.getTime() < deadline.getTime();
+}
+
 // ---------------------------------------------------------------------------
 // State machine helpers
 // ---------------------------------------------------------------------------

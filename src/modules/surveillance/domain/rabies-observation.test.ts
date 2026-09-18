@@ -16,6 +16,7 @@ import {
   computeObservationUntil,
   isObservationOpen,
   isRabiesVaccineValid,
+  mustWaitForObservationEnd,
   outcomeToStatus,
   resolveObservationDeadline,
   resolveObservationWindowDays,
@@ -402,5 +403,31 @@ describe("resolveObservationWindowDays", () => {
     expect(resolveObservationWindowDays(-3)).toBeNull();
     // The whole point: an absent window must not silently become RABIES_OBSERVATION_DAYS.
     expect(resolveObservationWindowDays(undefined)).not.toBe(RABIES_OBSERVATION_DAYS);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mustWaitForObservationEnd — the veterinarian's legal wait (PO 2026-09-18)
+// ---------------------------------------------------------------------------
+
+describe("mustWaitForObservationEnd", () => {
+  const DEADLINE = new Date("2026-09-24T12:00:00.000Z");
+  const BEFORE = new Date("2026-09-18T15:00:00.000Z");
+  const AFTER = new Date("2026-09-24T12:00:00.001Z");
+
+  it("holds a negative back until the window ends", () => {
+    expect(mustWaitForObservationEnd("negative", DEADLINE, BEFORE)).toBe(true);
+  });
+
+  it("releases the negative at the deadline itself, not a millisecond later", () => {
+    expect(mustWaitForObservationEnd("negative", DEADLINE, DEADLINE)).toBe(false);
+    expect(mustWaitForObservationEnd("negative", DEADLINE, AFTER)).toBe(false);
+  });
+
+  it("never holds back an outcome that reports something that already happened", () => {
+    const ungated: RabiesObservationOutcome[] = ["positive_rabies", "dead", "lost_to_followup"];
+    for (const outcome of ungated) {
+      expect(mustWaitForObservationEnd(outcome, DEADLINE, BEFORE), outcome).toBe(false);
+    }
   });
 });

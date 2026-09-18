@@ -14,11 +14,24 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpCrumbs } from "@/components/ui/dashboard";
-import { speciesLabel } from "@/lib/utils/format";
+import {
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCodeBadge,
+  OpCrumbs,
+} from "@/components/ui/dashboard";
+import { formatDateShort, speciesLabel } from "@/lib/utils/format";
 
 import { CloseObservationForm } from "@/app/admin/observaciones/[publicToken]/CloseObservationForm";
-import { isObservationOpen } from "@/src/modules/surveillance/domain/rabies-observation";
+import { formatObservationEnd } from "@/src/modules/surveillance/application/professional-close-observation";
+import {
+  isObservationOpen,
+  mustWaitForObservationEnd,
+  resolveObservationDeadline,
+} from "@/src/modules/surveillance/domain/rabies-observation";
+import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { atenderCloseRabiesObservationAction } from "../actions";
 import { resolveAtenderPet } from "../atender-access";
 import { fetchPendingDeclaredEvents } from "../atender-declared-events";
@@ -26,6 +39,23 @@ import { AtenderCaptureMounter } from "./AtenderCaptureMounter";
 import { AtenderQuickCapture } from "./AtenderQuickCapture";
 import { PendingSignaturesCard } from "./PendingSignaturesCard";
 import { ATENDER_EVENTOS, ATENDER_EVENTOS_CONDICIONALES } from "./atender-eventos";
+
+/**
+ * When this animal's open observation ends — the same deadline the close use
+ * case holds a veterinarian's negative to, through the same fallback for
+ * payloads written before `observation_until` existed. Null only in the
+ * inconsistent state of an open status with no started event, which the server
+ * refuses on its own.
+ *
+ * The deadline is not owner data: it is the bite date plus the window, about
+ * the animal, and the credential's public page already shows the observation.
+ */
+async function loadObservationEnd(petId: string): Promise<Date | null> {
+  const started = await new SurveillanceRepository().findLatestObservationStarted(petId);
+  if (!started) return null;
+  const payload = (started.payload ?? {}) as Record<string, unknown>;
+  return resolveObservationDeadline(payload.observation_until, started.occurredAt);
+}
 
 export default async function AtenderSignPage({
   params,
@@ -88,6 +118,16 @@ export default async function AtenderSignPage({
   // RESULTADO CLÍNICO. El servidor la exige igual; esto evita ofrecer un botón
   // que iba a rebotar.
   const puedeCerrarObservacion = observacionAbierta && access.signer.matriculaVerified;
+  // The deadline, read only when the close card is actually on screen. Before
+  // it, a veterinarian's negative is refused by the server (PO decision
+  // 2026-09-18); the screen asks the same predicate so it never offers that
+  // close as if it were available.
+  const mostrarCierre = activeEvento === "observacion" && observacionAbierta;
+  const finObservacion = mostrarCierre ? await loadObservationEnd(pet.id) : null;
+  const negativoBloqueadoHasta =
+    finObservacion && mustWaitForObservationEnd("negative", finObservacion, new Date())
+      ? formatObservationEnd(finObservacion)
+      : undefined;
   const justSigned = sp.firmado === "1";
   const pendingSignatures = await fetchPendingDeclaredEvents(pet.id);
 
@@ -217,10 +257,20 @@ export default async function AtenderSignPage({
           </OpCardBody>
         </OpCard>
 
-        {activeEvento === "observacion" && observacionAbierta && (
+        {mostrarCierre && (
           <OpCard>
             <OpCardHead title="Cerrar observación antirrábica" />
             <OpCardBody>
+              {/* The same callout, in the same words, as the State's close
+                  screen (/admin/observaciones/[publicToken]). */}
+              <OpCallout
+                title="Observación activa"
+                body={
+                  finObservacion
+                    ? `Cierre estimado: ${formatDateShort(finObservacion)}`
+                    : "Sin fecha de cierre."
+                }
+              />
               {puedeCerrarObservacion ? (
                 <>
                   {/* Qué significa este acto, antes del formulario. Termina una
@@ -237,6 +287,7 @@ export default async function AtenderSignPage({
                       orgToken,
                       access.pet.publicToken,
                     )}
+                    negativeLockedUntil={negativoBloqueadoHasta}
                   />
                 </>
               ) : (

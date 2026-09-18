@@ -4,7 +4,7 @@
 // CRITICAL parity test: out-of-jurisdiction govt user MUST be rejected.
 // This is the cross-org bypass lesson from the welfare module.
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PetEvent } from "@/db/schema";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
@@ -551,5 +551,128 @@ describe("professionalCloseObservation — veterinario", () => {
     );
     expect(alertas).toHaveLength(2);
     expect(alertas[0].severity).toBe("urgent");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The veterinarian waits for the window (PO decision 2026-09-18)
+//
+// "Tiene que esperar, es un tema de plazos legales." Rabies signs can appear up
+// to the last day, so a vet's negative before the deadline is refused — and the
+// refusal names the date. Outcomes that report something that already happened
+// are not held back, and the State keeps the power to close negative early.
+// ---------------------------------------------------------------------------
+
+describe("professionalCloseObservation — the vet's negative waits for the deadline", () => {
+  // 12:00 UTC is 09:00 in Argentina (UTC-3, no DST).
+  const DEADLINE_ISO = "2026-09-24T12:00:00.000Z";
+  const BEFORE_DEADLINE = new Date("2026-09-18T15:00:00.000Z");
+  const AFTER_DEADLINE = new Date("2026-09-24T13:00:00.000Z");
+
+  function startedWithDeadline(payloadOverrides: Record<string, unknown> = {}): PetEvent {
+    const base = makeStartedEvent();
+    return {
+      ...base,
+      occurredAt: new Date("2026-09-14T12:00:00.000Z"),
+      payload: {
+        ...(base.payload as Record<string, unknown>),
+        observation_until: DEADLINE_ISO,
+        ...payloadOverrides,
+      },
+    } as unknown as PetEvent;
+  }
+
+  function depsWithDeadline(started: PetEvent = startedWithDeadline()) {
+    return makeDeps({ findLatestObservationStarted: vi.fn().mockResolvedValue(started) });
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("REFUSES a vet's negative before the deadline, naming the date, and writes nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "negative", actor: VET_ACTOR },
+      deps,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("termina el 24 de septiembre de 2026 a las 09:00");
+    expect(deps.repo.insertObservationEnded).not.toHaveBeenCalled();
+    expect(deps.repo.closeObservationIfOpen).not.toHaveBeenCalled();
+    expect(deps.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+    expect(deps.closeCase).not.toHaveBeenCalled();
+  });
+
+  it("accepts the vet's negative once the deadline has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "negative", actor: VET_ACTOR },
+      deps,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(deps.repo.closeObservationIfOpen).toHaveBeenCalledWith(
+      "pet-3",
+      "completed_negative",
+      expect.any(Date),
+      "fake-tx",
+    );
+  });
+
+  it("does NOT hold back what already happened: positive, death, lost animal", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+
+    for (const outcome of ["positive_rabies", "dead", "lost_to_followup"] as const) {
+      const deps = depsWithDeadline();
+      const result = await professionalCloseObservation(
+        { ...BASE_INPUT, outcome, actor: VET_ACTOR },
+        deps,
+      );
+      expect(result.ok, outcome).toBe(true);
+      expect(deps.repo.insertObservationEnded, outcome).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("the State keeps the power to close negative early — admin and govt are not gated", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+
+    for (const actor of [ADMIN_ACTOR, GOVT_IN_JURISDICTION]) {
+      const deps = depsWithDeadline();
+      const result = await professionalCloseObservation(
+        { ...BASE_INPUT, outcome: "negative", actor },
+        deps,
+      );
+      expect(result.ok, actor.profile.role).toBe(true);
+      expect(deps.repo.insertObservationEnded, actor.profile.role).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("an older payload WITHOUT observation_until still gates, on started + 10 days", async () => {
+    // Without the shared fallback the deadline would be absent and the gate would
+    // open silently for exactly the observations that predate the field.
+    // Started 2026-09-14 12:00 UTC + 10 calendar days = 2026-09-24 12:00 UTC.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline(startedWithDeadline({ observation_until: undefined }));
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "negative", actor: VET_ACTOR },
+      deps,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("termina el 24 de septiembre de 2026 a las 09:00");
   });
 });
