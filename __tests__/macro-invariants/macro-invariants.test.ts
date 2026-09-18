@@ -25,6 +25,7 @@ import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "../_helpers/db-overrides";
 import { expectDbError } from "../_helpers/expect-db-error";
+import { createFreshTestUser } from "../_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -89,7 +90,7 @@ async function purgeUserByEmail(email: string): Promise<void> {
 }
 
 async function createAuthUser(email: string): Promise<string> {
-  const r = await admin.auth.admin.createUser({
+  const r = await createFreshTestUser(admin, {
     email,
     password: "MacroInv_2026!",
     email_confirm: true,

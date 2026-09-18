@@ -16,6 +16,7 @@ import { auditLog, db, profiles } from "@/db";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -39,7 +40,7 @@ async function deleteActor() {
 
 beforeAll(async () => {
   await deleteActor();
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email: ACTOR_EMAIL,
     password: "C3Pii_2026!",
     email_confirm: true,

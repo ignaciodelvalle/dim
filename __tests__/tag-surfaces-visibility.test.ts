@@ -34,6 +34,7 @@ import { generateTagSerial } from "@/lib/infra/publicToken";
 import { shouldShowTagSurfaces } from "@/lib/infra/tag-surfaces-visibility";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -73,7 +74,7 @@ async function purge() {
 
 beforeAll(async () => {
   await purge();
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: USER_EMAIL,
     password: "TagVisibility_2026!",
     email_confirm: true,

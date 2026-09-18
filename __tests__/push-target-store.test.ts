@@ -31,6 +31,7 @@ import {
   revokePushTarget,
   revokePushTargetById,
 } from "@/lib/infra/push-target-store";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -61,7 +62,7 @@ async function dropUser(email: string) {
 }
 
 async function createUser(email: string): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password: PASS,
     email_confirm: true,

@@ -21,6 +21,7 @@ import { db, organizationMemberships, organizations, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import { updateOrganizationForUser } from "@/src/modules/organizations/actions.internal";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -73,7 +74,7 @@ beforeAll(async () => {
   await deleteTestUser(MEMBER_EMAIL);
   await deleteTestUser(OTHER_EMAIL);
 
-  const r1 = await supabaseAdmin.auth.admin.createUser({
+  const r1 = await createFreshTestUser(supabaseAdmin, {
     email: ADMIN_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -82,7 +83,7 @@ beforeAll(async () => {
   adminUserId = r1.data.user.id;
   await db.update(profiles).set({ dniVerified: true }).where(eq(profiles.id, adminUserId));
 
-  const r2 = await supabaseAdmin.auth.admin.createUser({
+  const r2 = await createFreshTestUser(supabaseAdmin, {
     email: MEMBER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -90,7 +91,7 @@ beforeAll(async () => {
   if (r2.error || !r2.data.user) throw new Error(`createUser member: ${r2.error?.message}`);
   memberUserId = r2.data.user.id;
 
-  const r3 = await supabaseAdmin.auth.admin.createUser({
+  const r3 = await createFreshTestUser(supabaseAdmin, {
     email: OTHER_EMAIL,
     password: PASS,
     email_confirm: true,

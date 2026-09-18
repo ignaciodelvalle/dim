@@ -25,6 +25,7 @@ import { db, organizationMemberships, organizations, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { isDeactivatedInstitutional, resolveUserLanding } from "@/lib/infra/role-landing";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -56,7 +57,7 @@ let orgToken3: string;
 // ---------------------------------------------------------------------------
 
 async function createUser(email: string): Promise<string> {
-  const { data, error } = await supabase.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(supabase, {
     email,
     password: PASS,
     email_confirm: true,

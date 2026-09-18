@@ -66,6 +66,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
 import { setAuditMutationGucs, withMutationOverride } from "../_helpers/db-overrides";
+import { createFreshTestUser } from "../_helpers/fresh-test-user";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -169,7 +170,7 @@ beforeAll(async () => {
 
   await deleteFixture();
 
-  const created = await adminSdk().auth.admin.createUser({
+  const created = await createFreshTestUser(adminSdk(), {
     email: OWNER_EMAIL,
     password: OWNER_PASSWORD,
     email_confirm: true,

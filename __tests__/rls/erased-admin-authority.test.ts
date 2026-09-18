@@ -112,6 +112,7 @@ import {
 } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/infra/case-helpers";
 import { setAuditMutationGucs, withMutationOverride } from "../_helpers/db-overrides";
+import { createFreshTestUser } from "../_helpers/fresh-test-user";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -340,7 +341,7 @@ async function setDeletedAt(value: Date | null, userId = adminUserId): Promise<v
 async function provisionGovt(): Promise<void> {
   await deleteGovtFixture();
 
-  const created = await adminSdk().auth.admin.createUser({
+  const created = await createFreshTestUser(adminSdk(), {
     email: GOVT_EMAIL,
     password: GOVT_PASSWORD,
     email_confirm: true,
@@ -483,7 +484,7 @@ beforeAll(async () => {
 
   await deleteFixture();
 
-  const created = await adminSdk().auth.admin.createUser({
+  const created = await createFreshTestUser(adminSdk(), {
     email: ADMIN_EMAIL,
     password: ADMIN_PASSWORD,
     email_confirm: true,

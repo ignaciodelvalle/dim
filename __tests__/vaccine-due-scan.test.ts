@@ -25,6 +25,7 @@ import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db"
 import { runVaccineDueScan } from "@/lib/infra/notifications";
 import { sendPushForNotifications } from "@/lib/infra/web-push";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -51,7 +52,7 @@ async function ensureUserDeleted(email: string) {
 }
 
 async function createUser(email: string, password: string) {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password,
     email_confirm: true,

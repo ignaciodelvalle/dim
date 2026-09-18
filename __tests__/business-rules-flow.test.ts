@@ -12,6 +12,7 @@ import { createBusinessRuleWriter } from "@/src/modules/organizations/applicatio
 import { deleteBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/delete-business-rule";
 import { updateBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/update-business-rule";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -54,7 +55,7 @@ async function ensureUser(email: string): Promise<string> {
     }
     await supabase.auth.admin.deleteUser(found.id);
   }
-  const created = await supabase.auth.admin.createUser({
+  const created = await createFreshTestUser(supabase, {
     email,
     password: PASS,
     email_confirm: true,

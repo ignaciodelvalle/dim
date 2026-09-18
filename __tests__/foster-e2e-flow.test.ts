@@ -47,6 +47,7 @@ import {
   upsertFosterVolunteerAction,
 } from "@/src/modules/foster/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -129,7 +130,7 @@ beforeAll(async () => {
   await purgeUserByEmail(VOLUNTEER_EMAIL);
   await purgeUserByEmail(COORD_EMAIL);
 
-  const v = await supabaseAdmin.auth.admin.createUser({
+  const v = await createFreshTestUser(supabaseAdmin, {
     email: VOLUNTEER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -137,7 +138,7 @@ beforeAll(async () => {
   if (v.error || !v.data.user) throw new Error(`createUser volunteer: ${v.error?.message}`);
   volunteerUserId = v.data.user.id;
 
-  const c = await supabaseAdmin.auth.admin.createUser({
+  const c = await createFreshTestUser(supabaseAdmin, {
     email: COORD_EMAIL,
     password: PASS,
     email_confirm: true,

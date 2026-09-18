@@ -16,6 +16,7 @@ import { generatePublicToken } from "@/lib/infra/publicToken";
 import type { DisclosurePrefsInput } from "@/src/modules/events/actions";
 import { setPetLostWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -78,7 +79,7 @@ async function purgeUserByEmail(email: string) {
 beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
 
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,

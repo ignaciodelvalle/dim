@@ -38,6 +38,7 @@ import { updateOfferingCapacityWriter } from "@/src/modules/service-offerings/ap
 import { createClient } from "@supabase/supabase-js";
 
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (bypasses RLS for fixture setup / cleanup)
@@ -85,7 +86,7 @@ beforeAll(async () => {
   if (existing) await supabase.auth.admin.deleteUser(existing.id);
 
   // Create owner auth user.
-  const created = await supabase.auth.admin.createUser({
+  const created = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,

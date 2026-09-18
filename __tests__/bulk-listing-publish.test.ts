@@ -44,6 +44,7 @@ import {
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ─── Test env ─────────────────────────────────────────────────────────────────
 
@@ -172,7 +173,7 @@ beforeAll(async () => {
     .catch(() => null);
 
   // Create coordinator user.
-  const { data: coordData } = await supabaseAdmin.auth.admin.createUser({
+  const { data: coordData } = await createFreshTestUser(supabaseAdmin, {
     email: COORD_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -181,7 +182,7 @@ beforeAll(async () => {
   coordUserId = coordData.user!.id;
 
   // Create no-cap user.
-  const { data: noCapData } = await supabaseAdmin.auth.admin.createUser({
+  const { data: noCapData } = await createFreshTestUser(supabaseAdmin, {
     email: NO_CAP_EMAIL,
     password: PASS,
     email_confirm: true,

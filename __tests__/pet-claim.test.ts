@@ -84,6 +84,7 @@ import {
 } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -248,7 +249,7 @@ beforeAll(async () => {
   await purgeUserByEmail(EX_MEMBER_EMAIL);
   await purgeUserByEmail(CARETAKER_EMAIL);
 
-  const c = await supabaseAdmin.auth.admin.createUser({
+  const c = await createFreshTestUser(supabaseAdmin, {
     email: CLAIMANT_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -256,7 +257,7 @@ beforeAll(async () => {
   if (c.error || !c.data.user) throw new Error(`createUser claimant: ${c.error?.message}`);
   claimantUserId = c.data.user.id;
 
-  const o = await supabaseAdmin.auth.admin.createUser({
+  const o = await createFreshTestUser(supabaseAdmin, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -264,7 +265,7 @@ beforeAll(async () => {
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
 
-  const m = await supabaseAdmin.auth.admin.createUser({
+  const m = await createFreshTestUser(supabaseAdmin, {
     email: ORG_MEMBER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -272,7 +273,7 @@ beforeAll(async () => {
   if (m.error || !m.data.user) throw new Error(`createUser org member: ${m.error?.message}`);
   orgMemberUserId = m.data.user.id;
 
-  const x = await supabaseAdmin.auth.admin.createUser({
+  const x = await createFreshTestUser(supabaseAdmin, {
     email: EX_MEMBER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -280,7 +281,7 @@ beforeAll(async () => {
   if (x.error || !x.data.user) throw new Error(`createUser ex member: ${x.error?.message}`);
   exMemberUserId = x.data.user.id;
 
-  const k = await supabaseAdmin.auth.admin.createUser({
+  const k = await createFreshTestUser(supabaseAdmin, {
     email: CARETAKER_EMAIL,
     password: PASS,
     email_confirm: true,

@@ -26,6 +26,7 @@ import { recordDiseaseDiagnosisWriter as _recordDiseaseDiagnosisWriter } from "@
 import { recordDiseaseDiagnosisWriter } from "@/src/modules/events/application/writers";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -109,7 +110,7 @@ beforeAll(async () => {
   await purgeUserByEmail(VET_EMAIL);
   await purgeUserByEmail(ADMIN_EMAIL);
 
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -117,7 +118,7 @@ beforeAll(async () => {
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
 
-  const v = await supabase.auth.admin.createUser({
+  const v = await createFreshTestUser(supabase, {
     email: VET_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -129,7 +130,7 @@ beforeAll(async () => {
     .set({ role: "vet", matriculaVerified: true, displayName: "Dr. Test Ddx" })
     .where(eq(profiles.id, vetUserId));
 
-  const a = await supabase.auth.admin.createUser({
+  const a = await createFreshTestUser(supabase, {
     email: ADMIN_EMAIL,
     password: PASS,
     email_confirm: true,

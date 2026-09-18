@@ -70,6 +70,7 @@ import {
 import { generateOfferingToken, generatePublicToken } from "@/lib/infra/publicToken";
 import type { AuthorityScope } from "../../domain/types";
 
+import { createFreshTestUser } from "@/__tests__/_helpers/fresh-test-user";
 import { approveServiceOfferingForAuthority } from "../approve-service-offering";
 import {
   createServiceOfferingForOrg,
@@ -173,7 +174,7 @@ beforeAll(async () => {
   }
 
   // Create member auth user (the org-side actor who submits offerings).
-  const memberCreated = await supabase.auth.admin.createUser({
+  const memberCreated = await createFreshTestUser(supabase, {
     email: UC_SO_MEMBER_EMAIL,
     password: UC_SO_PASS,
     email_confirm: true,
@@ -184,7 +185,7 @@ beforeAll(async () => {
   memberUserId = memberCreated.data.user.id;
 
   // Create govt user (the reviewer / authority).
-  const govtCreated = await supabase.auth.admin.createUser({
+  const govtCreated = await createFreshTestUser(supabase, {
     email: UC_SO_GOVT_EMAIL,
     password: UC_SO_PASS,
     email_confirm: true,

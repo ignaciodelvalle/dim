@@ -16,6 +16,7 @@ import { selfDeactivatePersonalAccountForUser } from "@/src/modules/pets/applica
 import { selfReactivatePersonalAccountForUser } from "@/src/modules/pets/application/profile/self-reactivate-personal-account";
 import { vetSelfResignForUser } from "@/src/modules/pets/application/profile/vet-self-resign";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -68,7 +69,7 @@ async function deleteTestUser(email: string) {
 }
 
 async function createUserOrThrow(email: string): Promise<string> {
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email,
     password: "SelfService3d_2026!",
     email_confirm: true,

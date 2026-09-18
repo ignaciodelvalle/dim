@@ -27,6 +27,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, cronRuns, db, notifications, profiles } from "@/db";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -152,7 +153,7 @@ async function callHandler() {
 beforeAll(async () => {
   await purgeUserByEmail(APPLICANT_EMAIL);
 
-  const { data, error } = await supabase.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(supabase, {
     email: APPLICANT_EMAIL,
     password: PASS,
     email_confirm: true,

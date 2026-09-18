@@ -21,6 +21,7 @@ import {
 } from "@/lib/infra/notification-reconcile";
 import { getUnreadCountCached } from "@/lib/infra/request-cache";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -46,7 +47,7 @@ async function ensureUserDeleted(email: string) {
 
 beforeAll(async () => {
   await ensureUserDeleted(EMAIL);
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: EMAIL,
     password: PASS,
     email_confirm: true,
@@ -163,7 +164,7 @@ describe("stale-welcome reconcile — user without pets keeps the welcome", () =
 
   beforeAll(async () => {
     await ensureUserDeleted(EMAIL_NO_PETS);
-    const { data, error } = await admin.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(admin, {
       email: EMAIL_NO_PETS,
       password: "NotifReconcileNoPets_2026!",
       email_confirm: true,
@@ -214,7 +215,7 @@ describe("NULL-category notification — renders under 'all' and counts agree", 
 
   beforeAll(async () => {
     await ensureUserDeleted(EMAIL_NULL_CAT);
-    const { data, error } = await admin.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(admin, {
       email: EMAIL_NULL_CAT,
       password: "NotifNullCategory_2026!",
       email_confirm: true,

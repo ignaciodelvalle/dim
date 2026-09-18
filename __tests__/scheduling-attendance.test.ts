@@ -43,6 +43,7 @@ import { cancelAppointmentByOrg } from "@/src/modules/events/application/attenda
 import { markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
 import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (bypasses RLS for test fixture setup)
@@ -226,7 +227,7 @@ beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
 
   // Create auth users.
-  const orgMember = await supabase.auth.admin.createUser({
+  const orgMember = await createFreshTestUser(supabase, {
     email: ORG_MEMBER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -235,7 +236,7 @@ beforeAll(async () => {
     throw new Error(`createUser orgMember: ${orgMember.error?.message}`);
   orgMemberUserId = orgMember.data.user.id;
 
-  const vetProvider = await supabase.auth.admin.createUser({
+  const vetProvider = await createFreshTestUser(supabase, {
     email: VET_PROVIDER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -244,7 +245,7 @@ beforeAll(async () => {
     throw new Error(`createUser vet: ${vetProvider.error?.message}`);
   vetProviderUserId = vetProvider.data.user.id;
 
-  const owner = await supabase.auth.admin.createUser({
+  const owner = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,

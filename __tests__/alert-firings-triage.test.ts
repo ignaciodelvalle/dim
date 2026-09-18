@@ -54,6 +54,7 @@ import {
 } from "@/app/actions/alert-firings";
 import { alertFirings, alertSubscriptions, db, notifications, profiles } from "@/db";
 import { recordFiringsForUser } from "@/src/modules/alerts/application/firings/record-firings";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -84,7 +85,7 @@ async function ensureAdmin(email: string): Promise<string> {
     }
     await adminSdk.auth.admin.deleteUser(existing.id);
   }
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email,
     password: "AlertTriage_2026!",
     email_confirm: true,

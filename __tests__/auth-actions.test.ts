@@ -54,6 +54,7 @@ import { db, notifications, profiles } from "@/db";
 import { RateLimitError } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -111,7 +112,7 @@ async function purgeUserByEmail(email: string) {
 
 beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
-  const r = await supabaseAdmin.auth.admin.createUser({
+  const r = await createFreshTestUser(supabaseAdmin, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -121,7 +122,7 @@ beforeAll(async () => {
 
   // Deactivated institutional admin (task #39 loop guard).
   await purgeUserByEmail(DEACT_ADMIN_EMAIL);
-  const d = await supabaseAdmin.auth.admin.createUser({
+  const d = await createFreshTestUser(supabaseAdmin, {
     email: DEACT_ADMIN_EMAIL,
     password: PASS,
     email_confirm: true,

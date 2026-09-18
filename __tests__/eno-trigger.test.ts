@@ -25,6 +25,7 @@ import {
 import { processEnoQueueBatch } from "@/lib/infra/eno-queue-processor";
 import { processEnoEventTrigger } from "@/lib/infra/eno-trigger";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -165,7 +166,7 @@ beforeAll(async () => {
   }
 
   // Create owner
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -178,7 +179,7 @@ beforeAll(async () => {
     .where(eq(profiles.id, ownerUserId));
 
   // Create vet
-  const v = await supabase.auth.admin.createUser({
+  const v = await createFreshTestUser(supabase, {
     email: VET_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -191,7 +192,7 @@ beforeAll(async () => {
     .where(eq(profiles.id, vetUserId));
 
   // Create province-scope govt (covers entire province — locality='')
-  const gp = await supabase.auth.admin.createUser({
+  const gp = await createFreshTestUser(supabase, {
     email: GOVT_PROVINCE_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -219,7 +220,7 @@ beforeAll(async () => {
   insertedGovtAssignmentIds.push(provAssignment.id);
 
   // Create locality-scope govt (exact locality match)
-  const gl = await supabase.auth.admin.createUser({
+  const gl = await createFreshTestUser(supabase, {
     email: GOVT_LOCALITY_EMAIL,
     password: PASS,
     email_confirm: true,

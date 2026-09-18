@@ -44,6 +44,7 @@ import {
   revokeInvitationAction,
 } from "@/src/modules/organizations/actions";
 import { dbNow } from "./_helpers/db-now";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -107,7 +108,7 @@ async function deleteUserByEmail(email: string) {
 }
 
 async function createUserOrThrow(email: string): Promise<string> {
-  const r = await supabaseAdmin.auth.admin.createUser({
+  const r = await createFreshTestUser(supabaseAdmin, {
     email,
     password: PASS,
     email_confirm: true,

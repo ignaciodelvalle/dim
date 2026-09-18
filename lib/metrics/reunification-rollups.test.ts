@@ -15,6 +15,7 @@ import { inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { withMutationOverride } from "@/__tests__/_helpers/db-overrides";
+import { createFreshTestUser } from "@/__tests__/_helpers/fresh-test-user";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
@@ -62,7 +63,7 @@ async function ensureOwner(): Promise<string> {
     if (profile) return existing.id;
     await adminSdk.auth.admin.deleteUser(existing.id);
   }
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email: OWNER_EMAIL,
     password: "ReunificationRollupsTest_2026!",
     email_confirm: true,

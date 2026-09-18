@@ -49,6 +49,7 @@ import { requestRehomeSponsorship } from "@/src/modules/rehome/application/reque
 import { RehomeRepository } from "@/src/modules/rehome/infrastructure/rehome-repository";
 
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -170,7 +171,7 @@ beforeAll(async () => {
   for (const email of Object.values(USERS)) await purgeUserByEmail(email);
 
   for (const [key, email] of Object.entries(USERS) as Array<[keyof typeof USERS, string]>) {
-    const r = await supabaseAdmin.auth.admin.createUser({
+    const r = await createFreshTestUser(supabaseAdmin, {
       email,
       password: PASS,
       email_confirm: true,

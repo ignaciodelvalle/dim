@@ -15,6 +15,7 @@ import {
   recordPregnancyStartedWriter,
 } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -76,7 +77,7 @@ async function insertTestPet(
 
 beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,

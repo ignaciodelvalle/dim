@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db, notifications, ownerships, pets } from "@/db";
 import { fetchNotificationCategoryCounts } from "@/lib/analytics/owner-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -44,7 +45,7 @@ async function ensureUserDeleted(email: string) {
 }
 
 async function createUser(email: string, password: string): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password,
     email_confirm: true,

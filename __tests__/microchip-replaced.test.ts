@@ -24,6 +24,7 @@ import {
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { replaceMicrochipSchema } from "@/src/modules/pets/application/microchip/types";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -82,7 +83,7 @@ beforeAll(async () => {
   await db.delete(organizations).where(eq(organizations.email, "microchip-vet-org@dim-test.local"));
 
   // Create owner user.
-  const { data: ownerData, error: ownerErr } = await admin.auth.admin.createUser({
+  const { data: ownerData, error: ownerErr } = await createFreshTestUser(admin, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -91,7 +92,7 @@ beforeAll(async () => {
   ownerUserId = ownerData.user.id;
 
   // Create vet user.
-  const { data: vetData, error: vetErr } = await admin.auth.admin.createUser({
+  const { data: vetData, error: vetErr } = await createFreshTestUser(admin, {
     email: VET_EMAIL,
     password: PASS,
     email_confirm: true,

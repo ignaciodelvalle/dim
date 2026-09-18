@@ -81,6 +81,7 @@ import { db, profiles } from "@/db";
 import { RateLimitError } from "@/lib/infra/rate-limit";
 
 import { GET as meRoute } from "@/app/api/v1/me/route";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
 const SERVICE_KEY = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -146,7 +147,7 @@ async function purge(email: string) {
 /** Creates the user and signs in through the ANON key, exactly as a phone would. */
 async function seed(key: keyof typeof EMAILS) {
   await purge(EMAILS[key]);
-  const created = await supabaseAdmin.auth.admin.createUser({
+  const created = await createFreshTestUser(supabaseAdmin, {
     email: EMAILS[key],
     password: PASS,
     email_confirm: true,

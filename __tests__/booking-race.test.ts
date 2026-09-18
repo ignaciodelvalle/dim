@@ -25,6 +25,7 @@ import {
 } from "@/db";
 import { generateOfferingToken, generatePublicToken } from "@/lib/infra/publicToken";
 import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -124,7 +125,7 @@ beforeAll(async () => {
   await db.execute(sql`DELETE FROM ownerships WHERE pet_id IN (${debris})`);
   await db.execute(sql`DELETE FROM pets WHERE id IN (${debris})`);
 
-  const a = await supabase.auth.admin.createUser({
+  const a = await createFreshTestUser(supabase, {
     email: OWNER_A_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -132,7 +133,7 @@ beforeAll(async () => {
   if (a.error || !a.data.user) throw new Error(`createUser A: ${a.error?.message}`);
   ownerAUserId = a.data.user.id;
 
-  const b = await supabase.auth.admin.createUser({
+  const b = await createFreshTestUser(supabase, {
     email: OWNER_B_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -140,7 +141,7 @@ beforeAll(async () => {
   if (b.error || !b.data.user) throw new Error(`createUser B: ${b.error?.message}`);
   ownerBUserId = b.data.user.id;
 
-  const p = await supabase.auth.admin.createUser({
+  const p = await createFreshTestUser(supabase, {
     email: PROVIDER_EMAIL,
     password: PASS,
     email_confirm: true,

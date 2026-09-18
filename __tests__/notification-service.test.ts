@@ -25,6 +25,7 @@ import { db, notificationDeadLetter, notifications } from "@/db";
 import { fetchUnreadNotificationCount } from "@/lib/analytics/owner-dashboard";
 import { createNotification } from "@/lib/infra/notification-service";
 import { sendPushForNotifications } from "@/lib/infra/web-push";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -46,7 +47,7 @@ async function purge() {
 
 beforeAll(async () => {
   await purge();
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: EMAIL,
     password: PASS,
     email_confirm: true,

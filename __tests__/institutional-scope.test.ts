@@ -22,6 +22,7 @@ import {
 import type { ActorProfile } from "@/lib/domain/institutional-scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ============================================================================
 // createAdminClient tests (A-2.1 / A-2.2)
@@ -103,7 +104,7 @@ async function deleteGuardTestUser(email: string) {
 }
 
 async function createUserOrThrow(email: string): Promise<string> {
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email,
     password: "Fase5Guard_2026!",
     email_confirm: true,

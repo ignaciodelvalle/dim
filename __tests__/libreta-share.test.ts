@@ -16,6 +16,7 @@ import { getActiveLibretaShares } from "@/src/modules/pets/application/libreta-s
 import { revokeLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
 import { findPetPublicTokenForShare } from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -58,7 +59,7 @@ beforeAll(async () => {
     await tx.delete(pets).where(eq(pets.publicToken, PET_TOKEN));
   });
 
-  const { data: d1, error: e1 } = await admin.auth.admin.createUser({
+  const { data: d1, error: e1 } = await createFreshTestUser(admin, {
     email: EMAIL,
     password: PASS,
     email_confirm: true,
@@ -66,7 +67,7 @@ beforeAll(async () => {
   if (e1 || !d1.user) throw new Error(`createUser1: ${e1?.message}`);
   userId = d1.user.id;
 
-  const { data: d2, error: e2 } = await admin.auth.admin.createUser({
+  const { data: d2, error: e2 } = await createFreshTestUser(admin, {
     email: EMAIL2,
     password: PASS,
     email_confirm: true,

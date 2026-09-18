@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizationMemberships, organizations, pets, profiles } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Unit tests — Zod schemas only
@@ -203,7 +204,7 @@ beforeAll(async () => {
   await purgeUserByEmail(TEST_EMAIL_OWNER);
   await purgeUserByEmail(TEST_EMAIL_ORG_MEMBER);
 
-  const o = await supabaseAdmin.auth.admin.createUser({
+  const o = await createFreshTestUser(supabaseAdmin, {
     email: TEST_EMAIL_OWNER,
     password: TEST_PASS,
     email_confirm: true,
@@ -211,7 +212,7 @@ beforeAll(async () => {
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
 
-  const m = await supabaseAdmin.auth.admin.createUser({
+  const m = await createFreshTestUser(supabaseAdmin, {
     email: TEST_EMAIL_ORG_MEMBER,
     password: TEST_PASS,
     email_confirm: true,

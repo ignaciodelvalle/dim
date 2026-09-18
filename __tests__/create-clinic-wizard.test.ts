@@ -28,6 +28,7 @@ import {
 import { revokeVetRoleForAuthority } from "@/src/modules/organizations/application/revocations/revoke-vet-role";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -92,7 +93,7 @@ async function purgeVet() {
 }
 
 async function provisionVet(): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: VET_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -116,7 +117,7 @@ async function provisionVet(): Promise<string> {
 }
 
 async function provisionVetNoMatricula(): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: VET_NO_MATRICULA_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -140,7 +141,7 @@ async function provisionVetNoMatricula(): Promise<string> {
 }
 
 async function provisionAdmin(): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: ADMIN_REVOC_EMAIL,
     password: PASS,
     email_confirm: true,

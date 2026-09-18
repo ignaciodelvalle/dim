@@ -21,6 +21,7 @@ import {
   assertAdminFallbackAvailable,
 } from "./_helpers/admin-fallback-jurisdiction";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -125,7 +126,7 @@ beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
   await purgeUserByEmail(ADMIN_EMAIL);
 
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -133,7 +134,7 @@ beforeAll(async () => {
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
 
-  const a = await supabase.auth.admin.createUser({
+  const a = await createFreshTestUser(supabase, {
     email: ADMIN_EMAIL,
     password: PASS,
     email_confirm: true,

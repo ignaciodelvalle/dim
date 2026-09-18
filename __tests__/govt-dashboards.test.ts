@@ -44,6 +44,7 @@ import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 import { windows } from "@/lib/metrics/period";
 import { findDisease } from "@/lib/reference/diseases";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 import { assertKpiListParity } from "./helpers/kpi-list-parity";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -69,7 +70,7 @@ async function ensureOwner(): Promise<string> {
     if (profile) return existing.id;
     await adminSdk.auth.admin.deleteUser(existing.id);
   }
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email: OWNER_EMAIL,
     password: "GovtDashTest_2026!",
     email_confirm: true,

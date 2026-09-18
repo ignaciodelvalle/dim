@@ -27,6 +27,7 @@ import { LnRegRow } from "@/components/ui/RegRow";
 import { db, ownerships, petEvents, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -51,7 +52,7 @@ beforeAll(async () => {
     await admin.auth.admin.deleteUser(existing.id);
   }
 
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: EMAIL,
     password: PASS,
     email_confirm: true,

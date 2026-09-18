@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { auditLog, db, notifications, profiles } from "@/db";
 import { verifyDniForUser } from "@/src/modules/auth/application/dni-verification/verify-dni";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -55,7 +56,7 @@ beforeAll(async () => {
   await deleteTestUser(EMAIL_A);
   await deleteTestUser(EMAIL_B);
 
-  const rA = await admin.auth.admin.createUser({
+  const rA = await createFreshTestUser(admin, {
     email: EMAIL_A,
     password: PASS,
     email_confirm: true,
@@ -63,7 +64,7 @@ beforeAll(async () => {
   if (rA.error || !rA.data.user) throw new Error(`createUser A: ${rA.error?.message}`);
   userIdA = rA.data.user.id;
 
-  const rB = await admin.auth.admin.createUser({
+  const rB = await createFreshTestUser(admin, {
     email: EMAIL_B,
     password: PASS,
     email_confirm: true,
@@ -160,7 +161,7 @@ describe("verifyDniForUser", () => {
     // userIdB already has dni7; try to set the same value on a new user.
     const EMAIL_C = "dni-verify-c@dim-test.local";
     await deleteTestUser(EMAIL_C);
-    const rC = await admin.auth.admin.createUser({
+    const rC = await createFreshTestUser(admin, {
       email: EMAIL_C,
       password: PASS,
       email_confirm: true,

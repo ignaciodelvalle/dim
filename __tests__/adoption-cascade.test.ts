@@ -39,6 +39,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { submitAdoptionApplicationAction } from "@/src/modules/adoption/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -132,7 +133,7 @@ beforeAll(async () => {
     { email: COORD_EMAIL, ref: "coord" },
   ];
   for (const u of users) {
-    const r = await supabaseAdmin.auth.admin.createUser({
+    const r = await createFreshTestUser(supabaseAdmin, {
       email: u.email,
       password: PASS,
       email_confirm: true,

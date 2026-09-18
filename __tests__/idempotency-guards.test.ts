@@ -54,6 +54,7 @@ import { setPetDisclosurePrefs } from "@/src/modules/pets/application/lost-mode/
 import { createVaccineReminder } from "@/src/modules/pets/application/reminders/create-vaccine-reminder";
 import { createTattooForUser } from "@/src/modules/pets/application/tattoo/create-tattoo";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -108,7 +109,7 @@ beforeAll(async () => {
   await purgeUser(HELPER_EMAIL);
   await db.delete(organizations).where(eq(organizations.email, ORG_EMAIL));
 
-  const { data: ownerData, error: ownerErr } = await admin.auth.admin.createUser({
+  const { data: ownerData, error: ownerErr } = await createFreshTestUser(admin, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -116,7 +117,7 @@ beforeAll(async () => {
   if (ownerErr || !ownerData.user) throw new Error(`createUser owner: ${ownerErr?.message}`);
   ownerUserId = ownerData.user.id;
 
-  const { data: helperData, error: helperErr } = await admin.auth.admin.createUser({
+  const { data: helperData, error: helperErr } = await createFreshTestUser(admin, {
     email: HELPER_EMAIL,
     password: PASS,
     email_confirm: true,

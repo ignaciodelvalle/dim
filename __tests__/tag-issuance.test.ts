@@ -31,6 +31,7 @@ import { auditLog, db, petTags, profiles } from "@/db";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
 import { buildTagIssuanceCsv } from "@/src/modules/pets/application/tags/issuance-csv";
 import { issueTagBatchForAdmin } from "@/src/modules/pets/application/tags/issue-tag-batch";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -65,7 +66,7 @@ beforeAll(async () => {
   await purgeUser(CIVILIAN_EMAIL);
 
   const mk = async (email: string) => {
-    const { data, error } = await admin.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(admin, {
       email,
       password: PASS,
       email_confirm: true,

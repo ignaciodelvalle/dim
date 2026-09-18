@@ -54,6 +54,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { auditLog, db, notifications, profiles } from "@/db";
 import { updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
 import { setAuditMutationGucs } from "../_helpers/db-overrides";
+import { createFreshTestUser } from "../_helpers/fresh-test-user";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -136,7 +137,7 @@ beforeAll(async () => {
 
   await deleteTestUser(VICTIM_EMAIL);
 
-  const created = await adminSdk().auth.admin.createUser({
+  const created = await createFreshTestUser(adminSdk(), {
     email: VICTIM_EMAIL,
     password: VICTIM_PASSWORD,
     email_confirm: true,

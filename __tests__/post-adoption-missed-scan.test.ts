@@ -32,6 +32,7 @@ import {
 } from "@/db";
 import { runPostAdoptionCheckinScan } from "@/lib/infra/notifications";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -75,7 +76,7 @@ async function deleteUserIfExists(email: string) {
 }
 
 async function makeUser(email: string): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password: PASS,
     email_confirm: true,

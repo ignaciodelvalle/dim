@@ -39,6 +39,7 @@ import { pgErrorCode } from "@/lib/infra/db-errors";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // Mock next/navigation redirect so completeIdentityAction doesn't throw NEXT_REDIRECT.
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -136,7 +137,7 @@ async function ensureUser(email: string): Promise<string> {
   const { data: list } = await admin.auth.admin.listUsers();
   const found = list?.users.find((u) => u.email === email);
   if (found) return found.id;
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password: PASS,
     email_confirm: true,
@@ -1273,7 +1274,7 @@ describe("ARCH-H: audit_log actor hard-delete survivability", () => {
     }
 
     // Create a fresh ephemeral actor.
-    const { data, error } = await admin.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(admin, {
       email: ARCH_H_ACTOR_EMAIL,
       password: "ArchH_2026!",
       email_confirm: true,
@@ -1407,7 +1408,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
         await tx.delete(auditLog).where(eq(auditLog.actorUserId, existing.id));
       });
     } else {
-      const { data, error } = await admin.auth.admin.createUser({
+      const { data, error } = await createFreshTestUser(admin, {
         email: ABUSE_ACTOR_EMAIL,
         password: "AbuseGuard_2026!",
         email_confirm: true,

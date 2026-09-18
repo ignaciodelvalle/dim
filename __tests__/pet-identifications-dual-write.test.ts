@@ -21,6 +21,7 @@ import { EventsRepository } from "@/src/modules/events/infrastructure/events-rep
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { PetsRepository } from "@/src/modules/pets/infrastructure/pets-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -100,7 +101,7 @@ beforeAll(async () => {
     }
   }
 
-  const { data: userData, error: userErr } = await admin.auth.admin.createUser({
+  const { data: userData, error: userErr } = await createFreshTestUser(admin, {
     email: USER_EMAIL,
     password: PASS,
     email_confirm: true,

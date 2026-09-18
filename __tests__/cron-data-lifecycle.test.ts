@@ -59,6 +59,7 @@ import {
   purgeAbandonedStagedUploads,
 } from "@/lib/infra/storage-gc";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Test auth bootstrap — we need a real user profile because notifications
@@ -91,7 +92,7 @@ async function purgeTestUser() {
 
 beforeAll(async () => {
   await purgeTestUser();
-  const { data, error } = await supabase.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(supabase, {
     email: TEST_EMAIL,
     password: TEST_PASS,
     email_confirm: true,

@@ -55,6 +55,7 @@ import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -80,7 +81,7 @@ async function ensureOwner(): Promise<string> {
     if (profile) return existing.id;
     await adminSdk.auth.admin.deleteUser(existing.id);
   }
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email: OWNER_EMAIL,
     password: "Pf1ParityTest_2026!",
     email_confirm: true,

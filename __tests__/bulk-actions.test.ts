@@ -35,6 +35,7 @@ import {
 import { approvalRequests, auditLog, db, notifications, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -68,7 +69,7 @@ function mockSessionAs(userId: string | null) {
 }
 
 async function createUser(email: string): Promise<string> {
-  const r = await supabaseAdmin.auth.admin.createUser({
+  const r = await createFreshTestUser(supabaseAdmin, {
     email,
     password: PASS,
     email_confirm: true,

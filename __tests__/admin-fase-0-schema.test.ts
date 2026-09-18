@@ -19,6 +19,7 @@ import { approvalRequests, auditLog, db, ownerships, pets, profiles } from "@/db
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -68,7 +69,7 @@ beforeAll(async () => {
   await purgeUserByEmail(ADMIN_EMAIL);
   await purgeUserByEmail(OWNER_EMAIL);
 
-  const a = await admin.auth.admin.createUser({
+  const a = await createFreshTestUser(admin, {
     email: ADMIN_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -80,7 +81,7 @@ beforeAll(async () => {
     .set({ role: "admin", accountType: "institutional" })
     .where(eq(profiles.id, adminUserId));
 
-  const o = await admin.auth.admin.createUser({
+  const o = await createFreshTestUser(admin, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,

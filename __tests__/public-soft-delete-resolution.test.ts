@@ -90,6 +90,7 @@ import { proposeReturnAsRefugioUseCase } from "@/src/modules/return-to-owner/app
 import { proposeReturnAsVecinoUseCase } from "@/src/modules/return-to-owner/application/propose-return-as-vecino";
 import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 import { ROOT, directDeps } from "./db-reachability";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -160,7 +161,7 @@ async function ensureUser(email: string): Promise<string> {
   const { data: list } = await admin.auth.admin.listUsers();
   const found = list?.users.find((u) => u.email === email);
   if (found) return found.id;
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password: PASS,
     email_confirm: true,

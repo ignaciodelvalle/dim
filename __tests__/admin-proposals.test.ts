@@ -30,6 +30,7 @@ import { proposeOrgVerificationForOrg } from "@/src/modules/organizations/applic
 import { proposeVetUpgradeForUser } from "@/src/modules/organizations/application/admin-proposals/propose-vet-upgrade";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -98,7 +99,7 @@ async function deleteTestUser(email: string) {
 }
 
 async function createUserOrThrow(email: string): Promise<string> {
-  const r = await admin.auth.admin.createUser({
+  const r = await createFreshTestUser(admin, {
     email,
     password: PASS,
     email_confirm: true,

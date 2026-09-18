@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { fetchPendingApprovalsPage } from "@/lib/infra/admin-approval-queue";
 import { encodeCursor } from "@/lib/utils/keyset-pagination";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -45,7 +46,7 @@ async function deleteApplicant() {
 
 beforeAll(async () => {
   await deleteApplicant();
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email: APPLICANT_EMAIL,
     password: "C1Queue_2026!",
     email_confirm: true,

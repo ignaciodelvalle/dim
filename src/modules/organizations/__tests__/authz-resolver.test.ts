@@ -21,6 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { createFreshTestUser } from "@/__tests__/_helpers/fresh-test-user";
 import {
   ORGANIZATION_CAPABILITIES,
   db,
@@ -107,7 +108,7 @@ async function purgeOrg(id: string) {
 // ---------------------------------------------------------------------------
 
 async function createTestUser(email: string): Promise<string> {
-  const { data, error } = await supabase.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(supabase, {
     email,
     password: PASS,
     email_confirm: true,

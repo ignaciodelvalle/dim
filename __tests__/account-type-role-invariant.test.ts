@@ -34,6 +34,7 @@ import { attachments, auditLog, db, govtAssignments, notifications, profiles } f
 import { createInstitutionalAccountForAuthority } from "@/src/modules/organizations/application/admin-institutional/create-institutional-account";
 import { vetSelfResignForUser } from "@/src/modules/pets/application/profile/vet-self-resign";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Client + constants
@@ -104,7 +105,7 @@ async function createUserOrThrow(
   email: string,
   metadata?: Record<string, string>,
 ): Promise<string> {
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email,
     password: "InvariantTest_2026!",
     email_confirm: true,

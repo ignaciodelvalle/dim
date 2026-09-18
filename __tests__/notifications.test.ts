@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
 import { type VaccineDueScanResult, runVaccineDueScan } from "@/lib/infra/notifications";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -40,7 +41,7 @@ async function provisionFixture() {
     });
     await admin.auth.admin.deleteUser(found.id);
   }
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email: EMAIL,
     password: PASS,
     email_confirm: true,

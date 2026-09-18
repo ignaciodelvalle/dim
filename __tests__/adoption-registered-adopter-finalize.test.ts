@@ -49,6 +49,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkAdopterAccountAction, finalizeAdoptionAction } from "@/src/modules/adoption/actions";
 import { ADOPTER_DNI_CHECK_LIMITS } from "@/src/modules/adoption/domain/dni-check-policy";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -160,7 +161,7 @@ beforeAll(async () => {
 
   // Registered adopter: REAL auth.users row + profiles row, dniVerified=FALSE
   // on purpose — the reconciliation says a fresh on-the-spot signup matches.
-  const adopterRes = await supabaseAdmin.auth.admin.createUser({
+  const adopterRes = await createFreshTestUser(supabaseAdmin, {
     email: ADOPTER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -182,7 +183,7 @@ beforeAll(async () => {
     })
     .where(eq(profiles.id, adopterUserId));
 
-  const coordRes = await supabaseAdmin.auth.admin.createUser({
+  const coordRes = await createFreshTestUser(supabaseAdmin, {
     email: COORD_EMAIL,
     password: PASS,
     email_confirm: true,

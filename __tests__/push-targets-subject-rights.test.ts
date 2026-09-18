@@ -32,6 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, pushTargets } from "@/db";
 import { pgErrorCode } from "@/lib/infra/db-errors";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -73,7 +74,7 @@ async function deleteUserByEmail(email: string): Promise<void> {
 }
 
 async function createUser(email: string): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password: "SrPushTest_2026!",
     email_confirm: true,

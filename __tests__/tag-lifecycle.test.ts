@@ -45,6 +45,7 @@ import { activateTagForUser } from "@/src/modules/pets/application/tags/activate
 import { revokeTagForUser } from "@/src/modules/pets/application/tags/revoke-tag";
 import { ACTIVATION_FAILED_MESSAGE } from "@/src/modules/pets/application/tags/types";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -97,7 +98,7 @@ beforeAll(async () => {
   await purgeUser(OWNER_EMAIL);
   await purgeUser(STRANGER_EMAIL);
 
-  const { data: ownerData, error: ownerErr } = await admin.auth.admin.createUser({
+  const { data: ownerData, error: ownerErr } = await createFreshTestUser(admin, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -105,7 +106,7 @@ beforeAll(async () => {
   if (ownerErr || !ownerData.user) throw new Error(`createUser owner: ${ownerErr?.message}`);
   ownerUserId = ownerData.user.id;
 
-  const { data: strangerData, error: strangerErr } = await admin.auth.admin.createUser({
+  const { data: strangerData, error: strangerErr } = await createFreshTestUser(admin, {
     email: STRANGER_EMAIL,
     password: PASS,
     email_confirm: true,

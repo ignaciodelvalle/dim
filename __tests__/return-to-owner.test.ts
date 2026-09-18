@@ -37,6 +37,7 @@ import {
   proposeReturnAsVecinoWriter,
 } from "@/src/modules/return-to-owner/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -100,7 +101,7 @@ beforeAll(async () => {
   await purgeUserByEmail(REFUGIO_MEMBER_EMAIL);
   await purgeUserByEmail(VECINO_EMAIL);
 
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -108,7 +109,7 @@ beforeAll(async () => {
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
 
-  const m = await supabase.auth.admin.createUser({
+  const m = await createFreshTestUser(supabase, {
     email: REFUGIO_MEMBER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -116,7 +117,7 @@ beforeAll(async () => {
   if (m.error || !m.data.user) throw new Error(`createUser refugio member: ${m.error?.message}`);
   refugioMemberUserId = m.data.user.id;
 
-  const v = await supabase.auth.admin.createUser({
+  const v = await createFreshTestUser(supabase, {
     email: VECINO_EMAIL,
     password: PASS,
     email_confirm: true,

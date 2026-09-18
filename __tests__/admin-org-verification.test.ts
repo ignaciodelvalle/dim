@@ -25,6 +25,7 @@ import {
 import { unverifyOrgForAuthority } from "@/src/modules/organizations/application/admin-org-verification/unverify-org";
 import { verifyOrgForAuthority } from "@/src/modules/organizations/application/admin-org-verification/verify-org";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -95,7 +96,7 @@ async function deleteTestUser(email: string) {
 }
 
 async function createUserOrThrow(email: string): Promise<string> {
-  const r = await adminSdk.auth.admin.createUser({
+  const r = await createFreshTestUser(adminSdk, {
     email,
     password: PASS,
     email_confirm: true,

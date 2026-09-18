@@ -25,6 +25,7 @@ import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/infra/origin-o
 import { createClient } from "@/lib/supabase/server";
 import { updateOrganizationForUser } from "@/src/modules/organizations/actions.internal";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 const supabaseAdmin = createSupabaseClient(SUPABASE_URL, SECRET, {
@@ -95,7 +96,7 @@ beforeAll(async () => {
     }
   }
 
-  const r1 = await supabaseAdmin.auth.admin.createUser({
+  const r1 = await createFreshTestUser(supabaseAdmin, {
     email: ADMIN_EMAIL,
     password: PASS,
     email_confirm: true,

@@ -22,6 +22,7 @@ import { db, ownerships, pets, reminders } from "@/db";
 import { fetchActiveReminders, fetchActiveRemindersForPet } from "@/lib/analytics/owner-dashboard";
 import { deleteVaccineReminder } from "@/src/modules/pets/application/reminders/delete-vaccine-reminder";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
 // Route-level mocks (T13+ only). Real DB, real `resolvePetHolderAccess`, real
@@ -111,7 +112,7 @@ async function ensureUserDeleted(email: string) {
 }
 
 async function createUser(email: string, password: string): Promise<string> {
-  const { data, error } = await admin.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(admin, {
     email,
     password,
     email_confirm: true,

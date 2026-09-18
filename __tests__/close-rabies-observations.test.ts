@@ -18,6 +18,7 @@ import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { closeEligibleRabiesObservations } from "@/lib/infra/rabies-observation-closer";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -49,7 +50,7 @@ async function purgeUserByEmail(email: string) {
 
 beforeAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
-  const { data, error } = await supabase.auth.admin.createUser({
+  const { data, error } = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,

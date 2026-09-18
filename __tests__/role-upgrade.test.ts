@@ -29,6 +29,7 @@ import {
   ADMIN_FALLBACK_JURISDICTION,
   assertAdminFallbackAvailable,
 } from "./_helpers/admin-fallback-jurisdiction";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -110,7 +111,7 @@ beforeAll(async () => {
   await deleteTestUser(EMAIL2);
   await deleteTestUser(ADMIN_EMAIL);
 
-  const r1 = await admin.auth.admin.createUser({
+  const r1 = await createFreshTestUser(admin, {
     email: EMAIL,
     password: PASS,
     email_confirm: true,
@@ -120,7 +121,7 @@ beforeAll(async () => {
   // DNI prereq: mark both test users verified so happy-path tests pass.
   await markDniVerified(userId);
 
-  const r2 = await admin.auth.admin.createUser({
+  const r2 = await createFreshTestUser(admin, {
     email: EMAIL2,
     password: PASS,
     email_confirm: true,
@@ -131,7 +132,7 @@ beforeAll(async () => {
 
   // Seed a platform admin so the no-govt-fallback path has someone to notify.
   // Without this, the fan-out in unscoped tests would silently no-op.
-  const r3 = await admin.auth.admin.createUser({
+  const r3 = await createFreshTestUser(admin, {
     email: ADMIN_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -460,7 +461,7 @@ describe("DNI prerequisite enforcement", () => {
 
   beforeAll(async () => {
     await deleteTestUser(EMAIL_UNVERIFIED);
-    const r = await admin.auth.admin.createUser({
+    const r = await createFreshTestUser(admin, {
       email: EMAIL_UNVERIFIED,
       password: PASS,
       email_confirm: true,

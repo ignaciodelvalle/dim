@@ -25,6 +25,7 @@ import {
 } from "@/src/modules/cases/application/operator-actions";
 import { CasesRepository } from "@/src/modules/cases/infrastructure/cases-repository";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -61,7 +62,7 @@ async function purge(email: string) {
 }
 
 async function makeUser(email: string): Promise<string> {
-  const r = await admin.auth.admin.createUser({ email, password: PASS, email_confirm: true });
+  const r = await createFreshTestUser(admin, { email, password: PASS, email_confirm: true });
   if (r.error || !r.data.user) throw new Error(`createUser(${email}): ${r.error?.message}`);
   return r.data.user.id;
 }

@@ -70,6 +70,7 @@ import { openCase } from "@/lib/infra/case-helpers";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
+import { createFreshTestUser } from "@/__tests__/_helpers/fresh-test-user";
 import { addDisputePartyUseCase } from "../add-dispute-party";
 import { escalateDisputeUseCase } from "../escalate-dispute";
 import { lookupTransferTargetUseCase } from "../lookup-transfer-target";
@@ -141,7 +142,7 @@ function govtOojSession() {
 // ---------------------------------------------------------------------------
 
 async function createUser(email: string): Promise<string> {
-  const r = await supabase.auth.admin.createUser({
+  const r = await createFreshTestUser(supabase, {
     email,
     password: UC_PASS,
     email_confirm: true,

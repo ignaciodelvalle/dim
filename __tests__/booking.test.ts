@@ -47,6 +47,7 @@ import {
 } from "@/lib/infra/publicToken";
 import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -112,7 +113,7 @@ beforeAll(async () => {
   await purgeUserByEmail(OTHER_EMAIL);
 
   // Create users.
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -120,7 +121,7 @@ beforeAll(async () => {
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
 
-  const oth = await supabase.auth.admin.createUser({
+  const oth = await createFreshTestUser(supabase, {
     email: OTHER_EMAIL,
     password: PASS,
     email_confirm: true,

@@ -58,6 +58,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
+import { createFreshTestUser } from "@/__tests__/_helpers/fresh-test-user";
 import { actorCancelProposalUseCase } from "../actor-cancel-proposal";
 import { orgAcceptOwnerReturnUseCase } from "../org-accept-owner-return";
 import { orgRejectOwnerReturnUseCase } from "../org-reject-owner-return";
@@ -176,7 +177,7 @@ beforeAll(async () => {
   await purgeUserByEmail(UC_REFUGIO_EMAIL);
   await purgeUserByEmail(UC_VECINO_EMAIL);
 
-  const o = await supabase.auth.admin.createUser({
+  const o = await createFreshTestUser(supabase, {
     email: UC_OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -184,7 +185,7 @@ beforeAll(async () => {
   if (o.error || !o.data.user) throw new Error(`createUser owner: ${o.error?.message}`);
   ownerUserId = o.data.user.id;
 
-  const m = await supabase.auth.admin.createUser({
+  const m = await createFreshTestUser(supabase, {
     email: UC_REFUGIO_EMAIL,
     password: PASS,
     email_confirm: true,
@@ -192,7 +193,7 @@ beforeAll(async () => {
   if (m.error || !m.data.user) throw new Error(`createUser refugio: ${m.error?.message}`);
   refugioMemberUserId = m.data.user.id;
 
-  const v = await supabase.auth.admin.createUser({
+  const v = await createFreshTestUser(supabase, {
     email: UC_VECINO_EMAIL,
     password: PASS,
     email_confirm: true,

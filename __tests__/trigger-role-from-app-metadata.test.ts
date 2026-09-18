@@ -32,6 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
+import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -86,7 +87,7 @@ afterAll(async () => {
 
 describe("handle_new_user never trusts request metadata for the role", () => {
   it("IGNORES user_metadata.user_role='admin' → defaults to role='owner'", async () => {
-    const { data, error } = await adminSdk.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(adminSdk, {
       email: EMAILS.userMetaAdmin,
       password: PASSWORD,
       email_confirm: true,
@@ -103,7 +104,7 @@ describe("handle_new_user never trusts request metadata for the role", () => {
     // app_metadata is service-role-only, but it is STILL not an elevation
     // channel at signup: GoTrue merges custom app_metadata AFTER the trigger has
     // already inserted the profile. The honest contract is 'owner' here.
-    const { data, error } = await adminSdk.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(adminSdk, {
       email: EMAILS.appMetaAdmin,
       password: PASSWORD,
       email_confirm: true,
@@ -117,7 +118,7 @@ describe("handle_new_user never trusts request metadata for the role", () => {
   }, 20_000);
 
   it("a plain signup (no role metadata) → role='owner'", async () => {
-    const { data, error } = await adminSdk.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(adminSdk, {
       email: EMAILS.plainSignup,
       password: PASSWORD,
       email_confirm: true,
@@ -129,7 +130,7 @@ describe("handle_new_user never trusts request metadata for the role", () => {
   }, 20_000);
 
   it("elevates ONLY via an explicit service-role UPDATE (the genesis/bootstrap path)", async () => {
-    const { data, error } = await adminSdk.auth.admin.createUser({
+    const { data, error } = await createFreshTestUser(adminSdk, {
       email: EMAILS.elevated,
       password: PASSWORD,
       email_confirm: true,

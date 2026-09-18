@@ -13,6 +13,7 @@ import { attachments, db, ownerships, petEvents, petIdentifications, pets } from
 import { normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 import { createTattooForUser } from "@/src/modules/pets/application/tattoo/create-tattoo";
 import { withMutationOverride } from "../_helpers/db-overrides";
+import { createFreshTestUser } from "../_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -61,7 +62,7 @@ async function purgeUser(email: string) {
 beforeAll(async () => {
   await purgeUser(OWNER_EMAIL);
 
-  const { data: ownerData, error: ownerErr } = await admin.auth.admin.createUser({
+  const { data: ownerData, error: ownerErr } = await createFreshTestUser(admin, {
     email: OWNER_EMAIL,
     password: PASS,
     email_confirm: true,
