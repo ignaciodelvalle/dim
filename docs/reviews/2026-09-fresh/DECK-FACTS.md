@@ -115,10 +115,10 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `lint_scripts` | `<!-- fact:lint_scripts -->70<!-- /fact -->` |
 | `check_scripts` | `<!-- fact:check_scripts -->75<!-- /fact -->` |
 | `modules` | `<!-- fact:modules -->22<!-- /fact -->` |
-| `pages` | `<!-- fact:pages -->262<!-- /fact -->` |
+| `pages` | `<!-- fact:pages -->263<!-- /fact -->` |
 | `route_handlers` | `<!-- fact:route_handlers -->89<!-- /fact -->` |
 | `layouts` | `<!-- fact:layouts -->11<!-- /fact -->` |
-| `migrations` | `<!-- fact:migrations -->223<!-- /fact -->` |
+| `migrations` | `<!-- fact:migrations -->224<!-- /fact -->` |
 | `tables` | `<!-- fact:tables -->54<!-- /fact -->` |
 | `enums` | `<!-- fact:enums -->22<!-- /fact -->` |
 | `rls_enabled_tables` | `<!-- fact:rls_enabled_tables -->56<!-- /fact -->` |
@@ -140,7 +140,7 @@ All 35 keys of `docs/architecture/facts.json`. The file at this snapshot declare
 | `throttle_per_hour` | `<!-- fact:throttle_per_hour -->6000<!-- /fact -->` |
 | `signed_url_ttl_seconds` | `<!-- fact:signed_url_ttl_seconds -->3600<!-- /fact -->` |
 | `projections` | `<!-- fact:projections -->13<!-- /fact -->` |
-| `service_role_call_sites` | `<!-- fact:service_role_call_sites -->39<!-- /fact -->` |
+| `service_role_call_sites` | `<!-- fact:service_role_call_sites -->40<!-- /fact -->` |
 | `canon_rows` | `<!-- fact:canon_rows -->518<!-- /fact -->` |
 | `canon_enforced` | `<!-- fact:canon_enforced -->180<!-- /fact -->` |
 | `canon_partial` | `<!-- fact:canon_partial -->93<!-- /fact -->` |

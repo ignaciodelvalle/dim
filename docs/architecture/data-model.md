@@ -6,7 +6,7 @@
 
 `db/schema.ts` declares <!-- fact:tables -->54<!-- /fact --> tables and
 <!-- fact:enums -->22<!-- /fact --> enums, over
-<!-- fact:migrations -->223<!-- /fact --> forward-only SQL migrations under
+<!-- fact:migrations -->224<!-- /fact --> forward-only SQL migrations under
 `db/migrations`. This document is about the handful of them that carry the
 system's meaning, and about the one distinction the rest of the pack depends on:
 **which rows are the record, and which rows are a copy of the record kept for
@@ -352,7 +352,7 @@ inventory.
   database. <!-- fact:security_definer_functions -->8<!-- /fact --> functions are
   declared `SECURITY DEFINER`.
 
-<!-- fact:service_role_call_sites -->39<!-- /fact --> call sites construct the
+<!-- fact:service_role_call_sites -->40<!-- /fact --> call sites construct the
 service-role client. **Every one of them bypasses RLS by design** — that is what
 the role is for — which is why the count is generated rather than argued about.
 

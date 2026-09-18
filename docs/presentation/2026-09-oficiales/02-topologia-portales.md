@@ -59,7 +59,7 @@ El detalle por ruta y el inventario de páginas están en
 4. El cerrojo de base de datos es respaldo y **solo cubre la puerta pública de
    datos**, nunca la conexión propia del servidor.
 
-Tamaño del árbol: <!-- fact:pages -->262<!-- /fact --> páginas,
+Tamaño del árbol: <!-- fact:pages -->263<!-- /fact --> páginas,
 <!-- fact:route_handlers -->89<!-- /fact --> manejadores de ruta y apenas
 <!-- fact:layouts -->11<!-- /fact --> capas de entrada. Esa proporción es el
 argumento: el control está concentrado en las capas de entrada, no repartido
@@ -138,7 +138,7 @@ graph TB
   exacto que ese documento existe para evitar.
 - **No decir "el cerrojo de base de datos nos protege".** La conexión propia del
   servidor pasa por encima del cerrojo por diseño, y hay
-  <!-- fact:service_role_call_sites -->39<!-- /fact --> lugares del código que
+  <!-- fact:service_role_call_sites -->40<!-- /fact --> lugares del código que
   usan la llave de servicio, cada uno saltando el cerrojo a propósito
   (`docs/architecture/rls-coverage.md`).
 - **No afirmar que una baja de cuenta cierra todas las puertas.** El rechazo por

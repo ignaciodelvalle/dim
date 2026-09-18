@@ -333,7 +333,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - `docs/architecture/rls-coverage.md` — qué cubre y qué no cubre el cerrojo de base.
 - **Lo que NO se dice en esta lámina.**
   - **No se dice que el cerrojo de base sea universal.** Hay
-    <!-- fact:service_role_call_sites -->39<!-- /fact --> lugares donde el servidor
+    <!-- fact:service_role_call_sites -->40<!-- /fact --> lugares donde el servidor
     usa una llave que lo saltea, y es por diseño: el servidor ya resolvió el permiso.
     Decirlo en la misma lámina donde se muestra el cerrojo es lo que hace creíble al
     cerrojo.
@@ -507,9 +507,9 @@ funciona si las dos láminas incómodas están donde se ven.
   que falta está nombrado con su motivo, y la federación con Mi Argentina es la
   premisa del diseño, no una función entregada.
 - **Hechos.**
-  - Pantallas: <!-- fact:pages -->262<!-- /fact -->.
+  - Pantallas: <!-- fact:pages -->263<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->223<!-- /fact -->.
+    <!-- fact:migrations -->224<!-- /fact -->.
   - Tablas: <!-- fact:tables -->54<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que
