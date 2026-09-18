@@ -218,8 +218,36 @@ no deja terminar de configurar una app nueva si la cuenta no inició sesión en
 los últimos 15 minutos. **Ese hook sólo existe en los planes Teams y
 Enterprise de Supabase**; en Pro la función queda creada pero nadie la llama.
 Localmente está encendido (`supabase/config.toml`). El bloqueo lo puede
-provocar un atacante a propósito, pero para eso ya necesita la contraseña: en
-ese caso bloquear es lo correcto y la salida es "Restablecer segundo factor".
+provocar un atacante a propósito, y no le hace falta la contraseña: le alcanza
+con una sesión vieja que haya quedado abierta (un celular robado, una
+computadora compartida). En ese caso bloquear sigue siendo lo correcto y la
+salida es "Restablecer segundo factor", que además de cambiar la contraseña y
+cerrar todas las sesiones levanta el bloqueo por códigos incorrectos (borra
+los contadores `mfa_verify_fail:<id>:*`), así la persona puede configurar la
+app enseguida sin esperar a que pase la ventana. Queda
+anotado como deuda del corte en `docs/ops/cutover-debts.md`: en Pro este tope
+no corre.
+
+**Si el ÚNICO admin pierde su segundo factor (salida de emergencia).** Nadie
+puede apretar "Restablecer segundo factor" por él (un admin no puede con su
+propia cuenta), así que se hace desde Supabase, fuera de la web. Lo hace el PO:
+
+1. Confirmá la identidad por otro canal, igual que con cualquier restablecimiento.
+2. Supabase Dashboard → **Authentication → Users** → la cuenta → borrá su
+   factor MFA. Sin el dashboard, lo mismo con la API de administración y la
+   clave `service_role`: `auth.admin.mfa.listFactors({ userId })` y
+   `auth.admin.mfa.deleteFactor({ userId, id })` por cada factor.
+3. Si el hook de intentos está encendido y la cuenta llegó al tope, borrá sus
+   contadores en el SQL editor:
+   `delete from public.rate_limit_buckets where bucket_key like 'mfa\_verify\_fail:<id de la cuenta>:%';`
+4. La persona inicia sesión con su contraseña (en los 15 minutos siguientes, si
+   el hook está encendido) y configura una app nueva. Si además el factor se
+   perdió porque le robaron el teléfono, antes cambiá su contraseña y cerrá sus
+   sesiones desde el mismo panel.
+
+Esto no deja fila en el audit log de miMAR: anotá quién, cuándo y por qué en el
+registro del piloto. **Para no llegar nunca acá: mantené siempre dos cuentas
+admin activas**, cada una con su propia app configurada.
 
 ## 4. Aprobar veterinarios y organizaciones — `/gob/cola`
 
