@@ -11,6 +11,8 @@ loadEnv({ path: ".env" });
 
 import { type Browser, type Page, chromium } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { passSecondFactorIfAsked } from "../e2e/_mfa";
+import { leftSignIn } from "../e2e/_sign-in-route";
 
 const BASE = "http://localhost:3000";
 const PASS = "Test1234!";
@@ -72,7 +74,11 @@ async function login(page: Page, email: string) {
   await page.locator('input[name="email"]').fill(email);
   await page.locator('input[name="password"]').fill(PASS);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
+  // leftSignIn, not `!startsWith("/login")`: the sign-in page is /iniciar-sesion
+  // and the old predicate held before a credential was typed (e2e/_sign-in-route.ts).
+  await page.waitForURL(leftSignIn, { timeout: 30_000 });
+  // Institutional accounts owe TOTP since T2-S6 (e2e/_mfa.ts).
+  await passSecondFactorIfAsked(page, email, PASS);
 }
 
 async function pickLocalityEnter(

@@ -32,6 +32,7 @@
 import "./_load-env";
 
 import { createClient } from "@supabase/supabase-js";
+import { upgradeSeedSessionToAal2 } from "./lib/seed-mfa";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -168,10 +169,14 @@ async function loginAsGovt(): Promise<string> {
   if (error || !data.session) {
     throw new Error(`Sign-in failed for ${GOVT_EMAIL}: ${error?.message ?? "no session returned"}`);
   }
+  // Institutional accounts owe TOTP since T2-S6: bring the session to aal2
+  // (no-op for personal accounts). scripts/lib/seed-mfa.ts.
+  await upgradeSeedSessionToAal2(supabase, GOVT_EMAIL, GOVT_PASSWORD);
+  const session = (await supabase.auth.getSession()).data.session ?? data.session;
 
   const projectRef = projectRefFromUrl(supabaseUrl);
   const cookieKey = `sb-${projectRef}-auth-token`;
-  const sessionJson = JSON.stringify(data.session);
+  const sessionJson = JSON.stringify(session);
   const pairs = createChunks(cookieKey, sessionJson);
   return pairs.map(({ name, value }) => `${name}=${value}`).join("; ");
 }

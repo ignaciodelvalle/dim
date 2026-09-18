@@ -118,6 +118,10 @@ function announceUndeclared(): void {
  * fully active in the app — the control is exercised on every login, and
  * e2e/auth.spec.ts still walks the form's refusal paths on its own.
  *
+ * Since T2-S6 an institutional sign-in also spends `auth_mfa_code_user` (5/min ·
+ * 30/hour per account) when e2e/_mfa.ts answers the TOTP challenge, with the
+ * same worker-churn arithmetic, so it is cleared with the other two.
+ *
  * LOCAL ONLY — same guard as deletePetsByNamePrefix: a no-op against any
  * non-local database.
  */
@@ -130,7 +134,8 @@ export async function resetAuthLoginRateLimits(): Promise<void> {
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
     await sql`DELETE FROM rate_limit_buckets
-      WHERE bucket_key LIKE ${"auth_login_ip:%"} OR bucket_key LIKE ${"auth_login_email:%"}`;
+      WHERE bucket_key LIKE ${"auth_login_ip:%"} OR bucket_key LIKE ${"auth_login_email:%"}
+         OR bucket_key LIKE ${"auth_mfa_code_user:%"}`;
   } catch {
     // Best-effort: a failed reset just means the next login spends real budget.
   } finally {

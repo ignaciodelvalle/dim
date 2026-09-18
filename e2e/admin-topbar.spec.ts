@@ -1,5 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
+import { passSecondFactorIfAsked } from "./_mfa";
 import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 
 /**
@@ -25,6 +26,7 @@ async function loginAsAdmin(page: Page): Promise<void> {
   await page.getByRole("textbox", { name: "Contraseña" }).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   await page.waitForURL(leftSignIn, { timeout: 20_000 });
+  await passSecondFactorIfAsked(page, "admin@dim.test", SHARED_PASSWORD);
 }
 
 async function computedFont(

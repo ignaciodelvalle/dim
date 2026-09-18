@@ -202,3 +202,48 @@ coverage. They need no secret beyond the public `STAGING_URL`.
   fails legibly instead of silently eating the test budget (Playwright's
   default is 0 — no limit — and an unbounded action cannot be caught by
   `try/catch`, because it never throws).
+
+## Institutional accounts and the second factor (TOTP, T2-S6)
+
+Since T2-S6 every **institutional** account (`admin@`, `govt@`, `govt-local@`,
+`nacional@`, `lucas@` — any `admin` / `govt` / `national` role) must pass a
+TOTP code before any portal or action. After the password the server sends the
+browser to `/mfa` (a verified factor exists) or `/mfa/configurar` (none yet).
+`leftSignIn` is true on both, so **a login helper that stops at `leftSignIn` is
+not logged in** for these accounts.
+
+The convention:
+
+- **Every login helper calls `passSecondFactorIfAsked(page, email, password)`**
+  (`e2e/_mfa.ts`) right after it leaves the sign-in page. It is a no-op for
+  personal accounts. `loginAs` in `demo/_helpers.ts` already does, and so do the
+  five specs with a private login; a new private login must too.
+- The helper walks the **real** `/mfa` screen with a code computed from a secret
+  the harness knows. There is no test bypass in the app, and none may be added.
+- The secret comes from `scripts/lib/seed-mfa.ts`: it enrols the account through
+  its OWN session (enroll → challengeAndVerify — GoTrue generates the secret and
+  has no API to set one) and keeps it in `e2e/.auth/totp-secrets.json`
+  (gitignored), keyed by Supabase URL + user id + factor id. Idempotent: a known
+  factor is reused; an unknown one (fresh DB, a factor somebody enrolled by hand)
+  is deleted with the service-role admin API and replaced. A lock file keeps
+  parallel workers from enrolling the same account at once.
+- The codes are RFC 6238 (`scripts/lib/totp.ts`, pinned by the RFC's own test
+  vectors in `__tests__/mfa-institutional.test.ts`). GoTrue accepts a code again
+  inside the same 30-second step (measured), and the helper waits one step and
+  retries once anyway.
+- `resetAuthLoginRateLimits` also clears `auth_mfa_code_user:*` (5/min · 30/h
+  per account) for the same worker-churn reason as the login buckets.
+- API-driven QA scripts (`qa-session`, `qa-mint-sessions`, `qa-routes`,
+  `qa-timing`, `qa-query-census`, `load-probe`) call
+  `upgradeSeedSessionToAal2(client, email, password)` after
+  `signInWithPassword`, so the cookie they build carries the aal2 token.
+
+**LOCAL / CI ONLY.** The harness rewrites the factor of whatever account it is
+pointed at. Against a shared environment where a PERSON uses the same account
+(staging's `admin@dim.test`), it would replace that person's authenticator — and
+without the service-role key it cannot clear a factor it did not enrol. Do not
+run institutional logins against staging until that is decided.
+
+Inspecting the state by hand: the factor list is `auth.mfa_factors` in the local
+DB; deleting `e2e/.auth/totp-secrets.json` makes the next run re-enrol every
+account it touches.
