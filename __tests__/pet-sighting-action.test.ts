@@ -160,6 +160,9 @@ let activeHolderRows: Array<{ userId: string | null; role: string }> = [];
 /** `pets.seed_tag` of the resolved pet — null is a real pet (the default). */
 let petSeedTag: string | null = null;
 
+/** `pets.in_custody_dispute` of the resolved pet — false is the default. */
+let petInCustodyDispute = false;
+
 // Rebuild mock DB state before each test.
 function buildMockDb() {
   let selectCallCount = 0;
@@ -187,7 +190,15 @@ function buildMockDb() {
       if (selectCallCount === 1) {
         // pet query
         callOrder.push("publicPetByToken");
-        return [{ id: PET_ID, name: "Luna", status: "lost", seedTag: petSeedTag }];
+        return [
+          {
+            id: PET_ID,
+            name: "Luna",
+            status: "lost",
+            seedTag: petSeedTag,
+            inCustodyDispute: petInCustodyDispute,
+          },
+        ];
       }
       // open case query
       return [{ id: CASE_ID }];
@@ -598,6 +609,46 @@ describe("reportPetSightingAction — a seeded (synthetic) pet records nothing",
     });
     expect(capturedPetEventInsert).toBeNull();
     expect(capturedNotificationInsert).toBeNull();
+  });
+});
+
+// A06-G5: the D2 gate must hold for a hand-rolled POST — the action is
+// anon-callable, so hiding the form in the UI is not the gate.
+describe("reportPetSightingAction — a pet under custody dispute relays nothing", () => {
+  beforeEach(() => {
+    capturedPetEventInsert = null;
+    capturedNotificationInsert = null;
+    callOrder = [];
+    mockEnforceRateLimit.mockResolvedValue(undefined);
+    mockUpload.mockReset();
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+    buildMockDb();
+    petInCustodyDispute = true;
+  });
+  afterEach(() => {
+    petInCustodyDispute = false;
+  });
+
+  it("refuses with the dispute notice and writes no event and no notification", async () => {
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION, finderName: "María", finderContact: "11-1234-5678" }),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "En esta credencial los avisos los recibe la autoridad competente, no la persona registrada como dueña. Enviá tu aviso desde la credencial de la mascota.",
+    });
+    // createNotificationsBulk writes a notifications or a dead-letter row; the
+    // refusal must come before any insert at all.
+    expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(capturedPetEventInsert).toBeNull();
+    expect(capturedNotificationInsert).toBeNull();
+    expect(mockUpload).not.toHaveBeenCalled();
   });
 });
 

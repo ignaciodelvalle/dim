@@ -163,6 +163,9 @@ let idempotencyReturnEvent = false;
 /** custodia-temporal: does the fixture pet have an active caretaker row? */
 let activeCaretakerPresent = false;
 
+/** `pets.in_custody_dispute` of the fixture pet — false is the default. */
+let petInCustodyDispute = false;
+
 /**
  * The partial unique index `notifications_dedupe_key_unique`, when a test needs
  * it. `null` (the default) keeps the historical behaviour: every notification
@@ -189,7 +192,9 @@ function buildMockDb(petStatus = "lost", eventId = INSERTED_EVENT_ID) {
     if (selectCallCount === 1) {
       // pet query — the token resolution, and the thing the limiter must precede
       callOrder.push("pet-lookup");
-      return [{ id: PET_ID, name: "Luna", status: petStatus }];
+      return [
+        { id: PET_ID, name: "Luna", status: petStatus, inCustodyDispute: petInCustodyDispute },
+      ];
     }
     if (selectCallCount === 2) {
       // active holders — ranked by role, titular wins
@@ -479,6 +484,36 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toBeTruthy();
     expect(capturedPetEventInsert).toBeNull();
+  });
+
+  // A06-G5: the D2 gate is server-side because the action is anon-callable —
+  // a hand-rolled POST reaches it with no page in between.
+  it("refuses a pet under custody dispute and relays nothing to the contested owner", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    petInCustodyDispute = true;
+    try {
+      const { reportFinderInPossessionAction } = await import(
+        "@/app/(public)/p/[publicToken]/encontre/action"
+      );
+      const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
+
+      const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+      expect(result).toEqual({
+        ok: false,
+        error:
+          "En esta credencial los avisos los recibe la autoridad competente, no la persona registrada como dueña. Enviá tu aviso desde la credencial de la mascota.",
+      });
+      // createNotificationsBulk writes a notifications or a dead-letter row;
+      // the refusal must come before any insert at all.
+      expect(mockDb.insert).not.toHaveBeenCalled();
+      expect(capturedPetEventInsert).toBeNull();
+      expect(capturedNotificationRows).toHaveLength(0);
+      expect(capturedDeadLetterRows).toHaveLength(0);
+    } finally {
+      petInCustodyDispute = false;
+    }
   });
 
   it("accepts a handoff without finderName (anonymous, PO 2026-07-24) — payload carries null, copy falls back to 'Alguien'", async () => {
