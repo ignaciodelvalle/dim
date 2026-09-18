@@ -3,7 +3,7 @@
 **Agente:** Cursor (browser automation + code trace)  
 **Fecha:** 2026-07-06  
 **Entorno:** `http://localhost:3000` — seed local  
-**Cuenta:** `govt@dim.test` / `Test1234!` — scope 3 localidades (CABA, Santa Cruz/El Calafate, Tierra del Fuego/Ushuaia)
+**Cuenta:** `govt@dim.test` / `SHARED_PASSWORD` — scope 3 localidades (CABA, Santa Cruz/El Calafate, Tierra del Fuego/Ushuaia)
 
 **Criterio:** no validar que los números coinciden — validar que un funcionario **llega a decidir** sin adivinar. Pregunta rectora por pantalla: *¿un director de Zoonosis toma una decisión con esto?*
 

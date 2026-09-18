@@ -109,7 +109,7 @@ cuánto duele que estén rotos.
    Estas se abren sin cuenta: probá al menos una **sin sesión iniciada**.
 
 **Cuentas:** owner@, noeli@, graciela@, alejo@, lilian@, lucas@, admin@dim.test —
-password `Test1234!`.
+password `SHARED_PASSWORD`.
 
 **Cómo conseguir los tokens.** Casi todas estas URLs llevan un token
 (`[publicToken]`, `[orgToken]`, `[offeringToken]`). **No los inventes ni los

@@ -3,7 +3,7 @@
 One agent (Cursor), run the passes **in sequence** today. Goal: validate the WHOLE app so Claude only triages findings (fix or backlog). Each pass = one report file + screenshots. Claude synthesizes + remediates.
 
 ## Common contract (every pass inherits)
-- Server `http://localhost:3000` (built). Accounts, all `Test1234!`: `owner@dim.test` (10 pets, **Rocco = DIM-DEMO-0001**, Pipa = DIM-DEMO-0010), `owner2@`, `govt@` (focal CABA), `admin@`, `orgadmin@`, `alejo@` (vet — **navigate to the clinic via alejo@'s org nav**, don't hardcode the org token; it changes per re-seed).
+- Server `http://localhost:3000` (built). Accounts, all `SHARED_PASSWORD`: `owner@dim.test` (10 pets, **Rocco = DIM-DEMO-0001**, Pipa = DIM-DEMO-0010), `owner2@`, `govt@` (focal CABA), `admin@`, `orgadmin@`, `alejo@` (vet — **navigate to the clinic via alejo@'s org nav**, don't hardcode the org token; it changes per re-seed).
 - **Rubric per screen:** ¿Sobra? ¿Falta? ¿Autocontenido? ¿De un vistazo?
 - **Severity:** Blocker (breaks a task/promise) · Mayor (confuses / forces guessing) · Menor (polish).
 - **NO irreversible actions** — stop at the confirmation (no real account-delete, hard-delete, payment).

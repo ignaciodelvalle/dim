@@ -1,7 +1,7 @@
 # QA Cursor — Pack LITE paralelo (solo lectura: anon + visual)
 
 **URL:** https://dim-staging-a3ynpgcos-ignacio-dim.vercel.app
-**Solo necesitás UNA cuenta:** `govt@dim.test` / `Test1234!` (para el punto 4). Todo lo demás es SIN login.
+**Solo necesitás UNA cuenta:** `govt@dim.test` / `SHARED_PASSWORD` (para el punto 4). Todo lo demás es SIN login.
 **Tu lane:** superficie pública + visual. NO toques flujos con mutación (signup, denuncias, transferencias, adopciones) — Cowork los corre en paralelo. Reportá: OK / FALLA + captura.
 
 ## 1. Landing (los 3 fixes de hoy + el hero nuevo)

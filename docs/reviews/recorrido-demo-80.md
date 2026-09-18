@@ -4,7 +4,7 @@
 > comparamos. Lo que buscamos no es "¿anda?" — es **¿los dos vieron lo mismo?**
 >
 > · **Cowork** → `http://localhost:3000` · **Cursor** → `http://localhost:3001`
-> · Contraseña única: `Test1234!`
+> · Contraseña única: `SHARED_PASSWORD`
 > · Base recién reconstruida: 66.729 mascotas · 3.017 denuncias · 836 casos · 12 organizaciones
 
 ## Por qué este recorrido y no otro

@@ -1,7 +1,7 @@
 # Cowork validation pack — full-persona click-through (staging)
 
 **URL:** https://dim-staging-8bp1zu2xv-ignacio-dim.vercel.app
-**Password for ALL accounts:** `Test1234!`
+**Password for ALL accounts:** `SHARED_PASSWORD`
 **Date:** 2026-07-07 · Staging is the funcionarios' first look — validate like a real user, click by click.
 
 ## Mission

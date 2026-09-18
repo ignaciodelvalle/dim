@@ -23,7 +23,7 @@ celular (390px).
 
 ## Credenciales
 
-Contraseña única: `Test1234!`
+Contraseña única: `SHARED_PASSWORD`
 
 | Cuenta | Rol | Cuándo usarla |
 |---|---|---|

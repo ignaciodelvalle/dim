@@ -113,7 +113,7 @@ observación a la causa. Cuatro ejemplos de esa misma corrida:
 
 ---
 
-## 3. Los perfiles (todos, con `Test1234!`)
+## 3. Los perfiles (todos, con `SHARED_PASSWORD`)
 
 Cada uno ve un producto distinto. La corrida anterior usó dos.
 

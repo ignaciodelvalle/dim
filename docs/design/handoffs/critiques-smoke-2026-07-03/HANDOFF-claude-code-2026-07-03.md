@@ -19,7 +19,7 @@ Read the summary and per-role docs, then for **each** finding decide whether it'
 
 ## Repro setup
 - App: localhost:3000, build `d4b2516c`, local Supabase.
-- Accounts (password `Test1234!`): `owner@dim.test`, `lilian@dim.test` (vet), `alejo@dim.test` (admin of all 4 orgs), `govt@dim.test`, `admin@dim.test`.
+- Accounts (password `SHARED_PASSWORD`): `owner@dim.test`, `lilian@dim.test` (vet), `alejo@dim.test` (admin of all 4 orgs), `govt@dim.test`, `admin@dim.test`.
 - Org tokens: Refugio `DIM-TC7Z-APW6` · Clínica `DIM-6TZM-DUJZ` · Red de rescate `DIM-KN7W-JTB8` · Autoridad sanitaria `DIM-PWZR-B75C`.
 
 ## Priority order

@@ -130,7 +130,7 @@ Lucas (gob) → Ignacio → Noelí → Graciela → Alejo (instituciones) → Li
 
 ## 2. El elenco
 
-Personas que **ya existen** en la base. Todas con `Test1234!`. Si alguna no existe, **no la inventes**: anotalo como hallazgo y seguí.
+Personas que **ya existen** en la base. Todas con `SHARED_PASSWORD`. Si alguna no existe, **no la inventes**: anotalo como hallazgo y seguí.
 
 | Persona | Cuenta | Rol en la historia |
 |---|---|---|
@@ -143,7 +143,7 @@ Personas que **ya existen** en la base. Todas con `Test1234!`. Si alguna no exis
 | **Dra. Lilian Marrone** | `lilian@dim.test` | Veterinaria matriculada. Firma |
 
 Las siete cuentas fueron verificadas en staging el 2026-08-09: existen, están
-confirmadas, sin bloqueos, y `Test1234!` entra en todas.
+confirmadas, sin bloqueos, y `SHARED_PASSWORD` entra en todas.
 
 > **Ojo con `govt-local@dim.test`.** Existe, y NO es Lucas. Cubre Buenos
 > Aires/La Plata y CABA/Palermo, así que desde esa cuenta **no se ve Recoleta**
@@ -202,7 +202,7 @@ entregártelo:
 | Los dos portales de organización (§2.1) responden | ✅ ambos, 200 |
 | Las siete rutas públicas del guion | ✅ todas, 200 |
 | El elenco demo intacto (`DIM-PAMP-0001`, `DIM-DEMO-*`) | ✅ |
-| Las siete cuentas del elenco entran con `Test1234!` | verificado el **2026-08-09** — si alguna falla, es hallazgo |
+| Las siete cuentas del elenco entran con `SHARED_PASSWORD` | verificado el **2026-08-09** — si alguna falla, es hallazgo |
 | Ninguna cuenta tiene el DNI verificado (N2b) | verificado el **2026-08-09** |
 
 **Lo que cambió la noche del 2026-08-10, después de la última revisión de este

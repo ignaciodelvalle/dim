@@ -4,7 +4,7 @@
 > base compartida). Datos 100% sintéticos y descartables: **podés mutar** (aprobar, rechazar,
 > derivar, anotar), pero registrá todo lo que cambiaste.
 >
-> **Contraseña única:** `Test1234!`
+> **Contraseña única:** `SHARED_PASSWORD`
 >
 > **Esta ronda NO trae recorrido.** No hay lista de pantallas ni de pasos. Se te dan PROBLEMAS que
 > caen en tu escritorio; vos decidís a dónde ir y qué tocar. Si no encontrás dónde se resuelve un

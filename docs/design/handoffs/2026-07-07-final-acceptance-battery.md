@@ -3,7 +3,7 @@
 Purpose: browser-verify the overnight fixes + sweep the whole system, producing reports Claude can remediate from directly. Run on a **freshly rebuilt** `:3000` (stale-build hazard: a cohort hitting an old build reports phantom bugs — always `rm -rf .next && pnpm build && pnpm start` first, or confirm the build is newer than HEAD).
 
 ## Common contract (every prompt inherits this)
-- Server `http://localhost:3000` (built, not dev). Accounts, all `Test1234!`: `owner@dim.test` (10 pets, DIM-DEMO-0001), `owner2@`, `govt@` (focal CABA), `admin@`, `orgadmin@`, `alejo@` (vet, clinic `DIM-UBHY-TCH5`).
+- Server `http://localhost:3000` (built, not dev). Accounts, all `SHARED_PASSWORD`: `owner@dim.test` (10 pets, DIM-DEMO-0001), `owner2@`, `govt@` (focal CABA), `admin@`, `orgadmin@`, `alejo@` (vet, clinic `DIM-UBHY-TCH5`).
 - **Rubric per screen:** ¿Sobra? ¿Falta? ¿Autocontenido? ¿De un vistazo?
 - **Severity:** Blocker (breaks a task/promise) · Mayor (confuses / forces guessing) · Menor (polish).
 - **NO irreversible actions** — stop at the confirmation dialog (no real account-delete, hard-delete, payment).

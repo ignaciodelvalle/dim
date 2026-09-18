@@ -17,7 +17,7 @@
 | pnpm test | ✅ 7126 passed on fresh DB. ONE known exception: `pet-cache-rederivation` flags a SEED bug (identification/cache columns written without events — S002/S009, filed as follow-up task), NOT app code. Zero demo-beat pets affected. |
 | Build | ✅ prod `pnpm build` @ 71fe2bb0 ("✓ Compiled successfully in 24.9s") — NOT dev |
 | URL | http://localhost:3000 (prod server via qa-up, morning's stale server killed first) |
-| Password universal | `Test1234!` |
+| Password universal | `SHARED_PASSWORD` |
 
 ### Gates HTTP pre-browser (CC, curl @ 71fe2bb0)
 
@@ -43,7 +43,7 @@ fails on the `server-only` guard — spine needs the stub loader like its siblin
 | DNI_HASH_PEPPER | not set (test default applies) ✅ |
 | NEXT_PUBLIC_DEMO_MODE | **NOT set → demo banner OFF.** demo:verify recommends `true` for `/admin/*` demos — Ignacio's call (requires rebuild). Note the banner state on every screen either way. |
 
-### Cuentas (password `Test1234!`)
+### Cuentas (password `SHARED_PASSWORD`)
 
 | Actor | Email | Entrada |
 |---|---|---|
@@ -193,7 +193,7 @@ build; Fase 0 header still cites `71fe2bb0` for qa-up origin) · **When:**
 
 **Resultado:** ✅ All gates green (replay matches CC pre-browser block @ 71fe2bb0).
 
-### Browser login smoke (password `Test1234!`)
+### Browser login smoke (password `SHARED_PASSWORD`)
 
 | Actor | Email | Landing | Result |
 |---|---|---|---|

@@ -3,7 +3,7 @@
 **Agente:** Cursor (Playwright + screenshots)  
 **Fecha:** 2026-07-07 (re-validación post-fixes)  
 **Entorno:** `http://localhost:3000` — build fresco (`380fb0eb`), DB reset + seed completo  
-**Cuenta:** `owner@dim.test` / `Test1234!`  
+**Cuenta:** `owner@dim.test` / `SHARED_PASSWORD`  
 **Side-effects:** lectura pública `/p/DIM-DEMO-0001`; denuncia no enviada; borrado de cuenta no confirmado.
 
 Screenshots: `docs/reviews/results/val-1-citizen-screenshots/`

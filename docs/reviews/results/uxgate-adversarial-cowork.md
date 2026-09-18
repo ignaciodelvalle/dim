@@ -4,7 +4,7 @@
 **Fecha:** 2026-07-06  
 **Entorno:** `http://localhost:3000` (build producción local, seed demo)  
 **Viewport:** desktop (default browser)  
-**Cuentas:** `owner@dim.test` (10 mascotas demo), `owner2@dim.test` (no probado en vivo — ver nota), flujos públicos sin login — contraseña `Test1234!`  
+**Cuentas:** `owner@dim.test` (10 mascotas demo), `owner2@dim.test` (no probado en vivo — ver nota), flujos públicos sin login — contraseña `SHARED_PASSWORD`  
 **Alcance:** Caminos infelices ciudadano — empty states, validación de formularios, inputs raros, búsqueda pública DIM/DEN, doble-submit, back en wizard denuncia, deep URLs malas, toggles de privacidad (sin flip Tier-2), sesión sin auth.
 
 Screenshots: `docs/reviews/results/uxgate-adversarial-cowork-screenshots/` (`c01`–`c14`).

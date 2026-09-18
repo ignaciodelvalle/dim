@@ -21,7 +21,7 @@
   working (Sensitive values cannot be read back — verify first, lock after). Keep a copy in a
   password manager; `vercel env pull` will not return them.
 - [ ] **Demo accounts must not exist in a real environment.** `govt@`, `govt-local@`,
-  `owner@`, `lilian@`, `orgadmin@`, `admin@dim.test` all share `Test1234!`
+  `owner@`, `lilian@`, `orgadmin@`, `admin@dim.test` all share `SHARED_PASSWORD`
   (`scripts/seed-test-users.ts:161`), and `admin@dim.test` is a superadmin.
 
   **Verified 2026-09-16, and the four legs matter together rather than separately.** The

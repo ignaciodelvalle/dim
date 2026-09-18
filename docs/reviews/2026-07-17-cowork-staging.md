@@ -1,7 +1,7 @@
 # Ronda staging (solo-lectura) — Informe Cowork
 
 **Entorno:** https://dim-staging.vercel.app (staging real, HTTPS). **Solo lectura: no muté nada** — no creé, marqué, aprobé, resolví, firmé ni finalicé. Solo navegué, filtré y descargué.
-**Cuentas:** admin@dim.test, alejo@dim.test / Test1234! (carla/lilian no existen en staging). Actos 1, 2 y 5 sin sesión. No tipeo contraseñas (el usuario logueó).
+**Cuentas:** admin@dim.test, alejo@dim.test / SHARED_PASSWORD (carla/lilian no existen en staging). Actos 1, 2 y 5 sin sesión. No tipeo contraseñas (el usuario logueó).
 **Caveats de entorno (no del producto):** (a) el viewport no bajó de **innerWidth 660px** (Chrome clampea; pedí 390/340). (b) La pestaña de Chrome **se congela cuando pasa a segundo plano** (screenshots y JS con timeouts) — obligó a trabajar con la ventana adelante y complicó el Acto 3/4.
 
 ---

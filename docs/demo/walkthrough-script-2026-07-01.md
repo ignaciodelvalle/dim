@@ -53,7 +53,7 @@ These change the plan, so confirm them before we record:
 | 05 | `05-gobierno.webm` (may split) | Gobierno | `govt@dim.test` |
 | 06 | `06-admin.webm` (may split) | Admin | `admin@dim.test` |
 
-Password for all: `Test1234!`. Every segment: real UI login → walk the **entire** nav in order → full
+Password for all: `SHARED_PASSWORD`. Every segment: real UI login → walk the **entire** nav in order → full
 scroll on each screen → fill & submit forms with real data → run the multi-step flows end to end.
 
 ---

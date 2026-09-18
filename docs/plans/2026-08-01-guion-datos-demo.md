@@ -51,7 +51,7 @@ exactamente lo que estamos tratando de eliminar.
 por horas.
 
 **No hace falta que crees cuentas — el elenco ya está sembrado.** Todas
-entran con `Test1234!`, y verifiqué el login de cada una contra staging el
+entran con `SHARED_PASSWORD`, y verifiqué el login de cada una contra staging el
 01/08, no las estoy copiando de un documento:
 
 | Cuenta | Rol | Qué es |

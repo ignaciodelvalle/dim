@@ -3,7 +3,7 @@
 **Agente:** Cursor (Playwright + screenshots)  
 **Fecha:** 2026-07-07 (re-validación post-fixes)  
 **Entorno:** `http://localhost:3000` — build fresco, seed limpio  
-**Cuenta:** `govt@dim.test` / `Test1234!` — scope 3 localidades (CABA, Santa Cruz/El Calafate, Tierra del Fuego/Ushuaia)
+**Cuenta:** `govt@dim.test` / `SHARED_PASSWORD` — scope 3 localidades (CABA, Santa Cruz/El Calafate, Tierra del Fuego/Ushuaia)
 
 Screenshots: `docs/reviews/results/val-2-govt-screenshots/`
 

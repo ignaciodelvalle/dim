@@ -4,7 +4,7 @@
 **Fecha:** 2026-07-06  
 **Entorno:** `http://localhost:3000` (build producción local, seed demo)  
 **Viewport:** desktop (default browser)  
-**Cuentas:** `govt@dim.test`, `admin@dim.test`, `orgadmin@dim.test` (`DIM-HSPR-M285`), `alejo@dim.test` (`DIM-UBHY-TCH5`), `owner@dim.test` — contraseña `Test1234!`  
+**Cuentas:** `govt@dim.test`, `admin@dim.test`, `orgadmin@dim.test` (`DIM-HSPR-M285`), `alejo@dim.test` (`DIM-UBHY-TCH5`), `owner@dim.test` — contraseña `SHARED_PASSWORD`  
 **Alcance:** Caminos infelices operador — empty states, validación de formularios, inputs raros, lookup Atender, doble-submit, back en wizard, deep URLs malas, sesión sin auth.
 
 Screenshots: `docs/reviews/results/uxgate-adversarial-cursor-screenshots/` (`a01`–`a13`).

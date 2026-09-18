@@ -28,7 +28,7 @@ Splitting by role breaks the cross-POV choreography (W5 spans owner→vet→owne
 | **Cowork** | W1 alta · W2 reclamar · W3 peso→curva · W4 perdido→encontrado · W16 auth · W17 privacidad · W18 datos-personales | Público (landing/perdidas/adoptar/código/QR/denuncia) + Dueño screens | **A** |
 | **Cursor** | W5 vacuna-firmada · W6 mordedura→observación · W7 adopción · W8 tránsito · W9 transferencia-cross-org · W13 permisos · W14 turnos · W15 servicios · W10/W11 org+matrícula | Gob + Admin + Refugio/Vet screens | **B** |
 
-## Credentials (all `Test1234!`)
+## Credentials (all `SHARED_PASSWORD`)
 - **Cohort A (Cowork):** `owner@dim.test` (+ its pets), and the public/anon paths (no login).
 - **Cohort B (Cursor):** `alejo@dim.test` (vet + 4 orgs), `orgadmin@dim.test` (refugio), `govt@dim.test` (6 localidades), `admin@dim.test` (universal), plus the **B-cohort owner** for adoption/transfer targets (see the seed's cohort-B accounts once added).
 > For TRUE isolation the two agents must not share a logged-in account. If cohort B's second-owner accounts aren't seeded yet, run the two agents SERIALLY on the cross-POV flows, or assign the shared operator accounts (govt/admin) to Cursor only.
