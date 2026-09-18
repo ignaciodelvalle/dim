@@ -13,7 +13,6 @@
 
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
-  __resetRateLimitForTests as _reset,
   searchLocalitiesAction as _searchLocalitiesAction,
   searchLocalitiesPublicAction as _searchLocalitiesPublicAction,
 } from "@/src/modules/localities/application/search/search-localities";
@@ -46,8 +45,7 @@ export async function searchLocalitiesPublicAction(
   return _searchLocalitiesPublicAction(...args);
 }
 
-// @no-auth-required: test-only reset helper — delegates to the module that
-// owns the rate-limit state so the reset resets the live state.
-export async function __resetRateLimitForTests(): Promise<void> {
-  return _reset();
-}
+// The rate-limit reset for tests is NOT re-exported here (A01-4): every export
+// of this file is a production server action, and that one deleted the live
+// throttle behind the anonymous typeahead. Tests import it from
+// search-localities.ts, which carries no directive.

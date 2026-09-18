@@ -13,10 +13,7 @@
 
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import type { SearchJurisdiction } from "@/lib/infra/performed-by-search";
-import {
-  __resetPerformedByRateLimitForTests as _reset,
-  searchVetsAndClinicsAction as _searchVetsAndClinicsAction,
-} from "@/src/modules/search/application/performed-by/search-performed-by";
+import { searchVetsAndClinicsAction as _searchVetsAndClinicsAction } from "@/src/modules/search/application/performed-by/search-performed-by";
 
 // ---------------------------------------------------------------------------
 // Type re-export (erased at runtime — allowed in "use server" files)
@@ -36,8 +33,6 @@ export async function searchVetsAndClinicsAction(input: {
   return _searchVetsAndClinicsAction(user.id, input);
 }
 
-// @no-auth-required: test-only reset helper — delegates to the module that
-// owns the rate-limit state so the reset resets the live state.
-export async function __resetPerformedByRateLimitForTests(): Promise<void> {
-  return _reset();
-}
+// The rate-limit reset for tests is NOT re-exported here (A01-4): every export
+// of this file is a production server action that deletes live throttle state.
+// Tests import it from search-performed-by.ts, which carries no directive.

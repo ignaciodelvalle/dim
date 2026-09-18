@@ -53,6 +53,11 @@
 // produced the 500 — the fix in every case is the same one the repo already
 // chose, which is to move the export to a sibling WITHOUT the directive.
 //
+// A SECOND RULE, about NAMES rather than shapes (A01-4): a runtime export named
+// like a test helper (`__…` or `…ForTests`) is refused even when it is a legal
+// async function, because in this file it is a production endpoint. See
+// withTestOnlyRule().
+//
 // KNOWN GAP, stated rather than hidden: a FUNCTION-scoped `"use server"` inside
 // a component or page is also a server action, but it is a closure rather than a
 // module export, so there is nothing here to classify. Same gap
@@ -189,14 +194,40 @@ export function classifyExports(src: string): ExportVerdict[] {
     // constantly (`export const f = async (\n  a: string,\n) => {`), so the
     // initializer test must be able to read past the newline; the SHAPE tests
     // read the single line, which is where the keyword always is.
+    const verdict =
+      classifyErasedOrReExport(m[0], code.slice(m.index)) ??
+      classifyDeclaration(m[0], code.slice(m.index));
     verdicts.push({
-      ...(classifyErasedOrReExport(m[0], code.slice(m.index)) ??
-        classifyDeclaration(m[0], code.slice(m.index))),
+      ...withTestOnlyRule(verdict),
       line: lineOfIndex(code, m.index),
     });
   }
 
   return verdicts;
+}
+
+/**
+ * A TEST-ONLY HELPER IS A PRODUCTION ENDPOINT HERE (A01-4).
+ *
+ * Every runtime export of a "use server" module is an independently addressable
+ * server action, reachable from any browser with no RLS behind it. Two
+ * `__reset*ForTests` helpers lived in such modules and deleted the persistent
+ * rate-limit buckets of the anonymous `/perdidas` and `/adoptar` typeahead —
+ * a legal async function, so the shape rule above waved them through, and an
+ * anonymous caller could disarm a live throttle. The name is the contract: a
+ * `__` prefix or a `ForTest(s)` suffix says "not public surface", and in this
+ * file there is no such thing. Such helpers belong in the plain use-case module
+ * the tests can import directly.
+ */
+const TEST_ONLY_NAME = /^__|ForTests?$/;
+
+function withTestOnlyRule(verdict: Unplaced): Unplaced {
+  if (verdict.kind !== "runtime" || verdict.problem !== null) return verdict;
+  if (!TEST_ONLY_NAME.test(verdict.name)) return verdict;
+  return runtime(
+    verdict.name,
+    'a test-only helper — every export of a "use server" module is a production server action any browser can call; move it to the plain module the test can import',
+  );
 }
 
 type Unplaced = Omit<ExportVerdict, "line">;

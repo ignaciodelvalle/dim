@@ -7,9 +7,11 @@ vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
 }));
 
-import { __resetRateLimitForTests, searchLocalitiesAction } from "@/app/actions/localities";
+import { searchLocalitiesAction } from "@/app/actions/localities";
 import { db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+// The reset lives in the use-case module, never in the "use server" file (A01-4).
+import { __resetRateLimitForTests } from "@/src/modules/localities/application/search/search-localities";
 import { sql } from "drizzle-orm";
 
 const mockAs = (userId: string) =>
