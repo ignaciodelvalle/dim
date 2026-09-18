@@ -15,10 +15,15 @@ import { isInstitutionalPrincipal } from "@/lib/infra/live-user";
 import type { SupabaseServerClient } from "@/lib/infra/live-user";
 import { isOperatorShiftExpired, sessionStartFromClaims } from "@/lib/infra/operator-shift";
 import { getProfileCached } from "@/lib/infra/request-cache";
-import { assuranceLevel, verifiedSessionClaims } from "@/lib/infra/verified-token-claims";
+import {
+  assuranceLevel,
+  authMethodReferences,
+  verifiedSessionClaims,
+} from "@/lib/infra/verified-token-claims";
 import {
   type MfaFactorLike,
   type MfaRequirement,
+  isFreshForEnrolment,
   mfaRequirement,
 } from "@/src/modules/auth/domain/mfa-policy";
 
@@ -36,9 +41,31 @@ export type MfaSession = {
   shiftExpired: boolean;
   /** Id of the verified TOTP factor, when there is one. */
   verifiedFactorId: string | null;
+  /**
+   * The session authenticated recently enough to ENROL a factor
+   * (mfa-policy.ts, isFreshForEnrolment). Irrelevant to the challenge.
+   */
+  enrolmentFresh: boolean;
+  /** The account's address, for the "a factor was added" notice. Null if GoTrue has none. */
+  email: string | null;
 };
 
 type FactorRow = MfaFactorLike & { id: string };
+
+/**
+ * When this session last AUTHENTICATED: the newest `amr` timestamp. A refresh
+ * does not move it — GoTrue stamps each method when it is used, and a refreshed
+ * token carries the same list.
+ */
+export function latestAuthenticationAt(claims: Record<string, unknown> | null): Date | null {
+  let latest: number | null = null;
+  for (const ref of authMethodReferences(claims)) {
+    if (ref.timestamp !== null && (latest === null || ref.timestamp > latest)) {
+      latest = ref.timestamp;
+    }
+  }
+  return latest === null ? null : new Date(latest * 1000);
+}
 
 /**
  * The cookie client is handed in by the actions layer or the page (the
@@ -74,5 +101,7 @@ export async function loadMfaSession(supabase: SupabaseServerClient): Promise<Mf
     shiftExpired,
     requirement: mfaRequirement({ factors, aal: assuranceLevel(claims) }),
     verifiedFactorId: verified?.id ?? null,
+    enrolmentFresh: isFreshForEnrolment(latestAuthenticationAt(claims)),
+    email: user.email ?? null,
   };
 }

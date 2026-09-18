@@ -143,6 +143,17 @@ cada portal y en cada acción (`requireLiveUser`, `src/modules/auth/domain/mfa-p
 leyendo el nivel de la sesión del token que GoTrue firmó — no algo que diga el
 navegador.
 
+Y lo exige también la base de datos (migración 0231). Esto importa porque la
+contraseña sola, mandada directo a la API de Supabase sin pasar por la web,
+sigue dando un token válido de nivel `aal1`. Con ese token una cuenta
+institucional **no lee nada** de las tablas donde tiene permisos de operador
+(casos, auditoría, identificaciones, transferencias, disputas, solicitudes,
+etc.) y **no puede exportar ni suprimir los datos de otra persona**
+(`export_subject_data` / `erase_subject_data`). Hasta la 0231 sí podía: el
+segundo factor protegía las pantallas, no los datos. Lo que queda afuera, a
+propósito y anotado en la migración: subir un archivo suelto al bucket de
+revocaciones (sin poder leerlo ni crear la revocación).
+
 - **Primer ingreso.** Después de elegir la contraseña en `/primer-acceso`, la
   persona cae en `/mfa/configurar`: escanea el QR (o carga la clave a mano),
   escribe el primer código y entra. Avisale antes de la reunión que va a
@@ -154,14 +165,37 @@ navegador.
   Supabase no los ofrece y no los construimos. La salida es asistida: otra
   persona admin, desde `/admin/govts/[userId]` (o `/admin/admins/[userId]`),
   usa **Restablecer segundo factor** (`ResetMfaButton`,
-  `reset-mfa-factors.ts`). Pide motivo, borra todos los factores de la cuenta
-  y queda en el audit log como `mfa_factors_reset_by_admin` con los ids
-  borrados. En su próximo ingreso, con su contraseña, la persona configura una
-  app nueva. **Antes de apretar el botón, confirmá la identidad por otro
-  canal** (llamada al teléfono institucional, no un mail): es exactamente cómo
-  se desarma el control para una cuenta. Un admin no puede restablecer su
-  propio factor; si el único admin pierde el teléfono, hace falta otra cuenta
-  admin — tené siempre dos.
+  `reset-mfa-factors.ts`). Pide motivo y **también restablece las
+  credenciales**: cierra todas las sesiones abiertas, reemplaza la contraseña
+  por una que nadie conoce y genera un link nuevo de un solo uso (el panel te
+  lo muestra para que se lo pases, igual que "Resetear credenciales"). Recién
+  después borra los factores. Queda en el audit log dos veces:
+  `operator_credentials_reset` y `mfa_factors_reset_by_admin` con los ids
+  borrados. La persona entra con el link, elige contraseña y configura una app
+  nueva. Por qué las dos cosas juntas: una cuenta sin factor pero con la
+  contraseña vieja y sesiones vivas la reclama el primero que configure una app
+  — y ese podía ser quien le robó la contraseña. **Antes de apretar el botón,
+  confirmá la identidad por otro canal** (llamada al teléfono institucional, no
+  un mail): es exactamente cómo se desarma el control para una cuenta. Un admin
+  no puede restablecer su propio factor; si el único admin pierde el teléfono,
+  hace falta otra cuenta admin — tené siempre dos.
+- **Se olvidó la contraseña (y tiene la app configurada) — tampoco hay
+  autoservicio.** Supabase no deja cambiar la contraseña desde una sesión de
+  recuperación (nivel `aal1`) si la cuenta tiene segundo factor. Si la persona
+  prueba con `/recuperar`, el código le funciona pero al guardar la contraseña
+  ve un mensaje que le dice que le pida a administración el restablecimiento.
+  La salida es **Resetear credenciales** desde su página de detalle (usa la API
+  de administración, que sí puede; medido en GoTrue local): la contraseña
+  vieja deja de servir, se cierran sus sesiones y le das el link nuevo. La app
+  de autenticación sigue vinculada — no hace falta volver a configurarla.
+- **El link de primer acceso sólo sirve para `/primer-acceso`.** Si una cuenta
+  todavía no eligió su primera contraseña, la página de recuperación la manda
+  de vuelta a ese paso en vez de dejarla elegir la contraseña por otro lado.
+- **Configurar la app pide una sesión recién iniciada** (15 minutos). Si la
+  persona dejó la pantalla abierta y vuelve más tarde, le pedimos que cierre
+  sesión y entre de nuevo. Y cuando termina de configurarla le llega un mail
+  avisando que se activó la verificación en dos pasos, con qué hacer si no fue
+  ella (sin Resend configurado, el aviso no sale y queda en el log).
 - **La app móvil no sirve para cuentas institucionales.** Las rutas `/api/v1`
   aplican la misma regla y la app no tiene el paso del código, así que una
   cuenta institucional queda afuera con "sesión expirada". Es a propósito: los
@@ -171,6 +205,21 @@ Qué tiene que tener encendido el proyecto de Supabase (lo toca el PO, ver
 `docs/handoff/rumbo-al-piloto.md` §7): **Authentication → Multi-Factor →
 TOTP** habilitado para enrolar y verificar (viene encendido por defecto en
 proyectos hospedados; confirmalo), y **Secure password change** encendido.
+
+**Tope de intentos del código — decisión del PO.** La web cuenta los códigos
+que pasan por ella (5 por minuto, 30 por hora, por cuenta). Pero quien tenga
+la contraseña puede mandar códigos directo a Supabase sin pasar por la web, y
+ahí el único tope que corre sin configurar nada es por IP. El tope por cuenta
+que sí lo cubre es el hook **Authentication → Hooks → MFA Verification
+Attempt** apuntando a la función `public.hook_mfa_verification_attempt`
+(migración 0232): 10 códigos incorrectos por hora o 20 por día y la cuenta
+queda bloqueada hasta que pase la ventana (y se cierran sus sesiones); además
+no deja terminar de configurar una app nueva si la cuenta no inició sesión en
+los últimos 15 minutos. **Ese hook sólo existe en los planes Teams y
+Enterprise de Supabase**; en Pro la función queda creada pero nadie la llama.
+Localmente está encendido (`supabase/config.toml`). El bloqueo lo puede
+provocar un atacante a propósito, pero para eso ya necesita la contraseña: en
+ese caso bloquear es lo correcto y la salida es "Restablecer segundo factor".
 
 ## 4. Aprobar veterinarios y organizaciones — `/gob/cola`
 

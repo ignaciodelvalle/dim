@@ -471,3 +471,62 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
     ).toEqual([]);
   });
 });
+
+// Migration 0231: an institutional session below aal2 has no authority through
+// PostgREST. Enforced by ONE restrictive policy per institution-granting table,
+// so the question this pins is "is there a table that grants a platform
+// principal something and lacks it". The granting set is DERIVED from the
+// catalog, not listed: every public policy the platform-authority scanner above
+// finds a `role = 'admin' / 'govt'` test in, plus every policy that authorises
+// through can_read_case (admin + govt branches) or govt_assignments. A new
+// policy with an institutional branch on a new table goes red here until the
+// table gets its restrictive twin.
+describe("institutional sessions require aal2 at the database layer (0231)", () => {
+  it("every table with an institution-granting policy carries the restrictive aal2 policy", async () => {
+    const policies = (await db.execute(
+      sql.raw(AUTHORITY_POLICY_TEXT_SQL),
+    )) as unknown as AuthorityTextRow[];
+    const tableOf = (source: string) => /^policy public\.([a-z_0-9]+) /.exec(source)?.[1] ?? null;
+
+    const granting = new Set<string>();
+    for (const p of scanAuthorityTexts(policies)) {
+      const t = tableOf(p.source);
+      if (t) granting.add(t);
+    }
+    for (const row of policies) {
+      const t = tableOf(row.source);
+      if (t && /can_read_case\(|govt_assignments/.test(row.text)) granting.add(t);
+    }
+    // Non-vacuity: 18 tables on 2026-09-18. An empty set is a broken scanner.
+    expect(
+      granting.size,
+      "institution-granting table inventory is suspiciously small",
+    ).toBeGreaterThanOrEqual(15);
+
+    const guarded = (await db.execute(sql`
+      select distinct tablename
+      from pg_policies
+      where schemaname = 'public'
+        and permissive = 'RESTRICTIVE'
+        and cmd in ('SELECT', 'ALL')
+        and roles @> array['authenticated']::name[]
+        and coalesce(qual, '') like '%caller_meets_institutional_aal()%'
+    `)) as unknown as Array<{ tablename: string }>;
+    const guardedSet = new Set(guarded.map((r) => r.tablename));
+
+    expect(
+      [...granting].filter((t) => !guardedSet.has(t)).sort(),
+      "these tables grant a platform principal a PostgREST read but do not require aal2 — add the restrictive policy (see migration 0231)",
+    ).toEqual([]);
+  });
+
+  it("the one institutional WRITE grant (welfare_report_attachments INSERT) is guarded too", async () => {
+    const rows = (await db.execute(sql`
+      select policyname from pg_policies
+      where schemaname = 'public' and tablename = 'welfare_report_attachments'
+        and permissive = 'RESTRICTIVE' and cmd = 'INSERT'
+        and coalesce(with_check, '') like '%caller_meets_institutional_aal()%'
+    `)) as unknown as Array<{ policyname: string }>;
+    expect(rows.length).toBe(1);
+  });
+});

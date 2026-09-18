@@ -35,6 +35,8 @@
 //   · success revokes every OTHER session and leaves through a FULL document
 //     navigation.
 
+import { PASSWORD_SETUP_PENDING_RECOVERY_MESSAGE } from "@/src/modules/auth/domain/first-access";
+import { MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE } from "@/src/modules/auth/domain/mfa-policy";
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup, fireEvent, render as renderDom, screen, waitFor } from "@testing-library/react";
@@ -283,6 +285,46 @@ describe("ResetCodeStep — a recovery session never outlives the handler", () =
     expect(signOut).toHaveBeenCalledWith({ scope: "local" });
     // And nothing pretends the reset half-worked.
     expect(signOut).not.toHaveBeenCalledWith({ scope: "others" });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // LOW-6 (2026-09-18): the code was right, GoTrue refused the password only
+  // because the account has a second factor and a recovery session is aal1.
+  it("tells an account with a second factor to ask for an admin reset, and still drops the session", async () => {
+    verifyOtp.mockResolvedValue({ data: { session: { access_token: "a" } }, error: null });
+    updateUser.mockResolvedValue({
+      data: {},
+      error: {
+        code: "insufficient_aal",
+        message: "AAL2 session is required to update email or password when MFA is enabled.",
+      },
+    });
+    submitReset({ code: "123456" });
+
+    await waitFor(() =>
+      expect(screen.queryByText(MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE)).not.toBeNull(),
+    );
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // LOW-7 (2026-09-18): an account that still owes its FIRST password pays it at
+  // /primer-acceso only; the recovery code must not set it.
+  it("refuses an account whose first-access password is pending: no updateUser, session dropped", async () => {
+    verifyOtp.mockResolvedValue({
+      data: {
+        session: { access_token: "a" },
+        user: { id: "u-1", app_metadata: { password_setup_pending: true } },
+      },
+      error: null,
+    });
+    submitReset({ code: "123456" });
+
+    await waitFor(() =>
+      expect(screen.queryByText(PASSWORD_SETUP_PENDING_RECOVERY_MESSAGE)).not.toBeNull(),
+    );
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
     expect(navigate).not.toHaveBeenCalled();
   });
 

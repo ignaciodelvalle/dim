@@ -34,6 +34,7 @@ import {
   isSessionAfterArming,
   passwordSetupArmedAt,
 } from "@/src/modules/auth/domain/first-access";
+import { isInsufficientAalError } from "@/src/modules/auth/domain/mfa-policy";
 import { validateNewPassword } from "@/src/modules/auth/domain/new-password-rules";
 
 export type SetInitialPasswordState = {
@@ -89,6 +90,29 @@ export async function setInitialPassword(
   if (passwordProblem) return { error: passwordProblem };
 
   const { error: updateError } = await supabase.auth.updateUser({ password });
+
+  // AN ACCOUNT THAT KEEPS ITS SECOND FACTOR (2026-09-18). "Resetear
+  // credenciales" re-arms this step but leaves the TOTP factor in place, and
+  // GoTrue refuses to set a password from this session — a first-access link is
+  // aal1 — once the account has a verified factor (`insufficient_aal`, measured
+  // on local GoTrue v2.188.1). Without this branch that reset was a dead end:
+  // the old password gone, the new one impossible to set. The session has just
+  // proven everything this step asks for (the flag, and authentication after
+  // the arming), so the password is set with the admin API, which is not
+  // subject to the aal check, in the same call that clears the flag. An admin
+  // password write ends the account's sessions, this one included, so the
+  // person is sent to sign in with the new password (and then passes the
+  // second factor they still have).
+  if (isInsufficientAalError(updateError)) {
+    const { error: adminError } = await createAdminClient().auth.admin.updateUserById(user.id, {
+      password,
+      app_metadata: completedPasswordSetupMetadata(),
+    });
+    if (adminError) {
+      return { error: `No se pudo guardar la contraseña: ${adminError.message}` };
+    }
+    return { error: null, ok: true, landing: "/iniciar-sesion" };
+  }
   if (updateError) {
     return { error: `No se pudo guardar la contraseña: ${updateError.message}` };
   }

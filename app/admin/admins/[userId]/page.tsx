@@ -178,7 +178,12 @@ export default async function AdminDetailPage({
               />
             )}
             {!isSelf && (
-              <ResetMfaButton targetUserId={target.id} displayName={target.displayName} />
+              <ResetMfaButton
+                targetUserId={target.id}
+                displayName={target.displayName}
+                email={email}
+                detailPath={`/admin/admins/${target.id}`}
+              />
             )}
           </div>
         </section>

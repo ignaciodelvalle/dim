@@ -18,7 +18,7 @@ import { MAGIC_LINK_TTL_SECONDS, formatTtl } from "@/lib/utils/magic-link-ttl";
 
 // ––– variant copies ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-type Variant = "create" | "reset";
+type Variant = "create" | "reset" | "mfaReset";
 
 const VARIANT_COPY: Record<Variant, { title: string; subtitle: string }> = {
   create: {
@@ -28,6 +28,11 @@ const VARIANT_COPY: Record<Variant, { title: string; subtitle: string }> = {
   reset: {
     title: "Credenciales restablecidas",
     subtitle: "El link anterior fue invalidado. Compartí el nuevo link con el operador.",
+  },
+  mfaReset: {
+    title: "Segundo factor y credenciales restablecidos",
+    subtitle:
+      "Cerramos todas sus sesiones y su contraseña anterior ya no sirve. Compartí el link: con él elige una contraseña nueva y configura otra vez la app de autenticación.",
   },
 };
 

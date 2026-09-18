@@ -18,6 +18,14 @@
 
 import { authMethodReferences, verifiedSessionClaims } from "@/lib/infra/verified-token-claims";
 import { createClient } from "@/lib/supabase/server";
+import {
+  PASSWORD_SETUP_PENDING_RECOVERY_MESSAGE,
+  isPasswordSetupPending,
+} from "@/src/modules/auth/domain/first-access";
+import {
+  MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE,
+  isInsufficientAalError,
+} from "@/src/modules/auth/domain/mfa-policy";
 import { validateNewPassword } from "@/src/modules/auth/domain/new-password-rules";
 import { hasFreshRecoveryProof } from "@/src/modules/auth/domain/recovery-proof";
 
@@ -55,6 +63,10 @@ export async function updatePasswordAction(
     return { error: RECOVERY_SESSION_INVALID };
   }
 
+  // A first-access link session carries `otp` too; an account that still owes
+  // its first password pays it at /primer-acceso only (first-access.ts).
+  if (isPasswordSetupPending(user)) return { error: PASSWORD_SETUP_PENDING_RECOVERY_MESSAGE };
+
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
@@ -65,6 +77,12 @@ export async function updatePasswordAction(
   if (passwordProblem) return { error: passwordProblem };
 
   const { error } = await supabase.auth.updateUser({ password });
+
+  // An account with a verified second factor cannot set its password from a
+  // recovery session at all (aal1) — say so, and name the way that works
+  // (mfa-policy.ts). Only reachable after a valid recovery, so it reveals
+  // nothing about the account to somebody who does not already hold its mail.
+  if (isInsufficientAalError(error)) return { error: MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE };
 
   // ONE sentence for every `updateUser` failure, never GoTrue's text (A04-6).
   // Its messages here are account-state-shaped ("New password should be

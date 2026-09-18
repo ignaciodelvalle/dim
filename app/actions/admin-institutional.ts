@@ -98,13 +98,14 @@ export async function resetInstitutionalCredentialsAction(input: {
 }
 
 // T2-S6: admin-assisted second-factor recovery (no Supabase recovery codes).
+// It runs the credential reset too, and a failed session revocation there
+// DEACTIVATES the target — so the pages are revalidated on errors as well.
 export async function resetMfaFactorsAction(input: { targetUserId: string; reason: string }) {
   const { user } = await requireAdminOrRedirect();
   const result = await _resetMfaFactors(user.id, input);
-  if ("ok" in result) {
-    revalidatePath(`/admin/govts/${input.targetUserId}`);
-    revalidatePath(`/admin/admins/${input.targetUserId}`);
-  }
+  revalidatePath("/admin/govts");
+  revalidatePath(`/admin/govts/${input.targetUserId}`);
+  revalidatePath(`/admin/admins/${input.targetUserId}`);
   return result;
 }
 

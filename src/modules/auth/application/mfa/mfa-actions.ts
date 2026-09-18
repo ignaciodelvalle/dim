@@ -15,9 +15,23 @@
 // replacing one, would let a password alone swap the phone. A lost phone is an
 // admin reset (reset-mfa-factors.ts), audited.
 //
+// Enrolment additionally needs a FRESH session (mfa-policy.ts,
+// isFreshForEnrolment — signed in within the last fifteen minutes), and a
+// completed one mails the account holder (./mfa-enrolled-mail.ts): enrolment is
+// trust on first use, and those are the two ways the wrong first user is either
+// kept out or found out.
+//
 // The code is spent against a per-account budget before GoTrue sees it: six
 // digits are a million guesses, and GoTrue's own per-IP ceiling keys on OUR
 // egress address, shared by every operator in the country.
+//
+// THIS BUDGET ONLY SEES THE APP. Someone holding the password can post codes
+// straight to GoTrue's /factors/{id}/verify and never pass through here. The
+// ceiling that binds that path lives in the database: the MFA verification
+// attempt hook (migration 0232 — 10 misses an hour, 20 a day, per account;
+// supabase/config.toml locally, a Teams/Enterprise feature on hosted Supabase).
+// Where the hook is not enabled, the direct path is bounded only by GoTrue's
+// per-IP limit — a documented residual, not a covered one.
 
 import QRCode from "qrcode";
 
@@ -25,9 +39,11 @@ import { db } from "@/db";
 import { writeAuditLog } from "@/lib/infra/audit-log";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { resolveUserLanding, safeReturnTo } from "@/lib/infra/role-landing";
+import { MFA_ENROL_STALE_MESSAGE } from "@/src/modules/auth/domain/mfa-policy";
 
 import type { SupabaseServerClient } from "@/lib/infra/live-user";
 
+import { mailMfaFactorEnrolled } from "./mfa-enrolled-mail";
 import { type MfaSession, loadMfaSession } from "./mfa-session";
 
 export type MfaStepState = { error: string | null; next?: string };
@@ -110,6 +126,7 @@ export async function startMfaEnrolmentAction(
         "Tu cuenta ya tiene un segundo factor. Si perdiste el acceso a tu app, pedile a un admin que lo restablezca.",
     };
   }
+  if (!session.enrolmentFresh) return { error: MFA_ENROL_STALE_MESSAGE };
 
   // An abandoned enrolment leaves an UNVERIFIED factor behind; clear it so the
   // new one does not collide with it. Unverified factors prove nothing and the
@@ -151,6 +168,7 @@ export async function confirmMfaEnrolmentAction(
   if (session.verifiedFactorId) {
     return { error: "Tu cuenta ya tiene un segundo factor configurado." };
   }
+  if (!session.enrolmentFresh) return { error: MFA_ENROL_STALE_MESSAGE };
   const factorId = String(formData.get("factorId") ?? "");
   if (!factorId) return { error: "Volvé a empezar la configuración." };
   const code = readCode(formData);
@@ -171,6 +189,12 @@ export async function confirmMfaEnrolmentAction(
     targetUserId: session.userId,
     payload: { factor_id: factorId, factor_type: "totp" },
   });
+
+  // Best-effort by construction (it never throws): the factor is enrolled and
+  // audited whatever the mail provider says.
+  if (session.email) {
+    await mailMfaFactorEnrolled({ to: session.email, enrolledAt: new Date() });
+  }
 
   return { error: null, next: await landingAfterMfa(session, formData) };
 }

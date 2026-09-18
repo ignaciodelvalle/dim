@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { authMethodReferences, verifiedSessionClaims } from "@/lib/infra/verified-token-claims";
 import { createClient } from "@/lib/supabase/server";
+import { FIRST_ACCESS_PATH, isPasswordSetupPending } from "@/src/modules/auth/domain/first-access";
 import { hasFreshRecoveryProof } from "@/src/modules/auth/domain/recovery-proof";
 
 import { UpdatePasswordForm } from "./UpdatePasswordForm";
@@ -27,6 +28,11 @@ export default async function ActualizarPasswordPage() {
     // No valid session — redirect to the request page with an informative flag.
     redirect("/recuperar?expired=1");
   }
+
+  // An account that still owes its FIRST password pays it at /primer-acceso,
+  // where the arming stamp decides which session may (first-access.ts). A
+  // first-access link session would otherwise pass the recovery proof below.
+  if (isPasswordSetupPending(user)) redirect(FIRST_ACCESS_PATH);
 
   // A04-1: an ORDINARY session is not a recovery session. The action refuses it
   // (update-password.ts); showing it the form first would be a form that can

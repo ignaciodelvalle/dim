@@ -63,7 +63,9 @@ import { createInstitutionalAccountForAuthority } from "@/src/modules/organizati
 import { deactivateAdminForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-admin";
 import { deactivateGovtForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-govt";
 import { resetInstitutionalCredentialsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-institutional-credentials";
+import { resetMfaFactorsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-mfa-factors";
 import { revokeAllSessionsOf } from "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions";
+import { totpCode } from "./_helpers/aal2-session";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
 import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
@@ -1985,4 +1987,117 @@ describe("createInstitutionalAccountForAuthority — T1-P9 national observer", (
     });
     expect(result).toEqual({ error: "CAPABILITY_DENIED" });
   });
+});
+
+// ============================================================================
+// Accounts WITH a second factor (T2-S6 hardening, 2026-09-18) — real GoTrue.
+// ============================================================================
+//
+// GoTrue refuses to set a password from an aal1 session once the account has a
+// verified factor. Every self-service path is aal1, and so is the first-access
+// link a credential reset hands out — so before this the admin reset of an
+// MFA account was a dead end. And the MFA reset left the password and the
+// sessions alive, so anybody holding either could enrol first.
+
+describe("accounts with a verified TOTP factor — the admin resets reach them (real GoTrue)", () => {
+  const MFA_GOVT_EMAIL = "fase5-mfa-govt-target@dim-test.local";
+  const NEW_PASSWORD = "DespuesDelReset_2026!";
+  let mfaGovtId = "";
+
+  async function signInWithFactor() {
+    const c = createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { error } = await c.auth.signInWithPassword({
+      email: MFA_GOVT_EMAIL,
+      password: "Fase5Create_2026!",
+    });
+    if (error) throw new Error(`sign-in: ${error.message}`);
+    const enrolled = await c.auth.mfa.enroll({ factorType: "totp", friendlyName: "reset-probe" });
+    if (enrolled.error || !enrolled.data) throw new Error(`enroll: ${enrolled.error?.message}`);
+    const verified = await c.auth.mfa.challengeAndVerify({
+      factorId: enrolled.data.id,
+      code: totpCode(enrolled.data.totp.secret),
+    });
+    if (verified.error) throw new Error(`verify: ${verified.error.message}`);
+    return c;
+  }
+
+  beforeEach(async () => {
+    mfaGovtId = await seedGovtUser(MFA_GOVT_EMAIL);
+    createdNewUserEmails.push(MFA_GOVT_EMAIL);
+  });
+
+  it("pins GoTrue's refusal: a recovery session (aal1) cannot set the password", async () => {
+    await signInWithFactor();
+    const link = await adminSdk.auth.admin.generateLink({
+      type: "recovery",
+      email: MFA_GOVT_EMAIL,
+    });
+    const recovery = createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const redeemed = await recovery.auth.verifyOtp({
+      token_hash: link.data.properties?.hashed_token ?? "",
+      type: "recovery",
+    });
+    expect(redeemed.error).toBeNull();
+    const updated = await recovery.auth.updateUser({ password: NEW_PASSWORD });
+    expect(updated.error?.code).toBe("insufficient_aal");
+  }, 30_000);
+
+  it("credential reset → first-access link sets the password although the factor stays", async () => {
+    await signInWithFactor();
+    const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
+      targetUserId: mfaGovtId,
+      reason: RESET_REASON,
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    const opened = await sessionFromActionLink(result.magicLink);
+    expect(opened.hasSession).toBe(true);
+    expect(
+      await setInitialPassword(opened.client, {
+        password: NEW_PASSWORD,
+        confirmPassword: NEW_PASSWORD,
+      }),
+    ).toEqual({ error: null, ok: true, landing: "/iniciar-sesion" });
+
+    const { data: after } = await adminSdk.auth.admin.getUserById(mfaGovtId);
+    expect(after.user?.app_metadata?.password_setup_pending).toBe(false);
+    const factors = await adminSdk.auth.admin.mfa.listFactors({ userId: mfaGovtId });
+    expect(factors.data?.factors.some((f) => f.status === "verified")).toBe(true);
+
+    const signIn = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: MFA_GOVT_EMAIL, password: NEW_PASSWORD });
+    expect(signIn.error).toBeNull();
+  }, 30_000);
+
+  it("MFA reset ALSO resets credentials: old password dead, live session dead, factors gone, a link", async () => {
+    const live = await signInWithFactor();
+    const { data: liveSession } = await live.auth.getSession();
+    const oldAccess = liveSession.session?.access_token ?? "";
+
+    const result = await resetMfaFactorsForAuthority(deactivateActorId, {
+      targetUserId: mfaGovtId,
+      reason: RESET_REASON,
+    });
+    if ("error" in result) throw new Error(result.error);
+    expect(result.removed).toBe(1);
+    expect(result.magicLink.length).toBeGreaterThan(0);
+
+    const factors = await adminSdk.auth.admin.mfa.listFactors({ userId: mfaGovtId });
+    expect(factors.data?.factors ?? []).toEqual([]);
+
+    const probe = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    expect((await probe.auth.getUser(oldAccess)).data.user).toBeNull();
+    const oldPassword = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: MFA_GOVT_EMAIL, password: "Fase5Create_2026!" });
+    expect(oldPassword.error).not.toBeNull();
+
+    const { data: armed } = await adminSdk.auth.admin.getUserById(mfaGovtId);
+    expect(armed.user?.app_metadata?.password_setup_pending).toBe(true);
+  }, 30_000);
 });

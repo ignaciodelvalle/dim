@@ -266,7 +266,10 @@ describe("pet_events — PostgREST write surface is closed (migration 0212)", ()
       select p.policyname, p.qual
       from pg_policies p
       where p.schemaname = 'public' and p.tablename = 'pet_events' and p.cmd = 'SELECT'
+        and p.permissive = 'PERMISSIVE'
     `)) as unknown as Array<{ policyname: string; qual: string | null }>;
+    // Counted PERMISSIVE only: migration 0231's RESTRICTIVE "institutional
+    // sessions require aal2" narrows this one and grants nothing on its own.
     expect(rows.length, "pet_events lost its SELECT policy too — that is over-correction").toBe(1);
     expect(rows[0].qual ?? "").toContain("auth.uid()");
   });

@@ -5,7 +5,7 @@ import { resolveUserLanding, safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 import { type RawSearchParam, firstSearchParam } from "@/lib/utils/search-params";
 import { loadMfaSession } from "@/src/modules/auth/application/mfa/mfa-session";
-import { MFA_CHALLENGE_PATH } from "@/src/modules/auth/domain/mfa-policy";
+import { MFA_CHALLENGE_PATH, MFA_ENROL_STALE_MESSAGE } from "@/src/modules/auth/domain/mfa-policy";
 
 import { MfaShell } from "../MfaShell";
 import { MfaEnrolStep } from "./MfaEnrolStep";
@@ -48,6 +48,20 @@ export default async function MfaEnrolPage({
       returnTo
         ? `${MFA_CHALLENGE_PATH}?returnTo=${encodeURIComponent(returnTo)}`
         : MFA_CHALLENGE_PATH,
+    );
+  }
+
+  // Enrolment is trust on first use, so it is offered only to a session that
+  // authenticated in the last few minutes (mfa-policy.ts). An older one is
+  // told to sign in again — the shell's "Cerrar sesión" is the way.
+  if (!session.enrolmentFresh) {
+    return (
+      <MfaShell
+        title="Volvé a iniciar sesión"
+        lead="Configurar la verificación en dos pasos pide una sesión recién iniciada."
+      >
+        <p className="text-sm text-[var(--color-ln-ink-2)]">{MFA_ENROL_STALE_MESSAGE}</p>
+      </MfaShell>
     );
   }
 
