@@ -853,6 +853,26 @@ export type {
   EnrichedLostDescriptionInput,
 } from "./application/lifecycle/set-pet-lost-use-case";
 
+/**
+ * The pages whose content a lost/found flip changes, marked stale.
+ *
+ * Neither lost nor found revalidated anything until 2026-09-18 (T1-C1), unlike
+ * every sibling pet mutation under src/modules/pets/application/{lost-mode,
+ * tier2-public,service-dog,physical-tag-interest}. The owner could land back on
+ * a profile still showing the lost-case block for an animal the database
+ * already had as active — the stale page `ensurePetFound` in
+ * e2e/demo/_helpers.ts documents. The public credential carries the lost
+ * banner, and the pet list carries the status, so both go stale with it.
+ *
+ * Not exported: a "use server" module may only export async actions.
+ */
+async function revalidateLostStatePages(publicToken: string): Promise<void> {
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath(`/mis-mascotas/${publicToken}`);
+  revalidatePath(`/p/${publicToken}`);
+  revalidatePath("/mis-mascotas");
+}
+
 export async function setPetLostAction(
   publicToken: string,
   _previous: EventFormState,
@@ -925,6 +945,8 @@ export async function setPetLostAction(
   );
 
   if (result.error) return result;
+
+  await revalidateLostStatePages(pet.publicToken);
 
   if (String(formData.get("noRedirect") ?? "") === "1") {
     return { error: null, ok: true };
@@ -1048,6 +1070,8 @@ export async function setPetFoundAction(
       flushNotifications,
     },
   );
+
+  await revalidateLostStatePages(pet.publicToken);
 
   return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }

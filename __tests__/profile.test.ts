@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 
 import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // updateEmergencyContactsAction (pet-document-redesign ADR-13, Phase 5) calls
@@ -452,6 +453,21 @@ const REAL_JPEG = new Uint8Array([
   0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
 ]);
 
+/**
+ * A JPEG sharp can actually DECODE. Since 2026-09-18 (PO D4) every avatar is
+ * re-encoded to drop its EXIF, and a 12-byte header is refused as unreadable —
+ * fail closed. The header-only REAL_JPEG above still serves the cases that must
+ * be refused before any decode (size, type).
+ */
+let DECODABLE_JPEG: Uint8Array<ArrayBuffer>;
+beforeAll(async () => {
+  DECODABLE_JPEG = new Uint8Array(
+    await sharp({ create: { width: 8, height: 8, channels: 3, background: "#3a7d44" } })
+      .jpeg()
+      .toBuffer(),
+  );
+});
+
 describe("uploadAvatarForUser — validates the blob, not the caller's claims", () => {
   it("refuses an oversized blob with a Spanish sentence that says what to do", async () => {
     const bigJpeg = new Uint8Array(OVERSIZED_PHOTO_BYTES);
@@ -513,7 +529,7 @@ describe("uploadAvatarForUser — validates the blob, not the caller's claims", 
   // The other side of the same guard: a real image at a normal size still gets
   // through.
   it("accepts a real JPEG at a normal size", async () => {
-    const smallFile = new Blob([REAL_JPEG], { type: "image/jpeg" });
+    const smallFile = new Blob([DECODABLE_JPEG], { type: "image/jpeg" });
 
     const result = await uploadAvatarForUser(actorUserId, {
       fileBlob: smallFile,
@@ -540,7 +556,7 @@ describe("uploadAvatarForUser — validates the blob, not the caller's claims", 
   // JPEG saved as `foto.png` produces exactly this input with no malice, and
   // the upload must succeed with the bytes' own type.
   it("forwards the DETECTED mime to storage when the caller declares another", async () => {
-    const jpegBytes = new Blob([REAL_JPEG], { type: "image/png" });
+    const jpegBytes = new Blob([DECODABLE_JPEG], { type: "image/png" });
     const seen: string[] = [];
 
     const result = await uploadAvatarForUser(actorUserId, {
@@ -559,6 +575,80 @@ describe("uploadAvatarForUser — validates the blob, not the caller's claims", 
 
     expect(result).not.toHaveProperty("error");
     expect(seen).toEqual(["image/jpeg"]);
+  });
+});
+
+// PO D4 (2026-09-18): "no guardar datos de ciudadanos que no nos dieron
+// concientemente". The avatar was stored byte-for-byte, so a selfie kept its
+// EXIF GPS in the bucket. The fixture's own GPS block is asserted first, or "the
+// stored file has no EXIF" would pass on a fixture that never had any.
+describe("uploadAvatarForUser — the camera's metadata never reaches storage", () => {
+  // Tag 0x8825 is the IFD0 pointer to the GPS IFD. sharp writes little-endian.
+  const GPS_IFD_POINTER_LE = Buffer.from([0x25, 0x88]);
+  let selfieWithGps: Buffer;
+
+  beforeAll(async () => {
+    selfieWithGps = await sharp({
+      create: { width: 16, height: 12, channels: 3, background: "#7d3a44" },
+    })
+      .jpeg()
+      .withExif({
+        IFD0: { Make: "Apple", Model: "iPhone" },
+        IFD3: {
+          GPSLatitudeRef: "S",
+          GPSLatitude: "34/1 36/1 0/1",
+          GPSLongitudeRef: "W",
+          GPSLongitude: "58/1 22/1 0/1",
+        },
+      })
+      .toBuffer();
+  });
+
+  it("the fixture really carries a GPS block", async () => {
+    const meta = await sharp(selfieWithGps).metadata();
+    expect(meta.exif?.includes(GPS_IFD_POINTER_LE)).toBe(true);
+  });
+
+  it("stores the selfie WITHOUT its EXIF, still the same picture", async () => {
+    const stored: ArrayBuffer[] = [];
+    const blob = new Blob([new Uint8Array(selfieWithGps)], { type: "image/jpeg" });
+
+    const result = await uploadAvatarForUser(actorUserId, {
+      fileBlob: blob,
+      fileName: "selfie.jpg",
+      mimeType: "image/jpeg",
+      _storageStub: async ({ body }) => {
+        stored.push(body);
+        return { storagePath: `${actorUserId}/2.jpg` };
+      },
+    });
+
+    expect(result).not.toHaveProperty("error");
+    expect(stored).toHaveLength(1);
+    const meta = await sharp(Buffer.from(stored[0])).metadata();
+    expect(meta.exif).toBeUndefined();
+    expect(meta).toMatchObject({ format: "jpeg", width: 16, height: 12 });
+  });
+
+  it("REFUSES what sharp cannot read — never the original bytes (fail closed)", async () => {
+    // A JPEG signature with nothing decodable behind it: it passes the magic
+    // bytes and dies in the re-encode.
+    let uploaded = false;
+    const result = await uploadAvatarForUser(actorUserId, {
+      fileBlob: new Blob([REAL_JPEG], { type: "image/jpeg" }),
+      fileName: "foto.jpg",
+      mimeType: "image/jpeg",
+      _storageStub: async () => {
+        uploaded = true;
+        return { storagePath: `${actorUserId}/3.jpg` };
+      },
+    });
+
+    expect(result).toEqual({
+      error:
+        "VALIDATION_ERROR: No pudimos quitarle a la foto los datos que guarda la cámara, como el lugar donde se sacó, así que no guardamos nada. Probá de nuevo con una captura de pantalla de la foto.",
+    });
+    expect(uploaded).toBe(false);
   });
 });
 
@@ -671,10 +761,7 @@ describe("uploadAvatarForUser — happy path (stub storage)", () => {
     await db.update(profiles).set({ avatarStoragePath: null }).where(eq(profiles.id, actorUserId));
 
     // Provide a valid small JPEG blob (minimal valid JPEG header bytes)
-    const minimalJpeg = new Uint8Array([
-      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
-    ]);
-    const smallFile = new Blob([minimalJpeg], { type: "image/jpeg" });
+    const smallFile = new Blob([DECODABLE_JPEG], { type: "image/jpeg" });
 
     const result = await uploadAvatarForUser(actorUserId, {
       fileBlob: smallFile,
@@ -719,8 +806,7 @@ describe("uploadAvatarForUser — happy path (stub storage)", () => {
   });
 
   it("returns error and logs profile_avatar_upload_failed when storage stub throws", async () => {
-    const minimalJpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
-    const smallFile = new Blob([minimalJpeg], { type: "image/png" });
+    const smallFile = new Blob([DECODABLE_JPEG], { type: "image/png" });
 
     const result = await uploadAvatarForUser(actorUserId, {
       fileBlob: smallFile,

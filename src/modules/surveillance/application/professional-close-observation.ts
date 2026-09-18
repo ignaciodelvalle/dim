@@ -35,9 +35,10 @@
 // organización verificada cuyo miembro no es matriculado NO firma como
 // profesional. El llamador rechaza antes de llegar hasta acá.
 //
-// THE VETERINARIAN WAITS FOR THE WINDOW (PO decision 2026-09-18): a vet may not
-// close NEGATIVE before the observation's deadline — step 5b. Admin and govt
-// keep the power to close negative early; their path does not pass the gate.
+// THE VETERINARIAN WAITS FOR THE WINDOW (PO decisions 2026-09-18, incl. D1): a
+// vet may not close NEGATIVE or DEAD before the observation's deadline, and may
+// never close LOST TO FOLLOW-UP — step 5b. Admin and govt keep every outcome at
+// any time; their path does not pass the gate.
 //
 // authorRole: 'govt' para admin y govt (el enum de petEvents no tiene 'admin'),
 // 'vet' para el veterinario, con su organización y `authorVerified` en true.
@@ -63,10 +64,11 @@ import { formatDate, formatTime, rabiesObservationOutcomeLabel } from "@/lib/uti
 
 import {
   PROFESSIONAL_OUTCOMES,
+  type VetCloseRefusal,
   isObservationOpen,
-  mustWaitForObservationEnd,
   outcomeToStatus,
   resolveObservationDeadline,
+  vetCloseRefusal,
 } from "../domain/rabies-observation";
 import type { RabiesObservationOutcome } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
@@ -143,7 +145,7 @@ type Deps = {
     | "findOpenBiteCase"
     | "insertObservationEnded"
     | "closeObservationIfOpen"
-    | "findActiveOwnership"
+    | "findActiveOwnerUserIds"
     | "insertObservationCloseAuditLog"
   >;
   closeCase: (
@@ -188,6 +190,27 @@ const ACTOR_PROSE: Record<"admin" | "govt" | "vet", string> = {
  */
 export function formatObservationEnd(deadline: Date): string {
   return `${formatDate(deadline)} a las ${formatTime(deadline)}`;
+}
+
+/**
+ * What the veterinarian is told when the close is refused, per refusal.
+ *
+ * Exported so the Atender screen explains a withheld option with the same
+ * reason the server would give.
+ */
+export function vetRefusalMessage(
+  refusal: VetCloseRefusal,
+  deadline: Date,
+  petName: string,
+): string {
+  switch (refusal) {
+    case "negative_before_deadline":
+      return `Todavía no podés registrar un resultado negativo: el período de observación termina el ${formatObservationEnd(deadline)}, y los signos de rabia pueden aparecer hasta el último día. Antes de esa fecha sólo podés registrar un resultado positivo.`;
+    case "lost_to_followup_never":
+      return `Desde la clínica no podés cerrar la observación como “sin seguimiento”: ${petName} está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad, que es quien cierra una observación sin seguimiento.`;
+    case "dead_before_deadline":
+      return `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio. Registrá la muerte desde la libreta de ${petName} y avisá ahora a la autoridad sanitaria de tu localidad. Después del ${formatObservationEnd(deadline)} podés registrarlo acá.`;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -265,15 +288,16 @@ export async function professionalCloseObservation(
   const biteEventId = (startedPayload.bite_event_id as string | undefined) ?? null;
   const now = new Date();
 
-  // 5b. The legal window binds the VETERINARIAN's negative (PO decision
-  // 2026-09-18: "tiene que esperar, es un tema de plazos legales").
+  // 5b. The legal window binds the VETERINARIAN (PO decisions 2026-09-18: "tiene
+  // que esperar, es un tema de plazos legales", and D1).
   //
   // Rabies signs can appear up to the last day of the window, so a negative
-  // before it ends is medically empty and legally terminal. Outcomes that report
-  // signs, a death or a lost animal are not held back (see
-  // mustWaitForObservationEnd). The State's closers keep the power to close
-  // negative early, which is why this branches on the role and not on the
-  // outcome alone.
+  // before it ends is medically empty and legally terminal. A death before it
+  // is the authority's (lab sample), and "lost to follow-up" is never true from
+  // a clinic that has the animal in front of it. Only a result that reports
+  // signs goes through early — see vetCloseRefusal. The State's closers keep
+  // every outcome at any time, which is why this branches on the role and not
+  // on the outcome alone.
   //
   // The deadline goes through resolveObservationDeadline, the ONE fallback rule
   // for payloads written before `observation_until` existed: without it, an
@@ -284,11 +308,13 @@ export async function professionalCloseObservation(
       startedPayload.observation_until,
       startedEvent.occurredAt,
     );
-    if (mustWaitForObservationEnd(input.outcome, deadline, now)) {
-      return {
-        ok: false,
-        error: `Todavía no podés registrar un resultado negativo: el período de observación termina el ${formatObservationEnd(deadline)}, y los signos de rabia pueden aparecer hasta el último día. Antes de esa fecha podés registrar un resultado positivo, el fallecimiento o la falta de seguimiento.`,
-      };
+    // D1 (security review of this door, 2026-09-18): the negative was not the
+    // only early exit. `dead` and `lost_to_followup` ended the observation the
+    // same way — banner gone, case closed, no authority told. vetCloseRefusal
+    // names all three; the words below are what the vet reads.
+    const refusal = vetCloseRefusal(input.outcome, deadline, now);
+    if (refusal !== null) {
+      return { ok: false, error: vetRefusalMessage(refusal, deadline, pet.name) };
     }
   }
 
@@ -416,19 +442,24 @@ export async function professionalCloseObservation(
         );
       }
 
-      // 10. The State's paths notify the active owner here, as before. The
-      // veterinary path does NOT: its notice goes back as content
-      // (`value.ownerNotice`) and the walk-in completion delivers it to every
-      // active owner and co-owner — not the single `role = 'owner'` row this
-      // lookup returns — through the durable notification service.
+      // 10. The State's paths notify here: one row per ACTIVE owner and
+      // co-owner. Until 2026-09-18 this read `findActiveOwnership` — a single
+      // `role = 'owner'` row — so a co-owner never heard that the observation
+      // on their animal had closed, a positive included. The action delivers
+      // these rows through the durable service keyed on the ended event, so a
+      // close with no open bite case no longer loses them either.
+      //
+      // The veterinary path does NOT push rows: its notice goes back as content
+      // (`value.ownerNotice`) and the walk-in completion delivers it to the same
+      // set of owners through the same durable service.
       if (!esVet) {
-        const activeOwnership = await repo.findActiveOwnership(
+        const ownerIds = await repo.findActiveOwnerUserIds(
           pet.id,
-          tx as Parameters<typeof repo.findActiveOwnership>[1],
+          tx as Parameters<typeof repo.findActiveOwnerUserIds>[1],
         );
-        if (activeOwnership?.ownerUserId) {
+        for (const ownerUserId of new Set(ownerIds)) {
           pendingNotifications.push({
-            userId: activeOwnership.ownerUserId,
+            userId: ownerUserId,
             ...ownerNotice,
             relatedPetId: pet.id,
             ctaLabel: "Ver mascota",

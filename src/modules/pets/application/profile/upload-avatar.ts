@@ -53,11 +53,13 @@ import { eq } from "drizzle-orm";
 import { db, profiles } from "@/db";
 import { writeAuditLog } from "@/lib/infra/audit-log";
 import { avatarSignedUrl } from "@/lib/infra/storage";
+import { metadataStripRefusalMessage } from "@/lib/media/heic";
 import {
   MAX_IMAGE_BYTES,
   type RasterMime,
   detectRasterMime,
   rasterExtension,
+  reencodeRaster,
 } from "@/lib/media/validate";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -190,6 +192,32 @@ export async function uploadAvatarForUser(
     };
   }
 
+  // 1c. RE-ENCODED, SO THE CAMERA'S METADATA NEVER REACHES STORAGE (PO D4,
+  // 2026-09-18: "no guardar datos de ciudadanos que no nos dieron
+  // concientemente"). The avatar used to be stored byte-for-byte, so a selfie
+  // taken at home kept its EXIF GPS in the bucket. Same sharp pass as
+  // lib/infra/uploads.ts, and the same failure rule: FAIL CLOSED — if sharp
+  // cannot read it, nothing is stored, never the original bytes.
+  let reencoded: Buffer;
+  try {
+    reencoded = await reencodeRaster(Buffer.from(body));
+  } catch (err) {
+    console.warn("[upload-avatar] EXIF strip failed, refusing rather than storing raw:", err);
+    return { error: `VALIDATION_ERROR: ${metadataStripRefusalMessage()}` };
+  }
+  // The input bound above does not bound the output: sharp adds no resize or
+  // quality floor, so a re-encode can come out larger (see uploads.ts).
+  if (reencoded.byteLength > MAX_IMAGE_BYTES) {
+    return {
+      error:
+        "VALIDATION_ERROR: La imagen es muy pesada después de procesarla. Probá con una foto más chica.",
+    };
+  }
+  const storedBody = reencoded.buffer.slice(
+    reencoded.byteOffset,
+    reencoded.byteOffset + reencoded.byteLength,
+  ) as ArrayBuffer;
+
   // 2. Existence check
   const [current] = await db
     // The stored path is read for the audit row's `before` state — replacing an
@@ -208,7 +236,8 @@ export async function uploadAvatarForUser(
   try {
     uploadResult = await uploadFn({
       userId,
-      body,
+      // The RE-ENCODED bytes — never `body`, which still carries the EXIF.
+      body: storedBody,
       mimeType: detectedMime,
     });
   } catch (err) {

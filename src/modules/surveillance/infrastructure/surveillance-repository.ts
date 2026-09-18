@@ -256,6 +256,33 @@ export class SurveillanceRepository {
     return { ownerUserId: row.ownerUserId };
   }
 
+  /**
+   * Every ACTIVE human owner and co-owner of a pet, deduplicated.
+   *
+   * The State's close of a rabies observation tells the owner the result. It
+   * used `findActiveOwnership` above — one `role = 'owner'` row, `limit(1)` —
+   * so a co-owner never learned that a legal observation on their animal had
+   * closed, positive included. Same predicate as the walk-in notifier
+   * (lib/infra/notify-owners-of-clinical-event.ts), so both doors of the close
+   * reach the same people.
+   */
+  async findActiveOwnerUserIds(petId: string, executor: DbOrTx = db): Promise<string[]> {
+    const rows = await executor
+      .select({ ownerUserId: ownerships.ownerUserId })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          inArray(ownerships.role, ["owner", "co_owner"]),
+          isNull(ownerships.endedAt),
+        ),
+      );
+    const ids = rows
+      .map((r) => r.ownerUserId)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+    return [...new Set(ids)];
+  }
+
   // ===========================================================================
   // Rabies event writes
   // ===========================================================================

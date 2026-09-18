@@ -27,6 +27,8 @@ const INITIAL_STATE: CloseFormState = { error: null, navigating: false };
 export function CloseObservationForm({
   action,
   negativeLockedUntil,
+  deadLockedUntil,
+  withholdLostToFollowup = false,
 }: {
   action: FormAction;
   /**
@@ -39,6 +41,18 @@ export function CloseObservationForm({
    * closers never pass it: they keep the power to close negative early.
    */
   negativeLockedUntil?: string;
+  /**
+   * Veterinary door only (PO D1, 2026-09-18): the date a DEATH becomes
+   * recordable here. Before it, a death during observation is the sanitary
+   * authority's to close (lab sample), and the server refuses it.
+   */
+  deadLockedUntil?: string;
+  /**
+   * Veterinary door only (PO D1): "sin seguimiento" is never offered — the
+   * animal is at the clinic, so the server refuses it at any time. The option
+   * is removed and the hint says why.
+   */
+  withholdLostToFollowup?: boolean;
 }) {
   const [outcome, setOutcome] = useState("");
   const [typedConfirmation, setTypedConfirmation] = useState("");
@@ -81,17 +95,25 @@ export function CloseObservationForm({
   const canSubmit = canSubmitObservationClose({ outcome, typedConfirmation, acknowledged });
   const keptOutcome = kept("outcome");
 
+  // Why an option is disabled or missing, in the words the server would use.
+  // Joined into the one field hint so the reasons read where the choice is made.
+  const outcomeHint = [
+    negativeLockedUntil
+      ? `El resultado negativo se habilita cuando termina el período de observación, el ${negativeLockedUntil}: los signos de rabia pueden aparecer hasta el último día.`
+      : null,
+    deadLockedUntil
+      ? `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que toma la muestra para el laboratorio: registrá la muerte desde la libreta y avisale ahora. Acá se habilita desde el ${deadLockedUntil}.`
+      : null,
+    withholdLostToFollowup
+      ? "“Sin seguimiento” no se registra desde la clínica: el animal está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad."
+      : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join(" ");
+
   return (
     <form action={formAction} className="space-y-4">
-      <LnField
-        label="Resultado"
-        required
-        hint={
-          negativeLockedUntil
-            ? `El resultado negativo se habilita cuando termina el período de observación, el ${negativeLockedUntil}: los signos de rabia pueden aparecer hasta el último día.`
-            : undefined
-        }
-      >
+      <LnField label="Resultado" required hint={outcomeHint || undefined}>
         {({ id, describedBy, invalid }) => (
           <LnSelect
             // The key REMOUNTS the select when a submit settles with a new
@@ -122,10 +144,16 @@ export function CloseObservationForm({
             <option value="positive_rabies">
               {"POSITIVO — rabia confirmada o fuertemente sospechada"}
             </option>
-            <option value="dead">{"Fallecido — fallecimiento durante la observación"}</option>
-            <option value="lost_to_followup">
-              {"Sin seguimiento — animal perdido o sin contacto"}
+            <option value="dead" disabled={deadLockedUntil !== undefined}>
+              {deadLockedUntil
+                ? `Fallecido — disponible desde el ${deadLockedUntil}`
+                : "Fallecido — fallecimiento durante la observación"}
             </option>
+            {!withholdLostToFollowup && (
+              <option value="lost_to_followup">
+                {"Sin seguimiento — animal perdido o sin contacto"}
+              </option>
+            )}
           </LnSelect>
         )}
       </LnField>

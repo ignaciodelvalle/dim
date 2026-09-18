@@ -20,6 +20,7 @@ import {
   outcomeToStatus,
   resolveObservationDeadline,
   resolveObservationWindowDays,
+  vetCloseRefusal,
 } from "./rabies-observation";
 
 // ---------------------------------------------------------------------------
@@ -424,10 +425,36 @@ describe("mustWaitForObservationEnd", () => {
     expect(mustWaitForObservationEnd("negative", DEADLINE, AFTER)).toBe(false);
   });
 
-  it("never holds back an outcome that reports something that already happened", () => {
+  it("gates the negative only — the other vet refusals live in vetCloseRefusal", () => {
     const ungated: RabiesObservationOutcome[] = ["positive_rabies", "dead", "lost_to_followup"];
     for (const outcome of ungated) {
       expect(mustWaitForObservationEnd(outcome, DEADLINE, BEFORE), outcome).toBe(false);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vetCloseRefusal — every early exit a veterinarian may not take (PO D1)
+// ---------------------------------------------------------------------------
+
+describe("vetCloseRefusal", () => {
+  const DEADLINE = new Date("2026-09-24T12:00:00.000Z");
+  const BEFORE = new Date("2026-09-18T15:00:00.000Z");
+  const AFTER = new Date("2026-09-24T12:00:00.001Z");
+
+  it("before the deadline, only a positive goes through", () => {
+    expect(vetCloseRefusal("positive_rabies", DEADLINE, BEFORE)).toBeNull();
+    expect(vetCloseRefusal("negative", DEADLINE, BEFORE)).toBe("negative_before_deadline");
+    expect(vetCloseRefusal("dead", DEADLINE, BEFORE)).toBe("dead_before_deadline");
+    expect(vetCloseRefusal("lost_to_followup", DEADLINE, BEFORE)).toBe("lost_to_followup_never");
+  });
+
+  it("from the deadline on, negative and death open; 'sin seguimiento' never does", () => {
+    for (const now of [DEADLINE, AFTER]) {
+      expect(vetCloseRefusal("negative", DEADLINE, now)).toBeNull();
+      expect(vetCloseRefusal("dead", DEADLINE, now)).toBeNull();
+      expect(vetCloseRefusal("positive_rabies", DEADLINE, now)).toBeNull();
+      expect(vetCloseRefusal("lost_to_followup", DEADLINE, now)).toBe("lost_to_followup_never");
     }
   });
 });

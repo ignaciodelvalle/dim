@@ -23,11 +23,19 @@ export type UploadResult = {
 };
 
 export type UploadOptions = {
-  /** When true, strips EXIF metadata (including GPS) via sharp before upload.
-   * FAILS CLOSED (PO decision D4, 2026-09-18): if sharp throws, nothing is
-   * uploaded and the caller gets an es-AR refusal — the original bytes are
-   * never stored as a fallback. Default: false (existing callers unchanged). */
-  stripMetadata?: boolean;
+  /**
+   * REDUNDANT SINCE 2026-09-18, kept so the callers that opted in still read as
+   * intent. Every raster this function accepts is now re-encoded through sharp,
+   * which drops EXIF (GPS included), whether or not this is passed — see the
+   * re-encoding decision below.
+   *
+   * Typed `true` and not `boolean` ON PURPOSE: `stripMetadata: false` used to
+   * mean "store the original bytes", and it must not compile as a way back to
+   * that. A caller that genuinely needs the original bytes (evidence whose EXIF
+   * is itself evidence) does not belong on this helper — it needs its own path
+   * and a PO decision.
+   */
+  stripMetadata?: true;
 };
 
 // Accept any Supabase client that exposes a `.storage` property — covers both
@@ -50,7 +58,7 @@ export async function uploadAttachmentIfPresent(
   supabase: SupabaseStorageClient,
   file: File | null,
   bucket: string,
-  options?: UploadOptions,
+  _options?: UploadOptions,
 ): Promise<UploadResult> {
   if (!file || file.size === 0) {
     return { uploadedPath: null, mimeType: null, size: null, error: null };
@@ -91,42 +99,44 @@ export async function uploadAttachmentIfPresent(
   const ext = RASTER_IMAGE_TYPES[detectedMime];
   const filename = `${randomUUID()}.${ext}`;
 
-  // Re-encoding decision:
-  //  - Public buckets ALWAYS re-encode: normalized raster bytes only, so no
-  //    attacker-controlled bytes are ever served from a public URL.
-  //  - Other callers opt in via stripMetadata (e.g. finder photos, to drop GPS
-  //    EXIF). Re-encoding through sharp also strips metadata as a side effect.
-  const mustReencode = PUBLIC_REENCODE_BUCKETS.has(bucket);
-  const shouldReencode = mustReencode || options?.stripMetadata === true;
+  // Re-encoding decision: EVERY accepted image is re-encoded, on every bucket.
+  //  - Public buckets: normalized raster bytes only, so no attacker-controlled
+  //    bytes are ever served from a public URL.
+  //  - Private buckets (event-attachments): PO decision D4 (2026-09-18), "no
+  //    guardar datos de ciudadanos que no nos dieron concientemente". Until
+  //    then only callers passing `stripMetadata: true` were re-encoded, and the
+  //    ~20 that did not — event, medical, adoption, Atender attachments — stored
+  //    a phone photo's EXIF, GPS included, on the ordinary path. Nobody who
+  //    attaches a vaccine card has consented to recording where they stood.
+  // Everything reaching this point is a raster (JPEG/PNG/WebP) — anything else
+  // was refused above — so "every image" and "every upload" are the same set.
+  const isPublicBucket = PUBLIC_REENCODE_BUCKETS.has(bucket);
 
-  let uploadBody: File | Buffer = file;
-  if (shouldReencode) {
-    try {
-      uploadBody = await reencodeRaster(inputBuffer);
-    } catch (err) {
-      if (mustReencode) {
-        // Public bucket: never fall back to the raw, un-normalized bytes.
-        console.warn("[uploads] re-encode failed for public bucket, rejecting:", err);
-        return {
-          uploadedPath: null,
-          mimeType: null,
-          size: null,
-          error: "No se pudo procesar la imagen. Probá con otra foto.",
-        };
-      }
-      // Opt-in strip: FAILS CLOSED too (D4). It used to fall back to the
-      // original file, which stored the GPS position of exactly the photos
-      // sharp could not read — the finder's and sighting reporter's location,
-      // the reason these callers opted in. Nothing has been uploaded yet on
-      // this path, so refusing is the whole of the rollback.
-      console.warn("[uploads] EXIF strip failed, refusing rather than storing raw:", err);
+  let uploadBody: Buffer;
+  try {
+    uploadBody = await reencodeRaster(inputBuffer);
+  } catch (err) {
+    if (isPublicBucket) {
+      // Public bucket: never fall back to the raw, un-normalized bytes.
+      console.warn("[uploads] re-encode failed for public bucket, rejecting:", err);
       return {
         uploadedPath: null,
         mimeType: null,
         size: null,
-        error: metadataStripRefusalMessage(),
+        error: "No se pudo procesar la imagen. Probá con otra foto.",
       };
     }
+    // FAILS CLOSED (D4). The opt-in path used to fall back to the original
+    // file, which stored the GPS position of exactly the photos sharp could not
+    // read. Nothing has been uploaded yet here, so refusing is the whole of the
+    // rollback.
+    console.warn("[uploads] EXIF strip failed, refusing rather than storing raw:", err);
+    return {
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error: metadataStripRefusalMessage(),
+    };
   }
 
   // THE SIZE CHECK ABOVE BOUNDS THE INPUT; THE BUCKET BOUNDS WHAT WE UPLOAD, and
@@ -142,8 +152,7 @@ export async function uploadAttachmentIfPresent(
   // about "no se pudo subir" for a photo the person was told was fine. The
   // failure is the migration's to own, so the guard is here rather than in a
   // release note.
-  const uploadedBytes = Buffer.isBuffer(uploadBody) ? uploadBody.byteLength : uploadBody.size;
-  if (uploadedBytes > MAX_BYTES) {
+  if (uploadBody.byteLength > MAX_BYTES) {
     return {
       uploadedPath: null,
       mimeType: null,
@@ -163,8 +172,7 @@ export async function uploadAttachmentIfPresent(
       error: `No se pudo subir la imagen: ${uploadError.message}`,
     };
   }
-  // Report the size of what was actually stored — the re-encoded buffer differs
-  // from the original file size when sharp re-encoded it.
-  const storedSize = Buffer.isBuffer(uploadBody) ? uploadBody.length : file.size;
-  return { uploadedPath: filename, mimeType: detectedMime, size: storedSize, error: null };
+  // Report the size of what was actually stored — the re-encoded buffer, not
+  // the original file.
+  return { uploadedPath: filename, mimeType: detectedMime, size: uploadBody.length, error: null };
 }

@@ -61,7 +61,7 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
     // Por defecto GANA la carrera: devuelve true. Los tests que quieren
     // ejercitar al perdedor lo sobreescriben con false.
     closeObservationIfOpen: vi.fn().mockResolvedValue(true),
-    findActiveOwnership: vi.fn().mockResolvedValue(null),
+    findActiveOwnerUserIds: vi.fn().mockResolvedValue([]),
     insertObservationCloseAuditLog: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as SurveillanceRepository;
@@ -161,7 +161,7 @@ describe("professionalCloseObservation — admin actor", () => {
 
   it("includes owner notification with urgent severity for positive_rabies", async () => {
     const deps = makeDeps({
-      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-99" }),
+      findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-99"]),
     });
     const result = await professionalCloseObservation(
       { ...BASE_INPUT, outcome: "positive_rabies" },
@@ -177,7 +177,7 @@ describe("professionalCloseObservation — admin actor", () => {
 
   it("includes owner notification with info severity for negative", async () => {
     const deps = makeDeps({
-      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-99" }),
+      findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-99"]),
     });
     const result = await professionalCloseObservation({ ...BASE_INPUT, outcome: "negative" }, deps);
     expect(result.ok).toBe(true);
@@ -495,7 +495,7 @@ describe("professionalCloseObservation — veterinario", () => {
     // puerta de walk-in no alcanza con "un veterinario": una clínica sin custodia
     // escribió sobre el animal, y nombrarla es la mitigación que aceptó el PO.
     const deps = makeDeps({
-      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+      findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-1"]),
     });
     const result = await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
 
@@ -511,18 +511,18 @@ describe("professionalCloseObservation — veterinario", () => {
   });
 
   it("el aviso del veterinario NO viaja como fila a un solo dueño: lo entrega el walk-in a todos", async () => {
-    // `findActiveOwnership` devuelve UNA fila `role = 'owner'`. Por esta puerta
+    // `findActiveOwnership` devolvía UNA fila `role = 'owner'`. Por esta puerta
     // el aviso vuelve como contenido y la finalización de Atender lo entrega a
     // cada dueño y co-dueño activo. Si alguien lo vuelve a empujar como fila
     // acá, el co-dueño deja de enterarse y esto se pone rojo.
     const deps = makeDeps({
-      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+      findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-1"]),
     });
     const result = await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(deps.repo.findActiveOwnership).not.toHaveBeenCalled();
+    expect(deps.repo.findActiveOwnerUserIds).not.toHaveBeenCalled();
     expect(
       result.notifications.some(
         (n) => n.notificationType === "rabies_observation_completed_professional_owner",
@@ -557,7 +557,7 @@ describe("professionalCloseObservation — veterinario", () => {
     // El control de los tres casos anteriores: la puerta del Estado no cambió.
     for (const actor of [ADMIN_ACTOR, GOVT_IN_JURISDICTION]) {
       const deps = makeDeps({
-        findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+        findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-1"]),
       });
       const result = await professionalCloseObservation({ ...BASE_INPUT, actor }, deps);
       expect(result.ok, actor.profile.role).toBe(true);
@@ -571,6 +571,31 @@ describe("professionalCloseObservation — veterinario", () => {
     }
   });
 
+  it("el Estado avisa a CADA dueño y co-dueño activo, no a una sola fila", async () => {
+    // Leía `findActiveOwnership`: una fila `role = 'owner'`, `limit(1)`. El
+    // co-dueño nunca se enteraba de que la observación de su animal se cerró.
+    for (const actor of [ADMIN_ACTOR, GOVT_IN_JURISDICTION]) {
+      const deps = makeDeps({
+        findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-1", "co-owner-2"]),
+      });
+      const result = await professionalCloseObservation(
+        { ...BASE_INPUT, outcome: "positive_rabies", actor },
+        deps,
+      );
+      expect(result.ok, actor.profile.role).toBe(true);
+      if (!result.ok) continue;
+      const avisos = result.notifications.filter(
+        (n) => n.notificationType === "rabies_observation_completed_professional_owner",
+      );
+      expect(avisos.map((n) => n.userId).sort(), actor.profile.role).toEqual([
+        "co-owner-2",
+        "owner-1",
+      ]);
+      for (const aviso of avisos) expect(aviso.severity).toBe("urgent");
+      expect(deps.repo.findActiveOwnerUserIds).toHaveBeenCalledWith("pet-3", "fake-tx");
+    }
+  });
+
   it("y a cada actor se lo nombra distinto, que es para lo que existe el mapa", async () => {
     const esperado: Array<[typeof ADMIN_ACTOR | typeof GOVT_IN_JURISDICTION, string]> = [
       [ADMIN_ACTOR, "fue cerrada por un administrador con"],
@@ -579,7 +604,7 @@ describe("professionalCloseObservation — veterinario", () => {
 
     for (const [actor, frase] of esperado) {
       const deps = makeDeps({
-        findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+        findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-1"]),
       });
       const result = await professionalCloseObservation({ ...BASE_INPUT, actor }, deps);
       expect(result.ok, `${actor.profile.role} no pudo cerrar`).toBe(true);
@@ -604,7 +629,7 @@ describe("professionalCloseObservation — veterinario", () => {
     // veterinario en su clínica no la vuelve menos urgente para la jurisdicción,
     // y este caso existe porque la puerta nueva podría haberse saltado el fan-out.
     const deps = makeDeps({
-      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+      findActiveOwnerUserIds: vi.fn().mockResolvedValue(["owner-1"]),
     });
     const result = await professionalCloseObservation(
       { ...BASE_INPUT, outcome: "positive_rabies", actor: VET_ACTOR },
@@ -698,18 +723,107 @@ describe("professionalCloseObservation — the vet's negative waits for the dead
     );
   });
 
-  it("does NOT hold back what already happened: positive, death, lost animal", async () => {
+  it("does NOT hold back a positive: it goes through before the deadline", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "positive_rabies", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    expect(deps.repo.insertObservationEnded).toHaveBeenCalledTimes(1);
+  });
+
+  // PO D1 (2026-09-18), from the security review of this door: a vet's early
+  // `dead` or `lost_to_followup` had the same effect as an early negative —
+  // banner gone, bite case closed, no authority told.
+  function expectNothingWritten(deps: ReturnType<typeof depsWithDeadline>) {
+    expect(deps.repo.insertObservationEnded).not.toHaveBeenCalled();
+    expect(deps.repo.closeObservationIfOpen).not.toHaveBeenCalled();
+    expect(deps.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+    expect(deps.closeCase).not.toHaveBeenCalled();
+  }
+
+  it("refuses the vet's 'sin seguimiento' BEFORE the deadline — the animal is at the clinic", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "lost_to_followup", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe(
+      "Desde la clínica no podés cerrar la observación como “sin seguimiento”: Luna está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad, que es quien cierra una observación sin seguimiento.",
+    );
+    expectNothingWritten(deps);
+  });
+
+  it("refuses the vet's 'sin seguimiento' AFTER the deadline too — at any time", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "lost_to_followup", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("“sin seguimiento”");
+    expectNothingWritten(deps);
+  });
+
+  it("refuses the vet's death BEFORE the deadline and sends them to the record and the authority", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "dead", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe(
+      "Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio. Registrá la muerte desde la libreta de Luna y avisá ahora a la autoridad sanitaria de tu localidad. Después del 24 de septiembre de 2026 a las 09:00 podés registrarlo acá.",
+    );
+    expectNothingWritten(deps);
+  });
+
+  it("accepts the vet's death once the deadline has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "dead", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    expect(deps.repo.closeObservationIfOpen).toHaveBeenCalledWith(
+      "pet-3",
+      "completed_dead",
+      expect.any(Date),
+      "fake-tx",
+    );
+  });
+
+  it("the State keeps death and 'sin seguimiento' at any time", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(BEFORE_DEADLINE);
 
-    for (const outcome of ["positive_rabies", "dead", "lost_to_followup"] as const) {
-      const deps = depsWithDeadline();
-      const result = await professionalCloseObservation(
-        { ...BASE_INPUT, outcome, actor: VET_ACTOR },
-        deps,
-      );
-      expect(result.ok, outcome).toBe(true);
-      expect(deps.repo.insertObservationEnded, outcome).toHaveBeenCalledTimes(1);
+    for (const actor of [ADMIN_ACTOR, GOVT_IN_JURISDICTION]) {
+      for (const outcome of ["dead", "lost_to_followup"] as const) {
+        const deps = depsWithDeadline();
+        const result = await professionalCloseObservation({ ...BASE_INPUT, outcome, actor }, deps);
+        expect(result.ok, `${actor.profile.role}/${outcome}`).toBe(true);
+        expect(deps.repo.insertObservationEnded).toHaveBeenCalledTimes(1);
+      }
     }
   });
 

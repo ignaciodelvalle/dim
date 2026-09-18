@@ -166,9 +166,48 @@ describe("atender sign page — the observation close waits for the deadline", (
       '<option value="negative" disabled="">Negativo — disponible desde el 24 de septiembre de 2026 a las 09:00</option>',
     );
     expect(html).toContain("El resultado negativo se habilita cuando termina el período");
-    // The outcomes that do not wait stay on offer.
+    // A positive does not wait (PO D1).
     expect(html).toMatch(/<option value="positive_rabies">/);
-    expect(html).toMatch(/<option value="dead">/);
+  });
+
+  it("before the deadline, the death is DISABLED and the hint sends the vet to the authority (PO D1)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
+
+    const html = await renderPage({ evento: "observacion" });
+
+    expect(html).toContain(
+      '<option value="dead" disabled="">Fallecido — disponible desde el 24 de septiembre de 2026 a las 09:00</option>',
+    );
+    expect(html).toContain(
+      "Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que toma la muestra para el laboratorio",
+    );
+  });
+
+  it("never offers 'sin seguimiento' to the vet, and says why — before or after the deadline", async () => {
+    for (const now of ["2026-09-18T15:00:00.000Z", "2026-09-24T13:00:00.000Z"]) {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(now));
+      resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
+
+      const html = await renderPage({ evento: "observacion" });
+
+      expect(html, now).not.toContain('value="lost_to_followup"');
+      expect(html, now).toContain("“Sin seguimiento” no se registra desde la clínica");
+    }
+  });
+
+  it("after the deadline, the death is an ordinary option again", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-24T13:00:00.000Z"));
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
+
+    const html = await renderPage({ evento: "observacion" });
+
+    expect(html).toContain(
+      '<option value="dead">Fallecido — fallecimiento durante la observación</option>',
+    );
   });
 
   it("after the deadline, the negative is an ordinary option again", async () => {
