@@ -11,6 +11,9 @@
 //      codes): admin only, never on oneself, credentials reset FIRST (password,
 //      sessions, new link), then every factor removed, audited.
 //
+// Section 5: the harness factor managers (scripts/lib/seed-mfa.ts,
+// _helpers/aal2-session.ts) refuse a Supabase that is not the local machine.
+//
 // Enrolment hardening (2026-09-18): only a session that authenticated in the
 // last 15 minutes may enrol, and a completed enrolment mails the holder.
 //
@@ -70,6 +73,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { isInstitutionalPrincipal } from "@/lib/infra/live-user";
 import { RateLimitError } from "@/lib/infra/rate-limit";
+import { assertLocalSupabaseUrl, ensureSeedTotp } from "@/scripts/lib/seed-mfa";
 import { base32Decode, secondsLeftInStep, totp, totpFromKey } from "@/scripts/lib/totp";
 import {
   confirmMfaEnrolmentAction,
@@ -82,6 +86,8 @@ import {
   mfaRequirement,
 } from "@/src/modules/auth/domain/mfa-policy";
 import { resetMfaFactorsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-mfa-factors";
+
+import { elevateToAal2 } from "./_helpers/aal2-session";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -618,5 +624,46 @@ describe("scripts/lib/totp.ts — RFC 6238 test vectors", () => {
     expect(totp(s, { time: 60 })).toBe(totp(s, { time: 89 }));
     expect(totp(s, { time: 89 })).not.toBe(totp(s, { time: 90 }));
     expect(secondsLeftInStep(30, 61)).toBe(29);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The harness factor managers refuse a non-local Supabase (review LOW-2)
+// ---------------------------------------------------------------------------
+
+describe("harness factor managers are local-only", () => {
+  const REMOTE = "https://staging-project.supabase.invalid";
+
+  it("assertLocalSupabaseUrl accepts the local hosts and nothing else", () => {
+    for (const url of ["http://127.0.0.1:54321", "http://localhost:54321", "http://[::1]:54321"]) {
+      expect(() => assertLocalSupabaseUrl(url, "t")).not.toThrow();
+    }
+    for (const url of [REMOTE, "http://127.0.0.1.nip.io:54321", "not a url", ""]) {
+      expect(() => assertLocalSupabaseUrl(url, "t")).toThrow(/non-local Supabase/);
+    }
+  });
+
+  it("ensureSeedTotp refuses a remote NEXT_PUBLIC_SUPABASE_URL before any call", async () => {
+    await expect(
+      ensureSeedTotp(
+        { supabaseUrl: REMOTE, anonKey: "anon", serviceRoleKey: "service" },
+        "admin@dim.test",
+        "x",
+      ),
+    ).rejects.toThrow(/seed-mfa: refusing to manage MFA factors on a non-local Supabase/);
+  });
+
+  it("elevateToAal2 refuses a remote NEXT_PUBLIC_SUPABASE_URL before touching factors", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", REMOTE);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service");
+    const getUser = vi.fn().mockResolvedValue({ data: { user: { id: "u-1" } }, error: null });
+    try {
+      await expect(elevateToAal2({ auth: { getUser } } as never)).rejects.toThrow(
+        /aal2-session: refusing to manage MFA factors on a non-local Supabase/,
+      );
+      expect(getUser).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

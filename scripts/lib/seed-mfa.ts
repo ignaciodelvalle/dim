@@ -26,7 +26,11 @@
 // LOCAL / CI ONLY by construction: it needs the service-role key to clear an
 // unknown factor, and it rewrites the factor of whatever account it is pointed
 // at. Pointing it at a shared environment where a PERSON uses the same account
-// would replace that person's authenticator — callers must not do that.
+// would replace that person's authenticator — so ensureSeedTotp REFUSES any
+// Supabase URL whose host is not the local machine (assertLocalSupabaseUrl).
+// The e2e guard in e2e/_mfa.ts checks the PAGE's host, which says nothing
+// about where NEXT_PUBLIC_SUPABASE_URL points; the refusal has to live here,
+// where the service key is used, so every caller gets it.
 
 import {
   closeSync,
@@ -66,6 +70,32 @@ export function seedMfaEnvFromProcess(): SeedMfaEnv {
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   };
+}
+
+/** Hosts where the harness owns the stack and may rewrite an account's factors. */
+export const LOCAL_SUPABASE_HOSTS: ReadonlySet<string> = new Set([
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+  "::1",
+]);
+
+/**
+ * Throw unless `supabaseUrl` points at the local machine. `who` names the caller
+ * in the message. An unparseable URL is refused too.
+ */
+export function assertLocalSupabaseUrl(supabaseUrl: string, who: string): void {
+  let host: string | null = null;
+  try {
+    host = new URL(supabaseUrl).hostname;
+  } catch {
+    host = null;
+  }
+  if (host === null || !LOCAL_SUPABASE_HOSTS.has(host)) {
+    throw new Error(
+      `${who}: refusing to manage MFA factors on a non-local Supabase (${host ?? "unparseable URL"}); this harness is local/CI only`,
+    );
+  }
 }
 
 function storeKey(env: SeedMfaEnv, userId: string): string {
@@ -198,6 +228,7 @@ export async function ensureSeedTotp(
   email: string,
   password: string,
 ): Promise<SeedTotp> {
+  assertLocalSupabaseUrl(env.supabaseUrl, "seed-mfa");
   return withLock(async () => {
     const client = anonClient(env);
     const { data: signIn, error: signInError } = await client.auth.signInWithPassword({
