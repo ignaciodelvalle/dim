@@ -92,12 +92,25 @@ describe("classifyExports — shapes Next rejects at module load", () => {
     // grows a declaration form.
     expect(problems("export namespace Legacy {}")).toEqual(["export namespace Legacy {}"]);
   });
+
+  it("flags a test-only helper even when it is a legal async function (A01-4)", () => {
+    // In a "use server" module every export is a production endpoint; the two
+    // rate-limit resets that lived in such modules let any browser clear a live
+    // throttle.
+    expect(problems("export async function __resetRateLimitForTests() {}")).toEqual([
+      "__resetRateLimitForTests",
+    ]);
+    expect(problems("export async function __resetKpisCache() {}")).toEqual(["__resetKpisCache"]);
+    expect(problems("export const seedForTest = async () => {};")).toEqual(["seedForTest"]);
+  });
 });
 
 describe("classifyExports — shapes that are legal", () => {
   it("accepts async functions in declaration and expression form", () => {
     expect(problems("export async function act(x: string) {\n  return x;\n}")).toEqual([]);
     expect(problems("export const act = async (x: string) => x;")).toEqual([]);
+    // The test-only rule keys on the name's edges, not on the substring.
+    expect(problems("export async function testForTestsDrift() {}")).toEqual([]);
     expect(problems("export const act = async function (x: string) {\n  return x;\n};")).toEqual(
       [],
     );

@@ -12,7 +12,7 @@
 //     actor_user_id; admin view batch name-lookup handles NULL actor gracefully.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { completeIdentityAction } from "@/app/actions/auth";
@@ -23,6 +23,7 @@ import {
   custodyDisputeParties,
   custodyDisputes,
   db,
+  notificationDeadLetter,
   notifications,
   orgContactMessages,
   organizationMemberships,
@@ -1731,5 +1732,96 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
         });
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 0226 — the erasure reaches the notification dead letter (A06-G2)
+// ---------------------------------------------------------------------------
+//
+// A dead letter stores the full notification insert, and the drain cron replays
+// it into public.notifications. Before 0226 the erasure redacted the subject's
+// notifications and left these rows alone, so the next drain re-created what
+// art. 16 had just removed.
+describe("erase_subject_data — redacts the subject's notification dead letters (0226)", () => {
+  const KEY_PREFIX = "sr-0226-dead-letter";
+
+  function deadLetterFor(userId: string, suffix: string, resolved: boolean) {
+    const dedupeKey = `${KEY_PREFIX}:${suffix}:${userId}`;
+    return {
+      dedupeKey,
+      payload: {
+        userId,
+        notificationType: "pet_found_report",
+        title: "Encontraron a Pochi",
+        body: "Roberto Sánchez la tiene. Contacto: 11-9999-8888",
+        dedupeKey,
+      },
+      errorMessage: "pool blip: connection terminated",
+      resolvedAt: resolved ? new Date("2026-09-01T12:00:00Z") : null,
+    };
+  }
+
+  beforeAll(async () => {
+    await db
+      .delete(notificationDeadLetter)
+      .where(like(notificationDeadLetter.dedupeKey, `${KEY_PREFIX}:%`));
+    await db
+      .insert(notificationDeadLetter)
+      .values([
+        deadLetterFor(ownerUserId, "pending", false),
+        deadLetterFor(ownerUserId, "resolved", true),
+        deadLetterFor(otherUserId, "pending", false),
+      ]);
+  });
+
+  afterAll(async () => {
+    await db
+      .delete(notificationDeadLetter)
+      .where(like(notificationDeadLetter.dedupeKey, `${KEY_PREFIX}:%`));
+  });
+
+  it("empties the payload of every dead letter addressed to the subject, and resolves it", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'dead letter redaction'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    const rows = await db
+      .select()
+      .from(notificationDeadLetter)
+      .where(like(notificationDeadLetter.dedupeKey, `${KEY_PREFIX}:%:${ownerUserId}`));
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.payload).toEqual({});
+      // Marked resolved, so the drain never scans it again.
+      expect(row.resolvedAt).not.toBeNull();
+      // What stays records THAT a delivery failed and when — not to whom or what.
+      expect(row.errorMessage).toBe("pool blip: connection terminated");
+      expect(row.dedupeKey).toMatch(new RegExp(`^${KEY_PREFIX}:`));
+    }
+    // A row already resolved keeps its original resolution time.
+    const resolved = rows.find((r) => r.dedupeKey?.includes(":resolved:"));
+    expect(resolved?.resolvedAt?.toISOString()).toBe("2026-09-01T12:00:00.000Z");
+  });
+
+  it("leaves another person's dead letter untouched", async () => {
+    const [row] = await db
+      .select()
+      .from(notificationDeadLetter)
+      .where(eq(notificationDeadLetter.dedupeKey, `${KEY_PREFIX}:pending:${otherUserId}`));
+    expect(row?.payload).toMatchObject({ userId: otherUserId, title: "Encontraron a Pochi" });
+    expect(row?.resolvedAt).toBeNull();
+  });
+
+  it("counts the redaction in the subject_erasure audit payload", async () => {
+    const [entry] = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "subject_erasure"), eq(auditLog.targetUserId, ownerUserId)))
+      .orderBy(desc(auditLog.performedAt))
+      .limit(1);
+    expect(entry?.payload).toMatchObject({ dead_letters_redacted: 2 });
   });
 });

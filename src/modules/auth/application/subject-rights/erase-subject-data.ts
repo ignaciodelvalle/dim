@@ -768,6 +768,13 @@ export async function eraseSubjectDataFor(
 
   // Step 3 — purge Storage objects the RPC cannot reach (pet photos + event
   // attachments on the subject's owned pets, Ley 25.326 art. 16 — audit 27-#5).
+  //
+  // WHICH BUCKETS THIS FILE DOES NOT TOUCH, and why that is written down rather
+  // than forgotten: every bucket is classified in the bucket inventory of
+  // scripts/check-subject-rights-coverage.ts, which reads this file's storage
+  // calls and fails when the two disagree. `revocations` and `welfare-evidence`
+  // are declared there as GAPS — evidence-shaped, but no retention decision is
+  // documented, so they are not claimed as retention either (A07-3).
   // Best-effort like the auth deletion: a Storage hiccup must not leave the
   // subject staring at an error after their DB data is already gone.
   try {

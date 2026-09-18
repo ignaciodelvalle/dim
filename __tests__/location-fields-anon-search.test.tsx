@@ -22,7 +22,6 @@ const searchPublic = vi.fn(async (_input: SearchInput) => ({ results: [] }));
 vi.mock("@/app/actions/localities", () => ({
   searchLocalitiesAction: (input: SearchInput) => searchAuth(input),
   searchLocalitiesPublicAction: (input: SearchInput) => searchPublic(input),
-  __resetRateLimitForTests: vi.fn(),
 }));
 
 // LocationFields imports these at module load; only used in L2 mode.

@@ -282,16 +282,24 @@ describe("updatePasswordAction", () => {
     expect(result.error).toBeNull();
   });
 
-  it("surfaces Supabase error when updateUser fails", async () => {
-    mockUpdateClient({
-      user: { id: "user-uuid" },
-      updateError: { message: "Password too weak" },
-    });
-    const result = await updatePasswordAction(
-      { error: null },
-      makeForm({ password: "validPass1!", confirmPassword: "validPass1!" }),
-    );
-    expect(result.error).toBeTruthy();
-    expect(result.ok).toBeFalsy();
-  });
+  // A04-6: every updateUser failure gets the same sentence and never GoTrue's
+  // own text, which is account-state-shaped.
+  it.each(["Password too weak", "New password should be different from the old password."])(
+    "returns one generic sentence when updateUser fails with %j",
+    async (message) => {
+      mockUpdateClient({
+        user: { id: "user-uuid" },
+        updateError: { message },
+      });
+      const result = await updatePasswordAction(
+        { error: null },
+        makeForm({ password: "validPass1!", confirmPassword: "validPass1!" }),
+      );
+      expect(result.error).toBe(
+        "No se pudo actualizar la contraseña. Probá con otra contraseña o pedí un código nuevo desde la página de recuperación.",
+      );
+      expect(result.error).not.toContain(message);
+      expect(result.ok).toBeFalsy();
+    },
+  );
 });

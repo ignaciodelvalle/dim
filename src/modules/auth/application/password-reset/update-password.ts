@@ -49,8 +49,16 @@ export async function updatePasswordAction(
 
   const { error } = await supabase.auth.updateUser({ password });
 
+  // ONE sentence for every `updateUser` failure, never GoTrue's text (A04-6).
+  // Its messages here are account-state-shaped ("New password should be
+  // different from the old password"), and the rule `signup.ts` states for
+  // itself — never the raw Supabase text — holds in this module too. The copy
+  // names the two things the person can actually do.
   if (error) {
-    return { error: `No se pudo actualizar la contraseña: ${error.message}` };
+    return {
+      error:
+        "No se pudo actualizar la contraseña. Probá con otra contraseña o pedí un código nuevo desde la página de recuperación.",
+    };
   }
 
   // Revoke every OTHER session (audit 28-#MED-5). Shared with the code step,

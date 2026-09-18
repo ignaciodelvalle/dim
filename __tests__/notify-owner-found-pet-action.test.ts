@@ -369,6 +369,30 @@ describe("notifyOwnerOfFoundPetAction — persistent rate-limit migration", () =
     );
   });
 
+  // A06-G5: the D2 gate is server-side because the action is anon-callable; the
+  // credential page hiding the form is not the gate. Deleting the `if` must
+  // turn this red.
+  it("refuses a pet under custody dispute and relays nothing to the contested owner", async () => {
+    petRows = [{ ...LIVE_PET, inCustodyDispute: true }];
+
+    const result = await (await loadAction())(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(BASE_FIELDS),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "En esta credencial los avisos los recibe la autoridad competente, no la persona registrada como dueña. Enviá tu aviso desde la credencial de la mascota.",
+    });
+    // createNotificationsBulk was never reached: it writes either a
+    // notifications row or a dead-letter row, and there is neither.
+    expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(insertedNotifications).toHaveLength(0);
+    expect(deadLetteredRows).toHaveLength(0);
+  });
+
   it("accepts a report without finderContact — owner is told no contact was left", async () => {
     const result = await (await loadAction())(
       PUBLIC_TOKEN,

@@ -9,8 +9,10 @@
 //   5. Row still fails (dead_lettered again) → stillFailing, original resolved (bounded)
 //   6. Malformed payload → invalid, row resolved so it stops blocking the scan
 //   7. Global failure (select throws) → ok:false + HTTP 500
+//   8. Recipient erased (profile deleted_at set) → not replayed, redacted (A06-G2)
+//   9. Every resolve drops the payload (A06-G1)
 //
-// Mocks @/db (cronRuns, notificationDeadLetter, db) + @/lib/infra/notification-service.
+// Mocks @/db (cronRuns, notificationDeadLetter, profiles, db) + @/lib/infra/notification-service.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,7 +34,10 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
 
   type Row = { id: string; payload: unknown };
 
-  function buildDbMock(rows: Row[], selectThrows = false) {
+  /** Table sentinel, so the select double can tell the profile lookup apart. */
+  const PROFILES = { __table: "profiles" };
+
+  function buildDbMock(rows: Row[], selectThrows = false, erasedUserIds: string[] = []) {
     const cronInsertReturningMock = vi.fn().mockResolvedValue([{ id: FAKE_RUN_ID }]);
     const cronInsertValuesMock = vi.fn().mockReturnValue({ returning: cronInsertReturningMock });
     const insertMock = vi.fn().mockReturnValue({ values: cronInsertValuesMock });
@@ -47,8 +52,30 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
       : vi.fn().mockResolvedValue(rows);
     const orderByMock = vi.fn().mockReturnValue({ limit: limitMock });
     const whereMock = vi.fn().mockReturnValue({ orderBy: orderByMock });
-    const fromMock = vi.fn().mockReturnValue({ where: whereMock });
-    const selectMock = vi.fn().mockReturnValue({ from: fromMock });
+    // The recipient lookup: select().from(profiles).where().limit(). Every
+    // recipient is a live profile unless the test names it as erased.
+    let profileLookupUserId = "";
+    const profileChain = {
+      where: vi.fn(() => profileChain),
+      limit: vi.fn(async () => [
+        { deletedAt: erasedUserIds.includes(profileLookupUserId) ? new Date() : null },
+      ]),
+    };
+    const fromMock = vi.fn((table: unknown) =>
+      table === PROFILES ? profileChain : { where: whereMock },
+    );
+    // The route asks about one recipient at a time, in row order — an
+    // unreplayable row never reaches the lookup, so it is not queued.
+    const recipientQueue = rows
+      .map((r) => (r.payload as { userId?: unknown; title?: unknown }) ?? {})
+      .filter((p) => typeof p.title === "string")
+      .map((p) => String(p.userId));
+    const selectMock = vi.fn(() => ({
+      from: (table: unknown) => {
+        if (table === PROFILES) profileLookupUserId = recipientQueue.shift() ?? "";
+        return fromMock(table);
+      },
+    }));
 
     const dbMock = {
       insert: insertMock,
@@ -62,11 +89,13 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     rows: Row[],
     createResults: Array<{ status: "inserted" | "duplicate" | "dead_lettered" }>,
     selectThrows = false,
+    erasedUserIds: string[] = [],
   ) {
-    const { dbMock, updateSetMock } = buildDbMock(rows, selectThrows);
+    const { dbMock, updateSetMock } = buildDbMock(rows, selectThrows, erasedUserIds);
     vi.doMock("@/db", () => ({
       db: dbMock,
       cronRuns: {},
+      profiles: Object.assign(PROFILES, { id: {}, deletedAt: {} }),
       notificationDeadLetter: {
         resolvedAt: {},
         createdAt: {},
@@ -168,6 +197,57 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     expect(body).toMatchObject({ ok: false, scanned: 1, invalid: 1, resolved: 0 });
     // Never attempted a replay for an unreplayable payload.
     expect(createMock).not.toHaveBeenCalled();
+  });
+
+  // A06-G2: a subject who exercised art. 16 must not get the notification back.
+  it("does not replay a row whose recipient was erased, and redacts it", async () => {
+    const { createMock, updateSetMock } = mockDeps(
+      [
+        { id: "dl-5", payload: { ...validPayload, userId: "erased-user" } },
+        { id: "dl-6", payload: validPayload },
+      ],
+      [{ status: "inserted" }],
+      false,
+      ["erased-user"],
+    );
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, scanned: 2, resolved: 1, skippedErased: 1 });
+    // Only the live recipient's row was replayed.
+    expect(createMock).toHaveBeenCalledOnce();
+    expect(createMock.mock.calls[0][0]).toMatchObject({ userId: "u1" });
+    // Both rows were resolved with their payload dropped.
+    const redactions = updateSetMock.mock.calls.filter(
+      (c) => JSON.stringify((c[0] as { payload?: unknown }).payload) === "{}",
+    );
+    expect(redactions).toHaveLength(2);
+  });
+
+  // A06-G1: a resolved dead letter keeps no copy of the notification.
+  it.each([["inserted" as const], ["duplicate" as const], ["dead_lettered" as const]])(
+    "drops the payload when it resolves a row that replayed as %s",
+    async (status) => {
+      const { updateSetMock } = mockDeps([{ id: "dl-7", payload: validPayload }], [{ status }]);
+      await callRoute({ "x-cron-secret": "test-secret" });
+
+      const resolving = updateSetMock.mock.calls
+        .map((c) => c[0] as { resolvedAt?: unknown; payload?: unknown })
+        .filter((set) => set.resolvedAt instanceof Date);
+      expect(resolving).toHaveLength(1);
+      expect(resolving[0].payload).toEqual({});
+    },
+  );
+
+  it("drops the payload of an unreplayable row too", async () => {
+    const { updateSetMock } = mockDeps([{ id: "dl-8", payload: { userId: "u1" } }], []);
+    await callRoute({ "x-cron-secret": "test-secret" });
+
+    const resolving = updateSetMock.mock.calls
+      .map((c) => c[0] as { resolvedAt?: unknown; payload?: unknown })
+      .filter((set) => set.resolvedAt instanceof Date);
+    expect(resolving).toEqual([expect.objectContaining({ payload: {} })]);
   });
 
   it("returns ok:false + HTTP 500 when the scan throws", async () => {

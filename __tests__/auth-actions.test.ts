@@ -49,7 +49,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-import { loginAction, logoutAction } from "@/app/actions/auth";
+import { loginAction, logoutAction, logoutAndReturnAction } from "@/app/actions/auth";
 import { db, notifications, profiles } from "@/db";
 import { RateLimitError } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -282,5 +282,29 @@ describe("logoutAction", () => {
     await expect(logoutAction()).rejects.toThrow(/NEXT_REDIRECT/);
     expect(signOutMock).toHaveBeenCalledTimes(1);
     expect(mockRedirect).toHaveBeenCalledWith("/");
+  });
+
+  // A04-2: auth-js keeps the local session when GoTrue fails with a 5xx, so a
+  // redirect after a failed signOut would announce a logout that did not happen.
+  it("does not redirect when signOut reports an error", async () => {
+    signOutMock.mockResolvedValueOnce({ error: new Error("upstream 503") });
+    await expect(logoutAction()).resolves.toBeUndefined();
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("logoutAndReturnAction", () => {
+  it("signs out and redirects to the safe return path", async () => {
+    await expect(logoutAndReturnAction("/p/DIM-TEST-0001/encontre")).rejects.toThrow(
+      /NEXT_REDIRECT/,
+    );
+    expect(mockRedirect).toHaveBeenCalledWith("/p/DIM-TEST-0001/encontre");
+  });
+
+  it("does not redirect when signOut reports an error", async () => {
+    signOutMock.mockResolvedValueOnce({ error: new Error("upstream 503") });
+    await expect(logoutAndReturnAction("/p/DIM-TEST-0001/encontre")).resolves.toBeUndefined();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

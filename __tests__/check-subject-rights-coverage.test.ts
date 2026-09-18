@@ -8,17 +8,24 @@
 // than retyped. If these lists are ever copied into this file instead of
 // imported, the test stops testing the fence and starts testing a snapshot.
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  BUCKETS_ERASED,
+  BUCKETS_KNOWN_GAP,
   CLASSIFICATION,
   type Classification,
+  ERASURE_STORAGE_SOURCE,
   EXEMPT,
   IN_ERASE,
   IN_EXPORT,
   KNOWN_GAP,
   bodyMentions,
+  bucketsNamedIn,
   evaluate,
+  evaluateBuckets,
   sideGaps,
 } from "@/scripts/check-subject-rights-coverage";
 
@@ -203,7 +210,12 @@ describe("evaluate — each SIDE is classified and checked on its own", () => {
 describe("the one-sided debt is written down, and pinned", () => {
   // Stated by hand, not derived: these are the halves A05-2 found missing. A new
   // one-sided gap, or one closed, turns this red so the change is seen in a diff.
-  const EXPORT_SIDE_GAPS_OUTSIDE_KNOWN_GAP = ["attachments", "case_events", "libreta_share_tokens"];
+  const EXPORT_SIDE_GAPS_OUTSIDE_KNOWN_GAP = [
+    "attachments",
+    "case_events",
+    "libreta_share_tokens",
+    "notification_dead_letter",
+  ];
   const ERASE_SIDE_GAPS_OUTSIDE_KNOWN_GAP = ["organization_memberships"];
 
   it("lists exactly the tables whose art. 14 side alone is a gap", () => {
@@ -253,7 +265,9 @@ describe("the debt register is not empty, says so, and may not grow quietly", ()
   // (deleted) and organization_invitations (email sentinelled + outstanding
   // invitations revoked; the actor FKs and accepted rows kept as the access
   // trail), so it ratchets 20 -> 17.
-  const KNOWN_GAP_CEILING = 17;
+  // 0226 moved out notification_dead_letter (every dead letter addressed to the
+  // subject loses its payload and is resolved), so it ratchets 17 -> 16.
+  const KNOWN_GAP_CEILING = 16;
 
   it("does not grow past the declared ceiling without someone raising it on purpose", () => {
     expect(
@@ -280,7 +294,7 @@ describe("the debt register is not empty, says so, and may not grow quietly", ()
 // and the four catalogue checks all pass — the fence asks whether each table is
 // CLASSIFIED, never whether the two rights agree with each other.
 describe("art. 16 may not reach further than art. 14", () => {
-  // The two tables where erase reaches and export does not, TODAY. Frozen by
+  // The three tables where erase reaches and export does not, TODAY. Frozen by
   // hand for the same reason KNOWN_GAP_CEILING is: an exception list with no
   // ceiling is not an exception list.
   //
@@ -289,7 +303,14 @@ describe("art. 16 may not reach further than art. 14", () => {
   //  · libreta_share_tokens — 0207 revokes the subject's outstanding shares and
   //    says so in the fence itself: "The art. 14 side is still a gap —
   //    export_subject_data does not return the `label` the user typed."
-  const ERASE_ONLY_KNOWN: readonly string[] = ["case_events", "libreta_share_tokens"];
+  //  · notification_dead_letter — 0226 redacts the payload of every dead
+  //    letter addressed to the subject; the export has never returned
+  //    undelivered notifications (the fence says so beside the entry).
+  const ERASE_ONLY_KNOWN: readonly string[] = [
+    "case_events",
+    "libreta_share_tokens",
+    "notification_dead_letter",
+  ];
 
   it("every table erase_subject_data reaches is also returned by export_subject_data", () => {
     const inExport = new Set(IN_EXPORT);
@@ -334,4 +355,55 @@ describe("the three gaps migration 0208 closed", () => {
       expect(Object.hasOwn(EXEMPT, t), `${t} holds subject data — it is not EXEMPT`).toBe(false);
     },
   );
+});
+
+// A07-3: Storage is the half of the subject's data SQL cannot reach, so the
+// bucket inventory is checked against the TypeScript that deletes objects.
+describe("storage bucket inventory", () => {
+  const ERASURE_SOURCE = readFileSync(ERASURE_STORAGE_SOURCE, "utf8");
+
+  it("reads only string-literal .from() calls as buckets", () => {
+    const named = bucketsNamedIn(
+      `db.select().from(ownerships);
+admin.storage.from("avatars").list();
+admin.storage.from('x-y').remove(p);`,
+    );
+    expect([...named].sort()).toEqual(["avatars", "x-y"]);
+  });
+
+  it("the erasure module reaches exactly the four buckets it is declared to reach", () => {
+    expect([...bucketsNamedIn(ERASURE_SOURCE)].sort()).toEqual([
+      "avatars",
+      "event-attachments",
+      "pet-photos",
+      "uploads-staging",
+    ]);
+    expect(evaluateBuckets([], ERASURE_SOURCE)).toEqual([]);
+  });
+
+  it("fails a live bucket that is in no list", () => {
+    const kinds = evaluateBuckets(["avatars", "brand-new-bucket"], ERASURE_SOURCE).map(
+      (v) => v.kind,
+    );
+    expect(kinds).toEqual(["bucket_unclassified"]);
+  });
+
+  it("fails when a declared sweep disappears from the erasure module", () => {
+    const withoutAvatars = ERASURE_SOURCE.replaceAll('.from("avatars")', ".from(AVATARS)");
+    expect(evaluateBuckets([], withoutAvatars).map((v) => v.kind)).toEqual(["bucket_not_erased"]);
+  });
+
+  it("fails when the erasure deletes from a bucket nobody declared", () => {
+    const extra = `${ERASURE_SOURCE}
+admin.storage.from("revocations").remove(paths);`;
+    expect(evaluateBuckets([], extra).map((v) => v.kind)).toEqual(["bucket_erased_but_undeclared"]);
+  });
+
+  it("records the two evidence buckets as gaps — no retention decision is documented", () => {
+    expect(Object.keys(BUCKETS_KNOWN_GAP)).toEqual(
+      expect.arrayContaining(["revocations", "welfare-evidence"]),
+    );
+    expect(BUCKETS_ERASED).not.toContain("revocations");
+    expect(BUCKETS_ERASED).not.toContain("welfare-evidence");
+  });
 });
