@@ -6,7 +6,12 @@ import { like } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { db, rateLimitBuckets } from "@/db";
-import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
+import {
+  RATE_LIMIT_SEGMENT_MAX,
+  RateLimitError,
+  enforceRateLimit,
+  rateLimitKeySegment,
+} from "@/lib/infra/rate-limit";
 
 async function clearBucketsByPrefix(prefix: string): Promise<void> {
   await db.delete(rateLimitBuckets).where(like(rateLimitBuckets.bucketKey, `${prefix}%`));
@@ -129,5 +134,107 @@ describe("enforceRateLimit (persistent)", () => {
       .where(like(rateLimitBuckets.bucketKey, "test_rl_keyshape:dave:hour:%"));
     expect(rows).toHaveLength(1);
     expect(rows[0].count).toBe(1);
+  });
+});
+
+// T2-S5: bucket keys are built from attacker-chosen text (an unparseable
+// x-real-ip comes back verbatim from callerSubject; some endpoints embed a URL
+// token). Every segment must be bounded, and bounding must neither merge two
+// distinct callers nor split one caller across spellings.
+describe("rateLimitKeySegment — every bucket-key segment is bounded", () => {
+  it("keeps a short, plain identifier verbatim (existing keys do not move)", () => {
+    for (const plain of [
+      "203.0.113.7",
+      "2001:db8:0:1::/64",
+      "3f2b8c1e-9a4d-4c7e-8b21-5d6f7a8b9c0d",
+      "DIM-PAMP-0001",
+      "auth_login_ip",
+      "x".repeat(RATE_LIMIT_SEGMENT_MAX),
+    ]) {
+      expect(rateLimitKeySegment(plain)).toBe(plain);
+    }
+  });
+
+  it("hashes anything over the maximum to a fixed-width form", () => {
+    const long = "a".repeat(RATE_LIMIT_SEGMENT_MAX + 1);
+    const huge = "b".repeat(16_384);
+    expect(rateLimitKeySegment(long)).toMatch(/^#[0-9a-f]{40}$/);
+    expect(rateLimitKeySegment(huge)).toMatch(/^#[0-9a-f]{40}$/);
+    // Distinct inputs stay distinct buckets.
+    expect(rateLimitKeySegment(long)).not.toBe(rateLimitKeySegment(huge));
+  });
+
+  it("hashes a short segment carrying characters outside the verbatim alphabet", () => {
+    expect(rateLimitKeySegment("evil header\r\nx")).toMatch(/^#[0-9a-f]{40}$/);
+    expect(rateLimitKeySegment("dni=12345678; drop")).toMatch(/^#[0-9a-f]{40}$/);
+  });
+
+  it("a raw segment can never spell a hashed one", () => {
+    const hashed = rateLimitKeySegment("c".repeat(200));
+    // Someone who sends the hashed form literally gets hashed again, not the
+    // same bucket.
+    expect(rateLimitKeySegment(hashed)).not.toBe(hashed);
+  });
+
+  it("normalises before hashing: Unicode form and surrounding space do not buy a new bucket", () => {
+    const composed = `${"z".repeat(70)}\u00e9`;
+    const decomposed = `${"z".repeat(70)}e\u0301`;
+    expect(decomposed).not.toBe(composed);
+    expect(rateLimitKeySegment(decomposed)).toBe(rateLimitKeySegment(composed));
+    expect(rateLimitKeySegment(`  ${composed}  `)).toBe(rateLimitKeySegment(composed));
+    expect(rateLimitKeySegment(" 203.0.113.7 ")).toBe("203.0.113.7");
+  });
+});
+
+describe("enforceRateLimit — a hostile identifier cannot bloat the table", () => {
+  beforeEach(() => {
+    const midMinute = Math.floor(Date.now() / 60_000) * 60_000 + 30_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(midMinute));
+  });
+
+  afterEach(async () => {
+    vi.useRealTimers();
+    await clearBucketsByPrefix("test_rl_bound");
+  });
+
+  it("stores a bounded key for a header-sized identifier, and still counts it", async () => {
+    const endpoint = "test_rl_bound";
+    const hostile = `198.51.100.1${"A".repeat(8_000)}`;
+    await enforceRateLimit(endpoint, hostile, { maxPerHour: 1 });
+    const rows = await db
+      .select()
+      .from(rateLimitBuckets)
+      .where(like(rateLimitBuckets.bucketKey, `${endpoint}:%`));
+    expect(rows).toHaveLength(1);
+    // endpoint + ":" + 41-char hash + ":hour:" + a 13-digit epoch.
+    expect(rows[0].bucketKey.length).toBeLessThanOrEqual(endpoint.length + 1 + 41 + 6 + 13);
+    expect(rows[0].bucketKey).not.toContain("AAAA");
+
+    // Same hostile value → same bucket → the ceiling still bites.
+    await expect(enforceRateLimit(endpoint, hostile, { maxPerHour: 1 })).rejects.toBeInstanceOf(
+      RateLimitError,
+    );
+    // And the error does not echo the payload.
+    try {
+      await enforceRateLimit(endpoint, hostile, { maxPerHour: 1 });
+    } catch (err) {
+      expect((err as RateLimitError).reason.length).toBeLessThan(200);
+    }
+  });
+
+  it("bounds a hostile ENDPOINT segment too (URL tokens are embedded there)", async () => {
+    const endpoint = `test_rl_bound_ep:${"T".repeat(5_000)}`;
+    await enforceRateLimit(endpoint, "alice", { maxPerHour: 5 });
+    const rows = await db
+      .select()
+      .from(rateLimitBuckets)
+      .where(like(rateLimitBuckets.bucketKey, "#%:alice:hour:%"));
+    const mine = rows.filter((r) => r.bucketKey.startsWith(rateLimitKeySegment(endpoint)));
+    expect(mine).toHaveLength(1);
+    expect(mine[0].bucketKey.length).toBeLessThan(80);
+    await db
+      .delete(rateLimitBuckets)
+      .where(like(rateLimitBuckets.bucketKey, `${rateLimitKeySegment(endpoint)}:%`));
   });
 });
