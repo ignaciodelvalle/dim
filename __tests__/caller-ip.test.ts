@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { callerIp } from "@/lib/infra/rate-limit";
+import { callerIp, callerSubject } from "@/lib/infra/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Minimal header-getter factory (matches the HeaderGetter interface)
@@ -103,5 +103,82 @@ describe("callerIp()", () => {
     const result = callerIp(hdrs);
     expect(result).toBe("203.0.113.99");
     expect(result).not.toBe("1.2.3.4");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WHO a bucket is about: an IPv6 caller is its /64, not one address
+// ---------------------------------------------------------------------------
+//
+// One IPv6 host owns a whole /64 and picks (and rotates) its own interface
+// identifier inside it, so a limiter keyed on the full address handed one
+// machine 2^64 fresh buckets. The expected subjects below are written out by
+// hand, not computed, so a normaliser that drifts cannot agree with itself.
+
+describe("callerSubject() / callerIp() — IPv6 grouped by /64", () => {
+  const SAME_64 = [
+    "2001:db8:abcd:12::1",
+    "2001:0db8:abcd:0012:0000:0000:0000:0001",
+    "2001:DB8:ABCD:12:ffff:ffff:ffff:ffff",
+    "2001:db8:abcd:12:a1b2:c3d4:e5f6:789",
+    "[2001:db8:abcd:12::7]",
+    "2001:db8:abcd:12::7%eth0",
+  ];
+
+  it("keys every spelling of one /64 on the same subject", () => {
+    for (const spelling of SAME_64) {
+      expect(callerSubject(spelling), spelling).toBe("2001:db8:abcd:12::/64");
+    }
+  });
+
+  it("keeps two different /64s apart, even inside the same /48", () => {
+    expect(callerSubject("2001:db8:abcd:12::1")).toBe("2001:db8:abcd:12::/64");
+    expect(callerSubject("2001:db8:abcd:13::1")).toBe("2001:db8:abcd:13::/64");
+  });
+
+  it("expands a compressed prefix before cutting it", () => {
+    // `::` inside the first four groups: the /64 is 2001:db8:0:0.
+    expect(callerSubject("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(callerSubject("2001:db8:0:0:1::2")).toBe("2001:db8:0:0::/64");
+    expect(callerSubject("::1")).toBe("0:0:0:0::/64");
+  });
+
+  it("treats an IPv4-mapped IPv6 address as the IPv4 caller it is", () => {
+    expect(callerSubject("::ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(callerSubject("::FFFF:203.0.113.7")).toBe("203.0.113.7");
+    expect(callerSubject("0:0:0:0:0:ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(callerSubject("::ffff:cb00:7107")).toBe("203.0.113.7");
+  });
+
+  it("leaves IPv4 per address", () => {
+    expect(callerSubject("203.0.113.7")).toBe("203.0.113.7");
+    expect(callerSubject("203.0.113.8")).toBe("203.0.113.8");
+  });
+
+  it("returns anything unparseable exactly as it arrived (today's behaviour)", () => {
+    for (const garbage of [
+      "unknown",
+      "not-an-ip",
+      "2001:db8:::1",
+      "2001:db8::1::2",
+      "1:2:3:4:5:6:7:8:9",
+      "2001:db8:zzzz::1",
+      "::ffff:999.0.0.1",
+      "999.1.1.1",
+      "1.2.3",
+    ]) {
+      expect(callerSubject(garbage), garbage).toBe(garbage);
+    }
+  });
+
+  it("applies to both trusted sources", () => {
+    expect(callerIp(makeHeaders({ "x-real-ip": " 2001:db8:abcd:12::99 " }))).toBe(
+      "2001:db8:abcd:12::/64",
+    );
+    expect(callerIp(makeHeaders({ "x-forwarded-for": "1.2.3.4, 2001:0db8:abcd:0012::5" }))).toBe(
+      "2001:db8:abcd:12::/64",
+    );
+    expect(callerIp(makeHeaders({ "x-real-ip": "::ffff:198.51.100.4" }))).toBe("198.51.100.4");
+    expect(callerIp(makeHeaders({}))).toBe("unknown");
   });
 });

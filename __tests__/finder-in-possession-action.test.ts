@@ -14,7 +14,9 @@
 //  10. Notification severity=urgent, category=perdidas.
 //  11. Vet-urgent condition sets urgent body copy in notification.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { sendPushForNotifications } from "@/lib/infra/web-push";
 
 import { makeFakeRateLimiter } from "./_helpers/fake-rate-limiter";
 
@@ -161,8 +163,18 @@ let idempotencyReturnEvent = false;
 /** custodia-temporal: does the fixture pet have an active caretaker row? */
 let activeCaretakerPresent = false;
 
-function buildMockDb(petStatus = "lost") {
+/**
+ * The partial unique index `notifications_dedupe_key_unique`, when a test needs
+ * it. `null` (the default) keeps the historical behaviour: every notification
+ * insert "succeeds". The ceiling tests set a Set, so a repeated key persists
+ * nothing and returns no row — which is what makes "once an hour" testable.
+ */
+let persistedDedupeKeys: Set<string> | null = null;
+
+function buildMockDb(petStatus = "lost", eventId = INSERTED_EVENT_ID) {
   let selectCallCount = 0;
+  /** Whether the last `.values()` persisted anything — drives `.returning()`. */
+  let lastInsertPersisted = true;
 
   // Positional fake: each terminated select returns the next fixture in order.
   //
@@ -220,6 +232,7 @@ function buildMockDb(petStatus = "lost") {
   // (notifications, attachments).
   const insertChain = {
     values: vi.fn((raw: Record<string, unknown> | Record<string, unknown>[]) => {
+      lastInsertPersisted = true;
       // custodia-temporal: the possession alert became a SET (titular +
       // active caretaker), so `.values()` now receives an array here. The
       // per-field assertions below are about the notification's CONTENT, which
@@ -241,8 +254,18 @@ function buildMockDb(petStatus = "lost") {
         // recipient per call through createNotification (idempotent + durable),
         // where it used to be a single `.values([a, b])`. Overwriting made the
         // recipient-count assertions see only the last call.
-        capturedNotificationInsert ??= data;
-        capturedNotificationRows.push(...rows);
+        const keys = persistedDedupeKeys;
+        const persisted = keys
+          ? rows.filter((row) => {
+              const key = String(row.dedupeKey);
+              if (keys.has(key)) return false;
+              keys.add(key);
+              return true;
+            })
+          : rows;
+        lastInsertPersisted = persisted.length > 0;
+        capturedNotificationInsert ??= persisted[0] ?? null;
+        capturedNotificationRows.push(...persisted);
       }
       return insertChain;
     }),
@@ -251,7 +274,7 @@ function buildMockDb(petStatus = "lost") {
     // dead-letter, and the assertions below were quietly grading the
     // dead-letter row instead of the notification.
     onConflictDoNothing: vi.fn(() => insertChain),
-    returning: vi.fn(async () => [{ id: INSERTED_EVENT_ID }]),
+    returning: vi.fn(async () => (lastInsertPersisted ? [{ id: eventId }] : [])),
   };
 
   mockDb.select = vi.fn(() => selectChain);
@@ -874,12 +897,22 @@ describe("reportFinderInPossessionAction — P0e", () => {
 // row on the spine. The per-(address, token) bucket alone let N addresses send
 // 10 × N of them an hour. The second bucket is keyed on the token alone; its
 // ceiling is stated here as 5/min + 30/hour, independently of the constant.
+//
+// Over that ceiling this surface DEGRADES instead of refusing: the event and the
+// finder's contact are still written, the owner's alert just stops ringing, and
+// the owner gets one "muchos avisos" notice per clock hour.
 
 describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", () => {
   const FIELDS = { ...BASE_FIELDS, canKeepIndefinite: "true" };
 
+  afterEach(() => {
+    persistedDedupeKeys = null;
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.resetModules();
+    persistedDedupeKeys = new Set();
     capturedPetEventInsert = null;
     capturedNotificationInsert = null;
     capturedNotificationRows = [];
@@ -914,7 +947,12 @@ describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", 
     expect(callOrder).toEqual(["rate-limit", "pet-lookup", "rate-limit"]);
   });
 
-  it("refuses a FRESH address once thirty others have reported within the hour, and says what still works", async () => {
+  it("keeps ACCEPTING a fresh address once thirty others have reported within the hour: the report degrades, it is never refused", async () => {
+    // Fixed clock windows + 1/min per address: five addresses fill the 30/h
+    // ceiling in six minutes. A refusal from here on would let whoever filled
+    // it keep every real finder away from the owner until the hour turns.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:10:00.000Z"));
     const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
     mockEnforceRateLimit.mockImplementation(limiter.enforce);
     const { reportFinderInPossessionAction } = await import(
@@ -922,33 +960,104 @@ describe("reportFinderInPossessionAction — the animal's own ceiling (A03-2)", 
     );
 
     for (let n = 1; n <= 30; n++) {
-      buildMockDb("lost");
+      buildMockDb("lost", `evt-flood-${n}`);
       callerAddress.value = `203.0.113.${n}`;
       const ok = await reportFinderInPossessionAction(
         PUBLIC_TOKEN,
         PREVIOUS_STATE,
-        makeFormData(FIELDS),
+        makeFormData({ ...FIELDS, finderPhone: `11-0000-${String(n).padStart(4, "0")}` }),
       );
       expect(ok.ok, `report ${n} should have landed`).toBe(true);
       limiter.advance(61_000);
     }
+    // Inside the ceiling nothing changed: thirty urgent alerts, no notice.
+    expect(capturedNotificationRows).toHaveLength(30);
+    expect(capturedNotificationRows.every((row) => row.severity === "urgent")).toBe(true);
 
-    buildMockDb("lost");
+    buildMockDb("lost", "evt-real-finder");
     capturedPetEventInsert = null;
     capturedNotificationRows = [];
+    vi.mocked(sendPushForNotifications).mockClear();
     callerAddress.value = "198.51.100.200";
-    const refused = await reportFinderInPossessionAction(
+    const accepted = await reportFinderInPossessionAction(
       PUBLIC_TOKEN,
       PREVIOUS_STATE,
-      makeFormData(FIELDS),
+      makeFormData({ ...FIELDS, finderPhone: "11-4444-7777" }),
     );
 
-    expect(refused.ok).toBe(false);
-    expect(refused.error).toMatch(/muchos avisos sobre esta mascota/);
-    expect(refused.error).toMatch(/microchip/);
-    expect(refused.error).not.toMatch(/Ya enviaste/);
-    expect(capturedPetEventInsert).toBeNull();
-    expect(capturedNotificationRows).toEqual([]);
+    // The finder sees the normal success: no refusal, no "probá más tarde".
+    expect(accepted).toEqual({ ok: true, error: null, warning: null });
+
+    // The spine still gets the report, contact and all.
+    expect(capturedPetEventInsert).not.toBeNull();
+    const payload = (capturedPetEventInsert as unknown as { payload: Record<string, unknown> })
+      .payload;
+    expect(payload.finderContact).toBe("11-4444-7777");
+
+    // The owner gets the finder's contact, on a row that does not ring.
+    const reports = capturedNotificationRows.filter(
+      (r) => r.notificationType === "pet_in_possession",
+    );
+    expect(reports).toHaveLength(1);
+    expect(reports[0].userId).toBe(OWNER_USER_ID);
+    expect(reports[0].body).toContain("11-4444-7777");
+    expect(reports[0].severity).toBe("warning");
+    expect(reports[0].relatedEventId).toBe("evt-real-finder");
+    expect(capturedNotificationRows.filter((r) => r.severity === "urgent")).toEqual([]);
+    expect(sendPushForNotifications).not.toHaveBeenCalled();
+
+    // And the owner is told, once, that reports are piling up.
+    const notices = capturedNotificationRows.filter(
+      (r) => r.notificationType === "anonymous_reports_overflow",
+    );
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      userId: OWNER_USER_ID,
+      severity: "warning",
+      category: "perdidas",
+      relatedPetId: PET_ID,
+      title: "Muchos avisos sobre Luna",
+      dedupeKey: `found_overflow:${PUBLIC_TOKEN}:2026-09-18T15:00:00.000Z:${OWNER_USER_ID}`,
+    });
+  });
+
+  it("writes ONE overflow notice for the hour however many reports cross the ceiling, and every report still lands", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    const limiter = makeFakeRateLimiter((key) => new MockRateLimitError(new Date(), key));
+    mockEnforceRateLimit.mockImplementation(limiter.enforce);
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+
+    // 45 reports, one address each, 61 s apart: 45 minutes, one clock hour.
+    let events = 0;
+    for (let n = 1; n <= 45; n++) {
+      buildMockDb("lost", `evt-${n}`);
+      capturedPetEventInsert = null;
+      callerAddress.value = `203.0.113.${n}`;
+      const result = await reportFinderInPossessionAction(
+        PUBLIC_TOKEN,
+        PREVIOUS_STATE,
+        makeFormData({ ...FIELDS, finderPhone: `11-0000-${String(n).padStart(4, "0")}` }),
+      );
+      expect(result.ok, `report ${n}`).toBe(true);
+      if (capturedPetEventInsert) events++;
+      limiter.advance(61_000);
+      vi.setSystemTime(new Date(Date.now() + 61_000));
+    }
+
+    expect(events).toBe(45);
+    const reports = capturedNotificationRows.filter(
+      (r) => r.notificationType === "pet_in_possession",
+    );
+    expect(reports).toHaveLength(45);
+    expect(reports[44].body).toContain("11-0000-0045");
+    expect(reports.filter((r) => r.severity === "urgent")).toHaveLength(30);
+    expect(reports.filter((r) => r.severity === "warning")).toHaveLength(15);
+    expect(
+      capturedNotificationRows.filter((r) => r.notificationType === "anonymous_reports_overflow"),
+    ).toHaveLength(1);
   });
 
   it("a report refused before any write (pet not lost) does not spend the animal's budget", async () => {

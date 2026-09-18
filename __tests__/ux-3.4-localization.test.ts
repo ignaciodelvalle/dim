@@ -123,6 +123,7 @@ const REAL_NOTIFICATION_TYPES = [
   "adoption_finalized",
   "adoption_info_requested",
   "admin_event_amended",
+  "anonymous_reports_overflow",
   "appointment_cancelled_by_org",
   "appointment_cancelled_by_owner",
   "approval_request_approved",

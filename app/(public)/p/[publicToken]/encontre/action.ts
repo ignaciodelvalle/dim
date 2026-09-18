@@ -7,6 +7,8 @@
 // Emits:
 //   - pet_events row: note_added, kind="finder_in_possession", full payload
 //   - notifications row: pet_in_possession, severity=urgent, category=perdidas
+//     (warning + no push once the animal's own ceiling is full — the report is
+//     still written; see lib/infra/anonymous-report-limits.ts)
 //
 // Rate-limited by (IP, publicToken): 1/min, 10/hr, consumed AFTER pure form
 // validation and BEFORE the token is resolved — see the block comment at the
@@ -30,8 +32,9 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
-  ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL,
   ANONYMOUS_REPORT_TOKEN_LIMIT,
+  OVER_CEILING_REPORT_DELIVERY,
+  anonymousReportOverflowNotices,
 } from "@/lib/infra/anonymous-report-limits";
 import { createNotification } from "@/lib/infra/notification-service";
 import { resolveOriginShelterOrgId } from "@/lib/infra/origin-shelter-alert";
@@ -225,13 +228,20 @@ export async function reportFinderInPossessionAction(
   // refusal that writes nothing and before the upload and the event; derivation
   // and placement in lib/infra/anonymous-report-limits.ts. Its own bucket, so a
   // flood of fake sightings cannot silence this report.
+  //
+  // OVER THE CEILING THIS DEGRADES, IT NEVER REFUSES. The sender says they are
+  // holding the animal, and a handful of addresses can fill the ceiling in six
+  // minutes — a refusal here would hand whoever filled it the power to keep
+  // every real finder away from the owner for the rest of the hour. So an
+  // over-ceiling report is written exactly as below (event, photo, contact in
+  // the owner's notification); only the owner's alert stops ringing, and the
+  // owner hears once an hour that reports are piling up.
+  let overAnimalCeiling = false;
   try {
     await enforceRateLimit("finder_possession_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);
   } catch (err) {
-    if (err instanceof RateLimitError) {
-      return { ok: false, error: ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL };
-    }
-    throw err;
+    if (!(err instanceof RateLimitError)) throw err;
+    overAnimalCeiling = true;
   }
 
   // Build the canonical contact string: phone takes precedence; append email
@@ -458,6 +468,8 @@ export async function reportFinderInPossessionAction(
     // When the pet is lost the cockpit IS /mis-mascotas/{token} and now surfaces
     // possession/sighting reports — land the owner there so they can act (UI-4 fix 7).
     ctaUrl: `/mis-mascotas/${publicToken}`,
+    // Over the animal's ceiling: same row, same contact, no push.
+    ...(overAnimalCeiling ? OVER_CEILING_REPORT_DELIVERY : {}),
   }));
   // THE HEALING HALF OF THE RETRY. Through the canonical write path, which
   // supplies the two things a raw insert here could not: idempotency, so a
@@ -471,6 +483,20 @@ export async function reportFinderInPossessionAction(
       relatedEventId: eventId,
       dedupeKey: `event:${eventId}:${notification.userId}:pet_in_possession`,
     });
+  }
+
+  // Once per animal per clock hour, by dedupe key — every over-ceiling report
+  // asks, the first one of the hour writes it.
+  if (overAnimalCeiling) {
+    for (const notice of anonymousReportOverflowNotices({
+      publicToken,
+      petId: pet.id,
+      petName: pet.name,
+      recipientUserIds: recipients.map((recipient) => recipient.userId),
+      nowMs: Date.now(),
+    })) {
+      await createNotification(notice);
+    }
   }
 
   // A5 — the origin shelter also hears about it (PO decision 2026-08-04).
