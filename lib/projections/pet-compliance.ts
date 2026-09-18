@@ -20,6 +20,7 @@ import { type ProvenanceTier, provenanceTier } from "@/lib/domain/provenance";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { computeConfidence } from "@/lib/events/event-confidence";
 import {
+  addCalendarMonths,
   formatDateArOmitCurrentYear,
   isoDateInAr,
   parseDateInput,
@@ -135,6 +136,9 @@ export type ObligationCard = {
    * counted it "al día" — the project's own rule inverted ("'no sabemos' nunca
    * se sella VIGENTE", LibretaSanitariaView.tsx:127-132). Undefined means the
    * obligation has no currency dimension at all (microchip, PPP).
+   *
+   * Also false for a due date computed from the jurisdiction's cadence
+   * (`dueSource: "rule"`): an estimate is not an established vigencia.
    */
   currencyKnown?: boolean;
   /**
@@ -150,6 +154,23 @@ export type ObligationCard = {
    * moment it differs from the caller's `now`).
    */
   currencyUntil?: string | null;
+  /**
+   * Where the rabies card's due date came from, when it has one:
+   *   • "dose"     — the dose itself carries `next_due_at` (the date written on
+   *                  the asiento, normally by the vet who signed it);
+   *   • "reminder" — the pet's active rabies reminder;
+   *   • "rule"     — no date on record; it was COMPUTED from the booster cadence
+   *                  (`frequency_months`) the jurisdiction configured (T1-G1).
+   * Undefined when there is no due date at all.
+   *
+   * A "rule" date is an estimate, never a legal verdict: the configured cadence
+   * is an administrative value that may not come from any norm (ar-v2 FINDING 3:
+   * CABA's `frequency_months: 12` is unsourced — its ordinance leaves the
+   * cadence to a periodic administrative determination). So a "rule" card reads
+   * "Refuerzo sugerido", never "Vencida", carries no legal citation, and never
+   * counts as "al día". Surfaces branch on THIS field, never on the copy.
+   */
+  dueSource?: "dose" | "reminder" | "rule";
   /**
    * True when the card reports a missing FACT rather than a deadline: nothing
    * is expiring, something is simply not known yet.
@@ -353,6 +374,20 @@ const SIN_REGISTRO_STATE = "Sin registro";
 /** State of an obligation the pet is still too young for (T1-G1). */
 const NOT_YET_REQUIRED_STATE = "Aún no corresponde";
 
+/** Rabies states for a due date computed from the jurisdiction's cadence (dueSource "rule"). */
+const RULE_SUGGESTED_STATE = "Refuerzo sugerido";
+const RULE_SUGGESTED_LAPSED_STATE = "Refuerzo sugerido vencido";
+
+/**
+ * The footnote of a "rule" rabies card: how the date was computed, in place of
+ * a legal citation. It names the cadence and says plainly that nobody signed
+ * that date — it does NOT claim the cadence is or is not law, because that
+ * depends on the jurisdiction and is the PO's call (ar-v2 FINDING 3).
+ */
+function ruleCadenceNote(frequencyMonths: number): string {
+  return `Fecha calculada con la frecuencia de refuerzo que configuró tu jurisdicción (cada ${frequencyMonths} ${pluralizeEs(frequencyMonths, "mes")}); no la fijó un veterinario.`;
+}
+
 /**
  * Summary label when NO obligation is counted (M = 0) — every resolved rule is
  * recommended / not_regulated and the pet is not a flagged PPP.
@@ -444,22 +479,6 @@ function parseNextDue(raw: string): Date | null {
 }
 
 /**
- * "YYYY-MM-DD" plus N calendar months, the day clamped to the target month's
- * last day (31/01 + 1 month = 28/02 or 29/02). Pure calendar arithmetic on the
- * date string — no instant, so no timezone can shift it.
- */
-function addCalendarMonths(ymd: string, months: number): string | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-  if (!m) return null;
-  const monthIndex = Number(m[1]) * 12 + (Number(m[2]) - 1) + months;
-  const year = Math.floor(monthIndex / 12);
-  const month = (monthIndex % 12) + 1;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const day = Math.min(Number(m[3]), lastDay);
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-/**
  * The AR calendar day from which an age-gated rule applies to this pet, or
  * null when it cannot be judged (no rule value, or no date of birth).
  */
@@ -533,6 +552,46 @@ function rabiesFromVariant(variant: ReminderVariant, dueAt: Date, now: Date): Ob
   };
 }
 
+/**
+ * The rabies card for a dose whose due date was COMPUTED from the
+ * jurisdiction's booster cadence (T1-G1) — the dose itself carries none.
+ *
+ * Lower weight than a dated dose, on purpose. The cadence is whatever the
+ * jurisdiction configured, and the live CABA value (ar-v1 `frequency_months:
+ * 12`) is exactly the one the repo's own research could not source (ar-v2
+ * FINDING 3). So: a suggestion, not a deadline — "Refuerzo sugerido" instead of
+ * "Vigente", "Refuerzo sugerido vencido" in the warning tone instead of the red
+ * "Vencida", and the footnote slot says how the date was computed instead of
+ * citing a norm next to a date no norm fixed. Pending the PO's adjudication of
+ * the cadence; the plumbing stays so the rule keeps biting as a nudge.
+ */
+function rabiesFromRuleCadence(
+  dose: ComplianceEvent,
+  ruleDue: Date,
+  frequency: number,
+  now: Date,
+): ObligationCard {
+  const suggested = formatDateArOmitCurrentYear(ruleDue, now);
+  // Own line, not inside the ${} — the no-raw-date-in-sql guard (see below).
+  const appliedAt = new Date(dose.occurredAt);
+  const applied = formatDateArOmitCurrentYear(appliedAt, now);
+  const lapsed = ruleDue <= now;
+  return {
+    key: "rabies",
+    label: "Vacuna antirrábica",
+    state: lapsed ? RULE_SUGGESTED_LAPSED_STATE : RULE_SUGGESTED_STATE,
+    // Warning, never red: past a suggested date is a nudge to book a turno, not
+    // a breach. Upcoming is neutral — nothing on record establishes vigencia.
+    tone: lapsed ? "due" : "neutral",
+    detail: lapsed
+      ? `Aplicada ${applied} · refuerzo sugerido vencido el ${suggested}`
+      : `Aplicada ${applied} · refuerzo sugerido: ${suggested}`,
+    legalFootnote: ruleCadenceNote(frequency),
+    currencyUntil: null,
+    dueSource: "rule",
+  };
+}
+
 // The rabies obligation. Priority: a reserved turno (WS-2) wins the display,
 // then the active reminder's variant, then a fallback to raw events, then
 // "sin registro".
@@ -586,7 +645,10 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
   let base: ObligationCard;
   let currencyKnown: boolean;
   if (input.rabiesReminder) {
-    base = rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt, input.now);
+    base = {
+      ...rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt, input.now),
+      dueSource: "reminder",
+    };
     currencyKnown = true;
   } else {
     // dose is defined here (the early return above handled the no-dose case).
@@ -604,23 +666,20 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
         : null;
     const ruleDue = ruleDueYmd ? parseDateInput(ruleDueYmd) : null;
     if (nextDue && Number.isFinite(nextDue.getTime())) {
-      base =
-        nextDue <= input.now
-          ? rabiesFromVariant("overdue", nextDue, input.now)
-          : rabiesFromVariant("upcoming", nextDue, input.now);
-      currencyKnown = true;
-    } else if (ruleDue && frequency != null) {
-      const derived =
-        ruleDue <= input.now
-          ? rabiesFromVariant("overdue", ruleDue, input.now)
-          : rabiesFromVariant("upcoming", ruleDue, input.now);
-      // Say where the date came from: the dose carries none, the jurisdiction's
-      // cadence produced it.
       base = {
-        ...derived,
-        detail: `${derived.detail} · refuerzo cada ${frequency} ${pluralizeEs(frequency, "mes")}`,
+        ...(nextDue <= input.now
+          ? rabiesFromVariant("overdue", nextDue, input.now)
+          : rabiesFromVariant("upcoming", nextDue, input.now)),
+        dueSource: "dose",
       };
       currencyKnown = true;
+    } else if (dose && ruleDue && frequency != null) {
+      base = rabiesFromRuleCadence(dose, ruleDue, frequency, input.now);
+      // The date is an ESTIMATE from an administrative cadence, not a vigencia
+      // on record: the tone must not read as established currency, and the
+      // "N de M al día" count must not grant "al día" on it (see the type doc
+      // on `dueSource`).
+      currencyKnown = false;
     } else {
       // A dose IS on record but its payload carries no next_due_at, so we can't
       // judge currency. This must NOT read "Sin registro" — the libreta shows a
@@ -678,10 +737,15 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     return {
       key: "rabies",
       label: "Vacuna antirrábica",
-      state: base.tone === "ok" ? RABIES_DECLARED_BADGE : base.state,
+      // A neutral base is an upcoming rule-suggested booster: nothing urgent to
+      // say, so the pill keeps speaking provenance ("Declarada").
+      state: base.tone === "ok" || base.tone === "neutral" ? RABIES_DECLARED_BADGE : base.state,
       tone: countingTone,
       detail: base.detail,
-      legalFootnote: FOOTNOTE.rabies,
+      // base's own footnote: the generic rabies stopgap, or — for a "rule"
+      // date — the note on how that date was computed.
+      legalFootnote: base.legalFootnote,
+      dueSource: base.dueSource,
       dual: {
         ownerLabel: writtenByTheReader
           ? "Antirrábica cargada por vos"
@@ -1008,7 +1072,10 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
     // the resolved row carries no citation — never invent law (CS6: a CABA
     // citation reaches ONLY pets whose own jurisdiction resolved it).
     const rabiesCitation = composeLegalCitation(obligations.rabies);
-    if (rabiesCard && rabiesCitation) {
+    // A "rule" card's date was computed from a cadence no cited norm may fix
+    // (ar-v2 FINDING 3), so no citation is attached next to it — its footnote
+    // slot already says how the date was computed.
+    if (rabiesCard && rabiesCitation && rabiesCard.dueSource !== "rule") {
       rabiesCard = {
         ...rabiesCard,
         legalFootnote: `Obligación del propietario · ${rabiesCitation}`,
@@ -1064,7 +1131,12 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
   const worstTone: ComplianceTone = empty ? "neutral" : (worstCard?.tone ?? "ok");
   // Read off the SAME card the tone comes from, so the two can never disagree
   // about which obligation the summary is describing.
-  const worstIsUnknown = empty ? false : worstCard?.dataUnknown === true;
+  // A "rule" rabies card counts as unknown here too: what is missing is a
+  // signed due date, and the summary stamp must not turn the suggestion into
+  // "POR VENCER" (its `due` tone's default word) over a date nobody fixed.
+  const worstIsUnknown = empty
+    ? false
+    : worstCard?.dataUnknown === true || worstCard?.dueSource === "rule";
 
   return {
     cards,

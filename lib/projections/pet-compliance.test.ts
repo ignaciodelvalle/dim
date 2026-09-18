@@ -1128,31 +1128,159 @@ describe("T1-G1 — rule fields drive the compliance verdict", () => {
     ...VET,
   };
 
-  it("the SAME dose flips Vigente → Vencida by changing only the jurisdiction's frequency_months", () => {
+  it("the SAME dose moves from a suggested booster to a lapsed suggestion by changing only frequency_months", () => {
     const events = [signedDoseNoDue];
-    // 12 months → due 15/09/2026, after NOW (01/07/2026).
+    // 12 months → suggested 15/09/2026, after NOW (01/07/2026).
     const annual = card(
       deriveComplianceState(
         baseInput({ events, ruleParams: params({ rabies: { frequencyMonths: 12 } }) }),
       ),
       "rabies",
     );
-    expect(annual?.state).toBe("Vigente");
-    expect(annual?.tone).toBe("ok");
-    expect(annual?.currencyKnown).toBe(true);
-    expect(annual?.currencyUntil).toBe("15/09");
-    expect(annual?.detail).toBe("Próxima 15/09 · refuerzo cada 12 meses");
+    expect(annual?.dueSource).toBe("rule");
+    expect(annual?.state).toBe("Refuerzo sugerido");
+    expect(annual?.tone).toBe("neutral");
+    expect(annual?.currencyKnown).toBe(false);
+    expect(annual?.currencyUntil).toBeNull();
+    expect(annual?.detail).toBe("Aplicada 15/09/2025 · refuerzo sugerido: 15/09");
+    expect(annual?.legalFootnote).toBe(
+      "Fecha calculada con la frecuencia de refuerzo que configuró tu jurisdicción (cada 12 meses); no la fijó un veterinario.",
+    );
 
-    // 6 months → due 15/03/2026, before NOW.
+    // 6 months → suggested 15/03/2026, before NOW: a warning, never the red "Vencida".
     const semiannual = card(
       deriveComplianceState(
         baseInput({ events, ruleParams: params({ rabies: { frequencyMonths: 6 } }) }),
       ),
       "rabies",
     );
-    expect(semiannual?.state).toBe("Vencida");
-    expect(semiannual?.tone).toBe("over");
-    expect(semiannual?.detail).toBe("Venció 15/03 · refuerzo cada 6 meses");
+    expect(semiannual?.dueSource).toBe("rule");
+    expect(semiannual?.state).toBe("Refuerzo sugerido vencido");
+    expect(semiannual?.tone).toBe("due");
+    expect(semiannual?.detail).toBe("Aplicada 15/09/2025 · refuerzo sugerido vencido el 15/03");
+    expect(semiannual?.legalFootnote).toBe(
+      "Fecha calculada con la frecuencia de refuerzo que configuró tu jurisdicción (cada 6 meses); no la fijó un veterinario.",
+    );
+  });
+
+  it("the same dose WITH the vet's next_due_at keeps the strong states and the legal citation", () => {
+    const cited = obligations({
+      rabies: { legalBasis: "Ley 22.953", authority: "Ministerio de Salud" },
+    });
+    const withDue = (nextDueAt: string): ComplianceEvent => ({
+      ...signedDoseNoDue,
+      payload: { vaccine_name: "Antirrábica", next_due_at: nextDueAt },
+    });
+    const ruleParams = params({ rabies: { frequencyMonths: 12 } });
+
+    const lapsed = card(
+      deriveComplianceState(
+        baseInput({ events: [withDue("2026-03-15")], ruleParams, obligations: cited }),
+      ),
+      "rabies",
+    );
+    expect(lapsed?.dueSource).toBe("dose");
+    expect(lapsed?.state).toBe("Vencida");
+    expect(lapsed?.tone).toBe("over");
+    expect(lapsed?.detail).toBe("Venció 15/03");
+    expect(lapsed?.legalFootnote).toBe(
+      "Obligación del propietario · Ley 22.953 · Ministerio de Salud",
+    );
+
+    const current = card(
+      deriveComplianceState(
+        baseInput({ events: [withDue("2026-09-15")], ruleParams, obligations: cited }),
+      ),
+      "rabies",
+    );
+    expect(current?.dueSource).toBe("dose");
+    expect(current?.state).toBe("Vigente");
+    expect(current?.tone).toBe("ok");
+    expect(current?.currencyKnown).toBe(true);
+
+    // The SAME cited jurisdiction, the date derived instead: no citation next to it.
+    const derived = card(
+      deriveComplianceState(
+        baseInput({ events: [signedDoseNoDue], ruleParams, obligations: cited }),
+      ),
+      "rabies",
+    );
+    expect(derived?.dueSource).toBe("rule");
+    expect(derived?.legalFootnote).toBe(
+      "Fecha calculada con la frecuencia de refuerzo que configuró tu jurisdicción (cada 12 meses); no la fijó un veterinario.",
+    );
+  });
+
+  it("a rule-derived date never counts as al día, in either direction, and never stamps a temporal word", () => {
+    const upcoming = deriveComplianceState(
+      baseInput({
+        events: [signedDoseNoDue],
+        ruleParams: params({ rabies: { frequencyMonths: 12 } }),
+      }),
+    );
+    expect(upcoming.summary.label).toBe("0 de 3 al día");
+
+    const lapsed = deriveComplianceState(
+      baseInput({
+        events: [signedDoseNoDue],
+        ruleParams: params({ rabies: { frequencyMonths: 6 } }),
+      }),
+    );
+    expect(lapsed.summary.label).toBe("0 de 3 al día");
+    // The lapsed suggestion ranks first (tone due) but the summary stamp must
+    // read SIN DATO, not the "POR VENCER" of a real deadline.
+    expect(lapsed.cards[0]?.key).toBe("rabies");
+    expect(lapsed.worstTone).toBe("due");
+    expect(lapsed.worstIsUnknown).toBe(true);
+
+    // Control: the vet's own date in the future DOES count, and is not unknown.
+    const dated = deriveComplianceState(
+      baseInput({
+        events: [
+          {
+            ...signedDoseNoDue,
+            payload: { vaccine_name: "Antirrábica", next_due_at: "2026-09-15" },
+          },
+        ],
+        ruleParams: params({ rabies: { frequencyMonths: 12 } }),
+      }),
+    );
+    expect(dated.summary.label).toBe("1 de 3 al día");
+  });
+
+  it("a DECLARED dose with an upcoming rule date keeps its provenance pill", () => {
+    const declared: ComplianceEvent = { ...signedDoseNoDue, ...SELF };
+    const rabies = card(
+      deriveComplianceState(
+        baseInput({
+          events: [declared],
+          ruleParams: params({ rabies: { frequencyMonths: 12 } }),
+        }),
+      ),
+      "rabies",
+    );
+    expect(rabies?.dueSource).toBe("rule");
+    expect(rabies?.state).toBe("Declarada");
+    expect(rabies?.tone).toBe("neutral");
+    expect(rabies?.dual?.currencyLabel).toBeNull();
+    expect(rabies?.legalFootnote).toBe(
+      "Fecha calculada con la frecuencia de refuerzo que configuró tu jurisdicción (cada 12 meses); no la fijó un veterinario.",
+    );
+  });
+
+  it("a reminder's date is tagged as such", () => {
+    const rabies = card(
+      deriveComplianceState(
+        baseInput({
+          events: [signedDoseNoDue],
+          rabiesReminder: { variant: "overdue", dueAt: new Date("2026-06-01T12:00:00Z") },
+          ruleParams: params({ rabies: { frequencyMonths: 12 } }),
+        }),
+      ),
+      "rabies",
+    );
+    expect(rabies?.dueSource).toBe("reminder");
+    expect(rabies?.state).toBe("Vencida");
   });
 
   it("with no frequency_months the dose stays 'Registrada' with unknown currency (pre-T1-G1 behavior)", () => {
@@ -1175,6 +1303,7 @@ describe("T1-G1 — rule fields drive the compliance verdict", () => {
     // occurred 01/01/2026 + 1 month would be long overdue; the vet's date wins.
     expect(rabies?.state).toBe("Vigente");
     expect(rabies?.detail).toBe("Próxima 10/01/2027");
+    expect(rabies?.dueSource).toBe("dose");
   });
 
   it("rabies min_age_months: a puppy under it has nothing missing yet, and is not counted", () => {

@@ -125,6 +125,18 @@ function StatusBadge({ card }: { card: ObligationCard }) {
   // (StatusFlag.tsx "unknown" → "SIN DATO"); this panel just never asked.
   // External design review C5/#1, reproduced live: "Vacuna antirrábica
   // [VIGENTE] · Aplicada 14/01/2018".
+  // A due date COMPUTED from the jurisdiction's cadence is a suggestion, not a
+  // vigencia (pet-compliance `dueSource`): the vaccine stamp's words (VIGENTE /
+  // POR VENCER / VENCIDA) would give it a weight no signed date backs, and SIN
+  // DATO would hide the suggestion. The plain badge carries the projection's
+  // own state ("Refuerzo sugerido" / "Refuerzo sugerido vencido" / "Declarada").
+  if (card.key === "rabies" && card.dueSource === "rule") {
+    return (
+      <LnBadge variant={TONE_TO_BADGE[card.tone]} className="flex-shrink-0">
+        {card.state}
+      </LnBadge>
+    );
+  }
   if (card.key === "rabies" && card.currencyKnown === false) {
     return <LnVstamp variant="unknown" className="flex-shrink-0" />;
   }

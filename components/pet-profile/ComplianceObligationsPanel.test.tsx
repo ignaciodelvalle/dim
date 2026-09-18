@@ -114,3 +114,50 @@ describe("ComplianceObligationsPanel — tier treatment table", () => {
     expect(html).toContain("0 de 2 al día");
   });
 });
+
+// A due date COMPUTED from the jurisdiction's cadence (dueSource "rule") is a
+// suggestion: the panel prints the projection's own words in a plain badge,
+// never the vaccine stamp's VENCIDA / POR VENCER, and never red.
+describe("ComplianceObligationsPanel — rule-derived rabies date", () => {
+  function ruleInput(frequencyMonths: number): ComplianceInput {
+    return {
+      now: NOW,
+      events: [
+        {
+          eventType: "vaccination_administered",
+          occurredAt: "2025-09-15T15:00:00Z",
+          payload: { vaccine_name: "Antirrábica", next_due_at: null },
+          ...VET,
+        },
+      ],
+      rabiesReminder: null,
+      reservedRabiesTurno: null,
+      microchipCode: null,
+      pppApplies: false,
+      ruleParams: {
+        rabies: { frequencyMonths, minAgeMonths: null },
+        sterilization: { minAgeMonths: null, mandatoryFromMonths: null },
+      },
+    };
+  }
+
+  it("a lapsed suggestion reads as a suggestion, in warning, with the turno action", () => {
+    const html = render(ruleInput(6));
+    expect(html).toContain("Refuerzo sugerido vencido");
+    expect(html).toContain("Aplicada 15/09/2025 · refuerzo sugerido vencido el 15/03");
+    expect(html).toContain(
+      "Fecha calculada con la frecuencia de refuerzo que configuró tu jurisdicción (cada 6 meses); no la fijó un veterinario.",
+    );
+    expect(html).not.toContain("VENCIDA");
+    expect(html).not.toContain("POR VENCER");
+    expect(html).not.toContain(DANGER_TOKEN);
+    expect(html).toContain("Programar turno");
+  });
+
+  it("an upcoming suggestion is neither VIGENTE nor SIN DATO", () => {
+    const html = render(ruleInput(12));
+    expect(html).toContain("Refuerzo sugerido");
+    expect(html).not.toContain("VIGENTE");
+    expect(html).not.toContain("SIN DATO");
+  });
+});

@@ -13,6 +13,7 @@
 //                            same drug name
 
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
+import { addCalendarMonths, isoDateInAr, parseDateInput } from "@/lib/utils/format";
 
 export type VaccineSnapshot = {
   /** Catalog display name. */
@@ -99,15 +100,32 @@ function asDate(value: Date | string | null | undefined): Date | null {
 }
 
 /**
- * Add a whole number of CALENDAR months to a date (like census.classifyDormant).
- * `intervalMonths * 30 * DAY_MS` treats every month as 30 days, so a 12-month
- * vaccine expired at 360 days — ~5 days before its real calendar-year due date
- * (PJ-M2). setMonth honors real month lengths and year rollover.
+ * The derived due date of a dose applied at `occurredAt`, `months` later.
+ *
+ * Routed through `addCalendarMonths(isoDateInAr(occurredAt), months)`, anchored
+ * at noon UTC — the SAME calculation the owner's compliance card makes
+ * (pet-compliance, T1-G1). The libreta used to `setMonth` the UTC instant in
+ * server-local time with no month-end clamp: a dose given after 21:00 AR landed
+ * on the next UTC day, and 29/02 + 12 months rolled to 01/03 instead of 28/02,
+ * so the card said "Vencida" while this badge on the same profile still said
+ * "Por vencer". (Still calendar months, not `months * 30` days — PJ-M2.)
  */
-function addMonths(date: Date, months: number): Date {
-  const d = new Date(date);
-  d.setMonth(d.getMonth() + months);
-  return d;
+function derivedDueDate(occurredAt: Date, months: number): Date | null {
+  const ymd = addCalendarMonths(isoDateInAr(occurredAt), months);
+  return ymd ? parseDateInput(ymd) : null;
+}
+
+/**
+ * An explicit `next_due_at`. A date-only "YYYY-MM-DD" is anchored at noon UTC,
+ * as the compliance card reads it (pet-compliance `parseNextDue`): parsed raw it
+ * is midnight UTC — 21:00 of the PREVIOUS AR day — and the libreta turned
+ * "vencida" three hours before the card did. A full timestamp keeps its instant.
+ */
+function parseExplicitNextDue(value: unknown): Date | null {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return parseDateInput(value);
+  }
+  return asDate((value ?? null) as Date | string | null);
 }
 
 /**
@@ -116,10 +134,12 @@ function addMonths(date: Date, months: number): Date {
  * Returns `""` when there is nothing to suggest — no interval for this vaccine,
  * or an incomplete/invalid date the user is still typing.
  *
- * Lives here, next to `addMonths`, because the SERVER derives the same value
- * the same way when a dose arrives without an explicit `next_due_at`
- * (`derivedNextDue` in computeVaccinationSummary). Two calendars would mean the
- * form promises one booster date and the libreta shows another.
+ * Uses `addCalendarMonths`, the same calendar the SERVER uses when a dose
+ * arrives without an explicit `next_due_at` (`derivedDueDate` in
+ * computeVaccinationSummary) and the compliance card uses for its rule-derived
+ * date. Two calendars would mean the form promises one booster date and the
+ * libreta shows another — which is why 31/01 + 1 month is 28/02 here (clamped),
+ * not the 03/03 `setMonth` used to overflow into.
  *
  * Blind QA 2026-08-19 (O5) is why it takes `occurredAt` at all: the vaccine
  * sheet counted the interval from `new Date()` and never recomputed when the
@@ -127,20 +147,13 @@ function addMonths(date: Date, months: number): Date {
  * suggestion at today+12mo. One day off for a backdated day; a year off for a
  * dose loaded a year late.
  *
- * Parsed and formatted in LOCAL time, matching `addMonths`'s own `setMonth`
- * semantics — a UTC round-trip on a bare date string is what slips a day
- * under a negative offset (es-AR is UTC-3).
+ * Pure string arithmetic on the calendar day the user typed — no instant, so
+ * no timezone can slip it a day.
  */
 export function suggestNextDueDate(occurredAt: string, intervalMonths: number | null): string {
   if (intervalMonths === null) return "";
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(occurredAt);
-  if (!m) return "";
-  const [, y, mo, d] = m;
-  const parsed = new Date(Number(y), Number(mo) - 1, Number(d));
-  if (Number.isNaN(parsed.getTime())) return "";
-  const due = addMonths(parsed, intervalMonths);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`;
+  // Null for anything that is not a complete "YYYY-MM-DD" (a date still being typed).
+  return addCalendarMonths(occurredAt, intervalMonths) ?? "";
 }
 
 /**
@@ -185,10 +198,10 @@ export function computeVaccinationSummary(
     }
     const occurredAt = asDate(e.occurredAt);
     if (!occurredAt) continue;
-    const payloadNextDue = asDate((payload.next_due_at ?? null) as Date | string | null);
+    const payloadNextDue = parseExplicitNextDue(payload.next_due_at);
     const derivedNextDue =
       payloadNextDue ??
-      (def.intervalMonths !== null ? addMonths(occurredAt, def.intervalMonths) : null);
+      (def.intervalMonths !== null ? derivedDueDate(occurredAt, def.intervalMonths) : null);
     const existing = latestByVaccine.get(def.name);
     if (!existing || existing.occurredAt < occurredAt) {
       latestByVaccine.set(def.name, { occurredAt, nextDueAt: derivedNextDue });
