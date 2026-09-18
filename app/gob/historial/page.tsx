@@ -51,8 +51,10 @@ import {
   OpFilterBar,
   OpPill,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
@@ -76,42 +78,29 @@ export const dynamic = "force-dynamic";
 
 const GOB_HISTORIAL_PAGE_LIMIT = 100;
 
-export default async function GobHistorialPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    actor?: string;
-    action?: string;
-    period?: string;
-    from?: string;
-    to?: string;
-    cursor?: string;
-  }>;
-}) {
-  const { user, profile, jurisdictions } = await requireGobReadAccessOrRedirect();
-  // Universal READ scope (admin | national): the audit history's "admin" scope
-  // kind means "every operator's actions", the "govt" kind means "the actors of
-  // my mandate" — a scope question, so the read-only national role takes the
-  // universal branch.
-  const isAdmin = hasNationalReadScope(profile.role);
+type GobHistorialQuery = {
+  isAdmin: boolean;
+  jurisdictions: Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>>["jurisdictions"];
+  actionFilters: string[];
+  actorFilter: string | null;
+  fromDate: Date;
+  toDate: Date;
+  sp: { period?: string; from?: string; to?: string; cursor?: string };
+};
 
-  const sp = await searchParams;
-  // A single dropdown selection may carry more than one code when it lands on
-  // an aliased option (buildAuditActionOptions groups codes that share a
-  // label), so this parses a comma-separated list — same contract as
-  // /admin/auditoria.
-  const actionFilters = parseAuditActions(sp.action);
-  // Q1: a repeated ?actor= hands Next a string[] — raw `.trim()` on that
-  // throws (500).
-  const actorFilter = trimmedSearchParam(sp.actor) ?? null;
-  // Same conditional shape as /gob/vigilancia and /admin/programa: only ask
-  // the resolver to parse when the picker actually set something, otherwise
-  // fall back to the named trailing-12m window that DEFAULT_DASHBOARD_PRESET
-  // (below) visually highlights — keeps the chip and the query in sync on a
-  // bare first load.
-  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
-  const fromDate = period.since;
-  const toDate = period.until;
+// Every DB read this screen makes, in one function, so the page can race the
+// whole group against ONE deadline (T1-L6). Before, these five awaits ran bare
+// in the component body: a degraded pooler kept the skeleton up forever and
+// took the filter bar down with it.
+async function loadGobHistorial({
+  isAdmin,
+  jurisdictions,
+  actionFilters,
+  actorFilter,
+  fromDate,
+  toDate,
+  sp,
+}: GobHistorialQuery) {
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
@@ -215,6 +204,56 @@ export default async function GobHistorialPage({
     actorFilter,
   );
 
+  return {
+    entries,
+    olderLink,
+    newerLink,
+    tokenByReqId,
+    namesById,
+    targetsById,
+    actorOptions,
+  };
+}
+
+type ActorOption = { value: string; label: string };
+
+export default async function GobHistorialPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    actor?: string;
+    action?: string;
+    period?: string;
+    from?: string;
+    to?: string;
+    cursor?: string;
+  }>;
+}) {
+  const { user, profile, jurisdictions } = await requireGobReadAccessOrRedirect();
+  // Universal READ scope (admin | national): the audit history's "admin" scope
+  // kind means "every operator's actions", the "govt" kind means "the actors of
+  // my mandate" — a scope question, so the read-only national role takes the
+  // universal branch.
+  const isAdmin = hasNationalReadScope(profile.role);
+
+  const sp = await searchParams;
+  // A single dropdown selection may carry more than one code when it lands on
+  // an aliased option (buildAuditActionOptions groups codes that share a
+  // label), so this parses a comma-separated list — same contract as
+  // /admin/auditoria.
+  const actionFilters = parseAuditActions(sp.action);
+  // Q1: a repeated ?actor= hands Next a string[] — raw `.trim()` on that
+  // throws (500).
+  const actorFilter = trimmedSearchParam(sp.actor) ?? null;
+  // Same conditional shape as /gob/vigilancia and /admin/programa: only ask
+  // the resolver to parse when the picker actually set something, otherwise
+  // fall back to the named trailing-12m window that DEFAULT_DASHBOARD_PRESET
+  // (below) visually highlights — keeps the chip and the query in sync on a
+  // bare first load.
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const fromDate = period.since;
+  const toDate = period.until;
+
   // Deduped by visible label so aliased codes render one dropdown row each.
   const actionOptions = buildAuditActionOptions();
   // A single-code filter may belong to an aliased option (its `value` carries
@@ -226,6 +265,85 @@ export default async function GobHistorialPage({
       : undefined;
 
   const isMineFilter = actorFilter === user.id;
+
+  const scopeCopy = isAdmin
+    ? "Vista universal — todas las jurisdicciones."
+    : "Acciones de los operadores de gobierno asignados a tu jurisdicción.";
+
+  const header = (
+    <ScreenHeader
+      className="space-y-2"
+      eyebrow="Historial"
+      title="Historial de auditoría"
+      subtitle={<p className="text-md text-ln-op-mute">{scopeCopy}</p>}
+    />
+  );
+
+  // Unified filter bar — Período (shared PeriodPicker, same param names and
+  // default preset as before) + Acción/Actor as registered axes (both
+  // no-param defaults are genuinely "todas/todos" — no blank-option trap).
+  // "Ver solo mi actividad" is a TOGGLE (AuditMineToggle) in `children`, not
+  // an axis: it defaults OFF ("todos los actores", the same default the Actor
+  // axis already has) and just writes the SAME `actor` param the axis does —
+  // mirrors the pre-migration page's two affordances (dropdown + quick link)
+  // over one param (F-migration 2026-07-21, off the bespoke <form> +
+  // hand-rolled Período row). A filter change drops the keyset `cursor` (page
+  // 1); "Limpiar todo" covers period+action+actor in one click.
+  //
+  // Hoisted so the degraded branch keeps it: only the Actor axis's options
+  // come from the database.
+  const filterBar = (actorAxisOptions: ActorOption[]) => (
+    <OpFilterBar
+      period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+      resetParamsOnChange={["cursor"]}
+      axes={
+        [
+          {
+            id: "action",
+            label: "Acción",
+            paramKey: "action",
+            options: actionOptions,
+            current: selectedActionOption?.value ?? null,
+            allLabel: "Todas las acciones",
+          },
+          {
+            id: "actor",
+            label: "Actor",
+            paramKey: "actor",
+            options: actorAxisOptions,
+            current: actorFilter,
+            allLabel: "Todos los actores",
+          },
+        ] satisfies OpFilterAxis[]
+      }
+    >
+      <AuditMineToggle userId={user.id} isMine={isMineFilter} resetParamsOnChange={["cursor"]} />
+    </OpFilterBar>
+  );
+
+  const load = await loadWithTimeout(
+    loadGobHistorial({ isAdmin, jurisdictions, actionFilters, actorFilter, fromDate, toDate, sp }),
+  );
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filterBar(
+          // The actor names come from the load that just failed. Keep the
+          // current selection selectable so the bar still reads back what is
+          // applied, without inventing a name for it.
+          actorFilter ? [{ value: actorFilter, label: "Actor seleccionado" }] : [],
+        )}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          correlationId={load.id}
+          retryHref={analyticsRetryHref("/gob/historial", sp)}
+        />
+      </div>
+    );
+  }
+  const { entries, olderLink, newerLink, tokenByReqId, namesById, targetsById, actorOptions } =
+    load.value;
 
   const groups = groupConsecutiveAuditRows(entries);
 
@@ -239,10 +357,6 @@ export default async function GobHistorialPage({
     if (uid) params.set("actor", uid);
     return `/gob/historial?${params.toString()}`;
   };
-
-  const scopeCopy = isAdmin
-    ? "Vista universal — todas las jurisdicciones."
-    : "Acciones de los operadores de gobierno asignados a tu jurisdicción.";
 
   // Shared row body — reused for standalone rows and expanded run children.
   const EntryBody = ({ entry }: { entry: (typeof entries)[number] }) => {
@@ -341,51 +455,9 @@ export default async function GobHistorialPage({
 
   return (
     <div className="space-y-6">
-      <ScreenHeader
-        className="space-y-2"
-        eyebrow="Historial"
-        title="Historial de auditoría"
-        subtitle={<p className="text-md text-ln-op-mute">{scopeCopy}</p>}
-      />
+      {header}
 
-      {/* Unified filter bar — Período (shared PeriodPicker, same param names
-          and default preset as before) + Acción/Actor as registered axes
-          (both no-param defaults are genuinely "todas/todos" — no
-          blank-option trap). "Ver solo mi actividad" is a TOGGLE
-          (AuditMineToggle) in `children`, not an axis: it defaults OFF ("todos
-          los actores", the same default the Actor axis already has) and just
-          writes the SAME `actor` param the axis does — mirrors the
-          pre-migration page's two affordances (dropdown + quick link) over
-          one param (F-migration 2026-07-21, off the bespoke <form> +
-          hand-rolled Período row). A filter change drops the keyset `cursor`
-          (page 1); "Limpiar todo" now covers period+action+actor in one click
-          (same reset the old bare "Limpiar filtros" link produced). */}
-      <OpFilterBar
-        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
-        resetParamsOnChange={["cursor"]}
-        axes={
-          [
-            {
-              id: "action",
-              label: "Acción",
-              paramKey: "action",
-              options: actionOptions,
-              current: selectedActionOption?.value ?? null,
-              allLabel: "Todas las acciones",
-            },
-            {
-              id: "actor",
-              label: "Actor",
-              paramKey: "actor",
-              options: actorOptions.map((o) => ({ value: o.id, label: o.name })),
-              current: actorFilter,
-              allLabel: "Todos los actores",
-            },
-          ] satisfies OpFilterAxis[]
-        }
-      >
-        <AuditMineToggle userId={user.id} isMine={isMineFilter} resetParamsOnChange={["cursor"]} />
-      </OpFilterBar>
+      {filterBar(actorOptions.map((o) => ({ value: o.id, label: o.name })))}
 
       {entries.length === 0 ? (
         <p className="text-md text-ln-op-mute">No hay entradas que coincidan.</p>
