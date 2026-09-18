@@ -480,6 +480,7 @@ export const DAILY_JOB_ORDER: readonly string[] = [
   "vaccine_due",
   "post_adoption_checkin",
   "evaluate_alerts",
+  "daily_operator_digest",
   // --- delivery drains (moved earlier, S8: never starved by the budget) ---
   "process_eno_queue",
   "drain_outbox",

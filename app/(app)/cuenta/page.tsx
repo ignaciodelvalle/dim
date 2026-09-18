@@ -34,6 +34,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
+import { DailyDigestCard } from "./_components/DailyDigestCard";
 import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
 import { PushNotificationsCard } from "./_components/PushNotificationsCard";
 import { ReactivateAccountCard } from "./_components/ReactivateAccountCard";
@@ -92,6 +93,7 @@ async function loadCuentaData(userId: string) {
         emergencyContactName: profiles.emergencyContactName,
         emergencyContactPhone: profiles.emergencyContactPhone,
         phone: profiles.phone,
+        dailyDigestOptOut: profiles.dailyDigestOptOut,
       })
       .from(profiles)
       .where(eq(profiles.id, userId))
@@ -509,6 +511,11 @@ export default async function CuentaPage() {
             laptop as easily as anyone. */}
         <RevokeSessionsDialog />
       </div>
+
+      {/* T2-N1 — daily operator digest opt-out. Rendered unconditionally, like
+          PushNotificationsCard below: an account that never becomes a digest
+          recipient just toggles a preference that never fires. */}
+      <DailyDigestCard initialOptOut={profile.dailyDigestOptOut} />
 
       {/* Web Push v1 (feature-flagged): renders nothing unless
           NEXT_PUBLIC_PUSH_ENABLED + VAPID public key are configured. */}
