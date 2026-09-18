@@ -82,6 +82,12 @@ function parseOptionalIntField(formData: FormData, name: string): { [k: string]:
   return Number.isNaN(value) ? {} : { [name]: value };
 }
 
+/** Optional free-text variant: blank/absent -> omitted from the payload. */
+function parseOptionalTextField(formData: FormData, name: string): { [k: string]: string } {
+  const raw = (formData.get(name) as string | null)?.trim();
+  return raw ? { [name]: raw } : {};
+}
+
 /** Optional float variant for the compliance_targets percentage fields. */
 function parseOptionalPctField(formData: FormData, name: string): { [k: string]: number } {
   const raw = (formData.get(name) as string | null)?.trim();
@@ -244,6 +250,7 @@ export const RULE_TYPE_REGISTRY: { [K in GovtBusinessRuleType]: RuleTypeDef<K> }
     resolutionScope: "pet",
     parseFromForm: (formData) => ({
       ...parseOptionalIntField(formData, "frequency_months"),
+      ...parseOptionalTextField(formData, "frequency_legal_basis"),
       ...parseOptionalIntField(formData, "min_age_months"),
     }),
   },
@@ -378,7 +385,11 @@ export function summarizeRulePayload(ruleType: GovtBusinessRuleType, payload: un
     case "rabies_vaccination": {
       const parts: string[] = [];
       if (typeof p.frequency_months === "number")
-        parts.push(`refuerzo cada ${p.frequency_months} ${pluralizeEs(p.frequency_months, "mes")}`);
+        parts.push(
+          typeof p.frequency_legal_basis === "string" && p.frequency_legal_basis.trim()
+            ? `refuerzo cada ${p.frequency_months} ${pluralizeEs(p.frequency_months, "mes")} (${p.frequency_legal_basis.trim()})`
+            : `refuerzo cada ${p.frequency_months} ${pluralizeEs(p.frequency_months, "mes")}`,
+        );
       if (typeof p.min_age_months === "number")
         parts.push(`desde los ${p.min_age_months} ${pluralizeEs(p.min_age_months, "mes")}`);
       return parts.length === 0 ? "Sin parámetros configurados" : parts.join(" · ");

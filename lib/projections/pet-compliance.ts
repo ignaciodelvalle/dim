@@ -90,7 +90,17 @@ export type ComplianceObligationRule = {
  * forever in a jurisdiction that had stated its booster cadence.
  */
 export type ComplianceRuleParams = {
-  rabies: { frequencyMonths: number | null; minAgeMonths: number | null };
+  rabies: {
+    frequencyMonths: number | null;
+    minAgeMonths: number | null;
+    /**
+     * The norm that fixes `frequencyMonths`, when one does (PO decision
+     * 2026-09-18, D5). A cadence WITH it is a legal deadline; a cadence
+     * without it stays an administrative suggestion (see `dueSource`).
+     * Optional so callers that predate D5 keep the suggestion behaviour.
+     */
+    frequencyLegalBasis?: string | null;
+  };
   sterilization: { minAgeMonths: number | null; mandatoryFromMonths: number | null };
 };
 
@@ -160,17 +170,25 @@ export type ObligationCard = {
    *                  the asiento, normally by the vet who signed it);
    *   • "reminder" — the pet's active rabies reminder;
    *   • "rule"     — no date on record; it was COMPUTED from the booster cadence
-   *                  (`frequency_months`) the jurisdiction configured (T1-G1).
+   *                  (`frequency_months`) the jurisdiction configured (T1-G1),
+   *                  and no norm is on record for that cadence;
+   *   • "legal_cadence" — no date on record; COMPUTED from a cadence whose
+   *                  own legal basis the rule row carries
+   *                  (`frequency_legal_basis`, PO decision 2026-09-18, D5).
    * Undefined when there is no due date at all.
    *
    * A "rule" date is an estimate, never a legal verdict: the configured cadence
-   * is an administrative value that may not come from any norm (ar-v2 FINDING 3:
-   * CABA's `frequency_months: 12` is unsourced — its ordinance leaves the
-   * cadence to a periodic administrative determination). So a "rule" card reads
-   * "Refuerzo sugerido", never "Vencida", carries no legal citation, and never
-   * counts as "al día". Surfaces branch on THIS field, never on the copy.
+   * is an administrative value that may not come from any norm. So a "rule"
+   * card reads "Refuerzo sugerido", never "Vencida", carries no legal
+   * citation, and never counts as "al día".
+   *
+   * A "legal_cadence" date IS a deadline: the norm fixing the interval is
+   * cited in the rule data, so the card reads exactly like a dated dose
+   * (Vigente / Vencida), carries the citation — the obligation's and the
+   * cadence's — and counts toward "al día" like any sourced obligation.
+   * Surfaces branch on THIS field, never on the copy.
    */
-  dueSource?: "dose" | "reminder" | "rule";
+  dueSource?: "dose" | "reminder" | "rule" | "legal_cadence";
   /**
    * True when the card reports a missing FACT rather than a deadline: nothing
    * is expiring, something is simply not known yet.
@@ -553,17 +571,26 @@ function rabiesFromVariant(variant: ReminderVariant, dueAt: Date, now: Date): Ob
 }
 
 /**
+ * The footnote clause naming the norm that fixes a "legal_cadence" date. It
+ * is appended to the obligation's own citation (deriveComplianceState), or to
+ * the generic stopgap when the rule row cites nothing else.
+ */
+function legalCadenceClause(frequencyMonths: number, basis: string): string {
+  return `refuerzo cada ${frequencyMonths} ${pluralizeEs(frequencyMonths, "mes")} según ${basis}`;
+}
+
+/**
  * The rabies card for a dose whose due date was COMPUTED from the
- * jurisdiction's booster cadence (T1-G1) — the dose itself carries none.
+ * jurisdiction's booster cadence (T1-G1) — the dose itself carries none — when
+ * the rule row does NOT cite a norm for that cadence.
  *
- * Lower weight than a dated dose, on purpose. The cadence is whatever the
- * jurisdiction configured, and the live CABA value (ar-v1 `frequency_months:
- * 12`) is exactly the one the repo's own research could not source (ar-v2
- * FINDING 3). So: a suggestion, not a deadline — "Refuerzo sugerido" instead of
- * "Vigente", "Refuerzo sugerido vencido" in the warning tone instead of the red
- * "Vencida", and the footnote slot says how the date was computed instead of
- * citing a norm next to a date no norm fixed. Pending the PO's adjudication of
- * the cadence; the plumbing stays so the rule keeps biting as a nudge.
+ * Lower weight than a dated dose, on purpose: an administrative cadence with no
+ * norm behind it is a suggestion, not a deadline — "Refuerzo sugerido" instead
+ * of "Vigente", "Refuerzo sugerido vencido" in the warning tone instead of the
+ * red "Vencida", and the footnote slot says how the date was computed instead
+ * of citing a norm next to a date no norm fixed. A cadence whose norm IS cited
+ * (`frequencyLegalBasis`) takes the "legal_cadence" path in deriveRabies
+ * instead (PO decision 2026-09-18, D5).
  */
 function rabiesFromRuleCadence(
   dose: ComplianceEvent,
@@ -660,6 +687,7 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     // months. An explicit next_due_at (above) always wins — the vet's date is
     // the override, the rule is the fallback.
     const frequency = input.ruleParams?.rabies.frequencyMonths ?? null;
+    const cadenceBasis = input.ruleParams?.rabies.frequencyLegalBasis?.trim() || null;
     const ruleDueYmd =
       !nextDue && dose && frequency != null
         ? addCalendarMonths(isoDateInAr(new Date(dose.occurredAt)), frequency)
@@ -671,6 +699,20 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
           ? rabiesFromVariant("overdue", nextDue, input.now)
           : rabiesFromVariant("upcoming", nextDue, input.now)),
         dueSource: "dose",
+      };
+      currencyKnown = true;
+    } else if (dose && ruleDue && frequency != null && cadenceBasis) {
+      // D5 (PO 2026-09-18): the rule row cites the norm that fixes the
+      // cadence, so the computed date is a legal deadline — the same states,
+      // tones and counting as a date the vet wrote on the asiento. The
+      // cadence citation is attached here and completed with the obligation's
+      // own in deriveComplianceState.
+      base = {
+        ...(ruleDue <= input.now
+          ? rabiesFromVariant("overdue", ruleDue, input.now)
+          : rabiesFromVariant("upcoming", ruleDue, input.now)),
+        legalFootnote: `${FOOTNOTE.rabies} · ${legalCadenceClause(frequency, cadenceBasis)}`,
+        dueSource: "legal_cadence",
       };
       currencyKnown = true;
     } else if (dose && ruleDue && frequency != null) {
@@ -1072,10 +1114,29 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
     // the resolved row carries no citation — never invent law (CS6: a CABA
     // citation reaches ONLY pets whose own jurisdiction resolved it).
     const rabiesCitation = composeLegalCitation(obligations.rabies);
-    // A "rule" card's date was computed from a cadence no cited norm may fix
-    // (ar-v2 FINDING 3), so no citation is attached next to it — its footnote
-    // slot already says how the date was computed.
-    if (rabiesCard && rabiesCitation && rabiesCard.dueSource !== "rule") {
+    const rabiesParams = input.ruleParams?.rabies;
+    const cadenceBasis = rabiesParams?.frequencyLegalBasis?.trim() || null;
+    // A "rule" card's date was computed from a cadence no cited norm fixes, so
+    // no citation is attached next to it — its footnote slot already says how
+    // the date was computed. A "legal_cadence" card carries BOTH citations: the
+    // obligation's, then the norm that fixes the interval (D5).
+    if (
+      rabiesCard &&
+      rabiesCitation &&
+      rabiesCard.dueSource === "legal_cadence" &&
+      rabiesParams?.frequencyMonths != null &&
+      cadenceBasis
+    ) {
+      rabiesCard = {
+        ...rabiesCard,
+        legalFootnote: `Obligación del propietario · ${rabiesCitation} · ${legalCadenceClause(rabiesParams.frequencyMonths, cadenceBasis)}`,
+      };
+    } else if (
+      rabiesCard &&
+      rabiesCitation &&
+      rabiesCard.dueSource !== "rule" &&
+      rabiesCard.dueSource !== "legal_cadence"
+    ) {
       rabiesCard = {
         ...rabiesCard,
         legalFootnote: `Obligación del propietario · ${rabiesCitation}`,
