@@ -163,6 +163,15 @@ type Deps = {
     province: string;
     locality: string;
   }) => Promise<string[]>;
+  /**
+   * Who hears a POSITIVE close when the jurisdiction lookup THROWS: every
+   * active, human, institutional administrator — the same set the resolver
+   * itself falls back to when a jurisdiction has no authority
+   * (lib/infra/approval-routing.ts -> activeHumanInstitutionalAdminIds). The
+   * action layer supplies both; a caller that supplies the resolver without
+   * this one gets the old behaviour, which is a lost alert.
+   */
+  findNationalAdminIds?: () => Promise<string[]>;
 };
 
 export type ProfessionalCloseObservationResult = UseCaseResult<ProfessionalCloseObservationValue>;
@@ -221,7 +230,8 @@ export async function professionalCloseObservation(
   input: ProfessionalCloseObservationInput,
   deps: Deps,
 ): Promise<ProfessionalCloseObservationResult> {
-  const { repo, closeCase, transaction, findAuthoritiesForJurisdiction } = deps;
+  const { repo, closeCase, transaction, findAuthoritiesForJurisdiction, findNationalAdminIds } =
+    deps;
   const { actor } = input;
 
   // 1. Validate outcome.
@@ -487,30 +497,46 @@ export async function professionalCloseObservation(
   // RABIES case reaching nobody because the animal's home was never geocoded is
   // the worst instance of the null-jurisdiction short-circuit in the codebase.
   // Coerced to "" so the resolver's admin fallback runs.
+  //
+  // A LOOKUP THAT THROWS IS NOT "NOBODY TO TELL" (2026-09-18). The catch used to
+  // wrap the lookup and the push together, so a failed jurisdiction query (a
+  // pool hiccup, a bad row) queued nothing and logged one line: a confirmed
+  // rabies case, recorded, and announced to no one. It now falls back to the
+  // national administrators — the set the resolver itself uses when a
+  // jurisdiction has no authority — so the alert lands SOMEWHERE a human reads.
   if (input.outcome === "positive_rabies" && findAuthoritiesForJurisdiction) {
+    let authorityIds: string[] = [];
     try {
-      const authorityIds = await findAuthoritiesForJurisdiction({
+      authorityIds = await findAuthoritiesForJurisdiction({
         province: pet.jurisdictionProvince ?? "",
         locality: pet.jurisdictionLocality ?? "",
       });
-      for (const authorityId of authorityIds) {
-        pendingNotifications.push({
-          userId: authorityId,
-          notificationType: "rabies_observation_positive_authority",
-          severity: "urgent",
-          title: `RABIA CONFIRMADA — ${pet.name}`,
-          body: `Se cerró una observación antirrábica con resultado POSITIVO para ${pet.name}. Activá el protocolo de salud pública para la jurisdicción.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
-          relatedPetId: pet.id,
-          relatedCaseId: biteCase?.id ?? null,
-          ctaLabel: "Ver vigilancia",
-          ctaUrl: "/gob/vigilancia",
-        });
-      }
-    } catch (notifyErr) {
+    } catch (lookupErr) {
       console.error(
-        "[professionalCloseObservation] authority escalation notification failed:",
-        notifyErr,
+        "[professionalCloseObservation] authority lookup failed; falling back to national admins:",
+        lookupErr,
       );
+      try {
+        authorityIds = findNationalAdminIds ? await findNationalAdminIds() : [];
+      } catch (fallbackErr) {
+        console.error(
+          "[professionalCloseObservation] national-admin fallback failed too; positive rabies alert has no recipient:",
+          fallbackErr,
+        );
+      }
+    }
+    for (const authorityId of new Set(authorityIds)) {
+      pendingNotifications.push({
+        userId: authorityId,
+        notificationType: "rabies_observation_positive_authority",
+        severity: "urgent",
+        title: `RABIA CONFIRMADA — ${pet.name}`,
+        body: `Se cerró una observación antirrábica con resultado POSITIVO para ${pet.name}. Activá el protocolo de salud pública para la jurisdicción.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
+        relatedPetId: pet.id,
+        relatedCaseId: biteCase?.id ?? null,
+        ctaLabel: "Ver vigilancia",
+        ctaUrl: "/gob/vigilancia",
+      });
     }
   }
 

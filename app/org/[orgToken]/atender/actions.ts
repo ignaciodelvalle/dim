@@ -47,6 +47,7 @@ import { EventsRepository } from "@/src/modules/events/infrastructure/events-rep
 
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { closeCase } from "@/lib/infra/case-helpers";
+import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { professionalCloseObservation } from "@/src/modules/surveillance/application/professional-close-observation";
 import type { RabiesObservationOutcome } from "@/src/modules/surveillance/domain/rabies-observation";
@@ -911,6 +912,8 @@ export async function atenderCloseRabiesObservationAction(
         findAuthoritiesForJurisdiction(jurisdiction, {
           route: "rabies_observation_positive_authority",
         }),
+      // A lookup that THROWS still reaches a human with a positive.
+      findNationalAdminIds: () => activeHumanInstitutionalAdminIds(),
     },
   );
 

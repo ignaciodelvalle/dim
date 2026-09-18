@@ -214,6 +214,47 @@ describe("professionalCloseObservation — positive rabies escalation", () => {
     expect(authNotifs.every((n) => n.severity === "urgent")).toBe(true);
   });
 
+  it("a lookup that THROWS falls back to the national admins instead of queuing nothing", async () => {
+    const deps = makeDeps();
+    const findAuthoritiesForJurisdiction = vi.fn().mockRejectedValue(new Error("pool reset"));
+    const findNationalAdminIds = vi.fn().mockResolvedValue(["admin-a", "admin-b"]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "positive_rabies" },
+      { ...deps, findAuthoritiesForJurisdiction, findNationalAdminIds },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const authNotifs = result.notifications.filter(
+      (n) => n.notificationType === "rabies_observation_positive_authority",
+    );
+    expect(authNotifs.map((n) => n.userId)).toEqual(["admin-a", "admin-b"]);
+    expect(authNotifs.every((n) => n.severity === "urgent")).toBe(true);
+    expect(authNotifs[0]).toMatchObject({
+      title: "RABIA CONFIRMADA — Luna",
+      ctaUrl: "/gob/vigilancia",
+    });
+    // And the failure is not silent.
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("the fallback is not consulted when the lookup answers, even with nobody", async () => {
+    // An EMPTY answer is the resolver's own verdict (it already fell back to
+    // the admins and recorded the empty fan-out); only a throw is a lost alert.
+    const deps = makeDeps();
+    const findNationalAdminIds = vi.fn().mockResolvedValue(["admin-a"]);
+    await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "positive_rabies" },
+      {
+        ...deps,
+        findAuthoritiesForJurisdiction: vi.fn().mockResolvedValue([]),
+        findNationalAdminIds,
+      },
+    );
+    expect(findNationalAdminIds).not.toHaveBeenCalled();
+  });
+
   it("does NOT fan out to authorities for a negative close", async () => {
     const deps = makeDeps();
     const findAuthoritiesForJurisdiction = vi.fn().mockResolvedValue(["auth-1"]);

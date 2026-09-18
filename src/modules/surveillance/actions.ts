@@ -46,6 +46,7 @@ import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
+import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 import {
   type CreateNotificationInput,
   createNotificationsBulk,
@@ -577,6 +578,8 @@ export async function professionalCloseRabiesObservationAction(
         findAuthoritiesForJurisdiction(jurisdiction, {
           route: "rabies_observation_positive_authority",
         }),
+      // A lookup that THROWS still reaches a human with a positive.
+      findNationalAdminIds: () => activeHumanInstitutionalAdminIds(),
     },
   );
 

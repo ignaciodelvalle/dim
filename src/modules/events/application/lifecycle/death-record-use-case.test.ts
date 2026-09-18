@@ -51,13 +51,23 @@ vi.mock("@/lib/infra/approval-routing", () => ({
   findAuthoritiesForJurisdiction: mockFindAuthoritiesForJurisdiction,
 }));
 
-// The urgent authority fan-out dynamically imports "@/db" inside the use-case;
-// mock it so the notification rows (title/body) are assertable without a DB.
-const mockNotificationValues = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-vi.mock("@/db", () => ({
-  db: { insert: vi.fn(() => ({ values: mockNotificationValues })) },
-  notifications: {},
+// The urgent authority fan-out goes through the durable notification service
+// (dedupe key + dead-letter); mock it so the rows (title/body/key) are
+// assertable without a DB.
+const mockNotificationValues = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ insertedCount: 1, duplicateCount: 0, deadLetteredCount: 0 }),
+);
+vi.mock("@/lib/infra/notification-service", () => ({
+  createNotificationsBulk: mockNotificationValues,
 }));
+
+// The national-admin fallback, used only when the jurisdiction lookup throws.
+const mockActiveHumanInstitutionalAdminIds = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/infra/notification-recipients", () => ({
+  activeHumanInstitutionalAdminIds: mockActiveHumanInstitutionalAdminIds,
+}));
+
+vi.mock("@/db", () => ({ db: {}, notifications: {} }));
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import { createDeathRecord } from "./death-record-use-case";
@@ -515,6 +525,67 @@ describe("createDeathRecord", () => {
       );
 
       expect(insertedBody()).toContain("Disposición declarada: sin registrar.");
+    });
+  });
+
+  describe("urgent authority fan-out — durable, keyed, and never lost to a failed lookup", () => {
+    function observedDeathDeps() {
+      const repo = makeRepo({
+        findLatestRabiesObservationStarted: vi.fn().mockResolvedValue({
+          id: randomUUID(),
+          payload: { bite_event_id: randomUUID() },
+        }),
+      });
+      return { repo, tx: makeTransaction(), flush: vi.fn().mockResolvedValue(undefined) };
+    }
+
+    it("each authority row carries the key event:{deathEventId}:{userId}:{type}", async () => {
+      const { repo, tx, flush } = observedDeathDeps();
+      mockFindAuthoritiesForJurisdiction.mockResolvedValue(["auth-user-1", "auth-user-2"]);
+
+      const result = await createDeathRecord(
+        { ...baseInput, pet: { ...basePet, rabiesObservationStatus: "in_progress" } },
+        { repo, transaction: tx, flushNotifications: flush },
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const deathEventId = result.insertedEventId;
+      expect(deathEventId).toBeTruthy();
+      expect(mockNotificationValues).toHaveBeenCalledTimes(1);
+      const rows = mockNotificationValues.mock.calls[0][0] as Record<string, unknown>[];
+      expect(rows.map((r) => r.dedupeKey)).toEqual([
+        `event:${deathEventId}:auth-user-1:rabies_observation_completed_dead_authority`,
+        `event:${deathEventId}:auth-user-2:rabies_observation_completed_dead_authority`,
+      ]);
+      expect(rows[0]).toMatchObject({
+        severity: "urgent",
+        relatedEventId: deathEventId,
+        ctaUrl: "/gob/vigilancia",
+      });
+      expect(mockActiveHumanInstitutionalAdminIds).not.toHaveBeenCalled();
+    });
+
+    it("a lookup that THROWS falls back to the national admins instead of alerting nobody", async () => {
+      const { repo, tx, flush } = observedDeathDeps();
+      mockFindAuthoritiesForJurisdiction.mockRejectedValue(new Error("pool reset"));
+      mockActiveHumanInstitutionalAdminIds.mockResolvedValue(["admin-a"]);
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const result = await createDeathRecord(
+        { ...baseInput, pet: { ...basePet, rabiesObservationStatus: "in_progress" } },
+        { repo, transaction: tx, flushNotifications: flush },
+      );
+
+      expect(result.ok).toBe(true);
+      expect(mockNotificationValues).toHaveBeenCalledTimes(1);
+      const rows = mockNotificationValues.mock.calls[0][0] as Record<string, unknown>[];
+      expect(rows.map((r) => r.userId)).toEqual(["admin-a"]);
+      expect(rows[0].title).toBe(
+        `URGENTE — fallecimiento durante observación antirrábica (${basePet.name})`,
+      );
+      expect(errorSpy).toHaveBeenCalled();
+      errorSpy.mockRestore();
     });
   });
 
