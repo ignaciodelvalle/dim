@@ -36,7 +36,13 @@
 // A confident wrong answer is worse than the text the citizen actually wrote,
 // and D.11 named the form text explicitly.
 
-import { localityByName, searchLocalities } from "@/lib/infra/ar-localidades";
+import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
+import {
+  localityByName,
+  localityDistanceKm,
+  nearestLocalities,
+  searchLocalities,
+} from "@/lib/infra/ar-localidades";
 import { type ProvinceCode, provinceByName } from "@/lib/reference/ar-provincias";
 
 export type InferredJurisdiction = {
@@ -167,19 +173,81 @@ export type RoutableJurisdiction = {
   province: string | null;
   locality: string | null;
   localityId: string | null;
-  /** TRUE when the pair below came from the form text, not from a geocoder.
-   * Persisted as welfare_reports.jurisdiction_unverified (migration 0162) and
+  /** TRUE when the pair below came from the form text, not from a geocoder —
+   * or when a client-echoed pair was not corroborated by its own coordinates
+   * (A11-G1). Persisted as welfare_reports.jurisdiction_unverified (migration 0162) and
    * rendered in the triage queue. */
   unverified: boolean;
 };
 
+// ---------------------------------------------------------------------------
+// Corroboration of a client-supplied pair against its own coordinates (A11-G1)
+// ---------------------------------------------------------------------------
+
+/** How many nearest catalog localities the province check looks at. */
+const CORROBORATION_NEIGHBOURS = 10;
+
+/** A claimed locality counts as consistent with the point when its centroid is
+ * this close, or when it is among the few nearest settlements (sparse areas,
+ * where the nearest town may be further away than this). */
+const LOCALITY_RADIUS_KM = 25;
+const LOCALITY_NEAREST_RANK = 3;
+
+/**
+ * Do the coordinates that came WITH a jurisdiction pair agree with it?
+ *
+ * The pair on the verified arm is an ECHO: the web's LocationFields and the
+ * phone's `resolve_location` pick both hand back what a geocoder said, and a
+ * client can send any pair it likes next to any pin. This does not re-derive a
+ * jurisdiction (the header explains why coordinates cannot do that honestly);
+ * it only asks whether the claim is PLAUSIBLE for the point:
+ *
+ *   - province: it must be the province of at least one of the nearest
+ *     catalogued localities. Near a border both provinces show up, so an
+ *     honest pin is not penalised; a pin in Salta claiming CABA is caught.
+ *   - locality (only when it resolved to a catalog row and is not the
+ *     whole-province aggregate): its centroid must be within
+ *     LOCALITY_RADIUS_KM of the point, or among the nearest few settlements.
+ *
+ * Any doubt answers false — the caller then keeps the pair but marks it
+ * unverified, which is the visible, safe state (D.11). Residual, stated: a
+ * spoof across a border the pin actually sits next to still passes.
+ */
+export async function coordinatesCorroborateJurisdiction(input: {
+  province: string;
+  locality: string | null;
+  localityId: string | null;
+  lat: number;
+  lng: number;
+}): Promise<boolean> {
+  const province = provinceByName(input.province);
+  if (!province) return false;
+
+  const point = { lat: input.lat, lng: input.lng };
+  const near = await nearestLocalities({ ...point, limit: CORROBORATION_NEIGHBOURS });
+  if (!near.some((n) => n.provinceCode === province.code)) return false;
+
+  if (!input.localityId) return true;
+  if (input.locality && isWholeProvinceLocality(province.name, input.locality)) return true;
+
+  const rank = near.findIndex((n) => n.id === input.localityId);
+  if (rank >= 0 && rank < LOCALITY_NEAREST_RANK) return true;
+  const distance = await localityDistanceKm(input.localityId, point);
+  return distance !== null && distance <= LOCALITY_RADIUS_KM;
+}
+
 /**
  * The D.11 gate every denuncia intake runs its normalized location through.
  *
- * Pass-through when the geocoder already produced a province — that is the
- * verified path and it is left byte-identical (`unverified: false`, same
- * province/locality/localityId the caller had). ONLY when the province is
- * missing does it read the form text, and a recovered pair is marked.
+ * When the client supplied a province (the geocoder's echo) the pair is kept
+ * as-is, and it is marked VERIFIED only if the coordinates sent with it
+ * corroborate it (A11-G1). No coordinates, or coordinates that disagree, mark
+ * it unverified: a client-echoed pair is a claim, not a verification, and the
+ * mark is what the triage queue shows the operator. The routing pair is never
+ * rewritten from coordinates.
+ *
+ * ONLY when the province is missing does it read the form text, and a
+ * recovered pair is always marked.
  *
  * When the text yields nothing either, the row stays jurisdiction-less exactly
  * as before — but still marked, because "we could not route this" is precisely
@@ -192,13 +260,26 @@ export async function resolveRoutableJurisdiction(input: {
   locality: string | null;
   localityId: string | null;
   addressText: string | null;
+  /** The coordinates submitted with the pair; null when the intake had none. */
+  lat: number | null;
+  lng: number | null;
 }): Promise<RoutableJurisdiction> {
   if (input.province) {
+    const corroborated =
+      input.lat !== null && input.lng !== null
+        ? await coordinatesCorroborateJurisdiction({
+            province: input.province,
+            locality: input.locality,
+            localityId: input.localityId,
+            lat: input.lat,
+            lng: input.lng,
+          })
+        : false;
     return {
       province: input.province,
       locality: input.locality,
       localityId: input.localityId,
-      unverified: false,
+      unverified: !corroborated,
     };
   }
 

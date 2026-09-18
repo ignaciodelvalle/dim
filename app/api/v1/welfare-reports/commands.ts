@@ -272,9 +272,11 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
   // nulls, so the pair the server had geocoded moments earlier was discarded
   // and 100% of the mobile channel landed "sin verificar" — the badge stopped
   // separating a careful address from a vague one, its only job). With the
-  // pair present the gate marks the row verified, same trust shape as the
-  // web's own echo of a picked candidate; absent — the person typed an address
-  // no geocoder confirmed — the inference path below earns the mark honestly.
+  // pair present the gate marks the row verified only when the coordinates
+  // sent with it corroborate it (A11-G1: the echo is the client's word, and a
+  // client can send any pair next to any pin); absent — the person typed an
+  // address no geocoder confirmed — the inference path below earns the mark
+  // honestly.
   //
   // THE ECHO IS RAW NOMINATIM AND THE GATE'S VERIFIED ARM IS A PASS-THROUGH.
   // `resolve_location` hands the phone `address.state` as the geocoder spells
@@ -311,6 +313,8 @@ async function fileWelfareReport(userId: string, input: WelfareReportInput) {
     locality: normalizedLoc.locality,
     localityId: normalizedLoc.localityId,
     addressText: input.locationAddress,
+    lat: normalizedLoc.lat,
+    lng: normalizedLoc.lng,
   });
 
   let inserted: { id: string; referenceCode: string };
