@@ -4,6 +4,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, profiles, serviceOfferings, timeSlots } from "@/db";
 import { offeringCoverageLabel } from "@/lib/domain/jurisdiction-canonical";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { slotRuleIsLive } from "@/lib/infra/slot-rule-liveness";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { formatTime, pluralizeEs } from "@/lib/utils/format";
 import { eq, sql } from "drizzle-orm";
@@ -63,6 +64,7 @@ export default async function OfferingDetailPage({
     .where(
       sql`${timeSlots.serviceOfferingId} = ${offering.id}
           AND ${timeSlots.status} = 'open'
+          AND ${slotRuleIsLive()}
           AND ${timeSlots.startsAt} >= ${now.toISOString()}
           AND ${timeSlots.startsAt} <= ${windowEnd.toISOString()}
           AND ${timeSlots.bookingsCount} < ${timeSlots.capacity}`,

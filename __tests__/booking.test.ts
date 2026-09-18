@@ -13,7 +13,7 @@
 // All DB rows are seeded + cleaned in beforeAll/afterAll.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // bookSlotAction derives the user from the auth guard and calls revalidatePath;
@@ -37,6 +37,7 @@ import {
   pets,
   profiles,
   serviceOfferings,
+  serviceScheduleRules,
   timeSlots,
 } from "@/db";
 import { matchesDbError } from "@/lib/infra/db-errors";
@@ -47,6 +48,7 @@ import {
 } from "@/lib/infra/publicToken";
 import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
+import { materializeSlotsForOffering } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -589,5 +591,180 @@ describe("bookSlotWriter — campaign-level identity guard (QA A3)", () => {
         constraint: /appointments_one_live_per_pet_offering/,
       }),
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T1-L16 — a slot whose schedule rule no longer stands is not bookable.
+//
+// Deleting a rule archives it (delete-schedule-rule.ts sets status='archived')
+// and never touched the 60 days of slots already materialised from it; editing
+// effective_until did not either. bookSlotWriter checked the slot, the window
+// and the offering — never the rule. Slots here come from the REAL materialiser,
+// so their rule_id / timezone are exactly what production writes.
+// ---------------------------------------------------------------------------
+
+describe("bookSlotWriter — the slot's schedule rule must still stand (T1-L16)", () => {
+  const offeringIds: string[] = [];
+  const localTokens: string[] = [];
+  const DAY = 24 * 60 * 60 * 1000;
+  const TZ = "America/Argentina/Buenos_Aires";
+  const arDate = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
+
+  async function offeringWithRule(label: string): Promise<{ offeringId: string; ruleId: string }> {
+    const [offering] = await db
+      .insert(serviceOfferings)
+      .values({
+        publicToken: generateOfferingToken(),
+        providerUserId: otherUserId,
+        serviceKind: "vaccination_rabies",
+        displayName: `Agenda test L16 (${label})`,
+        durationMinutes: 30,
+        slotCapacity: 3,
+        status: "approved",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "CABA",
+      })
+      .returning({ id: serviceOfferings.id });
+    offeringIds.push(offering.id);
+    const ruleId = await insertRule(offering.id);
+    await materializeSlotsForOffering(offering.id);
+    return { offeringId: offering.id, ruleId };
+  }
+
+  async function insertRule(offeringId: string): Promise<string> {
+    const [rule] = await db
+      .insert(serviceScheduleRules)
+      .values({
+        serviceOfferingId: offeringId,
+        daysOfWeek: [1, 2, 3, 4, 5, 6, 7],
+        startTimeLocal: "10:00",
+        endTimeLocal: "11:00",
+        effectiveFrom: arDate(new Date()),
+        effectiveUntil: null,
+        timezone: TZ,
+        status: "active",
+      })
+      .returning({ id: serviceScheduleRules.id });
+    return rule.id;
+  }
+
+  /** The first materialised slot of the offering starting after `daysAhead`. */
+  async function slotAfter(offeringId: string, daysAhead: number) {
+    const [slot] = await db
+      .select({
+        id: timeSlots.id,
+        ruleId: timeSlots.ruleId,
+        startsAt: timeSlots.startsAt,
+        bookingsCount: timeSlots.bookingsCount,
+      })
+      .from(timeSlots)
+      .where(
+        and(
+          eq(timeSlots.serviceOfferingId, offeringId),
+          gt(timeSlots.startsAt, new Date(Date.now() + daysAhead * DAY)),
+        ),
+      )
+      .orderBy(asc(timeSlots.startsAt))
+      .limit(1);
+    if (!slot) throw new Error(`no materialised slot ${daysAhead} days ahead`);
+    return slot;
+  }
+
+  afterAll(async () => {
+    for (const token of localTokens) {
+      await db.delete(appointments).where(eq(appointments.publicToken, token));
+    }
+    for (const oid of offeringIds) {
+      await db.delete(timeSlots).where(eq(timeSlots.serviceOfferingId, oid));
+      await db.delete(serviceScheduleRules).where(eq(serviceScheduleRules.serviceOfferingId, oid));
+      await db.delete(serviceOfferings).where(eq(serviceOfferings.id, oid));
+    }
+  });
+
+  it("deleting the rule makes its remaining slots unbookable and leaves the booked one intact", async () => {
+    const { offeringId, ruleId } = await offeringWithRule("delete");
+    const booked = await slotAfter(offeringId, 2);
+    const stale = await slotAfter(offeringId, 5);
+    expect(booked.ruleId).toBe(ruleId);
+    expect(stale.ruleId).toBe(ruleId);
+
+    const first = await bookSlotWriter(booked.id, petId, ownerUserId);
+    expect(first).toMatchObject({ ok: true });
+    if ("ok" in first) localTokens.push(first.appointmentToken);
+
+    // The write deleteScheduleRuleForOrg performs.
+    await db
+      .update(serviceScheduleRules)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(serviceScheduleRules.id, ruleId));
+
+    // A different pet, so no identity guard stands between this call and the
+    // rule check: without it, this booking would succeed.
+    const refused = await bookSlotWriter(stale.id, deceasedPetId, ownerUserId);
+    expect(refused).toEqual({ error: "Este horario ya no está en la agenda del prestador." });
+    const [staleAfter] = await db
+      .select({ bookingsCount: timeSlots.bookingsCount })
+      .from(timeSlots)
+      .where(eq(timeSlots.id, stale.id));
+    expect(staleAfter.bookingsCount).toBe(0);
+
+    // The appointment booked before the delete is untouched.
+    if (!("ok" in first)) throw new Error("baseline booking failed");
+    const [kept] = await db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(eq(appointments.publicToken, first.appointmentToken));
+    expect(kept.status).toBe("confirmed");
+    const [bookedAfter] = await db
+      .select({ bookingsCount: timeSlots.bookingsCount })
+      .from(timeSlots)
+      .where(eq(timeSlots.id, booked.id));
+    expect(bookedAfter.bookingsCount).toBe(1);
+  });
+
+  it("moving effective_until before a slot's date makes that slot unbookable", async () => {
+    const { offeringId, ruleId } = await offeringWithRule("until");
+    const beyond = await slotAfter(offeringId, 5);
+
+    await db
+      .update(serviceScheduleRules)
+      .set({ effectiveUntil: arDate(new Date(Date.now() + 2 * DAY)) })
+      .where(eq(serviceScheduleRules.id, ruleId));
+
+    const refused = await bookSlotWriter(beyond.id, deceasedPetId, ownerUserId);
+    expect(refused).toEqual({ error: "Este horario ya no está en la agenda del prestador." });
+  });
+
+  it("a replacement rule for the same times adopts the stale slots, which book again", async () => {
+    const { offeringId, ruleId } = await offeringWithRule("replace");
+    const stale = await slotAfter(offeringId, 5);
+    const [{ count: slotsBefore }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(timeSlots)
+      .where(eq(timeSlots.serviceOfferingId, offeringId));
+
+    await db
+      .update(serviceScheduleRules)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(serviceScheduleRules.id, ruleId));
+    const replacementId = await insertRule(offeringId);
+    await materializeSlotsForOffering(offeringId);
+
+    const [adopted] = await db
+      .select({ ruleId: timeSlots.ruleId })
+      .from(timeSlots)
+      .where(eq(timeSlots.id, stale.id));
+    expect(adopted.ruleId).toBe(replacementId);
+    // Adopted, not duplicated.
+    const [{ count: slotsAfter }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(timeSlots)
+      .where(eq(timeSlots.serviceOfferingId, offeringId));
+    expect(slotsAfter).toBe(slotsBefore);
+
+    const booked = await bookSlotWriter(stale.id, deceasedPetId, ownerUserId);
+    expect(booked).toMatchObject({ ok: true });
+    if ("ok" in booked) localTokens.push(booked.appointmentToken);
   });
 });

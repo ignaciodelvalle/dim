@@ -4,6 +4,7 @@
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { localitiesCoveringSearch } from "@/lib/domain/jurisdiction-canonical";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { slotRuleIsLive } from "@/lib/infra/slot-rule-liveness";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
 import { pluralizeEs } from "@/lib/utils/format";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
@@ -149,6 +150,7 @@ export default async function BuscarTurnosPage({
       .where(
         sql`${timeSlots.serviceOfferingId} = ANY(${sql.raw(`ARRAY[${offeringIds.map((id) => `'${id}'`).join(",")}]::uuid[]`)})
             AND ${timeSlots.status} = 'open'
+            AND ${slotRuleIsLive()}
             AND ${timeSlots.startsAt} >= ${slotWindowStart.toISOString()}
             AND ${timeSlots.startsAt} <= ${windowEnd.toISOString()}
             AND ${timeSlots.bookingsCount} < ${timeSlots.capacity}`,

@@ -109,6 +109,9 @@ export const BOOK_SLOT_REFUSAL_SENTENCES: ReadonlyArray<{
     sentence: "Este servicio no está tomando turnos en este momento.",
     code: "slot_unavailable",
   },
+  // T1-L16: the slot's schedule rule was deleted, paused or ended before its
+  // date. Same client move as a cancelled slot — re-read the slots.
+  { sentence: "Este horario ya no está en la agenda del prestador.", code: "slot_unavailable" },
 ];
 
 export function bookSlotRefusalCode(sentence: string): BookSlotFailureCode {

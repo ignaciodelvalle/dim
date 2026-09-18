@@ -2,16 +2,18 @@
 // Moved verbatim from app/actions/slot-materialization.ts.
 //
 // materializeAllActiveSlots(): loads ALL active rules for approved offerings,
-// calls the pure generator, and bulk-inserts with onConflictDoNothing() so
+// calls the pure generator, and bulk-inserts with an ON CONFLICT clause
+// (adoptStaleSlot) that is a no-op for a slot whose rule is still live, so
 // re-runs are idempotent.
 //
 // materializeSlotsForOffering(): same, scoped to a single offering by DB id.
 
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 
 import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
 import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { materializeSlotsForRule } from "@/lib/infra/slot-materialization";
+import { slotRuleIsLive } from "@/lib/infra/slot-rule-liveness";
 
 // Keyset page size + per-run bounds (review 23 item 9): the sweep used to load
 // ALL active rules and bulk-insert 60-day windows in one invocation, unbounded
@@ -51,6 +53,29 @@ function rollingWindow(): { windowStart: Date; windowEnd: Date } {
  * `count` is 0 on a pure conflict, which is exactly the idempotency signal the
  * caller wants to surface. Verified against the live driver, not inferred.
  */
+/**
+ * ON CONFLICT clause for both materialisers (T1-L16).
+ *
+ * The (service_offering_id, starts_at) unique index used to make a conflict a
+ * plain no-op. Since bookSlotWriter refuses a slot whose rule no longer stands
+ * (lib/infra/slot-rule-liveness.ts), a no-op would strand a REPLACEMENT rule:
+ * delete Monday 9-12 and recreate it, and every Monday slot is still owned by
+ * the archived rule — refused by the writer, and never re-materialised because
+ * the time is taken. So a conflicting slot whose rule is no longer live is
+ * ADOPTED by the rule materialising now: only `rule_id` moves. Status (an org
+ * block stays blocked), capacity and bookings_count are left alone, so a slot
+ * that already holds appointments keeps them. A slot owned by a live rule is
+ * untouched — the WHERE makes that case the old no-op, so the daily run does
+ * not churn rows. Adoptions count toward the returned `slotsInserted`.
+ */
+function adoptStaleSlot() {
+  return {
+    target: [timeSlots.serviceOfferingId, timeSlots.startsAt],
+    set: { ruleId: sql`excluded.rule_id`, updatedAt: new Date() },
+    setWhere: sql`NOT ${slotRuleIsLive()}`,
+  };
+}
+
 function insertedRowCount(result: unknown): number {
   const count = (result as { count?: unknown }).count;
   return typeof count === "number" ? count : 0;
@@ -58,11 +83,11 @@ function insertedRowCount(result: unknown): number {
 
 /**
  * Materializes slots for all approved offerings with active schedule rules.
- * Safe to call in a cron — idempotent via onConflictDoNothing on the
- * (service_offering_id, starts_at) unique index.
+ * Safe to call in a cron — idempotent via the (service_offering_id, starts_at)
+ * unique index; see adoptStaleSlot for the one case a conflict writes.
  */
 // @no-auth-required: cron-driven materialization, no caller identity.
-// Idempotent via onConflictDoNothing on (service_offering_id, starts_at).
+// Idempotent via ON CONFLICT on (service_offering_id, starts_at).
 export async function materializeAllActiveSlots(opts?: {
   /** Keyset cursor: process rules whose id sorts after this value. */
   afterRuleId?: string | null;
@@ -131,7 +156,7 @@ export async function materializeAllActiveSlots(opts?: {
         const result = await db
           .insert(timeSlots)
           .values(candidates)
-          .onConflictDoNothing({ target: [timeSlots.serviceOfferingId, timeSlots.startsAt] });
+          .onConflictDoUpdate(adoptStaleSlot());
         slotsInserted += insertedRowCount(result);
       }
       cursor = rule.id;
@@ -188,7 +213,7 @@ export async function materializeSlotsForOffering(offeringId: string): Promise<{
     const result = await db
       .insert(timeSlots)
       .values(candidates)
-      .onConflictDoNothing({ target: [timeSlots.serviceOfferingId, timeSlots.startsAt] });
+      .onConflictDoUpdate(adoptStaleSlot());
 
     slotsInserted += insertedRowCount(result);
   }
