@@ -24,6 +24,14 @@
 //   - Result: { ok: true, eventId, wasDuplicate, insertedEventId,
 //               rabiesObservationClosed, diseaseCode, authoritySignal }
 //   - CRITICAL: all cascades SKIP on idempotency noop.
+//   - VETERINARY CLOSER (PO decision D8, 2026-09-18): with `observationCloser`
+//     the death is recorded FROM THE CLINIC during a rabies observation. CASCADE
+//     C then signs the `rabies_observation_ended` as that vet (closed_by_role
+//     'vet', matrícula-verified, their organization), closes the observation
+//     through the GUARDED update (a concurrent close aborts the whole tx, death
+//     included), and writes the same accountability audit row as the
+//     professional close — all in this transaction. A vet death outside an open
+//     observation is refused inside the tx, never recorded half-way.
 //   - LOCK FIRST (WU6/7 review, M-1): the transaction's first statement is the
 //     pet advisory lock (`lockPetForDeathRecord`) — CASCADE A closes foster
 //     rows and the projection touches the pets row, the same rows an adoption
@@ -108,8 +116,33 @@ export type CreateDeathRecordInput = {
   fosterCaseId?: string | null;
   /** caseId from the open bite_incident case — caller resolves inside tx for cascade C. */
   biteCaseId?: string | null;
+  /**
+   * PO decision D8 (2026-09-18): the death is recorded by the matriculated vet
+   * attending the animal during its rabies observation (Atender). Requires the
+   * pet to be IN observation, and deps.closeObservationIfOpen +
+   * deps.insertObservationCloseAuditLog. See the header.
+   */
+  observationCloser?: {
+    role: "vet";
+    userId: string;
+    organizationId: string;
+    petPublicToken: string;
+  };
   now?: Date;
 };
+
+/** The audit row the veterinary closer writes — the professional close's own action. */
+export type ObservationCloseAuditEntry = {
+  action: "rabies_observation_closed_professional";
+  actorUserId: string;
+  payload: Record<string, unknown>;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+};
+
+/** What the closure notes say when a vet records the death (spine + audit). */
+export const VET_DEATH_CLOSURE_NOTES =
+  "Fallecimiento durante la observación, registrado por un veterinario matriculado desde la clínica.";
 
 export type CreateDeathRecordResult =
   | {
@@ -159,6 +192,22 @@ type Deps = {
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   flushNotifications: (pendingNotifications: NewNotification[]) => Promise<void>;
+  /**
+   * Veterinary closer only (D8): the guarded status update — true when THIS
+   * transaction moved the observation out of an open state. The surveillance
+   * repository's method, the same guard the professional close uses.
+   */
+  closeObservationIfOpen?: (
+    petId: string,
+    status: "completed_dead",
+    now: Date,
+    tx: unknown,
+  ) => Promise<boolean>;
+  /** Veterinary closer only (D8): the accountability row, inside the transaction. */
+  insertObservationCloseAuditLog?: (
+    entry: ObservationCloseAuditEntry,
+    tx: unknown,
+  ) => Promise<void>;
 };
 
 // ---------------------------------------------------------------------------
@@ -200,6 +249,7 @@ export async function createDeathRecord(
     custodyEpisodeCaseId,
     fosterCaseId = null,
     biteCaseId = null,
+    observationCloser,
     now = new Date(),
   } = input;
 
@@ -425,11 +475,15 @@ export async function createDeathRecord(
           const startedPayload = startedEvent.payload as Record<string, unknown>;
 
           const endedPayload = validateEventPayload("rabies_observation_ended", {
-            bite_event_id: startedPayload.bite_event_id as string,
+            // Coalesced like the professional close: an observation may lack a
+            // linked bite event, and the schema accepts null.
+            bite_event_id: (startedPayload.bite_event_id as string | undefined) ?? null,
             observation_started_event_id: startedEvent.id,
             outcome: "dead",
-            closed_by_role: "system",
-            closure_notes: "Cierre automático por fallecimiento durante observación",
+            closed_by_role: observationCloser ? "vet" : "system",
+            closure_notes: observationCloser
+              ? VET_DEATH_CLOSURE_NOTES
+              : "Cierre automático por fallecimiento durante observación",
             death_event_id: event.id,
           });
 
@@ -439,29 +493,93 @@ export async function createDeathRecord(
               eventType: "rabies_observation_ended",
               occurredAt: now,
               recordedAt: now,
-              recordedByUserId: null,
-              authorRole: "system",
-              authorOrganizationId: null,
-              authorVerified: false,
+              // D8: the vet who recorded the death also closed the observation,
+              // and signs it as the professional close does. The owner's own
+              // record keeps the system signature it always had.
+              ...(observationCloser
+                ? {
+                    recordedByUserId: observationCloser.userId,
+                    authorRole: "vet",
+                    authorOrganizationId: observationCloser.organizationId,
+                    authorVerified: true,
+                  }
+                : {
+                    recordedByUserId: null,
+                    authorRole: "system",
+                    authorOrganizationId: null,
+                    authorVerified: false,
+                  }),
               payload: endedPayload,
               caseId: biteCaseId ?? null,
             } as Parameters<typeof deps.repo.insertEvent>[0],
             tx as Parameters<typeof deps.repo.insertEvent>[1],
           );
 
-          await deps.repo.updateRabiesObservationStatus(
-            pet.id,
-            "completed_dead",
-            now,
-            tx as Parameters<typeof deps.repo.updateRabiesObservationStatus>[3],
-          );
+          if (observationCloser) {
+            // The GUARDED close: `pet` was read before this transaction, so a
+            // close that landed in between (another vet, the State, the sweep)
+            // would otherwise leave two contradictory outcomes on the spine.
+            // Throwing rolls back the death with it — nothing half-recorded.
+            const closed = deps.closeObservationIfOpen
+              ? await deps.closeObservationIfOpen(pet.id, "completed_dead", now, tx)
+              : false;
+            if (!closed) {
+              throw new Error(
+                "otra persona cerró esta observación mientras tanto — recargá para ver el resultado asentado",
+              );
+            }
+            if (!deps.insertObservationCloseAuditLog) {
+              throw new Error("createDeathRecord: veterinary closer without an audit writer");
+            }
+            await deps.insertObservationCloseAuditLog(
+              {
+                action: "rabies_observation_closed_professional",
+                actorUserId: observationCloser.userId,
+                payload: {
+                  pet_id: pet.id,
+                  pet_public_token: observationCloser.petPublicToken,
+                  case_id: biteCaseId ?? null,
+                  observation_started_event_id: startedEvent.id,
+                  outcome: "dead",
+                  closed_by_role: "vet",
+                  closure_notes: VET_DEATH_CLOSURE_NOTES,
+                  death_event_id: event.id,
+                },
+                before: { rabies_observation_status: pet.rabiesObservationStatus },
+                after: { rabies_observation_status: "completed_dead" },
+              },
+              tx,
+            );
+          } else {
+            await deps.repo.updateRabiesObservationStatus(
+              pet.id,
+              "completed_dead",
+              now,
+              tx as Parameters<typeof deps.repo.updateRabiesObservationStatus>[3],
+            );
+          }
 
           if (biteCaseId) {
-            await closeCase({ caseId: biteCaseId, reason: "resolved" }, tx as CaseExecutor);
+            await closeCase(
+              {
+                caseId: biteCaseId,
+                reason: "resolved",
+                ...(observationCloser ? { closedByUserId: observationCloser.userId } : {}),
+              },
+              tx as CaseExecutor,
+            );
           }
 
           rabiesObservationClosed = true;
         }
+      }
+
+      // D8: the veterinary door exists ONLY to close an observation with a
+      // death. Anything else — no longer in observation, no started event — is
+      // refused here, inside the transaction, so the death is not recorded
+      // without the close it was meant to carry.
+      if (observationCloser && !rabiesObservationClosed) {
+        throw new Error("esta mascota no tiene una observación antirrábica en curso");
       }
     });
   } catch (err) {
