@@ -85,6 +85,7 @@ const NUMBER_WORDS: Record<string, number> = {
   "twenty-one": 21,
   "twenty-two": 22,
   "twenty-three": 23,
+  "twenty-four": 24,
 };
 
 /** The forms AGENTS.md could plausibly use for this count, beyond a numeral. */

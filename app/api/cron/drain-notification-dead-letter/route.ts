@@ -28,8 +28,16 @@
 //     instead of doubling every run. `stillFailing` in the response surfaces the
 //     count so a genuinely undeliverable payload (e.g. a deleted recipient) is
 //     visible in telemetry.
+//   - A row whose recipient's profile carries `deleted_at` is NOT replayed
+//     (A06-G2): the subject exercised Ley 25.326 art. 16, and `erase_subject_data`
+//     redacts their dead letters in its own transaction since 0226. This check
+//     is the belt-and-braces for a row that landed after the erasure ran.
+//   - EVERY resolve redacts the payload to `{}` (A06-G1). The payload is the
+//     full notification — title, body, a finder's phone — and once the row is
+//     resolved it is a second copy with no purpose. dedupe_key, error_message
+//     and the timestamps stay: they record that a delivery failed and when.
 //
-// Returns: { ok, scanned, resolved, stillFailing, invalid, runId } and HTTP 500
+// Returns: { ok, scanned, resolved, stillFailing, invalid, skippedErased, runId } and HTTP 500
 //   when the run failed (so Vercel's cron dashboard flags it — a cron must not
 //   report success on failure).
 
@@ -37,7 +45,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { eq, isNull } from "drizzle-orm";
 
-import { cronRuns, db, notificationDeadLetter } from "@/db";
+import { cronRuns, db, notificationDeadLetter, profiles } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { type CreateNotificationInput, createNotification } from "@/lib/infra/notification-service";
@@ -89,6 +97,31 @@ function toInput(payload: unknown): CreateNotificationInput | null {
   };
 }
 
+/**
+ * What a resolved dead letter keeps of its payload: nothing. `payload` is NOT
+ * NULL, so the redaction is the empty object — which `toInput` refuses, so a
+ * redacted row can never be replayed even if something un-resolves it.
+ */
+const REDACTED_PAYLOAD = {};
+
+/** Mark a row resolved AND drop its payload, in one statement. */
+async function resolveAndRedact(id: string, now: Date): Promise<void> {
+  await db
+    .update(notificationDeadLetter)
+    .set({ retriedAt: now, resolvedAt: now, payload: REDACTED_PAYLOAD })
+    .where(eq(notificationDeadLetter.id, id));
+}
+
+/** True when the recipient's profile is soft-deleted (an art. 16 erasure). */
+async function recipientErased(userId: string): Promise<boolean> {
+  const [profile] = await db
+    .select({ deletedAt: profiles.deletedAt })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+  return profile?.deletedAt != null;
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
   if (authError) {
@@ -104,6 +137,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let resolved = 0;
   let stillFailing = 0;
   let invalid = 0;
+  let skippedErased = 0;
   let cronStatus: "ok" | "failed" = "ok";
   const errors: { id: string; reason: string }[] = [];
 
@@ -128,10 +162,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         // so it stops blocking the scan; surface it as an error for triage.
         invalid += 1;
         errors.push({ id: row.id, reason: "unreplayable_payload" });
-        await db
-          .update(notificationDeadLetter)
-          .set({ retriedAt: now, resolvedAt: now })
-          .where(eq(notificationDeadLetter.id, row.id));
+        await resolveAndRedact(row.id, now);
+        continue;
+      }
+
+      // An erased recipient is not an error and not a delivery: the notification
+      // must not be re-created for a subject who exercised art. 16.
+      if (await recipientErased(input.userId)) {
+        skippedErased += 1;
+        await resolveAndRedact(row.id, now);
         continue;
       }
 
@@ -141,19 +180,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       if (result.status === "inserted" || result.status === "duplicate") {
         resolved += 1;
-        await db
-          .update(notificationDeadLetter)
-          .set({ retriedAt: now, resolvedAt: now })
-          .where(eq(notificationDeadLetter.id, row.id));
+        await resolveAndRedact(row.id, now);
       } else {
         // Re-dead-lettered: a fresh row now tracks the continued failure. Resolve
         // the original so the working set stays bounded (see header comment).
         stillFailing += 1;
         errors.push({ id: row.id, reason: "redelivery_failed" });
-        await db
-          .update(notificationDeadLetter)
-          .set({ retriedAt: now, resolvedAt: now })
-          .where(eq(notificationDeadLetter.id, row.id));
+        await resolveAndRedact(row.id, now);
       }
     }
   } catch (err) {
@@ -183,12 +216,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       itemsProcessed: resolved,
       details:
         errors.length > 0
-          ? { scanned, resolved, stillFailing, invalid, errors }
+          ? { scanned, resolved, stillFailing, invalid, skippedErased, errors }
           : {
               scanned,
               resolved,
               stillFailing,
               invalid,
+              skippedErased,
             },
     })
     .where(eq(cronRuns.id, run.id));
@@ -203,7 +237,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json(
-    { ok: cronStatus === "ok", scanned, resolved, stillFailing, invalid, runId: run.id },
+    {
+      ok: cronStatus === "ok",
+      scanned,
+      resolved,
+      stillFailing,
+      invalid,
+      skippedErased,
+      runId: run.id,
+    },
     { status: cronStatus === "ok" ? 200 : 500 },
   );
 }

@@ -151,7 +151,9 @@ describe("the debt register is not empty, says so, and may not grow quietly", ()
   // (deleted) and organization_invitations (email sentinelled + outstanding
   // invitations revoked; the actor FKs and accepted rows kept as the access
   // trail), so it ratchets 20 -> 17.
-  const KNOWN_GAP_CEILING = 17;
+  // 0226 moved out notification_dead_letter (every dead letter addressed to the
+  // subject loses its payload and is resolved), so it ratchets 17 -> 16.
+  const KNOWN_GAP_CEILING = 16;
 
   it("does not grow past the declared ceiling without someone raising it on purpose", () => {
     expect(
@@ -178,7 +180,7 @@ describe("the debt register is not empty, says so, and may not grow quietly", ()
 // and the four catalogue checks all pass — the fence asks whether each table is
 // CLASSIFIED, never whether the two rights agree with each other.
 describe("art. 16 may not reach further than art. 14", () => {
-  // The two tables where erase reaches and export does not, TODAY. Frozen by
+  // The three tables where erase reaches and export does not, TODAY. Frozen by
   // hand for the same reason KNOWN_GAP_CEILING is: an exception list with no
   // ceiling is not an exception list.
   //
@@ -187,7 +189,14 @@ describe("art. 16 may not reach further than art. 14", () => {
   //  · libreta_share_tokens — 0207 revokes the subject's outstanding shares and
   //    says so in the fence itself: "The art. 14 side is still a gap —
   //    export_subject_data does not return the `label` the user typed."
-  const ERASE_ONLY_KNOWN: readonly string[] = ["case_events", "libreta_share_tokens"];
+  //  · notification_dead_letter — 0226 redacts the payload of every dead
+  //    letter addressed to the subject; the export has never returned
+  //    undelivered notifications (the fence says so beside the entry).
+  const ERASE_ONLY_KNOWN: readonly string[] = [
+    "case_events",
+    "libreta_share_tokens",
+    "notification_dead_letter",
+  ];
 
   it("every table erase_subject_data reaches is also returned by export_subject_data", () => {
     const inExport = new Set(IN_EXPORT);

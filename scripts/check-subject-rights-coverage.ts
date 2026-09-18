@@ -32,7 +32,7 @@
 // That was the obvious idea and it is not honest. Only SIX tables are under the
 // baseline (profiles, pets, pet_identifications, custody_disputes, pet_tags,
 // pet_caretaker_grants — migrations 0058/0169/0189), while the RPCs already
-// reach twenty-three. Deriving from the baseline would declare seventeen
+// reach twenty-four. Deriving from the baseline would declare eighteen
 // covered tables out of scope and call the result coverage.
 //
 // EVERY NUMBER IN THIS HEADER IS FENCED, and that is new. It said "eighteen"
@@ -54,9 +54,9 @@
 //   KNOWN_GAP — the table DOES hold subject data and neither RPC reaches it.
 //
 // The fourth list is the point. A three-list design forces every uncovered
-// table into EXEMPT, and there are seventeen tables here that hold real
+// table into EXEMPT, and there are sixteen tables here that hold real
 // subject data the RPCs do not touch. Writing "exempt" next to each of them
-// would be seventeen false statements in the one file whose whole job is to
+// would be sixteen false statements in the one file whose whole job is to
 // stop a false statement about coverage. KNOWN_GAP names the debt, prints it on
 // every run, and still fails on a table that is in no list at all — so the NEXT
 // pet_caretaker_grants cannot arrive unnoticed, and the existing ones cannot be
@@ -66,7 +66,8 @@
 // held 20 (0207 closed libreta_share_tokens and only the test ceiling was
 // lowered), and AGENTS.md §6b was still reading "21" on 2026-08-29, forty-six
 // lines above a §7 that already said 17. 0208 closed operator_feed_watermarks,
-// physical_tag_interest and organization_invitations, so it is seventeen. The
+// physical_tag_interest and organization_invitations, and 0226 closed
+// notification_dead_letter, so it is sixteen. The
 // number the CI line prints has always been computed from the list; what used
 // to be maintained by hand — these sentences — is now fenced against it too.
 //
@@ -146,6 +147,11 @@ export const IN_ERASE: readonly string[] = [
   // but the table can no longer sit in KNOWN_GAP: erase reaches it.
   "libreta_share_tokens",
   "notifications",
+  // 0226: every dead letter addressed to the subject loses its payload and is
+  // marked resolved, so the drain cron cannot replay a notification the line
+  // above just redacted. The art. 14 side is still a gap — export_subject_data
+  // does not return undelivered notifications.
+  "notification_dead_letter",
   // 0208: the watermark row is DELETED (user_id is its PK — it cannot exist
   // without naming the subject), and the export returns it first so art. 14
   // shows what art. 16 is about to destroy.
@@ -220,7 +226,6 @@ export const KNOWN_GAP: Record<string, string> = {
     "volunteer_user_id plus `proposed_notes`, `response_notes`, `cancellation_reason` — free text about the volunteer.",
   govt_assignments: "The subject's official assignment, `revocation_reason` and `notes`.",
   govt_business_rules: "Operator `notes` and the created_by / updated_by actor pair.",
-  notification_dead_letter: "The undelivered notification's `payload` — its title and body.",
   organization_capability_grants: "`requested_reason` and `decision_reason` free text.",
   organizations:
     "A legal entity, but `email` / `phone` may be a natural person's for a one-person org, and created_by / verified_by are actor FKs.",
