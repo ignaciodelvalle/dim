@@ -48,6 +48,7 @@ import {
   type GovtPetLookupResult,
   lookupPetForDecomisoAction,
 } from "@/app/actions/decomiso-pet-lookup";
+import { MAX_IMAGE_BYTES } from "@/lib/media/validate";
 import { formatRate, sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
@@ -94,19 +95,13 @@ const SEIZURE_MOTIVE_LABELS: Record<SeizureMotive, string> = {
 };
 
 const MAX_ATTACHMENTS = 10;
-const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 MB
-const ALLOWED_MIME = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  "image/gif",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "application/pdf",
-]);
+// Bucket `event-attachments` (db/migrations/0213) accepts ONLY raster
+// JPG/PNG/WEBP up to 5 MiB — MAX_IMAGE_BYTES is that same server-enforced
+// ceiling, shared here so the client rejects early with the same number the
+// bucket would refuse anyway. PDF/video/HEIC await a PO decision on the
+// bucket before they can be offered here.
+const MAX_ATTACHMENT_BYTES = MAX_IMAGE_BYTES;
+const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 // ---------------------------------------------------------------------------
 // DecomisoForm
@@ -207,12 +202,12 @@ export function DecomisoForm({
     }
     for (const f of newFiles) {
       if (!ALLOWED_MIME.has(f.type)) {
-        setAttachmentError(`Tipo no permitido: "${f.name}". Aceptamos imágenes, videos y PDF.`);
+        setAttachmentError(`Tipo no permitido: "${f.name}". Aceptamos imágenes JPG, PNG o WEBP.`);
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
       if (f.size > MAX_ATTACHMENT_BYTES) {
-        setAttachmentError(`"${f.name}" supera el límite de 25 MB.`);
+        setAttachmentError(`"${f.name}" supera el límite de 5 MB.`);
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
@@ -814,8 +809,9 @@ export function DecomisoForm({
             </span>
           </div>
           <p className="text-sm text-ln-op-mute">
-            Obligatorio: al menos 1 foto del animal y 1 acta administrativa (o screenshot del oficio
-            judicial). Hasta {MAX_ATTACHMENTS} archivos, 25 MB cada uno.
+            Obligatorio: al menos 1 foto del animal y 1 foto del acta administrativa (o captura del
+            oficio judicial). Hasta {MAX_ATTACHMENTS} imágenes JPG, PNG o WEBP de hasta 5 MB cada
+            una.
           </p>
 
           {/* `status={null}` — the attachment list right below already names
@@ -823,7 +819,7 @@ export function DecomisoForm({
           <OpFileInput
             ref={fileInputRef}
             multiple
-            accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif,application/pdf"
+            accept="image/jpeg,image/png,image/webp"
             onChange={(e) => handleFilesSelected(e.target.files)}
             status={null}
           />

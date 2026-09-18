@@ -155,55 +155,11 @@ export async function reencodeRaster(buffer: Buffer): Promise<Buffer> {
 export const REENCODE_MAX_INPUT_PIXELS = 8192 * 8192;
 
 // ---------------------------------------------------------------------------
-// Document evidence — a SECOND whitelist, for uploads that are NOT re-encoded
-// ---------------------------------------------------------------------------
-//
-// A decomiso carries evidence: the photo of the animal and the administrative
-// record (acta), which is either a photo of the paper or a PDF (A07-4). It used
-// to be stored with the client's `file.type` as its content type and the
-// client's filename extension in its object key — an HTML page named
-// `acta.jpg` went into the bucket as whatever the browser said it was.
-//
-// The TYPE decision is now the same one every other door makes: magic bytes,
-// never the client. What is deliberately NOT the same is the re-encode. The PO
-// has not decided whether the metadata of seizure evidence (capture time,
-// device, GPS) is itself evidence, so these bytes are stored exactly as they
-// arrived. Re-encoding them would be a decision taken by accident.
-
-/**
- * Evidence types accepted by bytes. KEY is the canonical MIME, VALUE the
- * storage-key extension derived from it. Raster types come from the table
- * above rather than a copy of it.
- */
-export const DOCUMENT_EVIDENCE_TYPES = {
-  ...RASTER_IMAGE_TYPES,
-  "application/pdf": "pdf",
-} as const;
-
-export type DocumentEvidenceMime = keyof typeof DOCUMENT_EVIDENCE_TYPES;
-
-/** The storage-key extension for a VALIDATED evidence mime. Never a client filename. */
-export function documentEvidenceExtension(mime: DocumentEvidenceMime): string {
-  return DOCUMENT_EVIDENCE_TYPES[mime];
-}
-
-/**
- * Identify a document-evidence file by its MAGIC BYTES: a whitelisted raster
- * (via `detectRasterMime`) or a PDF (`%PDF-`, 25 50 44 46 2D, at offset 0).
- * Returns null for anything else, whatever it declared itself to be.
- */
-export function detectDocumentEvidenceMime(bytes: Uint8Array): DocumentEvidenceMime | null {
-  const raster = detectRasterMime(bytes);
-  if (raster) return raster;
-  if (
-    bytes.length >= 5 &&
-    bytes[0] === 0x25 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x44 &&
-    bytes[3] === 0x46 &&
-    bytes[4] === 0x2d
-  ) {
-    return "application/pdf";
-  }
-  return null;
-}
+// Decomiso evidence used to have a SECOND whitelist here (raster + PDF, not
+// re-encoded) for the "acta" attachment. It is gone: bucket `event-attachments`
+// (db/migrations/0213) only ever accepted image/jpeg, image/png, image/webp up
+// to 5 MiB, so accepting PDF at the app layer just meant every PDF acta failed
+// at upload after the officer filled the whole form. Decomiso evidence now goes
+// through the same RASTER_IMAGE_TYPES whitelist as every other upload door.
+// Whether the bucket itself should start accepting PDF actas is a pending PO
+// decision, not one this module makes on its own.

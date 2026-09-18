@@ -18,9 +18,10 @@ import {
   notifyCaretakersOfHandoff,
 } from "@/lib/infra/end-pet-ownerships";
 import {
-  type DocumentEvidenceMime,
-  detectDocumentEvidenceMime,
-  documentEvidenceExtension,
+  MAX_IMAGE_BYTES,
+  type RasterMime,
+  detectRasterMime,
+  rasterExtension,
 } from "@/lib/media/validate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -155,28 +156,39 @@ export async function executeDecomisoAction(
   // Type by BYTES, for every file, before ANY upload (A07-4). The client's
   // `file.type` and filename extension decide nothing: the stored content type
   // is the detected one and the object key's extension is derived from it. A
-  // refusal here leaves nothing in the bucket to clean up. The bytes are stored
-  // as they arrived — no re-encode, no metadata strip — because whether the
-  // metadata of seizure evidence is itself evidence is a PO decision not yet
-  // taken (lib/media/validate.ts, "Document evidence").
+  // refusal here leaves nothing in the bucket to clean up.
+  //
+  // Only raster JPG/PNG/WEBP, up to 5 MiB: bucket `event-attachments`
+  // (db/migrations/0213) accepts nothing else, so widening this whitelist
+  // without widening the bucket just moves the failure from "before upload"
+  // to "at upload", after the officer filled the whole form. PDF actas
+  // (and video/HEIC) await a PO decision on the bucket before they can be
+  // accepted here. The bytes are stored as they arrived — no re-encode, no
+  // metadata strip — because whether the metadata of seizure evidence is
+  // itself evidence is a separate PO decision not yet taken.
   const typedFiles: Array<{
     file: File;
     buffer: Buffer;
-    mimeType: DocumentEvidenceMime;
+    mimeType: RasterMime;
   }> = [];
   for (const file of input.attachmentFiles) {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const mimeType = detectDocumentEvidenceMime(buffer);
+    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+      return {
+        error: `"${file.name}" supera el límite de 5 MB.`,
+      };
+    }
+    const mimeType = detectRasterMime(buffer);
     if (!mimeType) {
       return {
-        error: `El archivo "${file.name}" no es una imagen JPG, PNG o WEBP ni un PDF.`,
+        error: `El archivo "${file.name}" no es una imagen JPG, PNG o WEBP.`,
       };
     }
     typedFiles.push({ file, buffer, mimeType });
   }
 
   for (const { file, buffer, mimeType } of typedFiles) {
-    const storagePath = `decomiso/${attachmentDir}/${randomUUID()}.${documentEvidenceExtension(mimeType)}`;
+    const storagePath = `decomiso/${attachmentDir}/${randomUUID()}.${rasterExtension(mimeType)}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(ATTACHMENT_BUCKET)

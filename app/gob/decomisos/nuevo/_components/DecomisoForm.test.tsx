@@ -55,8 +55,8 @@ function fillAndSubmit(container: HTMLElement) {
   fireEvent.change(screen.getByLabelText(/Motivo/), { target: { value: "maltrato_fisico" } });
   fireEvent.click(screen.getByRole("button", { name: /Refugio Patitas/ }));
   const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-  const acta = new File(["acta"], "acta.pdf", { type: "application/pdf" });
-  const foto = new File(["foto"], "foto.pdf", { type: "application/pdf" });
+  const acta = new File(["acta"], "acta.jpg", { type: "image/jpeg" });
+  const foto = new File(["foto"], "foto.jpg", { type: "image/jpeg" });
   fireEvent.change(fileInput, { target: { files: [acta, foto] } });
   fireEvent.click(screen.getByRole("button", { name: "Ejecutar decomiso" }));
 }
@@ -139,5 +139,45 @@ describe("executing a decomiso ends on its receipt", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo registrar.");
     expect(screen.queryByRole("heading", { name: "Decomiso registrado" })).toBeNull();
+  });
+});
+
+describe("attachments only accept what the bucket stores", () => {
+  it("rejects a PDF with the type error, and never calls the action", async () => {
+    const { container } = render(
+      <DecomisoForm
+        receiverOrgs={[RECEIVER]}
+        prefillWelfareReportId={null}
+        prefillWelfareReportRef={null}
+        prefillPetToken={null}
+      />,
+    );
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const acta = new File(["acta"], "acta.pdf", { type: "application/pdf" });
+    fireEvent.change(fileInput, { target: { files: [acta] } });
+
+    expect(
+      await screen.findByText('Tipo no permitido: "acta.pdf". Aceptamos imágenes JPG, PNG o WEBP.'),
+    ).toBeInTheDocument();
+    expect(executeDecomisoAction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file over 5 MB, and never calls the action", async () => {
+    const { container } = render(
+      <DecomisoForm
+        receiverOrgs={[RECEIVER]}
+        prefillWelfareReportId={null}
+        prefillWelfareReportRef={null}
+        prefillPetToken={null}
+      />,
+    );
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "foto.jpg", {
+      type: "image/jpeg",
+    });
+    fireEvent.change(fileInput, { target: { files: [big] } });
+
+    expect(await screen.findByText('"foto.jpg" supera el límite de 5 MB.')).toBeInTheDocument();
+    expect(executeDecomisoAction).not.toHaveBeenCalled();
   });
 });

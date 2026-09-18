@@ -565,11 +565,16 @@ describe("executeDecomisoAction — unowned_animal validation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// A07-4 — evidence is typed by its BYTES, never by what the client declared
+// A07-4 — evidence is typed by its BYTES, never by what the client declared.
+// Only raster JPG/PNG/WEBP, up to 5 MiB: bucket `event-attachments`
+// (db/migrations/0213) accepts nothing else, so a PDF acta or an oversized
+// file must be refused server-side before any upload — PDF is a pending PO
+// decision on the bucket, not something the app layer can widen on its own.
 // ---------------------------------------------------------------------------
 
 describe("executeDecomisoAction — attachment types come from the bytes (A07-4)", () => {
   const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const WEBP_BYTES = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
   // "%PDF-1.7" and a newline.
   const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a]);
   // An HTML page that calls itself a JPEG.
@@ -595,9 +600,40 @@ describe("executeDecomisoAction — attachment types come from the bytes (A07-4)
     ]);
 
     expect(result).toEqual({
-      error: 'El archivo "acta.jpg" no es una imagen JPG, PNG o WEBP ni un PDF.',
+      error: 'El archivo "acta.jpg" no es una imagen JPG, PNG o WEBP.',
     });
     // The valid first file was not uploaded either: nothing to clean up.
+    expect(storageUpload).not.toHaveBeenCalled();
+  });
+
+  it("refuses a PDF acta by its magic bytes, before ANY upload — PDF awaits a PO decision on the bucket", async () => {
+    storageUpload.mockClear();
+
+    const result = await run([
+      new File([JPEG_BYTES], "foto.jpg", { type: "image/jpeg" }),
+      new File([PDF_BYTES], "acta.pdf", { type: "application/pdf" }),
+    ]);
+
+    expect(result).toEqual({
+      error: 'El archivo "acta.pdf" no es una imagen JPG, PNG o WEBP.',
+    });
+    expect(storageUpload).not.toHaveBeenCalled();
+  });
+
+  it("refuses a file over the 5 MiB bucket ceiling, before ANY upload", async () => {
+    storageUpload.mockClear();
+
+    const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
+    oversized.set(JPEG_BYTES);
+
+    const result = await run([
+      new File([JPEG_BYTES], "foto.jpg", { type: "image/jpeg" }),
+      new File([oversized], "grande.jpg", { type: "image/jpeg" }),
+    ]);
+
+    expect(result).toEqual({
+      error: '"grande.jpg" supera el límite de 5 MB.',
+    });
     expect(storageUpload).not.toHaveBeenCalled();
   });
 
@@ -605,16 +641,16 @@ describe("executeDecomisoAction — attachment types come from the bytes (A07-4)
     storageUpload.mockClear();
 
     await run([
-      // A PDF that claims to be an executable, and a JPEG that claims to be a PNG.
-      new File([PDF_BYTES], "acta.exe", { type: "application/octet-stream" }),
+      // A WEBP that claims to be an executable, and a JPEG that claims to be a PNG.
+      new File([WEBP_BYTES], "acta.exe", { type: "application/octet-stream" }),
       new File([JPEG_BYTES], "foto.png", { type: "image/png" }),
     ]);
 
     expect(storageUpload).toHaveBeenCalledTimes(2);
-    const [pdfPath, , pdfOpts] = storageUpload.mock.calls[0];
+    const [webpPath, , webpOpts] = storageUpload.mock.calls[0];
     const [jpegPath, , jpegOpts] = storageUpload.mock.calls[1];
-    expect(pdfPath).toMatch(/^decomiso\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.pdf$/);
-    expect(pdfOpts).toEqual({ contentType: "application/pdf" });
+    expect(webpPath).toMatch(/^decomiso\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.webp$/);
+    expect(webpOpts).toEqual({ contentType: "image/webp" });
     expect(jpegPath).toMatch(/^decomiso\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/);
     expect(jpegOpts).toEqual({ contentType: "image/jpeg" });
   });
@@ -624,11 +660,11 @@ describe("executeDecomisoAction — attachment types come from the bytes (A07-4)
 
     await run([
       new File([JPEG_BYTES], "foto.jpg", { type: "image/jpeg" }),
-      new File([PDF_BYTES], "acta.pdf", { type: "application/pdf" }),
+      new File([WEBP_BYTES], "acta.webp", { type: "image/webp" }),
     ]);
 
     const stored = storageUpload.mock.calls.map(([, body]) => [...(body as Buffer)]);
-    expect(stored).toEqual([[...JPEG_BYTES], [...PDF_BYTES]]);
+    expect(stored).toEqual([[...JPEG_BYTES], [...WEBP_BYTES]]);
   });
 });
 
