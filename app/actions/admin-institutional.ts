@@ -38,7 +38,7 @@ export type { ResetCredentialsResult } from "@/src/modules/organizations/applica
 // ---------------------------------------------------------------------------
 
 export async function createInstitutionalAccountAction(input: {
-  role: "govt" | "admin";
+  role: "govt" | "admin" | "national";
   email: string;
   displayName: string;
   initialLocalities: { province: string; locality: string }[];

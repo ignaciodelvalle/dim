@@ -2,6 +2,11 @@
 
 // Client component for the create-govt form.
 // On success, renders MagicLinkResultPanel instead of redirecting.
+//
+// Two kinds of account are born here (pilot T1-P9): a municipal official
+// (`govt`, writes inside its localities) and a national observer (`national`,
+// reads the whole country and writes nothing). The observer takes no
+// localities, so the picker disappears when it is chosen.
 
 import { useRef, useState } from "react";
 
@@ -21,15 +26,33 @@ type LocalityEntry = {
   locality: string;
 };
 
+/** The two roles this screen creates, with the copy that explains each. */
+export const GOVT_SCREEN_ROLES = [
+  {
+    value: "govt",
+    label: "Funcionario municipal",
+    hint: "Opera en las localidades que le asignes: cola, denuncias, decomisos, reglas de su jurisdicción.",
+  },
+  {
+    value: "national",
+    label: "Observador nacional (solo lectura)",
+    hint: "Ve el portal de gobierno con alcance de todo el país. No puede aprobar, denunciar, decomisar ni cambiar nada, y no lleva localidades.",
+  },
+] as const;
+
+type GovtScreenRole = (typeof GOVT_SCREEN_ROLES)[number]["value"];
+
 type SuccessState = {
   profileId: string;
   magicLink: string;
   displayName: string;
   email: string;
   inviteEmailSent: boolean;
+  role: GovtScreenRole;
 };
 
 export function CreateGovtForm() {
+  const [role, setRole] = useState<GovtScreenRole>("govt");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [localities, setLocalities] = useState<LocalityEntry[]>([
@@ -68,10 +91,10 @@ export function CreateGovtForm() {
 
     try {
       const result = await createInstitutionalAccountAction({
-        role: "govt",
+        role,
         email: email.trim(),
         displayName: displayName.trim(),
-        initialLocalities: validLocalities,
+        initialLocalities: role === "national" ? [] : validLocalities,
       });
 
       if ("error" in result) {
@@ -83,8 +106,11 @@ export function CreateGovtForm() {
           displayName: displayName.trim(),
           email: email.trim(),
           inviteEmailSent: result.inviteEmailSent,
+          role,
         });
-        notifySaved("Cuenta de gobierno creada");
+        notifySaved(
+          role === "national" ? "Observador nacional creado" : "Cuenta de gobierno creada",
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
@@ -95,6 +121,7 @@ export function CreateGovtForm() {
 
   function handleCreateAnother() {
     setSuccess(null);
+    setRole("govt");
     setEmail("");
     setDisplayName("");
     setLocalities([{ id: 0, provinceName: "", locality: "" }]);
@@ -109,7 +136,13 @@ export function CreateGovtForm() {
         displayName={success.displayName}
         email={success.email}
         profileId={success.profileId}
-        detailPath={`/admin/govts/${success.profileId}`}
+        // A national observer has no /admin/govts/[id] page (that one is
+        // govt-only); the user directory is where the account shows up.
+        detailPath={
+          success.role === "national"
+            ? "/admin/directorio?registro=usuarios"
+            : `/admin/govts/${success.profileId}`
+        }
         variant="create"
         inviteEmailSent={success.inviteEmailSent}
         onCreateAnother={handleCreateAnother}
@@ -120,6 +153,28 @@ export function CreateGovtForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
+        <fieldset className="space-y-2">
+          <legend className="text-md font-medium text-ln-op-ink">Tipo de cuenta</legend>
+          <div className="flex flex-col gap-3 pt-1">
+            {GOVT_SCREEN_ROLES.map((r) => (
+              <label key={r.value} className="flex items-start gap-2 text-md cursor-pointer">
+                <input
+                  type="radio"
+                  name="role"
+                  value={r.value}
+                  checked={role === r.value}
+                  onChange={() => setRole(r.value)}
+                  className="mt-1 accent-ln-op-azul"
+                />
+                <span>
+                  <span className="block text-ln-op-ink">{r.label}</span>
+                  <span className="block text-sm text-ln-op-mute">{r.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-ln-op-ink-2 mb-1">
             Email{" "}
@@ -155,48 +210,50 @@ export function CreateGovtForm() {
           />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="block text-sm font-medium text-ln-op-ink-2">Localidades iniciales</p>
-            <button
-              type="button"
-              onClick={addLocality}
-              className="text-sm text-ln-op-azul hover:text-ln-op-azul-700 underline underline-offset-4"
-            >
-              + Agregar localidad
-            </button>
-          </div>
-          <p className="text-sm text-ln-op-mute mb-3">
-            Opcional. Se pueden asignar más localidades luego desde la página del operador.
-          </p>
-          <div className="space-y-2">
-            {localities.map((l) => (
-              <div key={l.id} className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <LocalityPickerAcross
-                    defaultValue={{
-                      provinceName: l.provinceName || null,
-                      localityName: l.locality || null,
-                    }}
-                    onSelect={(r) =>
-                      setLocalityPick(l.id, r?.provinceName ?? "", r?.localityName ?? "")
-                    }
-                  />
+        {role === "govt" && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="block text-sm font-medium text-ln-op-ink-2">Localidades iniciales</p>
+              <button
+                type="button"
+                onClick={addLocality}
+                className="text-sm text-ln-op-azul hover:text-ln-op-azul-700 underline underline-offset-4"
+              >
+                + Agregar localidad
+              </button>
+            </div>
+            <p className="text-sm text-ln-op-mute mb-3">
+              Opcional. Se pueden asignar más localidades luego desde la página del operador.
+            </p>
+            <div className="space-y-2">
+              {localities.map((l) => (
+                <div key={l.id} className="flex gap-2 items-start">
+                  <div className="flex-1">
+                    <LocalityPickerAcross
+                      defaultValue={{
+                        provinceName: l.provinceName || null,
+                        localityName: l.locality || null,
+                      }}
+                      onSelect={(r) =>
+                        setLocalityPick(l.id, r?.provinceName ?? "", r?.localityName ?? "")
+                      }
+                    />
+                  </div>
+                  {localities.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeLocality(l.id)}
+                      className="text-ln-op-mute hover:text-ln-op-danger text-sm px-2 py-2"
+                      aria-label="Quitar localidad"
+                    >
+                      &times;
+                    </button>
+                  )}
                 </div>
-                {localities.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeLocality(l.id)}
-                    className="text-ln-op-mute hover:text-ln-op-danger text-sm px-2 py-2"
-                    aria-label="Quitar localidad"
-                  >
-                    &times;
-                  </button>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {error && (
@@ -207,7 +264,11 @@ export function CreateGovtForm() {
 
       <div className="flex gap-3">
         <OpButton type="submit" disabled={loading} loading={loading} variant="primary">
-          {loading ? "Creando..." : "Crear cuenta de gobierno"}
+          {loading
+            ? "Creando..."
+            : role === "national"
+              ? "Crear observador nacional"
+              : "Crear cuenta de gobierno"}
         </OpButton>
         {/* Straight to the hub tab (privileged-accounts fusion 2026-08-02) —
             /admin/govts is redirect-only now, no reason to pay the hop. */}

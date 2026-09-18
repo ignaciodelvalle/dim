@@ -1,6 +1,6 @@
 // Use-case: createInstitutionalAccountForAuthority
 //
-// Creates a new institutional account (govt or admin) with:
+// Creates a new institutional account (govt, admin or national) with:
 //   1. Zod validation
 //   2. Capability check (admin only)
 //   3. Pre-flight duplicate email check via auth admin SDK
@@ -43,7 +43,10 @@ const localitySchema = z.object({
 });
 
 const createInstitutionalSchema = z.object({
-  role: z.enum(["govt", "admin"]),
+  // `national` (pilot T1-P9): the read-only, country-wide observer role
+  // (migration 0214). It holds no govt_assignments — its read scope is
+  // universal by role — so initial localities are refused rather than dropped.
+  role: z.enum(["govt", "admin", "national"]),
   email: z.email("Invalid email address"),
   displayName: z
     .string()
@@ -53,6 +56,13 @@ const createInstitutionalSchema = z.object({
   initialLocalities: z.array(localitySchema),
 });
 
+/** One audit action per role, so a filter by action never mixes them up. */
+const INSTITUTIONAL_CREATED_ACTION = {
+  govt: "institutional_govt_created",
+  admin: "institutional_admin_created",
+  national: "institutional_national_created",
+} as const;
+
 // ---------------------------------------------------------------------------
 // Use-case
 // ---------------------------------------------------------------------------
@@ -60,7 +70,7 @@ const createInstitutionalSchema = z.object({
 export async function createInstitutionalAccountForAuthority(
   actorUserId: string,
   input: {
-    role: "govt" | "admin";
+    role: "govt" | "admin" | "national";
     email: string;
     displayName: string;
     initialLocalities: { province: string; locality: string }[];
@@ -73,6 +83,12 @@ export async function createInstitutionalAccountForAuthority(
     return { error: `VALIDATION_ERROR: ${firstError.message}` };
   }
   const { role, email, displayName, initialLocalities } = parsed.data;
+  if (role === "national" && initialLocalities.length > 0) {
+    return {
+      error:
+        "VALIDATION_ERROR: Un observador nacional no lleva localidades: lee todo el país por su rol.",
+    };
+  }
 
   // 1.5 Resolve each initial locality through the canonical catalog before
   // touching auth or the DB. Bad data fails fast with a clear message — no
@@ -192,7 +208,7 @@ export async function createInstitutionalAccountForAuthority(
       // c. Insert audit_log
       await tx.insert(auditLog).values({
         actorUserId,
-        action: role === "admin" ? "institutional_admin_created" : "institutional_govt_created",
+        action: INSTITUTIONAL_CREATED_ACTION[role],
         targetUserId: authUserId,
         payload: {
           role,

@@ -1613,3 +1613,79 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
     ).toEqual({ error: FIRST_ACCESS_MESSAGES.no_session });
   });
 });
+
+// ============================================================================
+// Pilot T1-P9 — a national observer is created from /admin/govts/new
+// ============================================================================
+
+describe("createInstitutionalAccountForAuthority — T1-P9 national observer", () => {
+  const NATIONAL_EMAIL = "t1p9-national@dim-test.local";
+
+  beforeAll(() => {
+    createdNewUserEmails.push(NATIONAL_EMAIL);
+  });
+
+  it("creates an institutional national with no assignments and its own audit action", async () => {
+    await deleteTestUser(NATIONAL_EMAIL);
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "national",
+      email: NATIONAL_EMAIL,
+      displayName: "Observador Nacional T1P9",
+      initialLocalities: [],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    const [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, result.profileId))
+      .limit(1);
+    expect(profile.role).toBe("national");
+    expect(profile.accountType).toBe("institutional");
+
+    const assignments = await db
+      .select()
+      .from(govtAssignments)
+      .where(eq(govtAssignments.userId, result.profileId));
+    expect(assignments).toHaveLength(0);
+
+    const [logRow] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.targetUserId, result.profileId), eq(auditLog.actorUserId, actorUserId)),
+      )
+      .limit(1);
+    expect(logRow.action).toBe("institutional_national_created");
+    expect((logRow.payload as Record<string, unknown>).role).toBe("national");
+  });
+
+  it("refuses initial localities for a national and creates nothing", async () => {
+    await deleteTestUser(NATIONAL_EMAIL);
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "national",
+      email: NATIONAL_EMAIL,
+      displayName: "Observador Nacional T1P9",
+      initialLocalities: [{ province: "Buenos Aires", locality: "La Plata" }],
+    });
+
+    expect(result).toEqual({
+      error:
+        "VALIDATION_ERROR: Un observador nacional no lleva localidades: lee todo el país por su rol.",
+    });
+    const { data: list } = await adminSdk.auth.admin.listUsers({ perPage: 200 });
+    expect(list?.users.some((u) => u.email === NATIONAL_EMAIL)).toBe(false);
+  });
+
+  it("is still created by admins only", async () => {
+    const result = await createInstitutionalAccountForAuthority(govtActorUserId, {
+      role: "national",
+      email: NATIONAL_EMAIL,
+      displayName: "Observador Nacional T1P9",
+      initialLocalities: [],
+    });
+    expect(result).toEqual({ error: "CAPABILITY_DENIED" });
+  });
+});
