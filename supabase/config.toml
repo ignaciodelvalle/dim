@@ -325,6 +325,15 @@ timebox = "720h"
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
+# Every MFA factor verification — through the app or straight to GoTrue — goes
+# through this function (migration 0232): a per-account ceiling on wrong codes
+# and a freshness rule for enrolling a new factor. Hosted Supabase offers this
+# hook on Teams / Enterprise only; see docs/pilotos/onboarding-municipio.md §3.1.
+# Changing it needs a restart of the local stack.
+[auth.hook.mfa_verification_attempt]
+enabled = true
+uri = "pg-functions://postgres/public/hook_mfa_verification_attempt"
+
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
 enabled = false

@@ -24,6 +24,14 @@
 // The code is spent against a per-account budget before GoTrue sees it: six
 // digits are a million guesses, and GoTrue's own per-IP ceiling keys on OUR
 // egress address, shared by every operator in the country.
+//
+// THIS BUDGET ONLY SEES THE APP. Someone holding the password can post codes
+// straight to GoTrue's /factors/{id}/verify and never pass through here. The
+// ceiling that binds that path lives in the database: the MFA verification
+// attempt hook (migration 0232 — 10 misses an hour, 20 a day, per account;
+// supabase/config.toml locally, a Teams/Enterprise feature on hosted Supabase).
+// Where the hook is not enabled, the direct path is bounded only by GoTrue's
+// per-IP limit — a documented residual, not a covered one.
 
 import QRCode from "qrcode";
 

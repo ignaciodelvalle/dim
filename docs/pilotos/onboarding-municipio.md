@@ -194,6 +194,21 @@ Qué tiene que tener encendido el proyecto de Supabase (lo toca el PO, ver
 TOTP** habilitado para enrolar y verificar (viene encendido por defecto en
 proyectos hospedados; confirmalo), y **Secure password change** encendido.
 
+**Tope de intentos del código — decisión del PO.** La web cuenta los códigos
+que pasan por ella (5 por minuto, 30 por hora, por cuenta). Pero quien tenga
+la contraseña puede mandar códigos directo a Supabase sin pasar por la web, y
+ahí el único tope que corre sin configurar nada es por IP. El tope por cuenta
+que sí lo cubre es el hook **Authentication → Hooks → MFA Verification
+Attempt** apuntando a la función `public.hook_mfa_verification_attempt`
+(migración 0232): 10 códigos incorrectos por hora o 20 por día y la cuenta
+queda bloqueada hasta que pase la ventana (y se cierran sus sesiones); además
+no deja terminar de configurar una app nueva si la cuenta no inició sesión en
+los últimos 15 minutos. **Ese hook sólo existe en los planes Teams y
+Enterprise de Supabase**; en Pro la función queda creada pero nadie la llama.
+Localmente está encendido (`supabase/config.toml`). El bloqueo lo puede
+provocar un atacante a propósito, pero para eso ya necesita la contraseña: en
+ese caso bloquear es lo correcto y la salida es "Restablecer segundo factor".
+
 ## 4. Aprobar veterinarios y organizaciones — `/gob/cola`
 
 Una vez que la persona entró, puede operar la cola de aprobaciones de su
