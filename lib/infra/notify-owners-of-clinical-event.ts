@@ -45,6 +45,35 @@ export type ClinicalEventNotifyInput = {
   authorUserId: string;
   /** How the signer is named to the owner (e.g. the clinic / refugio name). */
   authorLabel: string;
+  /**
+   * OPTIONAL — the words, when "a new record in the libreta" is not the whole
+   * truth. See ClinicalEventOwnerNotice. Omitted by every clinical writer.
+   */
+  notice?: ClinicalEventOwnerNotice;
+};
+
+/**
+ * The notice itself, for the one walk-in act whose news is not "a new record":
+ * the close of a rabies observation (Ley 22.953). Its owner notice has to carry
+ * the RESULT, has to be urgent for a confirmed rabies, and cannot promise "abrí
+ * el registro para corregirlo" — a rabies close is not an event the owner can
+ * amend. It also needs its own notificationType: under the shared
+ * `clinical_event_recorded` the inbox would fold a confirmed rabies behind
+ * "+ N más del mismo tipo" with the vaccines of the same consultation.
+ *
+ * ONLY THE WORDS CHANGE. Who receives it (every active owner and co-owner), the
+ * third-party rule, the deep link to the event and the durable write with a
+ * deterministic dedupe key stay this helper's — which is the point of routing
+ * the close through here instead of beside it. The body is the caller's, so the
+ * caller is the one who must name the clinic; the veterinary close does, and
+ * its action test pins it.
+ */
+export type ClinicalEventOwnerNotice = {
+  notificationType: string;
+  severity: "info" | "urgent";
+  title: string;
+  body: string;
+  relatedCaseId: string | null;
 };
 
 export type ClinicalEventNotifyDeps = {
@@ -97,6 +126,26 @@ export async function notifyOwnersOfClinicalEvent(
 
     let delivered = 0;
     for (const userId of recipients) {
+      if (input.notice) {
+        const res = await deps.createNotification({
+          userId,
+          notificationType: input.notice.notificationType,
+          category: "health",
+          severity: input.notice.severity,
+          title: input.notice.title,
+          body: input.notice.body,
+          ctaLabel: "Ver el registro",
+          ctaUrl: `/mis-mascotas/${input.petPublicToken}/eventos/${input.eventId}`,
+          relatedPetId: input.petId,
+          relatedEventId: input.eventId,
+          relatedCaseId: input.notice.relatedCaseId,
+          // Keyed on the event AND the type, so it can never collide with the
+          // generic notice's key for the same event.
+          dedupeKey: `event:${input.eventId}:${userId}:${input.notice.notificationType}`,
+        });
+        if (res.status === "inserted") delivered += 1;
+        continue;
+      }
       const res = await deps.createNotification({
         userId,
         // NOISE: one notification per event, deliberately — the inbox already

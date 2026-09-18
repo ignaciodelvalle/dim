@@ -28,7 +28,10 @@
 // scope the moment it is written.
 
 import type { EventType } from "@/db";
-import { notifyOwnersOfClinicalEvent } from "@/lib/infra/notify-owners-of-clinical-event";
+import {
+  type ClinicalEventOwnerNotice,
+  notifyOwnersOfClinicalEvent,
+} from "@/lib/infra/notify-owners-of-clinical-event";
 import type { EventFormState } from "@/src/modules/events/actions";
 
 export type AtenderSignatureCompletion = {
@@ -48,6 +51,14 @@ export type AtenderSignatureCompletion = {
   eventId: string | null;
   eventType: EventType;
   occurredAt: Date;
+  /**
+   * OPTIONAL — the owner notice's words, for the walk-in act whose news is not
+   * "a new record": the veterinary close of a rabies observation (2026-09-18).
+   * It changes WHAT the owner reads and nothing else — recipients, the
+   * third-party rule and the durable write stay the ones every writer gets. See
+   * ClinicalEventOwnerNotice.
+   */
+  ownerNotice?: ClinicalEventOwnerNotice;
 };
 
 /** The redirect target for a signed walk-in event — the `?firmado=1` receipt. */
@@ -80,6 +91,7 @@ export async function completeAtenderSignature(
       occurredAt: input.occurredAt,
       authorUserId: input.signerUserId,
       authorLabel: input.organizationName,
+      notice: input.ownerNotice,
     });
   }
 

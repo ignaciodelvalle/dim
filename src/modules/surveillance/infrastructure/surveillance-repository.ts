@@ -292,10 +292,17 @@ export class SurveillanceRepository {
   }
 
   /**
-   * Insert a rabies_observation_ended event.
+   * Insert a rabies_observation_ended event. Returns its id: the veterinary
+   * close hands it to the walk-in completion, which links the owner's notice
+   * to the act and keys that notice's idempotency on it.
    */
-  async insertObservationEnded(values: NewPetEvent, executor: DbOrTx = db): Promise<void> {
-    await executor.insert(petEvents).values(values);
+  async insertObservationEnded(
+    values: NewPetEvent,
+    executor: DbOrTx = db,
+  ): Promise<{ id: string }> {
+    const [row] = await executor.insert(petEvents).values(values).returning({ id: petEvents.id });
+    if (!row) throw new Error("SurveillanceRepository.insertObservationEnded: no rows returned");
+    return row;
   }
 
   /**

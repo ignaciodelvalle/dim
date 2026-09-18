@@ -93,7 +93,43 @@ export type ProfessionalCloseObservationInput = {
      * valor de esa firma. El paso 4 lo exige en vez de confiar en el llamador.
      */
     organizationId?: string;
+    /**
+     * Veterinary path only, and REQUIRED there like `organizationId`: how that
+     * organization is named to the owner. A walk-in close is written by a clinic
+     * that holds no custody of the animal, and naming it to the owner is the
+     * only mitigation the PO accepted for that (detection, not prevention).
+     */
+    organizationName?: string;
   };
+};
+
+/**
+ * What the owner is told about the close, as CONTENT rather than rows.
+ *
+ * Structurally the walk-in completion's owner-notice override
+ * (lib/infra/notify-owners-of-clinical-event.ts), which is who delivers it on
+ * the veterinary path: to EVERY active owner and co-owner, through the durable
+ * notification service, linked to the ended event.
+ */
+export type ProfessionalCloseOwnerNotice = {
+  notificationType: "rabies_observation_completed_professional_owner";
+  severity: "info" | "urgent";
+  title: string;
+  body: string;
+  relatedCaseId: string | null;
+};
+
+export type ProfessionalCloseObservationValue = {
+  /** The `rabies_observation_ended` row this close appended. */
+  endedEventId: string;
+  /** When the close happened — the ended event's occurredAt. */
+  closedAt: Date;
+  /**
+   * The owner's notice, for the VETERINARY path only, which delivers it through
+   * the walk-in completion. Null for the State's paths, whose owner notice still
+   * travels in `notifications` exactly as before.
+   */
+  ownerNotice: ProfessionalCloseOwnerNotice | null;
 };
 
 type Deps = {
@@ -124,7 +160,7 @@ type Deps = {
   }) => Promise<string[]>;
 };
 
-export type ProfessionalCloseObservationResult = UseCaseResult<void>;
+export type ProfessionalCloseObservationResult = UseCaseResult<ProfessionalCloseObservationValue>;
 
 /**
  * Cómo se nombra a quien cerró, en el aviso que lee el dueño.
@@ -204,7 +240,9 @@ export async function professionalCloseObservation(
   // profesional verificado sin decir de qué clínica pierde la mitad de su valor
   // — y este caso de uso no puede distinguir "el llamador se la olvidó" de "no
   // había ninguna". Falla cerrado.
-  if (actor.profile.role === "vet" && !actor.organizationId) {
+  // The name fails closed for the same reason: the owner's notice on this path
+  // exists to say WHICH clinic wrote on their animal.
+  if (actor.profile.role === "vet" && (!actor.organizationId || !actor.organizationName)) {
     return {
       ok: false,
       error: "Falta la organización del profesional que cierra la observación.",
@@ -257,9 +295,33 @@ export async function professionalCloseObservation(
 
   const biteCase = await repo.findOpenBiteCase(pet.id);
   const pendingNotifications: NewNotification[] = [];
+  const esVet = actor.profile.role === "vet";
 
+  // What the owner is told. QUIÉN CERRÓ, dicho bien: esto era un ternario de
+  // dos ramas —administrador o autoridad sanitaria— y al entrar el veterinario
+  // habría dicho "una autoridad sanitaria" sobre un cierre hecho por su
+  // veterinario, una afirmación falsa al dueño acerca de quién actuó en el
+  // registro legal de su animal.
+  //
+  // On the veterinary path the notice NAMES THE CLINIC and ends with the
+  // owner's recourse, as every walk-in notice does: a clinic without custody
+  // wrote on the animal, and telling the owner who did is the mitigation the PO
+  // accepted. The recourse is the sanitary authority and not "corregir el
+  // registro": a rabies close is not an event the owner can amend.
+  const quienCerro = esVet
+    ? `${ACTOR_PROSE.vet} de ${actor.organizationName}`
+    : ACTOR_PROSE[actor.profile.role];
+  const ownerNotice: ProfessionalCloseOwnerNotice = {
+    notificationType: "rabies_observation_completed_professional_owner",
+    severity: input.outcome === "positive_rabies" ? "urgent" : "info",
+    title: `Observación cerrada profesionalmente — ${pet.name}`,
+    body: `La observación antirrábica de ${pet.name} fue cerrada por ${quienCerro} con ${rabiesObservationOutcomeLabel(input.outcome)}.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}${esVet ? " Si no reconocés esta atención, avisá a la autoridad sanitaria de tu localidad." : ""}`,
+    relatedCaseId: biteCase?.id ?? null,
+  };
+
+  let endedEventId: string;
   try {
-    await transaction(async (tx) => {
+    endedEventId = await transaction(async (tx) => {
       // 7. Insert rabies_observation_ended.
       const endedPayload = validateEventPayload("rabies_observation_ended", {
         bite_event_id: biteEventId,
@@ -281,8 +343,7 @@ export async function professionalCloseObservation(
       // como profesional verificado, o sea con la matrícula del FIRMANTE
       // validada (keystone #43). Una organización verificada cuyo miembro no es
       // matriculado no llega.
-      const esVet = actor.profile.role === "vet";
-      await repo.insertObservationEnded(
+      const ended = await repo.insertObservationEnded(
         {
           petId: pet.id,
           eventType: "rabies_observation_ended",
@@ -349,32 +410,28 @@ export async function professionalCloseObservation(
         );
       }
 
-      // 10. Notify the active owner.
-      const activeOwnership = await repo.findActiveOwnership(
-        pet.id,
-        tx as Parameters<typeof repo.findActiveOwnership>[1],
-      );
-      if (activeOwnership?.ownerUserId) {
-        const notifSeverity =
-          input.outcome === "positive_rabies" ? ("urgent" as const) : ("info" as const);
-        pendingNotifications.push({
-          userId: activeOwnership.ownerUserId,
-          notificationType: "rabies_observation_completed_professional_owner",
-          severity: notifSeverity,
-          title: `Observación cerrada profesionalmente — ${pet.name}`,
-          // QUIÉN CERRÓ, dicho bien. Esto era un ternario de dos ramas —
-          // administrador o autoridad sanitaria— y al entrar el veterinario
-          // habría dicho "una autoridad sanitaria" sobre un cierre hecho por su
-          // veterinario: una afirmación falsa al dueño acerca de quién actuó en
-          // el registro legal de su animal, en la única notificación que va a
-          // leer sobre el tema.
-          body: `La observación antirrábica de ${pet.name} fue cerrada por ${ACTOR_PROSE[actor.profile.role]} con ${rabiesObservationOutcomeLabel(input.outcome)}.${input.closureNotes ? ` Notas: ${input.closureNotes}` : ""}`,
-          relatedPetId: pet.id,
-          relatedCaseId: biteCase?.id ?? null,
-          ctaLabel: "Ver mascota",
-          ctaUrl: `/mis-mascotas/${pet.publicToken}`,
-        });
+      // 10. The State's paths notify the active owner here, as before. The
+      // veterinary path does NOT: its notice goes back as content
+      // (`value.ownerNotice`) and the walk-in completion delivers it to every
+      // active owner and co-owner — not the single `role = 'owner'` row this
+      // lookup returns — through the durable notification service.
+      if (!esVet) {
+        const activeOwnership = await repo.findActiveOwnership(
+          pet.id,
+          tx as Parameters<typeof repo.findActiveOwnership>[1],
+        );
+        if (activeOwnership?.ownerUserId) {
+          pendingNotifications.push({
+            userId: activeOwnership.ownerUserId,
+            ...ownerNotice,
+            relatedPetId: pet.id,
+            ctaLabel: "Ver mascota",
+            ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+          });
+        }
       }
+
+      return ended.id;
     });
   } catch (err) {
     // NEVER surface a raw zod / internal error to the operator (spec: friendly
@@ -420,5 +477,9 @@ export async function professionalCloseObservation(
     }
   }
 
-  return { ok: true, value: undefined, notifications: pendingNotifications };
+  return {
+    ok: true,
+    value: { endedEventId, closedAt: now, ownerNotice: esVet ? ownerNotice : null },
+    notifications: pendingNotifications,
+  };
 }

@@ -17,6 +17,7 @@ type FakeRepo = Partial<Record<keyof SurveillanceRepository, ReturnType<typeof v
 
 const FAKE_BITE_ID = "a0000000-0000-4000-8000-000000000005";
 const FAKE_STARTED_ID = "a0000000-0000-4000-8000-000000000006";
+const FAKE_ENDED_ID = "a0000000-0000-4000-8000-000000000007";
 
 function makeStartedEvent(): PetEvent {
   return {
@@ -55,7 +56,7 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
     }),
     findLatestObservationStarted: vi.fn().mockResolvedValue(makeStartedEvent()),
     findOpenBiteCase: vi.fn().mockResolvedValue({ id: "case-2" }),
-    insertObservationEnded: vi.fn().mockResolvedValue(undefined),
+    insertObservationEnded: vi.fn().mockResolvedValue({ id: FAKE_ENDED_ID }),
     setObservationStatus: vi.fn().mockResolvedValue(undefined),
     // Por defecto GANA la carrera: devuelve true. Los tests que quieren
     // ejercitar al perdedor lo sobreescriben con false.
@@ -103,6 +104,7 @@ const VET_ACTOR = {
   profile: { id: "vet-user-1", role: "vet" as const },
   jurisdictions: [] as Array<{ province: string; locality: string }>,
   organizationId: "org-vet-1",
+  organizationName: "Veterinaria San Roque",
 };
 
 const BASE_INPUT: ProfessionalCloseObservationInput = {
@@ -487,11 +489,11 @@ describe("professionalCloseObservation — veterinario", () => {
     expect(deps.repo.closeObservationIfOpen).not.toHaveBeenCalled();
   });
 
-  it("al dueño se le dice que cerró su VETERINARIO, no una autoridad sanitaria", async () => {
+  it("al dueño se le dice que cerró su VETERINARIO, y DE QUÉ CLÍNICA", async () => {
     // Era un ternario de dos ramas. Con el veterinario adentro habría dicho "una
-    // autoridad sanitaria" sobre un cierre hecho por el veterinario: una
-    // afirmación falsa al dueño sobre quién actuó en el registro legal de su
-    // animal, en la única notificación que va a leer del tema.
+    // autoridad sanitaria" sobre un cierre hecho por el veterinario. Y en la
+    // puerta de walk-in no alcanza con "un veterinario": una clínica sin custodia
+    // escribió sobre el animal, y nombrarla es la mitigación que aceptó el PO.
     const deps = makeDeps({
       findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
     });
@@ -499,20 +501,80 @@ describe("professionalCloseObservation — veterinario", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const aviso = result.notifications.find(
-      (n) => n.notificationType === "rabies_observation_completed_professional_owner",
+    expect(result.value.ownerNotice).toEqual({
+      notificationType: "rabies_observation_completed_professional_owner",
+      severity: "info",
+      title: "Observación cerrada profesionalmente — Luna",
+      body: "La observación antirrábica de Luna fue cerrada por un veterinario matriculado de Veterinaria San Roque con resultado negativo (animal sano). Si no reconocés esta atención, avisá a la autoridad sanitaria de tu localidad.",
+      relatedCaseId: "case-2",
+    });
+  });
+
+  it("el aviso del veterinario NO viaja como fila a un solo dueño: lo entrega el walk-in a todos", async () => {
+    // `findActiveOwnership` devuelve UNA fila `role = 'owner'`. Por esta puerta
+    // el aviso vuelve como contenido y la finalización de Atender lo entrega a
+    // cada dueño y co-dueño activo. Si alguien lo vuelve a empujar como fila
+    // acá, el co-dueño deja de enterarse y esto se pone rojo.
+    const deps = makeDeps({
+      findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+    });
+    const result = await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(deps.repo.findActiveOwnership).not.toHaveBeenCalled();
+    expect(
+      result.notifications.some(
+        (n) => n.notificationType === "rabies_observation_completed_professional_owner",
+      ),
+    ).toBe(false);
+  });
+
+  it("devuelve el evento que asentó y cuándo, que es lo que el walk-in necesita", async () => {
+    const deps = makeDeps();
+    const result = await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.endedEventId).toBe(FAKE_ENDED_ID);
+    const [row] = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(result.value.closedAt).toBe(row.occurredAt);
+  });
+
+  it("FALLA CERRADO sin el nombre de la organización, que es lo que el dueño lee", async () => {
+    const deps = makeDeps();
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, actor: { ...VET_ACTOR, organizationName: undefined } },
+      deps,
     );
-    expect(aviso?.body).toContain("un veterinario matriculado");
-    expect(aviso?.body).not.toContain("autoridad sanitaria");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/organización/i);
+    expect(deps.repo.insertObservationEnded).not.toHaveBeenCalled();
+  });
+
+  it("el Estado sigue avisando como antes: fila al dueño, sin contenido aparte", async () => {
+    // El control de los tres casos anteriores: la puerta del Estado no cambió.
+    for (const actor of [ADMIN_ACTOR, GOVT_IN_JURISDICTION]) {
+      const deps = makeDeps({
+        findActiveOwnership: vi.fn().mockResolvedValue({ ownerUserId: "owner-1" }),
+      });
+      const result = await professionalCloseObservation({ ...BASE_INPUT, actor }, deps);
+      expect(result.ok, actor.profile.role).toBe(true);
+      if (!result.ok) continue;
+      expect(result.value.ownerNotice, actor.profile.role).toBeNull();
+      const aviso = result.notifications.find(
+        (n) => n.notificationType === "rabies_observation_completed_professional_owner",
+      );
+      expect(aviso?.userId, actor.profile.role).toBe("owner-1");
+      expect(aviso?.body, actor.profile.role).not.toContain("Si no reconocés");
+    }
   });
 
   it("y a cada actor se lo nombra distinto, que es para lo que existe el mapa", async () => {
-    const esperado: Array<
-      [typeof VET_ACTOR | typeof ADMIN_ACTOR | typeof GOVT_IN_JURISDICTION, string]
-    > = [
-      [ADMIN_ACTOR, "un administrador"],
-      [GOVT_IN_JURISDICTION, "una autoridad sanitaria"],
-      [VET_ACTOR, "un veterinario matriculado"],
+    const esperado: Array<[typeof ADMIN_ACTOR | typeof GOVT_IN_JURISDICTION, string]> = [
+      [ADMIN_ACTOR, "fue cerrada por un administrador con"],
+      [GOVT_IN_JURISDICTION, "fue cerrada por una autoridad sanitaria con"],
     ];
 
     for (const [actor, frase] of esperado) {
@@ -527,6 +589,14 @@ describe("professionalCloseObservation — veterinario", () => {
       );
       expect(aviso?.body, `${actor.profile.role}`).toContain(frase);
     }
+
+    const deps = makeDeps();
+    const result = await professionalCloseObservation({ ...BASE_INPUT, actor: VET_ACTOR }, deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ownerNotice?.body).toContain(
+      "fue cerrada por un veterinario matriculado de Veterinaria San Roque con",
+    );
   });
 
   it("un positivo escala a la autoridad IGUAL que si cerrara el Estado", async () => {

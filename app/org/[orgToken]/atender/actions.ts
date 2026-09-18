@@ -43,11 +43,11 @@ import { createVaccination } from "@/src/modules/events/application/medical/vacc
 import { CLINICAL_SUB_KINDS } from "@/src/modules/events/domain/enums";
 import { revalidatePath } from "next/cache";
 
-import { flushNotifications } from "@/src/modules/events/application/writers";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { closeCase } from "@/lib/infra/case-helpers";
+import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { professionalCloseObservation } from "@/src/modules/surveillance/application/professional-close-observation";
 import type { RabiesObservationOutcome } from "@/src/modules/surveillance/domain/rabies-observation";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
@@ -846,16 +846,17 @@ export async function atenderSterilizationAction(
 //
 // NO DUPLICA LA LÓGICA DEL CIERRE. Delega en el mismo caso de uso que usa el
 // Estado, así que la carrera de cierres concurrentes, la guarda adentro del
-// UPDATE, el fan-out a la autoridad ante un positivo y la fila de auditoría son
-// LOS MISMOS. Lo único distinto es la puerta.
+// UPDATE, el plazo legal del negativo (PO 2026-09-18), el fan-out a la
+// autoridad ante un positivo y la fila de auditoría son LOS MISMOS. Lo único
+// distinto es la puerta — y cómo se entregan los avisos, que abajo se explica.
 export async function atenderCloseRabiesObservationAction(
   orgToken: string,
   publicToken: string,
   formData: FormData,
-): Promise<{ error: string | null; redirectTo?: string }> {
+): Promise<EventFormState> {
   const access = await resolveAtenderPet(orgToken, publicToken);
   if (!access.ok) return { error: access.error };
-  const { user, organizationId, eventAuthorship } = access;
+  const { user, pet, organizationId, organizationName, eventAuthorship } = access;
 
   // LA MATRÍCULA, y el mensaje nombra qué falta en vez de decir "no podés".
   // Un miembro de una organización verificada que no es matriculado firma como
@@ -882,7 +883,12 @@ export async function atenderCloseRabiesObservationAction(
 
   const result = await professionalCloseObservation(
     {
-      petPublicToken: publicToken,
+      // THE PET THE GUARD RESOLVED, not the raw URL segment. resolveAtenderPet
+      // normalizes the code and refuses an erased pet; the use case's lookup
+      // matches the token exactly and does not filter `deleted_at`. Handing it
+      // the raw string meant the guard and the write could disagree about which
+      // animal — or whether any — was being closed.
+      petPublicToken: pet.publicToken,
       outcome: outcomeRaw as RabiesObservationOutcome,
       closureNotes,
       // `jurisdictions` vacío a propósito: el alcance del veterinario no es
@@ -892,6 +898,7 @@ export async function atenderCloseRabiesObservationAction(
         profile: { id: user.id, role: "vet" },
         jurisdictions: [],
         organizationId,
+        organizationName,
       },
     },
     {
@@ -908,22 +915,43 @@ export async function atenderCloseRabiesObservationAction(
   );
 
   if (!result.ok) return { error: result.error };
+  const { endedEventId, closedAt, ownerNotice } = result.value;
 
-  // LOS AVISOS NO SON OPCIONALES, y son dos: al DUEÑO, que se entera del
-  // resultado de la observación de su animal, y ante un `positive_rabies` a la
-  // AUTORIDAD SANITARIA de la jurisdicción — rabia confirmada es un evento de
-  // salud pública, y un positivo que sólo queda asentado no alerta a nadie.
+  // THE URGENT FAN-OUT TO THE HEALTH AUTHORITY (a positive), through the
+  // DURABLE service: dedupe key, dead-letter on failure, drained by the cron.
+  // It went through a raw insert whose catch only logged, so one transient
+  // error dropped a confirmed-rabies alert and the vet still saw success.
   //
-  // Los arma el caso de uso, no esta puerta: son los MISMOS avisos que salen
-  // cuando cierra el Estado. Por eso esta acción NO llama a
-  // `completeAtenderSignature` como sus vecinas — ese helper avisa al dueño de
-  // un evento clínico, y acá el dueño ya fue avisado, mejor y con el resultado
-  // adentro. Llamarlo igual habría mandado dos avisos del mismo hecho.
-  await flushNotifications(result.notifications);
+  // The key is derived here, anchored on the ended event — the act being
+  // announced — in the service's `event:${eventId}:${userId}:${type}` shape.
+  // Not on the bite case, as the State's door does: an observation can lack an
+  // open case, and a missing anchor must not cost the authority its alert.
+  await createNotificationsBulk(
+    result.notifications.map((n) => ({
+      ...n,
+      dedupeKey: `event:${endedEventId}:${n.userId}:${n.notificationType}`,
+    })),
+  );
 
-  revalidatePath(`/org/${orgToken}/atender/${publicToken}`);
-  return {
-    error: null,
-    redirectTo: `/org/${orgToken}/atender/${publicToken}?evento=observacion&cerrada=1`,
-  };
+  revalidatePath(`/org/${orgToken}/atender/${pet.publicToken}`);
+
+  // THE OWNER, through the same exit as every walk-in writer. A clinic without
+  // custody just wrote a legal result on this animal, so the owner-alert
+  // contract applies to it exactly as to a vaccine: every active owner and
+  // co-owner, the clinic named, a durable write keyed on the event. Only the
+  // WORDS differ — `ownerNotice` carries the result and, for a positive, the
+  // urgency, instead of "nuevo registro en la libreta" — so the owner gets ONE
+  // notice about the close, not a generic one beside the real one.
+  return completeAtenderSignature({
+    orgToken,
+    publicToken: pet.publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName,
+    signerUserId: user.id,
+    eventId: endedEventId,
+    eventType: "rabies_observation_ended",
+    occurredAt: closedAt,
+    ownerNotice: ownerNotice ?? undefined,
+  });
 }

@@ -211,3 +211,74 @@ describe("notifyOwnersOfClinicalEvent — one consultation is not five notificat
     expect(groups.map((g) => g.kind)).toEqual(["single", "single", "single"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The notice override — the rabies close's words, the walk-in's delivery
+// ---------------------------------------------------------------------------
+//
+// A veterinary close of a rabies observation (2026-09-18) goes through this
+// helper like every walk-in write, but its owner notice has to carry the result.
+// Only the WORDS change: recipients, the third-party rule, the event deep link
+// and the idempotency key stay the helper's.
+
+describe("notifyOwnersOfClinicalEvent — notice override", () => {
+  const NOTICE = {
+    notificationType: "rabies_observation_completed_professional_owner",
+    severity: "urgent" as const,
+    title: "Observación cerrada profesionalmente — Rocky",
+    body: "La observación antirrábica de Rocky fue cerrada por un veterinario matriculado de Refugio Patitas del Norte con resultado positivo.",
+    relatedCaseId: "case-9",
+  };
+
+  it("delivers the caller's words to every owner and co-owner, keyed on event and type", async () => {
+    const createNotification = vi.fn().mockResolvedValue({ status: "inserted" });
+
+    const res = await notifyOwnersOfClinicalEvent(
+      makeInput({ eventId: "evt-ended", eventType: "rabies_observation_ended", notice: NOTICE }),
+      { findOwnerUserIds: async () => ["owner-1", "co-owner-2"], createNotification },
+    );
+
+    expect(res.delivered).toBe(2);
+    expect(createNotification.mock.calls.map((c) => c[0])).toEqual([
+      {
+        userId: "owner-1",
+        notificationType: "rabies_observation_completed_professional_owner",
+        category: "health",
+        severity: "urgent",
+        title: "Observación cerrada profesionalmente — Rocky",
+        body: NOTICE.body,
+        ctaLabel: "Ver el registro",
+        ctaUrl: "/mis-mascotas/DIM-1234-5678/eventos/evt-ended",
+        relatedPetId: "pet-1",
+        relatedEventId: "evt-ended",
+        relatedCaseId: "case-9",
+        dedupeKey: "event:evt-ended:owner-1:rabies_observation_completed_professional_owner",
+      },
+      {
+        userId: "co-owner-2",
+        notificationType: "rabies_observation_completed_professional_owner",
+        category: "health",
+        severity: "urgent",
+        title: "Observación cerrada profesionalmente — Rocky",
+        body: NOTICE.body,
+        ctaLabel: "Ver el registro",
+        ctaUrl: "/mis-mascotas/DIM-1234-5678/eventos/evt-ended",
+        relatedPetId: "pet-1",
+        relatedEventId: "evt-ended",
+        relatedCaseId: "case-9",
+        dedupeKey: "event:evt-ended:co-owner-2:rabies_observation_completed_professional_owner",
+      },
+    ]);
+  });
+
+  it("keeps the third-party rule: the signing owner is not told about their own close", async () => {
+    const createNotification = vi.fn().mockResolvedValue({ status: "inserted" });
+
+    await notifyOwnersOfClinicalEvent(makeInput({ authorUserId: "owner-1", notice: NOTICE }), {
+      findOwnerUserIds: async () => ["owner-1", "co-owner-2"],
+      createNotification,
+    });
+
+    expect(createNotification.mock.calls.map((c) => c[0].userId)).toEqual(["co-owner-2"]);
+  });
+});
