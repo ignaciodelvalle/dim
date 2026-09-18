@@ -1,7 +1,7 @@
 "use client";
 
 // LnOfflineBanner — informational offline-state banner for the citizen shell
-// (Track B — sistema de estados, B2; docs/reviews/results/2026-07-21-nivel-siguiente-plan.md).
+// (Track B — sistema de estados, B2; dim-interno:docs/reviews/results/2026-07-21-nivel-siguiente-plan.md).
 //
 // Structural precedent: components/ui/DemoModeBanner.tsx's <output> banner —
 // same shape (full-width, above the rest of the chrome), different copy/tone/

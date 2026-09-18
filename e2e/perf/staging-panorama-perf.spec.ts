@@ -39,7 +39,7 @@ if (BASE) test.use({ baseURL: BASE });
 test.describe.configure({ mode: "serial", timeout: 180_000 });
 
 // Measured 2026-07-10, pre-gru1 (functions iad1, DB sa-east-1). See
-// docs/reviews/2026-07-10-auth-floor-and-perf-breakdown.md.
+// dim-interno:docs/reviews/2026-07-10-auth-floor-and-perf-breakdown.md.
 const BASELINE = {
   kpiSequenceMs: [13548, 21115, 6824, 961],
   kpiFirstHitMs: 961,

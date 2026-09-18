@@ -43,7 +43,7 @@ export type { SparklinePoint };
  * To avoid collision with the existing `delta` prop shape, the new props use
  * distinct key names that don't exist in the v1 type.
  *
- * C1 METRIC CONTRACT (docs/reviews/results/2026-07-22-plan-maestro-integridad.md):
+ * C1 METRIC CONTRACT (dim-interno:docs/reviews/results/2026-07-22-plan-maestro-integridad.md):
  * `descriptorId` is OPTIONAL and purely additive — every existing OpKpi caller
  * without it renders EXACTLY as before (the ratchet's grandfathered baseline;
  * see scripts/check-metric-contract.ts). When a caller DOES pass it:

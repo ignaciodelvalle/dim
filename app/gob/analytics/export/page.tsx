@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Reachable via the "Exportar datos" CTA in /gob/analytics' filter-bar
 // `actions` slot (rewired 2026-07-21 -- orphan flagged by
-// docs/reviews/results/2026-07-21-audit-4-decision-ciclos.md). No dedicated
+// dim-interno:docs/reviews/results/2026-07-21-audit-4-decision-ciclos.md). No dedicated
 // nav-presets.ts entry: this route is a child of /gob/analytics, which
 // already has its own GOB_NAV_SECTIONS entry (same pattern as
 // censo/poblacion/adopciones/campanas' export routes, dec0f58f).

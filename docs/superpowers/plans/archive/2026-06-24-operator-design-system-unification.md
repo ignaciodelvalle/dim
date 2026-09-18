@@ -4,8 +4,8 @@
 
 > **Para Claude Code — ejecución 100% autónoma.** Remediación de la critique de frontend del tier **operador**
 > (`/admin` + acceso a `/gob`) del 2026-06-24. Fuente de hallazgos:
-> [`docs/design/critique-2026-06-24-frontend.md`](../../design/critique-2026-06-24-frontend.md).
-> Insumo de Design: [`docs/archive/Hallazgos Design System.md`](../../archive/Hallazgos%20Design%20System.md).
+> [`dim-interno:docs/design/critique-2026-06-24-frontend.md`](../../design/critique-2026-06-24-frontend.md).
+> Insumo de Design: [`dim-interno:docs/archive/Hallazgos Design System.md`](../../archive/Hallazgos%20Design%20System.md).
 > Severidad: 🔴 correctitud (color que miente) · 🟡 fricción/consistencia · 🟢 polish. **SDD test-first** (AGENTS.md), docs en el mismo PR.
 >
 > **Antes de tocar código, leer:** (1) el slim index de [`AGENTS.md`](../../../AGENTS.md); (2) la critique linkeada arriba (tiene el mapeo styleguide↔código y los conteos verificados); (3) `app/globals.css` líneas 38–231 (paleta `ln-*` cálida + `ln-op-*` operador); (4) este plan entero antes de abrir el primer PR.
@@ -89,5 +89,5 @@ Independiente de PR-1/2 pero conviene después para no chocar diffs.
 - `pnpm verify` + `pnpm test` verdes en cada PR.
 - **Cero diff visual en superficies ciudadanas** (verificado por snapshot).
 - `--st-*` es la única fuente de color de estado en el kit operador; `OpStatusPill` la única geometría; `OpButton` el único botón nuevo en operador.
-- Critique linkeada (`docs/design/critique-2026-06-24-frontend.md`) actualizada con el estado de cada hallazgo (✅/parcial) al cerrar.
+- Critique linkeada (`dim-interno:docs/design/critique-2026-06-24-frontend.md`) actualizada con el estado de cada hallazgo (✅/parcial) al cerrar.
 - Contraste op registrado en `docs/a11y/contrast-audit.md`.

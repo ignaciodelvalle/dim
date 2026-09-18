@@ -163,7 +163,7 @@ built by EAS.
 | Component | Region | Where it is stated | Verified |
 |---|---|---|---|
 | Vercel functions | `gru1` (São Paulo) | `vercel.json`, key `regions` | **Yes — in a committed config file** |
-| Supabase project | `sa-east-1` (São Paulo) | `docs/ops/cutover-playbook.md:16`, `e2e/perf/staging-panorama-perf.spec.ts:11`, `docs/ops/remote-supabase-bootstrap-runbook.md:9` | **Prose only.** A Supabase project's region is set in the vendor dashboard; **no configuration file in this repo declares it.** `supabase/config.toml` is the local-development stack and carries no region key |
+| Supabase project | `sa-east-1` (São Paulo) | `dim-interno:docs/ops/cutover-playbook.md:16`, `e2e/perf/staging-panorama-perf.spec.ts:11`, `dim-interno:docs/ops/remote-supabase-bootstrap-runbook.md:9` | **Prose only.** A Supabase project's region is set in the vendor dashboard; **no configuration file in this repo declares it.** `supabase/config.toml` is the local-development stack and carries no region key |
 
 The co-location is the point: `e2e/perf/staging-panorama-perf.spec.ts:41` records
 that the pre-`gru1` measurement ran functions in `iad1` against a `sa-east-1`
@@ -194,7 +194,7 @@ dispatcher itself and `refresh-cube` has its own Vercel entry.
 
 A job may declare a ceiling it cannot honour, and the fence that certifies
 budget-honouring behaviour is a **text match** over the route source — finding
-`C04-1` in `docs/reviews/2026-09-fresh/SYNTHESIS.md`. Do not present the cron
+`C04-1` in `dim-interno:docs/reviews/2026-09-fresh/SYNTHESIS.md`. Do not present the cron
 fleet as self-policing.
 
 ### 4.3 Deploy
@@ -212,14 +212,14 @@ The chained command is the documented path that does:
 `pnpm verify && tsx scripts/migrate.ts && npx vercel --prod --archive=tgz`:
 gate, then migrate, then ship. The `&&` chain is deliberate — code that ships
 ahead of its migrations 500s at runtime, which is the incident
-`docs/ops/staging-deploy.md` opens with. Applying a migration against the remote
+`dim-interno:docs/ops/staging-deploy.md` opens with. Applying a migration against the remote
 database stays a **manual, PO-gated** step; nothing in the git integration
 performs it.
 
-**The ops docs agree and are current.** `docs/ops/staging-deploy.md:31` and
-`docs/ops/production-deploy-plan.md:128-130` both state that `dim-staging` **is**
+**The ops docs agree and are current.** `dim-interno:docs/ops/staging-deploy.md:31` and
+`dim-interno:docs/ops/production-deploy-plan.md:128-130` both state that `dim-staging` **is**
 git-connected and that the auto-deploy ships code only, each verified 2026-09-02
-against the Vercel API. `docs/ops/cutover-playbook.md:15` records the same git
+against the Vercel API. `dim-interno:docs/ops/cutover-playbook.md:15` records the same git
 integration. Cite any of the three.
 
 There is **one live database**: Supabase `DIM-staging`. `SYNTHESIS.md` states it
@@ -281,7 +281,7 @@ Two known gaps in that chain, both from the 2026-09 audit and both open:
 `A01-1` — the deactivation refusal is gated on `accountType === "institutional"`,
 so a self-deactivated personal account is never locked out; and `A02-1` —
 `pet_events.author_role` / `author_verified` are forgeable over PostgREST,
-queued as migration 0212. Sources: `docs/reviews/2026-09-fresh/SYNTHESIS.md`.
+queued as migration 0212. Sources: `dim-interno:docs/reviews/2026-09-fresh/SYNTHESIS.md`.
 
 ---
 
@@ -299,7 +299,7 @@ Stated here so no diagram in the 2026-09 pack has to re-derive it.
   `apps/mobile/app.config.ts` explains why the fingerprint cannot exist before a
   Play enrolment.
 - **A partial audit.** 15 of 36 lenses ran in 2026-09
-  (`docs/reviews/2026-09-fresh/DECK-FACTS.md`). Nothing licenses a claim about
+  (`dim-interno:docs/reviews/2026-09-fresh/DECK-FACTS.md`). Nothing licenses a claim about
   an area no lens covered.
 
 ---
@@ -310,6 +310,6 @@ Stated here so no diagram in the 2026-09 pack has to re-derive it.
 |---|---|---|
 | `pnpm verify` | <!-- fact:verify_fences -->71<!-- /fact --> `lint:*` fences plus `verify:mobile` and `build` | Structure, conventions, authorization scoping, brand casing |
 | `pnpm test:verified` | `scripts/run-verified-suite.ts` over <!-- fact:vitest_files -->1568<!-- /fact --> vitest files | Behaviour, with a filesystem census that distrusts vitest's exit code in both directions |
-| Playwright | `.github/workflows/e2e-nightly.yml`, <!-- fact:e2e_specs -->45<!-- /fact --> specs | Browser flows — **not** part of `pnpm verify`; the nightly job is currently red for a missing-secrets reason recorded in `docs/agents/open-work.md` |
+| Playwright | `.github/workflows/e2e-nightly.yml`, <!-- fact:e2e_specs -->45<!-- /fact --> specs | Browser flows — **not** part of `pnpm verify`; the nightly job is currently red for a missing-secrets reason recorded in `dim-interno:docs/agents/open-work.md` |
 | Mobile Jest | `apps/mobile/jest.config.js`, <!-- fact:mobile_jest_files -->113<!-- /fact --> files | The phone's own logic, no native modules |
 | CI | <!-- fact:ci_workflows -->8<!-- /fact --> workflows under `.github/workflows` | `scripts/check-ci-lint-parity.ts` fails the build if a `verify` gate is missing from the workflow |

@@ -158,7 +158,7 @@ Two patterns cover insufficient-permissions states. Pick by scope, not by feel:
   content area is restricted). This is now also the pattern used by
   `app/org/[orgToken]/admin/layout.tsx` (previously a 3rd hand-rolled
   "Acceso restringido" card — see Track B5,
-  `docs/reviews/results/2026-07-21-nivel-siguiente-plan.md`).
+  `dim-interno:docs/reviews/results/2026-07-21-nivel-siguiente-plan.md`).
 
 Do NOT hand-roll a third "Acceso restringido"/"restricted access" card
 anywhere — use one of these two.

@@ -350,7 +350,7 @@
 //
 //      THE ORACLE IS STILL OPEN — this bucket is not standing in front of a closed
 //      hole. Audit 28-#3 (MED,
-//      `docs/reviews/results/28-auth-recovery-session-hardening.md`) found signup
+//      `dim-interno:docs/reviews/results/28-auth-recovery-session-hardening.md`) found signup
 //      leaking account existence, and its second clause is the live one: with
 //      `enable_confirmations=false`, "testing an email costs nothing". The MESSAGE
 //      channel was closed — `signup.ts`'s masquerade returns the same success

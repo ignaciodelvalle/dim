@@ -4,7 +4,7 @@
 // WHAT THIS FILE EXISTS TO STOP
 // ---------------------------------------------------------------------------
 // THE FIFTH SOFT-DELETE LEAK. This repo has closed four surfaces where an erased
-// subject's animal kept answering (`docs/agents/open-work.md`), and a public
+// subject's animal kept answering (`dim-interno:docs/agents/open-work.md`), and a public
 // catalogue with a per-pet ficha is the shape all four had. The reader is what
 // carries the art. 16 guard; what this file pins is that the HANDLER does not
 // undo it — that "gone" leaves as a 404 and not as a soft page naming the

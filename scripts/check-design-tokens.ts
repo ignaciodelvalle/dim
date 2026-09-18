@@ -273,7 +273,7 @@ export const ARBITRARY_TEXT_PX = /\btext-\[\d+\.?\d*px\]/g;
 // (703→702 is a benign drift, see the plan entry), `deadTextVar` is 0 across
 // the baseline, and 85 elements changed COLOUR as a documented correction of
 // the alphabetical-cascade bug, not a regression (commits b39d9d2f,
-// 435fa426; captures in docs/reviews/results/2026-08-01-703-pass/). Kept as a
+// 435fa426; captures in dim-interno:docs/reviews/results/2026-08-01-703-pass/). Kept as a
 // ratchet rule (like rule 10 below) so a new dead declaration is a build
 // failure, not new inherited debt.
 export const DEAD_TEXT_VAR = /\btext-\[var\(--text-[a-z0-9-]+\)\]/g;

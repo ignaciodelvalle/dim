@@ -1,6 +1,6 @@
 "use client";
 
-// PanoramaDock — the v2C floating data dock (docs/design/handoffs/
+// PanoramaDock — the v2C floating data dock (dim-interno:docs/design/handoffs/
 // 2026-07-11-panorama-v2C, "Dock inferior flotante").
 //
 // A collapsible panel FLOATING over the map's bottom edge (absolute overlay —

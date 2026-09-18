@@ -9,7 +9,7 @@
 This directory is the living, code-linked engineering reference — Layer A of
 the 2026-09 doc pack. English, identifiers verbatim, one claim per path (and
 line where the claim is a specific guard). Its companion, Layer B, is
-`docs/presentation/2026-09-oficiales/` — one spec per diagram Claude Cowork
+`dim-interno:docs/presentation/2026-09-oficiales/` — one spec per diagram Claude Cowork
 draws for the municipal-official presentation. Layer A is where a diagram's
 claims are checked; Layer B is what gets drawn. The map between the two is
 in §3.
@@ -32,7 +32,7 @@ been verified once, by its own author, not independently checked.
 ## How `facts.json` works
 
 `docs/architecture/facts.json` is the single source every repo-count NUMBER
-in this directory (and, once it exists, `docs/presentation/`) must cite
+in this directory (and, once it exists, `dim-interno:docs/presentation/`) must cite
 through — never as a bare literal. `pnpm facts:write` (`scripts/architecture-facts.ts`)
 **regenerates** the file by recomputing every fact from the tree (file
 counts, array lengths imported from source, canon JSON row counts) and
@@ -54,7 +54,7 @@ that has no key at all must stay prose ("a dozen") or cite the file holding
 the constant without a literal.
 
 The same fence also asserts every backticked repo path under
-`docs/architecture/**` (and `docs/presentation/**`, once that root exists)
+`docs/architecture/**` (and `dim-interno:docs/presentation/**`, once that root exists)
 resolves on disk — with a small, individually-listed allowlist for paths a
 doc cites ON PURPOSE as historical (a migration narrated, not a live path).
 
@@ -108,7 +108,7 @@ Layer A files:
 | D12 — calidad-y-auditoría | `12-calidad-y-auditoria.md` | `quality-pipeline.md` |
 
 Pack files that are not one diagram's spec live alongside the numbered ones
-in `docs/presentation/2026-09-oficiales/`: `00-guion.md` (the presentation
+in `dim-interno:docs/presentation/2026-09-oficiales/`: `00-guion.md` (the presentation
 script), `glosario.md` (identifier → es-AR label), `limites-honestos.md`
 (the pack-wide "do not claim" list), `README.md` (the pack's own index), and
 `assets/README.md`. Those five are written by other writers in this doc pack,
@@ -119,6 +119,6 @@ in parallel with this file.
 - `AGENTS.md` — the deeper knowledge base (data model, event catalog, legal
   framework); this directory is architecture-focused and code-linked, not a
   restatement of `AGENTS.md`.
-- `docs/reviews/README.md` — the audit-generation index; `docs/reviews/2026-09-fresh/`
+- `dim-interno:docs/reviews/README.md` — the audit-generation index; `dim-interno:docs/reviews/2026-09-fresh/`
   is the current one, and several files in this directory quote its findings
   rather than paraphrasing them softer.

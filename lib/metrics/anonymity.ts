@@ -110,7 +110,7 @@ export function suppressSmallCells<Row>(
  * ⚠️ WHAT THIS FUNCTION DOES **NOT** GUARANTEE. Read this before relying on it:
  * "0 or ≥2 suppressed cells" is NOT "no hidden value can be isolated", and this
  * docblock used to promise the second while delivering only the first (RA-3
- * finding C2; independently logged as KA1, docs/reviews/tier1-decisions.md).
+ * finding C2; independently logged as KA1, dim-interno:docs/reviews/tier1-decisions.md).
  * Counterexample: cells `[1, 1, 998]` with a published total of 1000. Two cells
  * are hidden, yet the residual `1000 − 998 = 2` spread over two cells that are
  * each ≥ 1 pins BOTH at exactly 1 — one animal, one household, per cell.

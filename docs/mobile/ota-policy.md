@@ -9,7 +9,7 @@
 > `apps/mobile/eas.json` (`channel`, per build profile).
 
 **Status as of 2026-08-26: nothing has been published.** `npx eas-cli whoami`
-now answers `ignaciodelvalle2014@gmail.com` (account `nachi7`) and one
+now answers the maintainer's Expo account and one
 production build has been attempted — it failed on the fingerprint check, see
 [eas-build-profiles.md](./eas-build-profiles.md) — but no `eas update` has run.
 No channel, no update and no runtime version exists on the server. This document

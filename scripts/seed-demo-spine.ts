@@ -1392,7 +1392,10 @@ async function main(): Promise<void> {
     await seedCustodyDisputeDemo();
     await seedAdoptanteMora();
     log("DONE", "Spine seeded. Cycles 1, 3, 4 y 5 listos.");
-    log("INFO", "Próximo paso: ver docs/demo-runbook.md para el guión de ensayo.");
+    log(
+      "INFO",
+      "Próximo paso: el guión de ensayo vive en la documentación interna (dim-interno: docs/demo/).",
+    );
   } catch (e) {
     log("FAIL", `Error: ${(e as Error).message}`);
     console.error(e);

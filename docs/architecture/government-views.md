@@ -118,7 +118,7 @@ payload, while admin gets all of them. The code under it is
 `lib/infra/gob-pet-subview.ts`. `e2e/cross-tenant-isolation.spec.ts` carries the
 browser-level govt and org operator probes.
 
-**Open at this snapshot** (details in `docs/reviews/2026-09-fresh/lenses/A10.md`):
+**Open at this snapshot** (details in `dim-interno:docs/reviews/2026-09-fresh/lenses/A10.md`):
 
 | id | Sev | What |
 |---|---|---|
@@ -332,5 +332,5 @@ Four independent things can make a `/gob` number mean less than it looks:
 - `docs/architecture/privacy-controls.md` — k-anonymity, exports, redaction
 - `docs/architecture/privacy-known-limitations.md` — KA1/KA2, KA5, PD1
 - `docs/datos-abiertos/metodologia.md` — the public open-data methodology
-- `docs/reviews/2026-09-fresh/lenses/A10.md` — jurisdiction, org tenant, dashboards
-- `docs/reviews/2026-09-fresh/BACKLOG.md` — every open finding, ranked
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A10.md` — jurisdiction, org tenant, dashboards
+- `dim-interno:docs/reviews/2026-09-fresh/BACKLOG.md` — every open finding, ranked

@@ -425,7 +425,7 @@ Source: `docs/iconic-dataset-cleanup-plan-2026-05-20.md` (893 líneas, 10 phases
 |---|---|---|
 | Phase 0 — git recovery | ✅ completado (repo funcionando desde entonces) | skip |
 | Phase 1 — seed loader bugs (3 bugs) | ❓ auditar con `pnpm tsx scripts/seed-demo.ts --dry-run` | ejecutar si falla |
-| Phase 2 — sync doc a event catalog | ❓ auditar: buscar `adoption_application_approved` en `docs/test-storylines-iconic.md` | ejecutar si hay hits |
+| Phase 2 — sync doc a event catalog | ❓ auditar: buscar `adoption_application_approved` en `dim-interno:docs/test-storylines-iconic.md` | ejecutar si hay hits |
 | Phase 3 — libreta share burst stressor | ❓ auditar: buscar `share_burst` en `seed-storylines-iconic.ts` | ejecutar si no existe |
 | Phase 4 — canon fixes (4 small) | ❓ buscar `Tora Andō`, `858 not used`, `parvovirus 1924`, `Rin Tin Tin"` | ejecutar si hay hits |
 | Phase 5 — fill coverage gaps | ❓ buscar `sterilization_performed` en seed | ejecutar si no existe |
@@ -444,7 +444,7 @@ Source: `docs/iconic-dataset-cleanup-plan-2026-05-20.md` (893 líneas, 10 phases
 |---|---|
 | `scripts/seed-demo.ts` | modificar si Phase 1 o Phase 6 tienen bugs |
 | `scripts/seed-storylines-iconic.ts` | modificar si Phase 2-6 necesitan fixes |
-| `docs/test-storylines-iconic.md` | modificar si Phase 2 y 4 tienen outdated refs |
+| `dim-interno:docs/test-storylines-iconic.md` | modificar si Phase 2 y 4 tienen outdated refs |
 | `__tests__/storylines/hachiko-recurring-lost.test.ts` | crear (Phase 7) |
 | `scripts/generate-coverage-matrix.ts` | crear (Phase 8 — diferible) |
 
@@ -452,7 +452,7 @@ Source: `docs/iconic-dataset-cleanup-plan-2026-05-20.md` (893 líneas, 10 phases
 
 - [ ] `pnpm tsx scripts/seed-demo.ts --dry-run` corre sin errores.
 - [ ] `pnpm tsx scripts/seed-demo.ts` popula las 7 mascotas icónicas sin enum errors.
-- [ ] `docs/test-storylines-iconic.md` solo referencia event_types que existen en `EVENT_TYPES`.
+- [ ] `dim-interno:docs/test-storylines-iconic.md` solo referencia event_types que existen en `EVENT_TYPES`.
 - [ ] `__tests__/storylines/hachiko-recurring-lost.test.ts` pasa en CI.
 - [ ] `grep -n "Legacy fallback for the iconic" scripts/seed-demo.ts` → zero hits.
 - [ ] `pnpm test` green.

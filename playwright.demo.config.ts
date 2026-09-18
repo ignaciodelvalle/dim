@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
  * Usage (stack up + app built with NEXT_PUBLIC_DEMO_MODE=true):
  *   NEXT_BUILT=1 pnpm start --port 3333        # in one terminal (or via webServer below)
  *   pnpm exec playwright test -c playwright.demo.config.ts
- *   node scripts/collect-demo-videos.mjs        # rename test-results → docs/demo/videos
+ *   node scripts/collect-demo-videos.mjs        # rename test-results → dim-interno:docs/demo/videos
  */
 
 const PORT = 3333;

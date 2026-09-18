@@ -5,7 +5,7 @@
 // The 2026-09 audit asked the one architectural question the repo had never
 // answered: may `app/` issue Drizzle queries directly, or must every database
 // access go through `src/modules`? The PO answered on 2026-09-02
-// (docs/reviews/2026-09-fresh/BACKLOG.md § "B02 — the `app/` → `db` boundary"):
+// (dim-interno:docs/reviews/2026-09-fresh/BACKLOG.md § "B02 — the `app/` → `db` boundary"):
 //
 //   * WRITES go ONLY through `src/modules` use cases. Hard rule, fenced.
 //   * Page-level READS from `app/` through Drizzle are TOLERATED, under a

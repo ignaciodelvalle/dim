@@ -1,107 +1,95 @@
 # Security Policy
 
-MiMAR / DIM is a digital pet-credential system handling personal data (Ley 25.326)
-on a path toward Mi Argentina federation. Security is a launch gate, not an
-afterthought. This document is **Wave 5 Item 30**.
+MiMAR / DIM is a digital pet-credential system for Argentina. It handles personal
+data protected by Ley 25.326 and is built on a path toward Mi Argentina
+federation, so security is a launch gate, not an afterthought.
+
+**This code is public by design.** The repository is open so that anyone —
+citizens, municipalities, auditors, researchers — can inspect how the credential,
+the event log and the privacy controls actually work. Publishing the code is not
+an invitation to attack the running service; please read "What not to do" below.
 
 ## Reporting a vulnerability
 
-**Do not open a public issue for a security vulnerability.**
+**Do not open a public issue, discussion or pull request for a security
+vulnerability.**
 
-- Preferred: GitHub **private vulnerability reporting** (repo → Security → "Report a vulnerability").
-- Or email the maintainer: **ignaciodelvalle2014@gmail.com**.
+Report it privately through GitHub's private vulnerability reporting:
 
-Please include reproduction steps, affected routes/tables, and impact. Expect an
-acknowledgement within **72 hours** and a remediation plan or fix for confirmed
-high/critical issues within **7 days**.
+**<https://github.com/ignaciodelvalle/dim/security/advisories/new>**
+
+(Or: the repository's **Security** tab → **Report a vulnerability**.)
+
+Please include:
+
+- what the issue is and why it matters (the impact);
+- the affected file(s), route(s), table(s) or policy — a commit hash helps;
+- steps to reproduce, ideally against a local stack (`docs/ops/local-dev-runbook.md`);
+- any suggested fix, if you have one.
+
+## Scope
+
+In scope:
+
+- the code in this repository: the Next.js web app (`app/`, `components/`, `lib/`,
+  `src/`), the database schema, migrations and Row Level Security policies
+  (`db/`, `supabase/`), the mobile app (`apps/mobile/`), the shared contract
+  (`packages/`), scripts and CI workflows;
+- authorization and privacy defects: access to another person's pet, custody,
+  medical or contact data; DNI handling; leaks through public pages, QR
+  verification, exports or aggregates; audit-log bypasses;
+- secrets or personal data committed to the repository.
+
+Out of scope:
+
+- findings that require a compromised device, browser or maintainer account;
+- denial-of-service or volumetric testing;
+- social engineering of maintainers, municipalities, veterinarians or users;
+- reports generated only by automated scanners, without a demonstrated impact;
+- third-party services (Supabase, Vercel, Expo, GitHub) themselves — report those
+  to their vendors.
+
+## What not to do
+
+- **Do not test against production, staging or pilot deployments.** They hold
+  real people's and real animals' data. Everything in this repository runs
+  locally (Supabase CLI + Docker); reproduce there.
+- Do not access, modify, download or delete data that is not yours, and do not
+  keep any personal data you come across by accident — stop and report.
+- Do not publish or share the details of a vulnerability until it has been fixed
+  and you have been told it is safe to disclose.
+
+## What to expect
+
+This is a small project maintained on a **best-effort** basis. We aim to
+acknowledge a report within a few days, keep you informed while we investigate,
+and credit you in the advisory if you wish. There is no bug bounty.
 
 ## Supported versions
 
-Active development happens on `develop`; `main` is the released line. Only the
-latest commit on each is supported — there are no back-ported patch releases.
-
-| Branch | Supported |
-|---|---|
-| `main` | ✅ |
-| `develop` | ✅ |
-| feature branches | ❌ |
+Only the latest commit on `main` is supported. There are no back-ported patch
+releases.
 
 ## Automated scanning
 
-This repo runs, in CI (`.github/workflows/`):
+The repository runs, in CI (`.github/workflows/`):
 
-- **CodeQL** (`codeql.yml`) — SAST over JS/TS on every push/PR to `main`/`develop` plus a weekly scan (`security-extended` query set).
-- **Dependency audit** (`ci.yml` → `dep-audit`) — fails on HIGH/CRITICAL advisories. Triage/allowlist process is documented inline in `ci.yml` and `docs/ops/advisory-allowlist.md`.
-- **Dependabot** (`.github/dependabot.yml`) — weekly npm + github-actions updates.
+- **CodeQL** (`codeql.yml`) — static analysis over JS/TS.
+- **Dependency audit** (`ci.yml` → `dep-audit`) — fails on HIGH/CRITICAL
+  advisories; the triage/allowlist process is in `docs/ops/advisory-allowlist.md`.
+- **Dependabot** (`.github/dependabot.yml`) — weekly npm and GitHub Actions updates.
+- **Secret fence** (`pnpm lint:secrets`) — fails the build on a committed
+  credential of any recognised shape.
 
-### Owner-gated repo settings (one-time)
+## Privileged surface and data protection
 
-The config files above do not enable protection by themselves. The repo owner must
-turn these on in **Settings → Code security and analysis**:
-
-- [ ] **Code scanning** (CodeQL) — on a private repo this requires GitHub Advanced Security.
-- [ ] **Secret scanning** + **Push protection** — blocks committing keys/tokens.
-- [ ] **Dependabot alerts** + **Dependabot security updates**.
-- [ ] **Private vulnerability reporting**.
-
-## Service-role key rotation
-
-The Supabase **service-role key** (`SUPABASE_SERVICE_ROLE_KEY`) bypasses Row Level
-Security and is the most sensitive secret in the system.
-
-**Storage:** the key lives **only** in Vercel project environment variables
-(and locally in `.env.local`, which is git-ignored). It is never committed, never
-logged, and never shipped to the client (the module that reads it is marked
-`server-only`).
-
-**Rotation cadence:**
-
-- Routine: **every 90 days**.
-- Immediate, on any of: suspected exposure, a contributor with prod access
-  off-boarding, or a leaked-secret alert from secret scanning.
-
-**Rotation steps:**
-
-1. Supabase dashboard → Project Settings → API → roll the `service_role` key.
-2. Update `SUPABASE_SERVICE_ROLE_KEY` in Vercel (Production + Preview).
-3. Redeploy so running instances pick up the new value.
-4. Confirm the old key is revoked (Supabase shows only the active key).
-
-Apply the same cadence/steps to `DNI_HASH_PEPPER` exposure (rotating the pepper
-invalidates existing DNI hashes — see the data-protection note below).
-
-## Privileged surface: the admin client
-
-The service-role client has a **single entry point**: `lib/supabase/admin.ts`
-(`createAdminClient()`). Properties of this surface:
-
-- It bypasses RLS — RLS is a defense-in-depth backstop, not the primary gate. The
-  primary authorization gate is the server-action / route boundary (see
-  `AGENTS.md` → Authorization architecture).
-- The service-role key must **never** appear in logs, error messages, or bundles.
-  The module is `server-only`; do not re-export the client or the key.
-- Privileged operations performed through it (admin/institutional actions,
-  decomiso, etc.) are recorded in `audit_log` (action catalog in `db/schema.ts`).
-  Any new privileged path must write an `audit_log` entry.
-
-When adding a new caller of `createAdminClient()`, confirm the action is genuinely
-operator/system scope and that it leaves an `audit_log` trail.
-
-## Deploy gate
-
-`pnpm deploy:staging` runs a pre-verification gate (`typecheck` + `lint` + token
-lint) **before** migrating and deploying, so broken or non-conforming code cannot
-ship. The full test suite runs in CI on every PR to `main`/`develop`.
-
-## Data protection (Ley 25.326)
-
-Privacy is enforced per-task. Before touching a public route, a token, or a PII
-field, follow the **Privacidad y manejo de datos** checklist in `AGENTS.md`
-(no DNI in plaintext; RLS backstop on new tables; never return raw event
-payloads; privacy predicates in the query; scan-event retention; k-anonymity on
-public aggregates; subject access/erasure RPCs).
-
-**Production note:** set `DNI_HASH_PEPPER` in the production environment **before**
-any real DNI data is written. The local/test default pepper produces hashes that
-will not match a production-peppered table, breaking DNI de-duplication if set
-later.
+- The Supabase service-role key bypasses Row Level Security. It lives only in the
+  deployment's environment variables (and a git-ignored `.env.local`), is read by
+  a single `server-only` module (`lib/supabase/admin.ts`), and is never logged or
+  shipped to the client. RLS is a defense-in-depth backstop; the primary
+  authorization gate is the server-action / route boundary (`AGENTS.md` →
+  Authorization architecture). Privileged operations write an `audit_log` entry.
+- DNI numbers are never stored in plaintext: they are peppered hashes
+  (`lib/utils/dni-hash.ts`), with only the last four digits kept for display.
+- The privacy checklist every change touching a public route, token or PII field
+  must follow is in `AGENTS.md` (**Privacidad y manejo de datos**).

@@ -37,8 +37,8 @@
      with owner attributes).
   4. The `mortalidad` scrubber gains finer-than-daily granularity (sharpens KA4).
 
-**Where the fix is specified if reopened:** `docs/plans/panorama-v2-polish.md` Part B item 4 +
-`docs/reviews/2026-07-11-cowork-panorama-adversarial-qa.md` §5 (KA1/KA2/KA4 with file anchors).
+**Where the fix is specified if reopened:** `dim-interno:docs/plans/panorama-v2-polish.md` Part B item 4 +
+`dim-interno:docs/reviews/2026-07-11-cowork-panorama-adversarial-qa.md` §5 (KA1/KA2/KA4 with file anchors).
 
 ## KA5 — per-offering campaign enrollment differencing vs geo-reach k-anon
 

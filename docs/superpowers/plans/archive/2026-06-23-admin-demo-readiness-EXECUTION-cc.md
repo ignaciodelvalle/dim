@@ -14,7 +14,7 @@
 > tiempo razonable, sin bugs latentes de la misma clase, y con el pulido de diseño indicado.
 >
 > **Contexto/origen.** Revisión manual E2E en Chrome (login `admin@dim.test`) contra
-> [`docs/demo/README.md`](../../demo/README.md) y [`2026-06-22-demo-readiness.md`](./2026-06-22-demo-readiness.md).
+> [`dim-interno:docs/demo/README.md`](../../demo/README.md) y [`2026-06-22-demo-readiness.md`](./2026-06-22-demo-readiness.md).
 > Dos crashes ya quedaron corregidos en el working tree (A1, A2) **sin tests**.
 
 ---

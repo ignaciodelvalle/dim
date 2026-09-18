@@ -51,7 +51,7 @@ collision-retry loop at the repository layer instead.
 mints `DEN-XXXX-XXXX` with the same alphabet (`:15`) and the same rejection guard
 (`:22`) but through Web Crypto rather than `node:crypto`, because the format
 validator is imported by a client component. Lens A03 refuted the "ONE generator"
-framing explicitly (`docs/reviews/2026-09-fresh/lenses/A03.md`, "Claimed healthy,
+framing explicitly (`dim-interno:docs/reviews/2026-09-fresh/lenses/A03.md`, "Claimed healthy,
 not verified"): the security property — a uniform draw, no counter, no timestamp,
 no route accepting a raw uuid — holds across all prefixes; the single-implementation
 claim does not.
@@ -176,7 +176,7 @@ Two properties are the contract rather than the implementation:
    `__tests__/public-token-throttle-coverage.test.ts` fences guard-before-resolve
    ordering by walking `app/` and `src/` rather than reading a hand list — lens A03
    verified that fence and its ~15 RED-control tests
-   (`docs/reviews/2026-09-fresh/lenses/A03.md`, "Healthy — verified solid").
+   (`dim-interno:docs/reviews/2026-09-fresh/lenses/A03.md`, "Healthy — verified solid").
 2. **`degraded` is never `not_found`.** A database outage must not answer "this
    token does not exist". Every read is budgeted (`PET_ROW_BUDGET_MS` /
    `VIEW_DATA_BUDGET_MS`, `src/modules/pets/application/read/lookup-public-credential.ts:61-62`)
@@ -226,7 +226,7 @@ substitutes a SQL `null` literal into the SELECT list
 `:327`), so the value never leaves Postgres. `profiles.display_name` is NOT
 fetch-gated — it is selected unconditionally and narrowed at derivation
 (`:374-377`). Lens A03 files that gap as a nit against the file's own comment
-(`docs/reviews/2026-09-fresh/lenses/A03.md`, Nits), and records that **no test pins
+(`dim-interno:docs/reviews/2026-09-fresh/lenses/A03.md`, Nits), and records that **no test pins
 the SQL projection**: collapsing the conditional branches into a plain `.select()`
 would leave the PII one JSX line away with nothing turning red.
 
@@ -284,7 +284,7 @@ Two residuals are stated in the code rather than hidden:
   level-0 metadata read per request. Closing it needs a check-without-increment
   mode that does not exist.
 - A distributed walk is untouched by any per-IP figure. Lens A03 records the
-  arithmetic and the conclusion (`docs/reviews/2026-09-fresh/lenses/A03.md`).
+  arithmetic and the conclusion (`dim-interno:docs/reviews/2026-09-fresh/lenses/A03.md`).
 
 Routes A03 found with **no** per-IP budget at all: `/refugios/[orgToken]`,
 `/r/invite/[token]`, `/perdidas`, `/adoptar` and `/sitemap.xml` (findings A03-3,
@@ -300,7 +300,7 @@ Every view of the public page logs a `credential_scanned` event through
 so the page render stays a pure read. It is a `pet_events` row — the same
 append-only spine as everything else — and there is no separate `scan_events`
 table (lens A08 says so in as many words:
-`docs/reviews/2026-09-fresh/lenses/A08.md`, Coverage).
+`dim-interno:docs/reviews/2026-09-fresh/lenses/A08.md`, Coverage).
 
 The privacy contract is at `src/modules/pets/application/scans/log-scan.ts:7-27`:
 
@@ -353,7 +353,7 @@ trigger with an audited override** — never "impossible to modify".
 Known weaknesses, from lens A08: the override's audit row records no pre-image, so
 an audited rewrite is unreconstructable (A08-2), and the scan-purge branch writes
 `actor_user_id = null` (A08-6). Both are in
-`docs/reviews/2026-09-fresh/lenses/A08.md`.
+`dim-interno:docs/reviews/2026-09-fresh/lenses/A08.md`.
 
 The catalog is <!-- fact:event_types -->55<!-- /fact --> types
 (`packages/contract/src/events/event-types.ts:20`). The public credential folds
@@ -443,7 +443,7 @@ universal one.
 `/t/[serial]` carries its own bucket at 100 per minute
 (`app/(public)/t/[serial]/page.tsx:89`) — a single window, unlike the credential
 surfaces. Lens A03 examined that as a finding and **refuted** it: the convention it
-was said to break does not exist (`docs/reviews/2026-09-fresh/lenses/A03.md`,
+was said to break does not exist (`dim-interno:docs/reviews/2026-09-fresh/lenses/A03.md`,
 Refuted, A03-4).
 
 Cache policy: `/t/` is `force-dynamic` but is NOT in the `no-store` allowlist
@@ -461,11 +461,11 @@ State these rather than soften them.
   (`CLAUDE.md` invariant 6) and an env-gated stub: `lib/infra/miarg-oidc.ts` throws
   "not implemented", no account holds a Mi Argentina identity, and the callback
   answers 404 when the integration is disabled. See
-  `docs/reviews/2026-09-fresh/DECK-FACTS.md` §4.
+  `dim-interno:docs/reviews/2026-09-fresh/DECK-FACTS.md` §4.
 - **No RENAPER check.** DNI is self-declared. `lib/utils/dni-hash.ts` is the only
   handling; the schema holds a hash and the last four digits and no plaintext.
 - **No SENASA notification.** The export engine exists; there is no screen and no
-  batch notification (`docs/reviews/2026-09-fresh/DECK-FACTS.md` §4).
+  batch notification (`dim-interno:docs/reviews/2026-09-fresh/DECK-FACTS.md` §4).
 - **No "claim your pet by DNI" flow.** Disabled by a hard constant in
   `src/modules/pets/application/stub-claim/claim-stub-profile.ts`, held pending
   identity verification.
@@ -480,7 +480,7 @@ State these rather than soften them.
   control (`lib/infra/public-token-throttle.ts:44-47`).
 
 Two open findings that touch this surface directly, both from the 2026-09 audit
-(`docs/reviews/2026-09-fresh/SYNTHESIS.md`): `pet_events.author_role` is forgeable
+(`dim-interno:docs/reviews/2026-09-fresh/SYNTHESIS.md`): `pet_events.author_role` is forgeable
 through PostgREST (A02-1, queued as migration 0212 — an owner could post an event
 that falsely claims a professional signature, which the credential's confidence
 badge reads), and anonymous writes carry no IP-less per-token cap (A03-2).
@@ -506,7 +506,7 @@ so authorization must already have happened.
 ## Sources
 
 - Code at `c10f4ff03`, every path and line above opened at that SHA.
-- `docs/reviews/2026-09-fresh/lenses/A03.md` — public and unauthenticated surface abuse.
-- `docs/reviews/2026-09-fresh/lenses/A08.md` — event-ledger integrity.
-- `docs/reviews/2026-09-fresh/DECK-FACTS.md` — refuter-surviving positives and the "do not draw" list.
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A03.md` — public and unauthenticated surface abuse.
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A08.md` — event-ledger integrity.
+- `dim-interno:docs/reviews/2026-09-fresh/DECK-FACTS.md` — refuter-surviving positives and the "do not draw" list.
 - `docs/architecture/privacy-known-limitations.md`, `AGENTS.md` § Privacy tiers.

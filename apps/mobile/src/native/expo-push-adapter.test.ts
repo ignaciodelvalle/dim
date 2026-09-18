@@ -1,6 +1,6 @@
 // THE ADAPTER'S MAPPING, shape by shape, against a mocked native module.
 //
-// This is §7 item 6 of docs/handoff/push-notifications.md: "every shape
+// This is §7 item 6 of dim-interno:docs/handoff/push-notifications.md: "every shape
 // `expo-notifications` can return, mapped onto your port's outcome union".
 //
 // WHAT THIS FILE CAN AND CANNOT PROVE, stated first so nobody reads a green run

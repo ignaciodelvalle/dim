@@ -2,7 +2,7 @@
 // environments (PO interview 2026-07-23, item 1).
 //
 // Activation: NEXT_PUBLIC_DEMO_MODE=true.
-// Default: off — never appears in production (see docs/ops/env-handling.md).
+// Default: off — never appears in production (see dim-interno:docs/ops/env-handling.md).
 // Mounted on EVERY shell — public, citizen, and operator — via each AppShell
 // variant's `banner` slot (already reserves layout space; see
 // components/layout/AppShell.tsx). Branding is untouched — this is a chrome

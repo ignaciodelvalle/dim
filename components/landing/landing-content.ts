@@ -8,7 +8,7 @@
 // real scannable QR is a per-deployment declaration, not a constant baked in
 // here — see components/landing/demo-pet.ts (RA-6 finding 1: the hardcoded
 // flagship token made the front door 404 on every deployment provisioned the
-// way docs/ops/cutover-playbook.md mandates).
+// way dim-interno:docs/ops/cutover-playbook.md mandates).
 //
 // Sub-brand note: the landing's serif display type ("Libreta Nacional" —
 // lp-display / --font-ln-serif in globals.css) is an INTENTIONAL departure
@@ -16,7 +16,7 @@
 // body/UI type; the serif display motif on headings and the credential's
 // libreta-style back face is a deliberate sub-brand identity (PO decision:
 // keep the sub-brand, just make the page around it calmer). Do not "fix" it
-// back to a Poncho display font — see docs/archive/poncho/components.md,
+// back to a Poncho display font — see dim-interno:docs/archive/poncho/components.md,
 // which is now archived precisely because Poncho's original component/token
 // set no longer matches what ships here.
 

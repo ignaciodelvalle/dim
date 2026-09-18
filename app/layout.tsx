@@ -11,7 +11,7 @@ import "./globals.css";
 // Loaded via next/font/local from committed .woff2 files (app/fonts/README.md
 // has source, version, subset and license) — self-hosted by Next, served
 // from /_next/static, same as before. Switched off next/font/google
-// 2026-09-18 (L-21, docs/plans/PENDIENTES.md): that loader fetches from
+// 2026-09-18 (L-21, dim-interno:docs/plans/PENDIENTES.md): that loader fetches from
 // fonts.gstatic.com AT BUILD TIME, which took the CI "Lint, typecheck,
 // build" job down whole on 2026-08-10 when Google didn't answer — unrelated
 // to the commit under test. Vendoring removes the build-time network
@@ -147,7 +147,7 @@ const lnFontVars = [
 
 // Single source of truth for the app's public origin (task #43 share-first
 // lost flow). Same env var app/sitemap.ts and /p's generateMetadata resolve
-// against — see docs/ops/production-deploy-plan.md "Site URL consistency".
+// against — see dim-interno:docs/ops/production-deploy-plan.md "Site URL consistency".
 // metadataBase only resolves relative metadata URLs (og:url, canonical
 // links); it never touches the DB, so — unlike sitemap.ts's per-request
 // resolveSiteUrl() — it's safe to read at module scope for every route's

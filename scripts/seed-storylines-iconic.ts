@@ -1,8 +1,8 @@
 /**
  * Iconic-Pet Storylines Seed Script — Workflow Test Fixtures
  *
- * Source bios:        docs/archive/historia otras mascotas.txt
- * Narrative companion: docs/test-storylines-iconic.md
+ * Source bios:        dim-interno:docs/archive/historia otras mascotas.txt
+ * Narrative companion: dim-interno:docs/test-storylines-iconic.md
  *
  * Five real / iconic pets relocated to Argentina, designed as workflow
  * stressors for MiMAR/DIM:
@@ -79,7 +79,7 @@ export interface PetBio {
   owner_of_record?: string;
   /** Newer storyline modules: keyed owner reference ("ignacio" / "org:...") */
   owner?: string;
-  /** Photo file in docs/archive/Fotos/. Uploaded to Supabase Storage on seed run. */
+  /** Photo file in scripts/assets/pet-photos/. Uploaded to Supabase Storage on seed run. */
   photo_file?: string;
   notes?: string;
 }

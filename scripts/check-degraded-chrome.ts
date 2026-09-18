@@ -19,7 +19,7 @@
 // WHY THIS FENCE EXISTS
 //
 // Ten screens had the shape wrong on 2026-08-09. All were fixed BY HAND, and
-// `docs/reviews/2026-08-09-pendientes-resiliencia.md` (S5) says plainly: "Nada
+// `dim-interno:docs/reviews/2026-08-09-pendientes-resiliencia.md` (S5) says plainly: "Nada
 // prueba hoy que una página nueva conserve su barra de filtros al degradar —
 // está verificado leyendo, no por un test."
 //

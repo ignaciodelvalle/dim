@@ -1000,7 +1000,7 @@ export const FosterRepository = {
       null;
 
     // authorVerified for foster_assigned used to be hardcoded `true` ("PARITY:
-    // design §parity quirk 3", tracked as AF-L3 in docs/reviews/tier4-decisions.md).
+    // design §parity quirk 3", tracked as AF-L3 in dim-interno:docs/reviews/tier4-decisions.md).
     // That stamped "verified by an organization" onto the libreta's authorship
     // line for orgs that had never passed personería review — a small lie, but a
     // lie in the one log whose job is to say who vouched for what. The direct

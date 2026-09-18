@@ -9,7 +9,7 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
  * `panorama/product-identity`). "Compartir vista" is that export, so a URL that
  * silently reproduces a DIFFERENT board is the one defect that invalidates the
  * instrument. Item A1 of the map plan
- * (docs/design/sdd/2026-07-25-panorama-mapa-todas-las-mejoras.md) called this
+ * (dim-interno:docs/design/sdd/2026-07-25-panorama-mapa-todas-las-mejoras.md) called this
  * the mission-central bug; on 2026-07-25 it did not reproduce on HEAD. This
  * spec exists so it cannot regress in silence — the plan item became a lock,
  * not a fix.

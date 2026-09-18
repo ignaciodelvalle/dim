@@ -46,13 +46,13 @@ const AGENTS_PATH = "AGENTS.md";
 /**
  * Every prose document that has ever put a number on the debt register.
  *
- * AGENTS.md §7 is the one allowed to state it. The board is here because it
- * carried a FOURTH copy — "The 21 tables the Ley 25.326 fence revealed" — that
- * had been wrong since 0207 and that nothing pointed at, which is precisely how
- * a corrected number comes back: not by being edited, but by surviving
- * somewhere nobody thought to look.
+ * AGENTS.md §7 is the one allowed to state it. The work board (open-work.md)
+ * used to be scanned too — it carried a FOURTH copy that had been wrong since
+ * 0207 — but it moved to the private companion repo (dim-interno) on
+ * 2026-09-18, so this public repo can no longer read it. Only the documents
+ * that ship in this tree are fenced here.
  */
-const PROSE_PATHS = [AGENTS_PATH, "docs/agents/open-work.md"] as const;
+const PROSE_PATHS = [AGENTS_PATH] as const;
 
 /** Tables reached by at least one of the two RPCs — the union, never a sum. */
 const REACHED = new Set([...IN_EXPORT, ...IN_ERASE]).size;

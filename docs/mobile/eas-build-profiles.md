@@ -15,8 +15,8 @@ the end of this file. `94ab653c…` is the first to produce an artifact and the
 first to reach Play — internal testing, 2026-08-27 — and Play answered it with
 exactly one warning, which is
 [its own section below](#the-play-warning-about-a-deobfuscation-file-and-why-there-is-nothing-to-upload).
-`npx eas-cli whoami` answers accounts `nachi7` and `nachi7s-team` (the project
-lives under the latter).
+`npx eas-cli whoami` answers the maintainer's personal Expo account and a team
+account (the project lives under the team account).
 
 **The round is not running. It is stopped, and has been since 2026-08-28.**
 Build 6 shipped but predates "env in the profiles", so it has no

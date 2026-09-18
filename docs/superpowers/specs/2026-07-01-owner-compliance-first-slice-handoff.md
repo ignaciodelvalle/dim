@@ -1,8 +1,8 @@
 # Owner "compliance-first" slice — Claude Code handoff
 
 > Date: 2026-07-01 · Owner-facing (citizen skin `ln-*` / `Ln*`) · Scope: three linked screens delivered as one vertical slice.
-> Design rationale (the *why*): [`docs/design/2026-07-01-four-actor-lean-ia-critique.md`](../../design/2026-07-01-four-actor-lean-ia-critique.md) §2. This doc is the *executable* version (the *what* + *where*), scoped for one or two Claude Code sessions.
-> Companion critique (operator token layer, do not conflict): [`docs/design/critique-2026-06-24-frontend.md`](../../design/critique-2026-06-24-frontend.md).
+> Design rationale (the *why*): `dim-interno:docs/design/2026-07-01-four-actor-lean-ia-critique.md` §2. This doc is the *executable* version (the *what* + *where*), scoped for one or two Claude Code sessions.
+> Companion critique (operator token layer, do not conflict): `dim-interno:docs/design/critique-2026-06-24-frontend.md`.
 
 ## 0. Outcome (definition of done)
 

@@ -1,7 +1,7 @@
 // OpBulkResultPanel — shared post-bulk-action partial-success/failure panel.
 //
 // Extracted from THREE near-identical inline `ResultPanel` implementations
-// (Track B4, docs/reviews/results/2026-07-21-nivel-siguiente-plan.md):
+// (Track B4, dim-interno:docs/reviews/results/2026-07-21-nivel-siguiente-plan.md):
 // components/BulkApprovalQueueList.tsx, components/AdoptionQueueList.tsx,
 // app/org/[orgToken]/mascotas/OrgMascotasBulkList.tsx. Same shape each time —
 // "{succeeded} OK · {failed} fallaron" + per-item failure reasons + a

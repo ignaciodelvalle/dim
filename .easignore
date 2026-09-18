@@ -25,7 +25,7 @@
 # WHY IT EXISTS: the first real build (2026-08-26, 9900114a-c134-41cf-af38-
 # 6aaf789d2942) reported "Your project archive is 152 MB". Measured against the
 # tracked tree that day (exact bytes, `git ls-files` + `stat`): 126.3 MB, of
-# which docs/ alone is 84.4 MB and docs/reviews 74.9 MB of that — screenshots,
+# which docs/ alone is 84.4 MB and dim-interno:docs/reviews 74.9 MB of that — screenshots,
 # measurement dumps and a 12 MB zip of one critique's captures. Every build pays
 # that upload, on a connection that is not a datacentre's.
 #
@@ -195,7 +195,7 @@ service-account*.json
 # ADDITIONS — not in .gitignore. Tracked files a native build never opens.
 # ===========================================================================
 
-# 84.4 MB of the 126.3 MB tracked tree, almost all of it docs/reviews/results:
+# 84.4 MB of the 126.3 MB tracked tree, almost all of it dim-interno:docs/reviews/results:
 # screenshots, measurement dumps and a 12 MB zip of a critique's captures.
 # Prose and images. Nothing under here is imported, required, or read at
 # runtime by anything in the app.

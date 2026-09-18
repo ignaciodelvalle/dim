@@ -33,7 +33,7 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
 // HEIC/HEIF are NOT here, and that is a decision, not an omission: PO D4
 // (2026-09-18) refuses them rather than transcoding. See lib/media/heic.ts.
 // Video stays accepted with its metadata until the D4b neutraliser lands
-// (docs/handoff/rumbo-al-piloto.md, T2-P3).
+// (dim-interno:docs/handoff/rumbo-al-piloto.md, T2-P3).
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/png",

@@ -12,7 +12,7 @@ import { BRANDING } from "@/lib/ui/branding";
  * retired fingerprint mark while the phone shipped the plaque. Renaming or
  * resizing any of them means editing that script, and __tests__/pwa-icons.test.ts
  * fails if this list and the generator's output list stop agreeing.
- * Background: docs/design/handoffs/2026-07-04-pwa-gap-analysis.md.
+ * Background: dim-interno:docs/design/handoffs/2026-07-04-pwa-gap-analysis.md.
  *
  * theme_color / background_color mirror the app chrome tokens in app/globals.css
  * (--color-primary / --color-ln-azul and --color-background / --color-ln-paper).

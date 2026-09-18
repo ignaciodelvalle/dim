@@ -89,7 +89,7 @@ Crear `app/actions/geocoding.ts`:
 // Do not console.log queries even for debugging in production code.
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
-const USER_AGENT = "MiMAR/1.0 (https://mimar.ar; contacto: ignaciodelvalle2014@gmail.com)";
+const USER_AGENT = "MiMAR/1.0 (https://mimar.ar; contacto: <maintainer contact>)";
 const RATE_LIMIT_PER_SECOND = 5;
 const REQUEST_TIMEOUT_MS = 8000;
 

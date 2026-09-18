@@ -68,7 +68,7 @@ first edit; read nothing else in full.
 | 1 | `/CLAUDE.md` (86 lines) | The invariants and the Definition of Done. Short, and the highest-value thing you will read. |
 | 2 | This page's rule 2, again | The gate's failure modes are the single most expensive thing to learn late. |
 | 3 | Run `pnpm verify`, then `pnpm test:verified`, on a clean tree | Not ceremony. You need to see a real verdict line before you can judge your own. |
-| 4 | **`docs/agents/open-work.md`** | The board: milestones, everything still open, the declared debts, what is PO-gated and must be handed back rather than attempted. |
+| 4 | **`dim-interno:docs/agents/open-work.md`** | The board: milestones, everything still open, the declared debts, what is PO-gated and must be handed back rather than attempted. |
 | 5 | `docs/agents/README.md` | The other agent contracts, and the working norms. |
 | 6 | `AGENTS.md` — **the slim index only** | 1,833 lines. It has anchors mapping each topic to a section. Load the section you need; never the whole file. |
 
@@ -78,7 +78,7 @@ containers, production server on :3000, smoke tests, seed accounts).
 ## Your first task
 
 **It is not named here. Take it from the table in
-`docs/agents/open-work.md`, and read that page's "Landed since this snapshot"
+`dim-interno:docs/agents/open-work.md`, and read that page's "Landed since this snapshot"
 section before you start.**
 
 This section used to name one ("let an owner edit their pet's data and their

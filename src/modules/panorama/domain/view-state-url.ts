@@ -2,7 +2,7 @@
 //
 // P1a: the ONE seam between the canonical `PanoramaViewState` and the browser
 // URL, replacing the scattered `searchParams.get(...)` reads + `params.set(...)`
-// writes documented in docs/plans/panorama-viewstate-inventory.md. Making the
+// writes documented in dim-interno:docs/plans/panorama-viewstate-inventory.md. Making the
 // boundary symmetric fixes the H14 deep-link round-trip defect structurally: the
 // property `viewStateFromParams(viewStateToParams(v)) ≡ v` (over the serialized
 // fields) is a unit test, so any param read-but-never-written (or vice-versa)

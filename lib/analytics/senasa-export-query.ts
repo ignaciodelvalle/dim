@@ -1,6 +1,6 @@
 // SENASA / LSUCyF batch export — scoped gather (IO stage).
 //
-// See docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md.
+// See dim-interno:docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md.
 //
 // The ONLY database-touching part of the SENASA export — the scoped gather and
 // (since the route landed, 2026-09-11) the mandatory audit row. Gathers sanitary-

@@ -1,6 +1,6 @@
 // LnMaintenanceScreen — full-page "under maintenance" state for the citizen
 // shell (Track B — sistema de estados, B2;
-// docs/reviews/results/2026-07-21-nivel-siguiente-plan.md).
+// dim-interno:docs/reviews/results/2026-07-21-nivel-siguiente-plan.md).
 //
 // Rendered BEFORE any auth/nav-data fetch in app/(app)/layout.tsx, so it is
 // intentionally NOT wrapped in AppShell — no rail/topbar/masthead data exists

@@ -1,7 +1,7 @@
 // Use-case: escalate a flagged welfare report to the national admin queue.
 //
 // Phase 2 of jurisdiction-scoped denuncia moderation
-// (docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md).
+// (dim-interno:docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md).
 //
 // A jurisdiction govt that does not want to approve (pass-to-triage) or reject
 // (confirm-as-spam) a flagged denuncia — because it is cross-jurisdiction,

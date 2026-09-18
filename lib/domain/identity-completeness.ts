@@ -3,7 +3,7 @@
 // WHY THIS EXISTS (staging finding, 2026-08-01)
 // ---------------------------------------------
 // 15 of 25 owner profiles on staging had `display_name` set to the exact
-// local-part of their email (e.g. "ignaciodelvalle2014+cursor-owner2"). That is
+// local-part of their email (e.g. "qa-maintainer+cursor-owner2"). That is
 // the provisional value written by the `handle_new_user` trigger:
 //
 //   coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1))

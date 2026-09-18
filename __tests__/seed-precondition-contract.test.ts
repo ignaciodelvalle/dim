@@ -34,7 +34,7 @@
 // and /p/[publicToken] calls notFound() when a token does not resolve. That
 // token is seeded ONLY by scripts/seed-flagship-pampa.ts, which runs in
 // neither db-bootstrap step 4 nor deploy-provision step 8, and
-// docs/ops/cutover-playbook.md mandates production carry "no seed pets". The
+// dim-interno:docs/ops/cutover-playbook.md mandates production carry "no seed pets". The
 // front door 404'd by design of the playbook, and no test could see it.
 //
 // So the second fence below scans every NON-test file that ships — the same
@@ -228,7 +228,7 @@ describe("seed precondition contract — shipped code (RA-6 finding 1)", () => {
       [
         "These files SHIP. They name a public token that only a demo/storyline seed",
         "writes — and no seed script runs in db-bootstrap step 4 or deploy-provision",
-        "step 8, while docs/ops/cutover-playbook.md mandates production be loaded with",
+        "step 8, while dim-interno:docs/ops/cutover-playbook.md mandates production be loaded with",
         "'no seed pets, no demo accounts'. So on every honestly-provisioned deployment",
         "that row does not exist and whatever the code does with it (render a QR, link",
         "to /p, look it up) fails or 404s.",

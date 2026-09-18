@@ -29,7 +29,7 @@
   Run a single cycle and exit (for cron / one-shot checks).
 
 .PARAMETER LogDir
-  Directory for rotating logs. Default: docs/design/handoffs/qa-monitor-logs.
+  Directory for rotating logs. Default: tmp/qa-monitor-logs (gitignored).
 
 .EXAMPLE
   pwsh scripts/qa-monitor.ps1 -StagingUrl https://dim-staging-abc123.vercel.app
@@ -49,7 +49,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 if ([string]::IsNullOrWhiteSpace($LogDir)) {
-  $LogDir = Join-Path $repoRoot "docs/design/handoffs/qa-monitor-logs"
+  $LogDir = Join-Path $repoRoot "tmp/qa-monitor-logs"
 }
 if (-not (Test-Path $LogDir)) {
   New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
