@@ -5,9 +5,11 @@
 //   Buenos Aires". Prov BA is NOT implemented in this PR.
 //   TODO(F2-prov-ba-v2): when Prov BA PPP support is added, extend the guard below.
 //
-// Role gate: owner-only. The pet must belong to the authenticated user (strict
-//   ownership check via ownerships table). No org-path access — PPP registration
-//   is the owner's personal responsibility.
+// Role gate: LEGAL owner only (`ownerships.role = 'owner'`, open row). A foster
+//   or caretaker also holds an open ownership row; before security review
+//   2026-09 any of them could call this directly and get the certificate the
+//   page only offers the titular (lib/domain/ppp-export-eligibility.ts). No
+//   org-path access — PPP registration is the titular's personal duty.
 //
 // Decision F-D5: audit_log action = "ppp_export_generated" (snake_case).
 // Decision F-D6: storage bucket = "ppp-exports" (private, separate from welfare-exports).
@@ -45,7 +47,7 @@ const EXPORT_URL_TTL_SECONDS = 24 * 60 * 60;
 export async function generatePppExport(petPublicToken: string): Promise<GeneratePppExportResult> {
   const { supabase, user } = await requireUserOrRedirect();
 
-  // Ownership check: pet must exist and belong to this user (strict owner-path only).
+  // Ownership check: pet must exist and this user must be its LEGAL owner.
   const [ownerRow] = await db
     .select({
       petId: pets.id,
@@ -63,6 +65,7 @@ export async function generatePppExport(petPublicToken: string): Promise<Generat
       and(
         eq(pets.publicToken, petPublicToken),
         eq(ownerships.ownerUserId, user.id),
+        eq(ownerships.role, "owner"),
         isNull(ownerships.endedAt),
       ),
     )

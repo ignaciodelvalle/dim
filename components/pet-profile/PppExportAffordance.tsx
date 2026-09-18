@@ -96,7 +96,7 @@ export function PppExportAffordance({
         {pending ? "Generando el PDF…" : "Emitir constancia RUPPPA (PDF)"}
       </LnButton>
       <p className="font-ln-sans text-xs text-[var(--color-ln-mute)]">
-        Formulario para inscribir a tu perro en el registro de la Ciudad (Ley 5470).
+        Formulario para inscribir a tu perro en el registro de la Ciudad.
       </p>
       {error && (
         <p role="alert" className="font-ln-sans text-xs text-[var(--color-ln-err)]">

@@ -437,4 +437,33 @@ describe("generatePppExportAction — ownership guard", () => {
     if (result.ok) return;
     expect(result.error).toBe("not_found");
   });
+  // Security review 2026-09: the page offers the certificate to the legal
+  // owner only, but the use-case accepted ANY open ownership row — a foster
+  // calling the action directly got the PDF.
+  it("returns not_found for a foster with an open ownership row on the pet", async () => {
+    const FOSTER_USER = "ffffffff-0000-0000-0000-000000000008";
+    await db
+      .insert(profiles)
+      .values({ id: FOSTER_USER, displayName: "PPP Foster Test", role: "owner" })
+      .onConflictDoNothing({ target: profiles.id });
+    await db.insert(ownerships).values({
+      petId: petIdCaba,
+      ownerUserId: FOSTER_USER,
+      role: "foster",
+      startedAt: new Date(),
+    });
+
+    const supabaseMock = buildSupabaseMock(FOSTER_USER, "ppp-foster@dim-test.local");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockCreateClient.mockResolvedValue(supabaseMock as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockRequireUserOrRedirect.mockResolvedValue({
+      supabase: supabaseMock,
+      user: { id: FOSTER_USER },
+    } as any);
+
+    const result = await generatePppExportAction(PPP_PET_TOKEN_CABA);
+    expect(result).toEqual({ ok: false, error: "not_found" });
+    expect(supabaseMock.storage.from).not.toHaveBeenCalled();
+  });
 });
