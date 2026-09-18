@@ -62,13 +62,27 @@
 //    fences did exactly that this week. MIN_DEGRADED_BRANCHES is the same
 //    correction check-view-scope.ts got, applied before the fact.
 //
+// 5. A SCREEN WITH NO WRAPPER AT ALL IS AN OFFENDER (T1-L6, 2026-09-18).
+//    Decisions 1-4 judge a degraded branch. A page that awaits its reads bare
+//    has no branch, so it had nothing to judge and passed — the WORST page
+//    scored as clean. /admin/casos, the Actividad vista and /gob/historial were
+//    exactly that: an operator filter bar over unbounded reads, which on a
+//    degraded pooler is a skeleton that never ends. So: any server component
+//    that renders a filter bar and awaits something must CALL a budget wrapper
+//    (referencesBudgetWrapper, imported from check-db-budget.ts for the same
+//    reason as BUDGET_WRAPPERS). An offender is reported as the pseudo-chrome
+//    UNBUDGETED and rides the same (file, name) baseline, so the known debt is
+//    written down file by file and a wrapper REMOVED from any screen goes red.
+//    Its own floor (MIN_FILTER_BAR_SCREENS) keeps a broken filter-bar anchor
+//    from reading as "every screen is budgeted".
+//
 // USAGE
 //   pnpm lint:degraded-chrome
 //   pnpm exec tsx scripts/check-degraded-chrome.ts --write-baseline
 
 import { existsSync, globSync, readFileSync, writeFileSync } from "node:fs";
 
-import { BUDGET_WRAPPERS, stripNonCode } from "./check-db-budget";
+import { BUDGET_WRAPPERS, referencesBudgetWrapper, stripNonCode } from "./check-db-budget";
 
 export const SCANNED_GLOBS = ["app/**/*.tsx"] as const;
 
@@ -103,6 +117,16 @@ export const MIN_DEGRADED_BRANCHES = 25;
  */
 export const MIN_SCANNED_FILES = 400;
 export const MIN_DS_CHROME = 5;
+
+/**
+ * Floor for decision 5. Measured 2026-09-18: 40 async server components under
+ * app/** render a filter bar. Below 30 the filter-bar anchor has most likely
+ * stopped matching, and "no unbudgeted screen" would be a claim about nothing.
+ */
+export const MIN_FILTER_BAR_SCREENS = 30;
+
+/** Pseudo-chrome name under which a screen with NO budget wrapper is reported. */
+export const UNBUDGETED = "budget-wrapper";
 
 // ---------------------------------------------------------------------------
 // Chrome vocabulary — computed, never hardcoded
@@ -404,6 +428,51 @@ export function findMissingChrome(file: string, rawSrc: string, dsChrome: Set<st
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Decision 5 — a filter-bar screen with no budget wrapper at all
+// ---------------------------------------------------------------------------
+
+/** Chrome that lets the operator narrow the query — the thing a hang takes away. */
+const FILTER_CHROME_RE = /(?:FilterBar|FilterFields)$/;
+
+/**
+ * An await that is not the route's own props. `await searchParams` / `await
+ * params` resolve a promise Next already holds; they cannot hang on the DB.
+ */
+const DATA_AWAIT_RE = /\bawait\s+(?!searchParams\b|params\b|props\b)[A-Za-z_$(]/;
+
+/**
+ * True for an async server component that renders filter chrome and awaits
+ * something besides its props — the population decision 5 judges.
+ */
+export function isFilterBarScreen(rawSrc: string, dsChrome: Set<string>): boolean {
+  const code = stripNonCode(rawSrc);
+  if (/^\s*["']use client["']/.test(rawSrc)) return false;
+  if (!/\basync\s+function\b/.test(code)) return false;
+  if (!DATA_AWAIT_RE.test(code)) return false;
+  const filterVocab = new Set(
+    [...chromeVocabulary(rawSrc, dsChrome)].filter((n) => FILTER_CHROME_RE.test(n)),
+  );
+  // renderedChrome also reports a literal <h1> whatever the vocabulary says —
+  // that is not filter chrome, and counting it swept in every page with a title.
+  return [...renderedChrome(code, filterVocab)].some((n) => n !== "h1");
+}
+
+/**
+ * The offender decision 5 reports: a filter-bar screen that never calls a
+ * budget wrapper, and therefore has no degraded branch for decisions 1-4 to
+ * judge.
+ */
+export function findUnbudgetedScreen(
+  file: string,
+  rawSrc: string,
+  dsChrome: Set<string>,
+): Missing | null {
+  if (!isFilterBarScreen(rawSrc, dsChrome)) return null;
+  if (referencesBudgetWrapper(rawSrc)) return null;
+  return { file, binding: "", name: UNBUDGETED };
+}
+
 export function scannedFiles(): string[] {
   return SCANNED_GLOBS.flatMap((g) => globSync(g)).filter((f) => !f.includes("node_modules"));
 }
@@ -419,18 +488,27 @@ function relPath(file: string): string {
   return file.split("\\").join("/");
 }
 
-export function scanAll(): { missing: Missing[]; branches: number; files: number } {
+export function scanAll(): {
+  missing: Missing[];
+  branches: number;
+  files: number;
+  filterBarScreens: number;
+} {
   const dsChrome = designSystemChrome();
   const files = scannedFiles();
   const missing: Missing[] = [];
   let branches = 0;
+  let filterBarScreens = 0;
   for (const file of files) {
     const raw = readFileSync(file, "utf8");
+    if (isFilterBarScreen(raw, dsChrome)) filterBarScreens += 1;
+    const unbudgeted = findUnbudgetedScreen(relPath(file), raw, dsChrome);
+    if (unbudgeted) missing.push(unbudgeted);
     if (!/\.ok\b/.test(raw)) continue;
     branches += degradedBranches(stripNonCode(raw)).length;
     missing.push(...findMissingChrome(relPath(file), raw, dsChrome));
   }
-  return { missing, branches, files: files.length };
+  return { missing, branches, files: files.length, filterBarScreens };
 }
 
 function writeBaseline(missing: Missing[]): void {
@@ -449,7 +527,7 @@ function writeBaseline(missing: Missing[]): void {
 }
 
 function runScan(): void {
-  const { missing, branches, files } = scanAll();
+  const { missing, branches, files, filterBarScreens } = scanAll();
 
   if (process.argv.includes("--write-baseline")) {
     writeBaseline(missing);
@@ -468,6 +546,12 @@ function runScan(): void {
   if (files < MIN_SCANNED_FILES) {
     console.error(
       `✗ degraded-chrome: only ${files} file(s) matched ${SCANNED_GLOBS.join(", ")}, expected at least ${MIN_SCANNED_FILES}. The glob stopped matching the tree.`,
+    );
+    process.exit(1);
+  }
+  if (filterBarScreens < MIN_FILTER_BAR_SCREENS) {
+    console.error(
+      `✗ degraded-chrome: only ${filterBarScreens} filter-bar screen(s) found, expected at least ${MIN_FILTER_BAR_SCREENS}. The filter-bar anchor stopped matching, so "no screen without a budget wrapper" would be a claim about nothing.`,
     );
     process.exit(1);
   }
@@ -495,6 +579,13 @@ function runScan(): void {
   // Ratchet, direction 2 — new violations.
   for (const m of missing) {
     if (baseline[m.file]?.chrome.includes(m.name)) continue;
+    if (m.name === UNBUDGETED) {
+      console.error(
+        `${m.file}: renders a filter bar over reads that no budget wrapper (${BUDGET_WRAPPERS.join("/")}) bounds. A degraded pooler leaves this screen on its skeleton forever, and there is no \`if (!x.ok)\` branch for this check to judge. Race the reads in loadWithTimeout/withDbBudget and add a degraded branch that keeps the filter bar (see app/admin/casos/page.tsx). If the budget genuinely lives elsewhere, add "${UNBUDGETED}" to ${BASELINE_FILE} WITH a reason.`,
+      );
+      hits += 1;
+      continue;
+    }
     console.error(
       `${m.file}: the \`if (!${m.binding}.ok)\` branch drops <${m.name}>, which does not depend on ${m.binding}.value. Hoist it above the await and render it in BOTH branches (see app/gob/censo/CensoScreen.tsx). If the absence is deliberate, add it to ${BASELINE_FILE} WITH a reason.`,
     );
@@ -520,7 +611,7 @@ function runScan(): void {
 
   const baselined = Object.values(baseline).reduce((n, e) => n + e.chrome.length, 0);
   console.log(
-    `✓ degraded-chrome clean — ${files} files, ${branches} degraded branches inspected, ${baselined} documented exemption(s).`,
+    `✓ degraded-chrome clean — ${files} files, ${branches} degraded branches inspected, ${filterBarScreens} filter-bar screens checked for a budget wrapper, ${baselined} documented exemption(s).`,
   );
 }
 

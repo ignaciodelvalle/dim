@@ -52,8 +52,10 @@ import {
   type OpFilterAxis,
   OpFilterBar,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
   type AuditHistoryScope,
@@ -136,7 +138,7 @@ type ActividadSearchParams = {
 // lives here; the component below only renders. Universal admin scope (#26
 // D1): shares its WHERE-clause assembly + actor-dropdown resolution with
 // /gob/historial via lib/infra/audit-history-query.ts.
-async function loadActividad(sp: ActividadSearchParams, viewerId: string) {
+async function loadActividad(sp: ActividadSearchParams) {
   const actionFilters = parseAuditActions(sp.action);
   const actorFilter = sp.actor?.trim() || null;
   // Same conditional shape as /gob/historial: only ask the resolver to parse
@@ -227,12 +229,6 @@ async function loadActividad(sp: ActividadSearchParams, viewerId: string) {
     actorFilter,
   );
 
-  const actionOptions = buildAuditActionOptions();
-  const selectedActionOption =
-    actionFilters.length === 1
-      ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
-      : undefined;
-
   return {
     entries,
     olderLink,
@@ -240,12 +236,10 @@ async function loadActividad(sp: ActividadSearchParams, viewerId: string) {
     tokenByReqId,
     namesById,
     actorOptions,
-    actionOptions,
-    selectedActionOption,
-    isMineFilter: actorFilter === viewerId,
-    actorFilter,
   };
 }
+
+type ActorOption = { value: string; label: string };
 
 export async function ActividadScreen({
   searchParams: sp,
@@ -255,67 +249,100 @@ export async function ActividadScreen({
   underHub?: boolean;
 }) {
   const { user } = await requireAdminOrRedirect();
-  const {
-    entries,
-    olderLink,
-    newerLink,
-    tokenByReqId,
-    namesById,
-    actorOptions,
-    actionOptions,
-    selectedActionOption,
-    isMineFilter,
-    actorFilter,
-  } = await loadActividad(sp, user.id);
+
+  // Everything the filter bar needs that does NOT come from the database is
+  // resolved BEFORE the load, so the degraded branch can keep the bar
+  // (lint:degraded-chrome). Only the Actor axis's options are data-derived.
+  const actionFilters = parseAuditActions(sp.action);
+  const actorFilter = sp.actor?.trim() || null;
+  const actionOptions = buildAuditActionOptions();
+  const selectedActionOption =
+    actionFilters.length === 1
+      ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
+      : undefined;
+  const isMineFilter = actorFilter === user.id;
+
+  const header = (
+    <ScreenHeader
+      underHub={underHub}
+      title="Historial"
+      subtitle={
+        <p className="text-md text-ln-op-ink-2">Vista universal admin — todos los actores.</p>
+      }
+    />
+  );
+
+  // Unified filter bar — twin of /gob/historial's (#26 D1 parity): Período
+  // + Acción/Actor as registered axes (both no-param defaults are genuinely
+  // "todas/todos" — no blank-option trap) + "Ver solo mi actividad" as a
+  // children TOGGLE (AuditMineToggle), not an axis — it defaults OFF ("todos
+  // los actores", the Actor axis's own default) and writes the SAME `actor`
+  // param the axis does (F-migration 2026-07-21, off the bespoke <form> +
+  // hand-rolled Período row). A filter change drops the keyset `cursor` (page
+  // 1); "Limpiar todo" covers period+action+actor in one click. All filter
+  // mutations commit via serverNavCommit, which preserves the hub's `vista`
+  // param.
+  const filterBar = (actorAxisOptions: ActorOption[]) => (
+    <OpFilterBar
+      period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+      resetParamsOnChange={["cursor"]}
+      axes={
+        [
+          {
+            id: "action",
+            label: "Acción",
+            paramKey: "action",
+            options: actionOptions,
+            current: selectedActionOption?.value ?? null,
+            allLabel: "Todas las acciones",
+          },
+          {
+            id: "actor",
+            label: "Actor",
+            paramKey: "actor",
+            options: actorAxisOptions,
+            current: actorFilter,
+            allLabel: "Todos los actores",
+          },
+        ] satisfies OpFilterAxis[]
+      }
+    >
+      <AuditMineToggle userId={user.id} isMine={isMineFilter} resetParamsOnChange={["cursor"]} />
+    </OpFilterBar>
+  );
+
+  // BOUNDED (T1-L6). The audit_log read plus its three lookups used to be
+  // awaited bare, so a degraded pooler left the Actividad tab on its skeleton
+  // with no way out. One deadline covers the whole group, as AuditoriaScreen
+  // does for the sibling vista.
+  const load = await loadWithTimeout(loadActividad(sp));
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filterBar(
+          // The actor names come from the load that just failed. Keep the
+          // operator's current selection selectable so the bar still reads
+          // back what is applied, without inventing a name for it.
+          actorFilter ? [{ value: actorFilter, label: "Actor seleccionado" }] : [],
+        )}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          correlationId={load.id}
+          retryHref={analyticsRetryHref(HUB_BASE, { ...sp, vista: "actividad" })}
+        />
+      </div>
+    );
+  }
+  const { entries, olderLink, newerLink, tokenByReqId, namesById, actorOptions } = load.value;
   const actorName = (uid: string | null) =>
     uid ? (namesById.get(uid) ?? "Desconocido") : "Usuario eliminado";
 
   return (
     <div className="space-y-6">
-      <ScreenHeader
-        underHub={underHub}
-        title="Historial"
-        subtitle={
-          <p className="text-md text-ln-op-ink-2">Vista universal admin — todos los actores.</p>
-        }
-      />
+      {header}
 
-      {/* Unified filter bar — twin of /gob/historial's (#26 D1 parity): Período
-          + Acción/Actor as registered axes (both no-param defaults are
-          genuinely "todas/todos" — no blank-option trap) + "Ver solo mi
-          actividad" as a children TOGGLE (AuditMineToggle), not an axis — it
-          defaults OFF ("todos los actores", the Actor axis's own default) and
-          writes the SAME `actor` param the axis does (F-migration
-          2026-07-21, off the bespoke <form> + hand-rolled Período row). A
-          filter change drops the keyset `cursor` (page 1); "Limpiar todo"
-          covers period+action+actor in one click. All filter mutations commit
-          via serverNavCommit, which preserves the hub's `vista` param. */}
-      <OpFilterBar
-        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
-        resetParamsOnChange={["cursor"]}
-        axes={
-          [
-            {
-              id: "action",
-              label: "Acción",
-              paramKey: "action",
-              options: actionOptions,
-              current: selectedActionOption?.value ?? null,
-              allLabel: "Todas las acciones",
-            },
-            {
-              id: "actor",
-              label: "Actor",
-              paramKey: "actor",
-              options: actorOptions.map((o) => ({ value: o.id, label: o.name })),
-              current: actorFilter,
-              allLabel: "Todos los actores",
-            },
-          ] satisfies OpFilterAxis[]
-        }
-      >
-        <AuditMineToggle userId={user.id} isMine={isMineFilter} resetParamsOnChange={["cursor"]} />
-      </OpFilterBar>
+      {filterBar(actorOptions.map((o) => ({ value: o.id, label: o.name })))}
 
       {entries.length === 0 ? (
         <p className="text-md text-ln-op-mute">No hay entradas que coincidan.</p>

@@ -12,6 +12,15 @@ name: Panorama QA nightly (local stack)
 # into a ratcheted gate is a separate, larger decision (needs a violation
 # baseline like lint:action-redirect's pattern) — do not do it silently here.
 #
+# The first sentence was FALSE for 20 nights (issue #781): an uncaught 20 s wait on
+# the panorama dock crashed the a11y step to exit 1, and the chaos harness
+# exited 1 on any failed recovery check. Since T1-C4 (2026-09-18) all three
+# scripts share scripts/lib/qa-report-outcome.ts: a finding — a failed step, an
+# axe violation, a recovery that did not recover — is a row in the report and
+# in this run's job SUMMARY, and the step exits 0. Only the harness being
+# unable to run (chromium does not launch, the report cannot be written)
+# exits non-zero, and that SHOULD turn the run red.
+#
 # Cron is UTC: 06:30 UTC = 03:30 in Argentina (UTC-3, no DST) — offset from
 # e2e-nightly's 06:00 so the two never compete for attention on a red morning.
 #

@@ -1,9 +1,10 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
 import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
+import { endSponsorship, pickSponsorablePetToken, sponsorPet } from "./_shelter-custody";
 import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 import { resetAuthLoginRateLimits } from "./demo/_db-cleanup";
-import { ACCOUNTS, discoverPetToken, ensurePetFound, resolveOrgToken } from "./demo/_helpers";
+import { ACCOUNTS, discoverPetToken, ensurePetFound } from "./demo/_helpers";
 
 /**
  * Owner IA redesign — P6 LIVE validation pass.
@@ -47,9 +48,10 @@ import { ACCOUNTS, discoverPetToken, ensurePetFound, resolveOrgToken } from "./d
  *                       need, and 3 is guaranteed by seedOwnerPets)
  *   vet@dim.test      — role=vet, single active membership in "Refugio Test
  *                       (Seed)" → /mis-mascotas redirects to that /org portal
- *   orgadmin@dim.test — admin of "Refugio Test (Seed)", which HOLDS three pets
- *                       via ownerships(owner_organization_id, shelter_custody),
- *                       and owns none personally → the org-viewer POV
+ *   orgadmin@dim.test — admin of "Refugio Test (Seed)", owns no pet personally
+ *                       → the org-viewer POV. Test 8 no longer relies on the
+ *                       three pets the seed puts under shelter custody (the
+ *                       suite consumed them): it opens its own custody.
  *   ZERO_PET_OWNER   — owner, 0 pets, no org memberships (zero-pet landing).
  *                      Imported from scripts/seed-reserved-accounts.ts, NOT
  *                      hardcoded: this used to name carla@dim.test, who by
@@ -511,59 +513,25 @@ test("7 — vet /mis-mascotas redirects to the org portal; ?as=owner shows the i
 test("8 — org viewer of a held pet gets no carousel chrome and no emergency block", async ({
   browser,
 }) => {
+  // THE HELD PET IS PROVISIONED HERE, not discovered (T1-C3, 2026-09-18).
+  // This test used to pick a pet from the org portal's list, trusting that
+  // the seeded refugio still held one. On staging it held none — crisis-seams
+  // (d) adopts a pet out every night and nothing reopened a custody — so the
+  // nightly was red 41 nights on a missing fixture, not on the viewer UX this
+  // test is about. Now the titular (owner@dim.test) asks the refugio to
+  // sponsor one of their pets and the org accepts: a live shelter custody this
+  // test opened, and ends in `finally` through the titular's own "Dar de baja".
+  // See e2e/_shelter-custody.ts for why the sponsorship shape and not intake.
+  const titular = await openAs(browser, CAROUSEL_OWNER);
   const { context, page } = await openAs(browser, ORG_VIEWER);
+  let heldToken = "";
   try {
-    // The held pet comes from the ORG portal, not /mis-mascotas: orgadmin owns
-    // nothing personally, and the org's three seeded pets are held through
-    // ownerships(owner_organization_id, 'shelter_custody'). Discovered at
-    // runtime — bootstrap's tokens are random (this was DIM-ARGO-DEMO).
-    const orgToken = await resolveOrgToken(page, /Refugio Test/i);
-    await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
-    const petLinks = page.locator(`a[href^="/org/${orgToken}/mascotas/DIM-"]`);
-    await expect(petLinks.first(), "org portal lists a held animal").toBeVisible({
-      timeout: 20_000,
-    });
-    // The portal may still list a pet whose custody just ENDED — crisis-seams
-    // (d) finalizes a real adoption earlier in the serial run (twice, with the
-    // retry), and an ex-held pet renders WITHOUT the org-access notice this
-    // test asserts. The subject here is the held-pet viewer UX, not the
-    // portal's listing policy, so probe the listed candidates and settle on
-    // the first one that is still genuinely under custody.
-    // Capture the segment AFTER /mascotas/ — org tokens are DIM-prefixed too,
-    // so a bare DIM-… match on the full href grabs the ORG token and sends
-    // the probe to /mis-mascotas/<org token>, which can never render the
-    // notice. (The pre-refactor code had the same latent bug.)
-    const hrefs = await petLinks.evaluateAll((as) =>
-      as.map(
-        (a) => (a.getAttribute("href") ?? "").match(/\/mascotas\/(DIM-[A-Z0-9-]+)/)?.[1] ?? "",
-      ),
-    );
-    const candidates = [...new Set(hrefs.filter(Boolean))];
-    expect(candidates.length, "org-held pet tokens resolved at runtime").toBeGreaterThan(0);
+    heldToken = await pickSponsorablePetToken(titular.page);
+    await sponsorPet(titular.page, page, heldToken);
 
-    let heldToken = "";
-    for (const candidate of candidates) {
-      await page.goto(`/mis-mascotas/${candidate}`);
-      await page.waitForLoadState("domcontentloaded");
-      if (new URL(page.url()).pathname !== `/mis-mascotas/${candidate}`) continue;
-      // waitFor, not an instant count(): the profile STREAMS — the notice
-      // arrives after domcontentloaded, so a synchronous probe skips every
-      // genuinely-held candidate.
-      const found = await page
-        .getByText(/como miembro de/i)
-        .first()
-        .waitFor({ state: "visible", timeout: 8_000 })
-        .then(
-          () => true,
-          () => false,
-        );
-      if (found) {
-        heldToken = candidate;
-        break;
-      }
-    }
-    expect(heldToken, "a listed pet still under custody renders the org viewer").toMatch(/^DIM-/);
+    await page.goto(`/mis-mascotas/${heldToken}`, { waitUntil: "domcontentloaded" });
+    // The profile STREAMS — the notice arrives after domcontentloaded.
+    await expect(page.getByText(/como miembro de/i).first()).toBeVisible({ timeout: 20_000 });
 
     expect(new URL(page.url()).pathname, "org viewer stays on the pet route").toBe(
       `/mis-mascotas/${heldToken}`,
@@ -583,7 +551,18 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
     }
     await expect(page.locator("[data-section='libreta-emergencia']")).toHaveCount(0);
   } finally {
+    // Close the custody this test opened, even when an assertion above failed —
+    // a sponsorship left running would change owner@dim.test's pet for every
+    // spec after this one. A failure here is LOGGED rather than thrown so it
+    // cannot replace the assertion that brought us here; the next walk heals a
+    // leftover anyway (pickSponsorablePetToken resets every candidate first).
+    if (heldToken) {
+      await endSponsorship(titular.page, heldToken).catch((err) =>
+        console.error(`[owner-ia-p6 #8] could not end the sponsorship of ${heldToken}:`, err),
+      );
+    }
     await context.close();
+    await titular.context.close();
   }
 });
 

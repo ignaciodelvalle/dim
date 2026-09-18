@@ -54,6 +54,7 @@
 // to a Poncho display font.
 
 import { PAMPA } from "@/components/landing/landing-content";
+import { lostThirdPersonPhrase } from "@/lib/utils/format";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -254,8 +255,8 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                           src="/landing/pampa-hero.jpg"
                           alt={
                             state.tone === "lost"
-                              ? `${PAMPA.name}, en modo perdido`
-                              : `${PAMPA.name}, perro`
+                              ? `${PAMPA.name}, ${lostThirdPersonPhrase(PAMPA.sexEnum)}`
+                              : `${PAMPA.name}, ${PAMPA.speciesNoun}`
                           }
                           fill
                           sizes="64px"

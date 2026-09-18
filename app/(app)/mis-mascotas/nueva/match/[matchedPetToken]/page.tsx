@@ -10,6 +10,7 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { attemptedChipMatchesPet } from "@/lib/infra/chip-lookup";
 import { unerasedPetByToken } from "@/lib/infra/public-pet-lookup";
 import { petPhotoUrl } from "@/lib/infra/storage";
+import { foundParticiple } from "@/lib/utils/format";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { MatchConfirmationCardVecino } from "./MatchConfirmationCardVecino";
@@ -63,7 +64,8 @@ export default async function VecinoMatchPage({
           Mascota ya no está perdida
         </p>
         <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
-          {pet.name} ya fue encontrada o su estado cambió. Podés continuar registrando la mascota.
+          {pet.name} ya fue {foundParticiple(pet.sex)} o su estado cambió. Podés continuar
+          registrando la mascota.
         </p>
         <div className="mt-5 flex justify-center">
           <Link href="/mis-mascotas/nueva">

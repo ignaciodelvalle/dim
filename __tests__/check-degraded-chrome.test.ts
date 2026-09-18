@@ -18,12 +18,16 @@ import { describe, expect, it } from "vitest";
 import { stripNonCode } from "@/scripts/check-db-budget";
 import {
   MIN_DEGRADED_BRANCHES,
+  MIN_FILTER_BAR_SCREENS,
+  UNBUDGETED,
   budgetBindings,
   chromeVocabulary,
   degradedBranches,
   designSystemChrome,
   elementSource,
   findMissingChrome,
+  findUnbudgetedScreen,
+  isFilterBarScreen,
   localChrome,
   readBaseline,
   scanAll,
@@ -131,6 +135,65 @@ describe("taint — both directions, or the fence is a no-op", () => {
   });
 });
 
+// Decision 5 (T1-L6). The three screens that had NO wrapper, and so no branch
+// for decisions 1-4 to judge, are the reference: each must now pass both
+// halves, and each must go red the moment its wrapper is taken away.
+const T1_L6_SCREENS = [
+  "app/admin/casos/page.tsx",
+  "app/admin/historial/ActividadScreen.tsx",
+  "app/gob/historial/page.tsx",
+] as const;
+
+describe("a filter-bar screen with no budget wrapper is an offender", () => {
+  for (const file of T1_L6_SCREENS) {
+    it(`${file} is a filter-bar screen, budgeted, and keeps its chrome degraded`, () => {
+      const src = read(file);
+      expect(isFilterBarScreen(src, DS)).toBe(true);
+      expect(findUnbudgetedScreen(file, src, DS)).toBeNull();
+      expect(degradedBranches(stripNonCode(src)).length).toBeGreaterThan(0);
+      expect(findMissingChrome(file, src, DS)).toEqual([]);
+    });
+
+    it(`${file} goes red when its wrapper is removed`, () => {
+      const original = read(file);
+      const mutated = original.replace(/await loadWithTimeout\(/, "await (");
+
+      expect(mutated).not.toBe(original);
+      expect(findUnbudgetedScreen(file, mutated, DS)).toEqual({
+        file,
+        binding: "",
+        name: UNBUDGETED,
+      });
+    });
+
+    it(`${file} goes red when its degraded branch drops the filter bar`, () => {
+      const original = read(file);
+      // The degraded branch is the FIRST `{filterBar(` in each of the three.
+      const mutated = original.replace(/\{filterBar\(/, "{void (");
+
+      expect(mutated).not.toBe(original);
+      expect(findMissingChrome(file, mutated, DS).map((m) => m.name)).toContain("OpFilterBar");
+    });
+  }
+
+  it("does not count a page whose only chrome is an <h1>", () => {
+    const src = `export default async function P() {
+  const rows = await loadRows();
+  return <h1>Hola {rows.length}</h1>;
+}`;
+    expect(isFilterBarScreen(src, DS)).toBe(false);
+  });
+
+  it("does not count a filter bar whose only await is the route's own props", () => {
+    const src = `import { OpFilterBar } from "@/components/ui/dashboard";
+export default async function P({ searchParams }) {
+  const sp = await searchParams;
+  return <OpFilterBar axes={[]} />;
+}`;
+    expect(isFilterBarScreen(src, DS)).toBe(false);
+  });
+});
+
 // scanAll() walks the repo per call — gate 0901f measured this test at
 // 3218ms clean; 30s matches the repo's convention for machine-bound suites
 // and leaves ample margin without weakening hang detection.
@@ -140,9 +203,10 @@ describe("anti-vacuity", SCAN_BUDGET, () => {
   // Rename a wrapper and the anchor stops matching; without this the check
   // prints "clean" having judged nothing. Three fences did exactly that.
   it("scans a corpus well above the floor", () => {
-    const { branches, files } = scanAll();
+    const { branches, files, filterBarScreens } = scanAll();
     expect(files).toBeGreaterThan(0);
     expect(branches).toBeGreaterThanOrEqual(MIN_DEGRADED_BRANCHES);
+    expect(filterBarScreens).toBeGreaterThanOrEqual(MIN_FILTER_BAR_SCREENS);
   });
 
   it("has a vocabulary to compare against at all", () => {

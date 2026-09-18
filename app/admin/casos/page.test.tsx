@@ -15,6 +15,9 @@ import { vi } from "vitest";
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
+  // loadWithTimeout re-throws Next's control flow through this; a plain error
+  // is not control flow, so a no-op is the faithful stand-in.
+  unstable_rethrow: vi.fn(),
 }));
 
 vi.mock("@/lib/infra/auth-guards", () => ({
@@ -30,6 +33,8 @@ vi.mock("@/lib/infra/case-queries", () => ({
   listCasesForAdmin: vi.fn(async () => []),
   countCasesForAdmin: vi.fn(async () => 0),
 }));
+
+import { listCasesForAdmin } from "@/lib/infra/case-queries";
 
 import AdminCasosPage from "./page";
 
@@ -64,5 +69,26 @@ describe("/admin/casos — render smoke test", () => {
     });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Casos");
+  });
+
+  // T1-L6: this page used to await the pair bare, so a dead pooler left the
+  // skeleton up forever. Now the load is raced, and the degraded branch must
+  // keep what does not depend on it — the header and the filter bar — and say
+  // that the data failed.
+  it("degrades with its header and filter bar when the queue read fails", async () => {
+    vi.mocked(listCasesForAdmin).mockRejectedValueOnce(new Error("pooler down"));
+    const node = await AdminCasosPage({ searchParams: Promise.resolve({ kind: "maltrato" }) });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("No pudimos cargar los datos");
+    expect(html).toContain("Reintentar");
+    // Retrying keeps the operator's filter.
+    expect(html).toContain('href="/admin/casos?kind=maltrato"');
+    expect(html).toContain("Admin · Casos");
+    expect(html).toContain("Estado");
+    expect(html).toContain("Todos los tipos");
+    // The queue itself is what failed — no empty-state copy may pretend the
+    // read succeeded with zero rows.
+    expect(html).not.toContain("Ningún caso coincide");
+    expect(html).not.toContain("No hay casos abiertos");
   });
 });

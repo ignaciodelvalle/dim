@@ -1,5 +1,6 @@
-import { type Page, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
+import { askSeedOrg, pickSponsorablePetToken } from "./_shelter-custody";
 import { ACCOUNTS, loginAs, resolveOrgToken } from "./demo/_helpers";
 
 /**
@@ -47,99 +48,10 @@ const TITULAR = ACCOUNTS.owner;
 const ORG_ADMIN = ACCOUNTS.orgAdmin;
 const SEED_ORG = /Refugio Test/i;
 
-/** The seed refugio's row in the titular's org picker, on the rehome page. */
-function askSeedOrg(page: Page) {
-  return page.getByRole("button", { name: /Pedir acompañamiento a .*Refugio Test/i }).first();
-}
-
-/**
- * The non-urgent pets in the titular's registry, in page order.
- *
- * NOT the sibling specs' locator, on purpose. They require `:has(img)` and a
- * "REGISTRADA/O" flag because the lost-pet walk reads the name from the
- * photo's alt. This walk only needs the token, and the seed guarantees
- * neither a photo nor a vaccine record: a seeded pet renders the initials
- * placeholder (no <img>) and, once compliance is derived, may read "AL DÍA"
- * instead of "REGISTRADA". With the sibling locator this spec failed on CI's
- * fresh DB (run 32555456201) for exactly that reason — and the siblings had
- * been skipping silently on the same condition. So: the row's href carries
- * the token, and either non-urgent flag marks a pet the rehome page accepts.
- */
-async function listCandidatePetTokens(page: Page): Promise<string[]> {
-  await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
-  await page.waitForLoadState("networkidle").catch(() => {});
-  const rows = page.locator('a[href^="/mis-mascotas/DIM-"]', {
-    hasText: /AL DÍA|REGISTRAD[AO]/i,
-  });
-  // An ASSERTION, not a skip: scripts/seed-test-users.ts seeds owner@dim.test
-  // with active pets, so an empty registry is a broken seed. Auto-retrying, so
-  // it also absorbs the registry's streaming render.
-  await expect(
-    rows.first(),
-    "owner@dim.test has no active pet — the rehome walk needs one (seeded by scripts/seed-test-users.ts).",
-  ).toBeVisible({ timeout: 20_000 });
-  const hrefs = await rows.evaluateAll((anchors) =>
-    anchors.map((a) => a.getAttribute("href") ?? ""),
-  );
-  const tokens = hrefs.map((h) => h.split("/mis-mascotas/")[1] ?? "").filter(Boolean);
-  expect(tokens.length, "publicTokens parsed from the registry links").toBeGreaterThan(0);
-  return tokens.slice(0, 6);
-}
-
-/**
- * The first candidate the seed refugio can sponsor, left on its rehome page
- * in the "none" state. A pet outside the refugio's coverage (locally: Pampa
- * in Belgrano) renders an empty picker and is skipped; the seed's own pets
- * live in Palermo, which the refugio covers, so at least one must qualify.
- */
-async function pickSponsorablePetToken(page: Page): Promise<string> {
-  const candidates = await listCandidatePetTokens(page);
-  for (const token of candidates) {
-    await resetToNone(page, token);
-    // count() is one-shot, but resetToNone already waited for the page's
-    // heading (the gate this file documents above), so the picker is settled.
-    if ((await askSeedOrg(page).count()) > 0) return token;
-  }
-  throw new Error(
-    `none of ${candidates.length} non-urgent pet(s) of owner@dim.test is in a zone "Refugio Test (Seed)" covers — scripts/seed-test-users.ts seeds Palermo pets and Palermo coverage, so the seed or the coverage rule broke.`,
-  );
-}
-
-/**
- * The one thing every state of the page renders. Gate every `count()` read
- * behind it: `Locator.count()` is a one-shot read that does not auto-retry,
- * and this route streams under the segment's Suspense boundary, so a count
- * taken straight after `goto` can see an empty DOM and turn a real assertion
- * into a silent `test.skip` with a false reason (the repo's own helpers —
- * e2e/demo/_helpers.ts discoverPetToken / resolveOrgToken — wait first).
- */
-async function waitForRehomePage(page: Page): Promise<void> {
-  await expect(page.getByRole("heading", { name: /Acompañamiento de adopción para/ })).toBeVisible({
-    timeout: 20_000,
-  });
-  await page.waitForLoadState("networkidle").catch(() => {});
-}
-
-/** Resolve whatever the page is showing, so a re-run starts from "none". */
-async function resetToNone(page: Page, token: string): Promise<void> {
-  await page.goto(`/mis-mascotas/${token}/buscar-hogar`, { waitUntil: "domcontentloaded" });
-  await waitForRehomePage(page);
-  for (const [trigger, confirm] of [
-    ["Dar de baja el acompañamiento", "Confirmar la baja"],
-    ["Cancelar el pedido", "Confirmar la cancelación"],
-  ] as const) {
-    const button = page.getByRole("button", { name: trigger });
-    if ((await button.count()) === 0) continue;
-    await button.click();
-    await page.getByRole("button", { name: confirm }).click();
-    // The page reloads itself (navigateAfterActionSuccess) — wait for the
-    // picker that only the "none" state renders.
-    await expect(
-      page.getByRole("button", { name: /Pedir acompañamiento a/ }).first(),
-    ).toBeVisible();
-    return;
-  }
-}
+// The walk's helpers (askSeedOrg, pickSponsorablePetToken, resetToNone, …)
+// moved to e2e/_shelter-custody.ts on 2026-09-18 (T1-C3): the three specs that
+// need a live shelter custody now open one with this same sponsorship, and one
+// copy of the walk is what keeps them from drifting apart.
 
 test.describe
   .serial("acompañamiento de adopción", () => {

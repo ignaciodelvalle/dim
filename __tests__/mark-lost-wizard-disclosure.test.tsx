@@ -21,7 +21,10 @@ vi.mock("@/components/LocationFields", () => ({
   LocationFields: () => React.createElement("div", { "data-testid": "location-fields" }),
 }));
 
-import { MarkLostWizard } from "@/app/(app)/mis-mascotas/[publicToken]/perdida/MarkLostWizard";
+import {
+  MarkLostWizard,
+  lostShareText,
+} from "@/app/(app)/mis-mascotas/[publicToken]/perdida/MarkLostWizard";
 
 const BASE_PROPS = {
   action: vi.fn(async () => ({ error: null })),
@@ -116,5 +119,31 @@ describe("MarkLostWizard — affirmative disclosure consent", () => {
       ).length;
       expect(hiddenCount, name).toBe(1);
     }
+  });
+});
+
+// T1-L14 — the WhatsApp share text said "está perdida — ayudanos a encontrarla"
+// to every animal. The expected sentences are written out whole: a helper that
+// regressed could not agree with itself here.
+describe("MarkLostWizard — WhatsApp share text agrees with the pet's sex", () => {
+  it("is masculine for a male pet", () => {
+    expect(lostShareText("Toby", "male")).toBe(
+      "Toby está perdido — ayudanos a que vuelva a casa. Su perfil público:",
+    );
+  });
+
+  it("is feminine for a female pet", () => {
+    expect(lostShareText("Luna", "female")).toBe(
+      "Luna está perdida — ayudanos a que vuelva a casa. Su perfil público:",
+    );
+  });
+
+  it("assumes no gender when the sex is unknown", () => {
+    expect(lostShareText("Pelusa", "unknown")).toBe(
+      "Pelusa se perdió — ayudanos a que vuelva a casa. Su perfil público:",
+    );
+    expect(lostShareText("Pelusa", null)).toBe(
+      "Pelusa se perdió — ayudanos a que vuelva a casa. Su perfil público:",
+    );
   });
 });

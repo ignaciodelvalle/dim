@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import {
   CasoEstadoFilter,
@@ -11,6 +11,7 @@ import {
   OpFilterBar,
   parseCasoEstado,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import {
@@ -18,6 +19,7 @@ import {
   caseQueueCsvOrderNote,
   caseQueueCsvRows,
 } from "@/components/ui/dashboard/case-queue-csv";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, listCasesForAdmin } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
@@ -103,27 +105,118 @@ export default async function AdminCasosPage({
     ...(provinceFilter ? { province: provinceFilter } : {}),
   };
 
+  // Chrome that depends on nothing the load returns — hoisted so the degraded
+  // branch below renders the SAME header and filter bar as the success path
+  // (lint:degraded-chrome). A timed-out queue must still let the operator
+  // narrow the query that just timed out.
+  const header = (
+    <ScreenHeader
+      eyebrow="Admin · Casos"
+      title="Casos"
+      subtitle={
+        <p className="text-md text-ln-op-mute">
+          Expedientes abiertos en el sistema. Vista universal admin.{" "}
+          {!statusExplicitlyOverridden && (
+            <a
+              href="/admin/casos?status=all"
+              className="underline underline-offset-2 hover:text-ln-op-ink"
+            >
+              Ver todos
+            </a>
+          )}
+        </p>
+      }
+    />
+  );
+
+  // Unified filter bar — Estado/Tipo/Provincia (migrated off the bespoke
+  // <form>, mirrors /gob/casos so the two casos twins render identically).
+  // Estado renders as a plain child control (CasoEstadoFilter), NOT an `axis`:
+  // an axis ALWAYS gets OpFilterBar's own injected blank "Todas" option
+  // (mapping to "no status param" = the Abiertos default), which sat right
+  // beside the explicit "all" option's OWN "Todos los estados" label — two
+  // visually-identical "show everything" entries where only one actually did
+  // (BUGFIX opfilterbar-sweep-2026-07-21: the injected blank silently reverted
+  // to Abiertos instead of showing every case). A filter change drops the
+  // keyset `cursor` (page 1), matching the old form's implicit reset.
+  //
+  // `actions` is the CSV export, which is made of the loaded rows — so the
+  // degraded branch renders the bar without it: offering a download of
+  // nothing would lie.
+  const filterBar = (actions?: ReactNode) => (
+    <OpFilterBar
+      showPeriod={false}
+      // Both position params (SC-6): a filter change must land on page 1 in
+      // either pagination mode, keyset or offset.
+      resetParamsOnChange={[...CASE_QUEUE_POSITION_PARAMS]}
+      savedViewsKey="op-saved-views:casos:v1"
+      actions={actions}
+      axes={
+        [
+          {
+            id: "kind",
+            label: "Tipo",
+            paramKey: "kind",
+            options: KIND_OPTIONS,
+            current: kindFilter,
+            allLabel: "Todos los tipos",
+          },
+          {
+            id: "province",
+            label: "Provincia",
+            paramKey: "province",
+            options: PROVINCE_OPTIONS,
+            current: provinceFilter,
+            allLabel: "Todas las provincias",
+          },
+        ] satisfies OpFilterAxis[]
+      }
+    >
+      <CasoEstadoFilter value={casoEstado} />
+    </OpFilterBar>
+  );
+
   // Fetch limit+1 to detect hasMore, plus the true total behind the cap (M4) so
   // the header reads "Mostrando los 50 más recientes de N" instead of "50 casos"
   // when more exist. The count uses the SAME filters as the list.
-  const [rawItems, totalCount] = await Promise.all([
-    listCasesForAdmin({
-      limit: ADMIN_CASOS_PAGE_LIMIT + 1,
-      cursor: rawCursor,
-      offset: (page - 1) * ADMIN_CASOS_PAGE_LIMIT,
-      sort,
-      filters: {
+  //
+  // BOUNDED (T1-L6). The /gob twin has raced this exact pair against a deadline
+  // since the 2026-08-09 outage pass; this admin copy awaited it bare, so a
+  // degraded pooler left the operator on the loading skeleton forever.
+  const load = await loadWithTimeout(
+    Promise.all([
+      listCasesForAdmin({
+        limit: ADMIN_CASOS_PAGE_LIMIT + 1,
+        cursor: rawCursor,
+        offset: (page - 1) * ADMIN_CASOS_PAGE_LIMIT,
+        sort,
+        filters: {
+          status: statusFilter,
+          kind: kindFilter,
+          province: provinceFilter,
+        },
+      }),
+      countCasesForAdmin({
         status: statusFilter,
         kind: kindFilter,
         province: provinceFilter,
-      },
-    }),
-    countCasesForAdmin({
-      status: statusFilter,
-      kind: kindFilter,
-      province: provinceFilter,
-    }),
-  ]);
+      }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filterBar()}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          correlationId={load.id}
+          retryHref={analyticsRetryHref("/admin/casos", sp)}
+        />
+      </div>
+    );
+  }
+  const [rawItems, totalCount] = load.value;
   const hasMore = rawItems.length > ADMIN_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, ADMIN_CASOS_PAGE_LIMIT) : rawItems;
 
@@ -176,73 +269,16 @@ export default async function AdminCasosPage({
 
   return (
     <div className="space-y-6">
-      <ScreenHeader
-        eyebrow="Admin · Casos"
-        title="Casos"
-        subtitle={
-          <p className="text-md text-ln-op-mute">
-            Expedientes abiertos en el sistema. Vista universal admin.{" "}
-            {!statusExplicitlyOverridden && (
-              <a
-                href="/admin/casos?status=all"
-                className="underline underline-offset-2 hover:text-ln-op-ink"
-              >
-                Ver todos
-              </a>
-            )}
-          </p>
-        }
-      />
+      {header}
 
-      {/* Unified filter bar — Estado/Tipo/Provincia (migrated off the bespoke
-          <form>, mirrors /gob/casos so the two casos twins render
-          identically). Estado renders as a plain child control
-          (CasoEstadoFilter), NOT an `axis`: an axis ALWAYS gets OpFilterBar's
-          own injected blank "Todas" option (mapping to "no status param" =
-          the Abiertos default), which sat right beside the explicit "all"
-          option's OWN "Todos los estados" label — two visually-identical
-          "show everything" entries where only one actually did (BUGFIX
-          opfilterbar-sweep-2026-07-21: the injected blank silently reverted
-          to Abiertos instead of showing every case). A filter change drops
-          the keyset `cursor` (page 1), matching the old form's implicit reset
-          (it never carried `cursor` as a field). */}
-      <OpFilterBar
-        showPeriod={false}
-        // Both position params (SC-6): a filter change must land on page 1 in
-        // either pagination mode, keyset or offset.
-        resetParamsOnChange={[...CASE_QUEUE_POSITION_PARAMS]}
-        savedViewsKey="op-saved-views:casos:v1"
-        actions={
-          <CsvExportLink
-            filename={`casos-${todayIsoInAr()}`}
-            columns={CASE_QUEUE_CSV_COLUMNS}
-            rows={caseQueueCsvRows(queueRows)}
-            contextLines={csvContextLines}
-          />
-        }
-        axes={
-          [
-            {
-              id: "kind",
-              label: "Tipo",
-              paramKey: "kind",
-              options: KIND_OPTIONS,
-              current: kindFilter,
-              allLabel: "Todos los tipos",
-            },
-            {
-              id: "province",
-              label: "Provincia",
-              paramKey: "province",
-              options: PROVINCE_OPTIONS,
-              current: provinceFilter,
-              allLabel: "Todas las provincias",
-            },
-          ] satisfies OpFilterAxis[]
-        }
-      >
-        <CasoEstadoFilter value={casoEstado} />
-      </OpFilterBar>
+      {filterBar(
+        <CsvExportLink
+          filename={`casos-${todayIsoInAr()}`}
+          columns={CASE_QUEUE_CSV_COLUMNS}
+          rows={caseQueueCsvRows(queueRows)}
+          contextLines={csvContextLines}
+        />,
+      )}
 
       <Suspense>
         <CaseQueue

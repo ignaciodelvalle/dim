@@ -220,3 +220,25 @@ describe("PetActionRow + SheetMounter — client-driven sheet open/close (router
     expect(within(sheet as HTMLElement).getAllByText("Chapa física").length).toBeGreaterThan(0);
   });
 });
+
+// T1-L14 — the mark-found sheet said "Marcar como encontrada" to every animal.
+// The expected words are written out here, not taken from foundParticiple, so
+// a regression in the helper cannot agree with itself.
+describe("marcar-encontrada sheet — agrees with the pet's sex", () => {
+  for (const [petSex, word] of [
+    ["male", "encontrado"],
+    ["female", "encontrada"],
+  ] as const) {
+    it(`titles the sheet and its commit button "Marcar como ${word}" for a ${petSex} pet`, () => {
+      window.history.replaceState(null, "", "/mis-mascotas/abc123?sheet=marcar-encontrada");
+      render(<SheetMounter {...baseSheetMounterProps} petSex={petSex} petStatus="lost" />);
+
+      const sheet = document.querySelector('[data-sheet-id="marcar-encontrada"]') as HTMLElement;
+      expect(sheet).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: `Marcar como ${word}` })).toBeInTheDocument();
+      expect(
+        within(sheet).getByRole("button", { name: `Marcar como ${word}` }),
+      ).toBeInTheDocument();
+    });
+  }
+});

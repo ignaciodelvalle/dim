@@ -37,6 +37,13 @@ export const PAMPA = {
    * against the owner's list).
    */
   sexEnum: "female",
+  /**
+   * The species noun, already agreeing with `sex` — for copy that names the
+   * animal (the hero photo's alt said "perro" for a female dog). A constant
+   * rather than a derivation: Pampa is one fixed character, and no helper in
+   * the repo inflects species by sex.
+   */
+  speciesNoun: "perra",
   age: "4 años",
 } as const;
 

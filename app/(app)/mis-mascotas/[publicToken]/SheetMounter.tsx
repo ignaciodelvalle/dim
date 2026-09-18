@@ -41,7 +41,7 @@ import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav, closeSheetNavWithFullReload } from "@/lib/ui/sheet-nav";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
-import { markLostActionLabel } from "@/lib/utils/format";
+import { foundParticiple, markLostActionLabel } from "@/lib/utils/format";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useActionState, useCallback } from "react";
@@ -489,6 +489,7 @@ export function SheetMounter({
         >
           <MarkLostNotApplicableNotice
             petName={petName}
+            petSex={petSex}
             petToken={petToken}
             petStatus={petStatus}
             onClose={close}
@@ -551,13 +552,13 @@ export function SheetMounter({
       return (
         <Sheet
           id="marcar-encontrada"
-          title="Marcar como encontrada"
+          title={`Marcar como ${foundParticiple(petSex)}`}
           open
           onClose={close}
           side="right"
           size="md"
         >
-          <PetNotLostNotice petName={petName} petToken={petToken} onClose={close} />
+          <PetNotLostNotice petName={petName} petSex={petSex} petToken={petToken} onClose={close} />
         </Sheet>
       );
     }
@@ -565,13 +566,13 @@ export function SheetMounter({
     return (
       <Sheet
         id="marcar-encontrada"
-        title="Marcar como encontrada"
+        title={`Marcar como ${foundParticiple(petSex)}`}
         open
         onClose={close}
         side="right"
         size="md"
       >
-        <MarkFoundConfirmation action={action} petName={petName} onCancel={close} />
+        <MarkFoundConfirmation action={action} petName={petName} petSex={petSex} onCancel={close} />
       </Sheet>
     );
   }
@@ -587,10 +588,12 @@ export function SheetMounter({
 function MarkFoundConfirmation({
   action,
   petName,
+  petSex,
   onCancel,
 }: {
   action: (previous: EventFormState, formData: FormData) => Promise<EventFormState>;
   petName: string;
+  petSex: string | null;
   onCancel: () => void;
 }) {
   // N3 redirect contract: setPetFoundAction returns `redirectTo` on success
@@ -603,8 +606,11 @@ function MarkFoundConfirmation({
   return (
     <div className="space-y-4">
       <p className="text-sm text-[var(--color-ln-ink-2)]">
-        Vas a marcar a <strong>{petName}</strong> como encontrada. La credencial pública vuelve al
-        modo identidad básica (Tier 0). Podés volver a marcarla como perdida si hace falta.
+        {/* Sin pronombre ni adjetivo fijo: "marcarla como perdida" le hablaba en
+            femenino a cualquier animal. El participio sale de petSex. */}
+        Vas a marcar a <strong>{petName}</strong> como {foundParticiple(petSex)}. La credencial
+        pública vuelve al modo identidad básica (Tier 0). Si hace falta, podés volver a activar el
+        modo perdido.
       </p>
       {state.error && (
         <p role="alert" className="text-sm text-[var(--color-ln-err)]">
@@ -613,7 +619,7 @@ function MarkFoundConfirmation({
       )}
       <form action={formAction} className="flex gap-2">
         <LnButton type="submit" variant="ok" disabled={isPending}>
-          {isPending ? "Guardando…" : "Marcar como encontrada"}
+          {isPending ? "Guardando…" : `Marcar como ${foundParticiple(petSex)}`}
         </LnButton>
         <LnButton type="button" variant="ghost" onClick={onCancel} disabled={isPending}>
           Cancelar
@@ -630,18 +636,22 @@ function MarkFoundConfirmation({
 
 function PetNotLostNotice({
   petName,
+  petSex,
   petToken,
   onClose,
 }: {
   petName: string;
+  petSex: string | null;
   petToken: string;
   onClose: () => void;
 }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-[var(--color-ln-ink-2)]">
-        <strong>{petName}</strong> no figura como perdida, así que no hay nada que marcar como
-        encontrada.
+        {/* e2e/demo/_helpers.ts (ensurePetFound) reconoce esta cara del sheet por
+            "no figura en modo perdido": cambiar la frase es cambiar ese regex. */}
+        <strong>{petName}</strong> no figura en modo perdido, así que no hay nada que marcar como{" "}
+        {foundParticiple(petSex)}.
       </p>
       <div className="flex gap-2">
         <LnButton type="button" variant="ghost" onClick={onClose}>
@@ -661,11 +671,13 @@ function PetNotLostNotice({
 
 function MarkLostNotApplicableNotice({
   petName,
+  petSex,
   petToken,
   petStatus,
   onClose,
 }: {
   petName: string;
+  petSex: string | null;
   petToken: string;
   petStatus: "active" | "lost" | "deceased";
   onClose: () => void;
@@ -676,13 +688,13 @@ function MarkLostNotApplicableNotice({
       <p className="text-sm text-[var(--color-ln-ink-2)]">
         {alreadyLost ? (
           <>
-            <strong>{petName}</strong> ya figura como perdida. Su aviso está publicado y visible
-            para quien escanee su credencial, así que no hace falta volver a marcarla.
+            <strong>{petName}</strong> ya está en modo perdido. Su aviso está publicado y visible
+            para quien escanee su credencial, así que no hace falta volver a activarlo.
           </>
         ) : (
           <>
-            <strong>{petName}</strong> figura como fallecida, así que no se la puede marcar como
-            perdida. Si es un error, corregí su estado desde el perfil.
+            <strong>{petName}</strong> tiene registrado su fallecimiento, así que no se puede
+            activar el modo perdido. Si es un error, corregí su estado desde el perfil.
           </>
         )}
       </p>
@@ -690,7 +702,7 @@ function MarkLostNotApplicableNotice({
         {alreadyLost && (
           <Link href={`/mis-mascotas/${petToken}?sheet=marcar-encontrada`}>
             <LnButton type="button" variant="primary">
-              Ya apareció — marcar como encontrada
+              Ya apareció — marcar como {foundParticiple(petSex)}
             </LnButton>
           </Link>
         )}
