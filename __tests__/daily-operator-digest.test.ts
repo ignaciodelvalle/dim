@@ -2,6 +2,11 @@
 // operator digest. Integration tests against the local Supabase/Postgres
 // stack. Resend and the auth-admin email lookup are mocked (no real network,
 // no dependency on fixture profiles having a matching auth.users row).
+//
+// Security review 2026-09-18 added: the deadline (M2), claim release on a
+// failed send (M2), one mail per person (L3), the List-Unsubscribe headers and
+// the unsubscribe route's GET-never-writes rule (M1). The route cases live here
+// because they need the same real profiles row the digest writes.
 
 import { randomUUID } from "node:crypto";
 
@@ -18,18 +23,31 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { NextRequest } from "next/server";
+
+import { GET as unsubscribeGET, POST as unsubscribePOST } from "@/app/api/digest/unsubscribe/route";
 import { arCalendarDay, runDailyOperatorDigest } from "@/lib/infra/daily-operator-digest";
+import { generateDigestUnsubscribeToken } from "@/lib/infra/digest-unsubscribe-token";
 
 // vi.mock factories are hoisted above every import in this file, so anything
 // they reference must be created via vi.hoisted (a plain top-level const
 // would still be in the temporal dead zone when the factory runs).
+type SendArgs = {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  headers?: Record<string, string>;
+};
 const sendMock = vi.hoisted(() =>
-  vi.fn(async (_args: { to: string; subject: string; html: string; text: string }) => ({
-    data: { id: "test-email-id" },
+  vi.fn(async (_args: SendArgs) => ({
+    data: { id: "test-email-id" } as unknown,
     error: null as unknown,
   })),
 );
 const emailMapRef = vi.hoisted(() => ({ current: new Map<string, string>() }));
+/** Called on every email lookup — lets a test move the clock mid-recipient. */
+const lookupHook = vi.hoisted(() => ({ current: (_userId: string) => {} }));
 
 vi.mock("resend", () => ({
   Resend: class {
@@ -37,9 +55,21 @@ vi.mock("resend", () => ({
   },
 }));
 
+// One targeted lookup per recipient (auth.admin.getUserById) — the digest no
+// longer pages every auth user. A seed/demo profile has no entry here, so it is
+// counted as skippedNoEmail and never claimed.
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(() => ({})),
-  buildAuthEmailMap: vi.fn(async () => emailMapRef.current),
+  createAdminClient: vi.fn(() => ({
+    auth: {
+      admin: {
+        getUserById: vi.fn(async (id: string) => {
+          lookupHook.current(id);
+          const email = emailMapRef.current.get(id);
+          return { data: { user: email ? { id, email } : null }, error: null };
+        }),
+      },
+    },
+  })),
 }));
 
 const PROV = "Buenos Aires";
@@ -110,18 +140,20 @@ async function seedPendingVetRequest(applicantId: string, locality: string = LOC
   fixtureRequestIds.push(row.id);
 }
 
-async function makeOrgWithOpenCase(memberOptOut = false) {
+async function makeOrgWithOpenCase(memberOptOut = false, existingUserId?: string) {
   const orgId = randomUUID();
-  const userId = randomUUID();
-  await db.insert(profiles).values({
-    id: userId,
-    role: "owner",
-    accountType: "personal",
-    displayName: `Digest Org Member ${userId.slice(0, 8)}`,
-    dailyDigestOptOut: memberOptOut,
-  });
-  fixtureProfileIds.push(userId);
-  emailMapRef.current.set(userId, `${userId}@dim-test.local`);
+  const userId = existingUserId ?? randomUUID();
+  if (!existingUserId) {
+    await db.insert(profiles).values({
+      id: userId,
+      role: "owner",
+      accountType: "personal",
+      displayName: `Digest Org Member ${userId.slice(0, 8)}`,
+      dailyDigestOptOut: memberOptOut,
+    });
+    fixtureProfileIds.push(userId);
+    emailMapRef.current.set(userId, `${userId}@dim-test.local`);
+  }
 
   const [org] = await db
     .insert(organizations)
@@ -214,6 +246,32 @@ async function cleanup() {
       .catch(() => {});
   }
   emailMapRef.current = new Map();
+  lookupHook.current = () => {};
+}
+
+async function lastSentOn(userId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ lastSent: profiles.dailyDigestLastSentOn })
+    .from(profiles)
+    .where(eq(profiles.id, userId));
+  return row?.lastSent ?? null;
+}
+
+async function optedOut(userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ optOut: profiles.dailyDigestOptOut })
+    .from(profiles)
+    .where(eq(profiles.id, userId));
+  return row?.optOut ?? false;
+}
+
+/** A govt fixture with one pending request in its OWN locality. */
+async function govtWithPending(): Promise<string> {
+  const id = await makeGovtProfile();
+  const locality = `${LOCALITY}-${id.slice(0, 6)}`;
+  await assignJurisdiction(id, locality);
+  await seedPendingVetRequest(id, locality);
+  return id;
 }
 
 const RESEND_ENV = {
@@ -343,5 +401,189 @@ describe("runDailyOperatorDigest", () => {
       .from(profiles)
       .where(eq(profiles.id, govt));
     expect(row?.lastSent ?? null).toBeNull();
+  });
+});
+
+describe("runDailyOperatorDigest — security review 2026-09-18", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    sendMock.mockClear();
+    Object.assign(process.env, RESEND_ENV);
+  });
+
+  afterEach(async () => {
+    process.env = { ...originalEnv };
+    await cleanup();
+  });
+
+  const sentTo = (userId: string) =>
+    sendMock.mock.calls
+      .map(([arg]) => arg as SendArgs)
+      .filter((arg) => arg.to === `${userId}@dim-test.local`);
+
+  it("M2: stops at the deadline — the next recipient is neither claimed nor sent", async () => {
+    const a = await govtWithPending();
+    const b = await govtWithPending();
+
+    // A fake clock that jumps past the deadline the moment the first mail goes.
+    // Only fixtures have an email, so the first send is always one of ours.
+    let clock = 0;
+    sendMock.mockImplementationOnce(async () => {
+      clock = 10_000;
+      return { data: { id: "first" }, error: null };
+    });
+
+    const result = await runDailyOperatorDigest({ budgetMs: 1_000, now: () => clock });
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(result.sent).toBe(1);
+    expect(result.deferredByDeadline).toBeGreaterThanOrEqual(1);
+    // Exactly one of the two got today's digest; the other is untouched and
+    // stays first in line for the next run.
+    const stamps = [await lastSentOn(a), await lastSentOn(b)];
+    expect(stamps.filter((s) => s === arCalendarDay())).toHaveLength(1);
+    expect(stamps.filter((s) => s === null)).toHaveLength(1);
+  });
+
+  it("M2: a deadline hit mid-recipient stops BEFORE the claim — never claimed-but-unsent", async () => {
+    const govt = await govtWithPending();
+    let clock = 0;
+    // The clock runs out while this recipient's email is being looked up —
+    // after its counts, before its claim.
+    lookupHook.current = (id) => {
+      if (id === govt) clock = 10_000;
+    };
+
+    const result = await runDailyOperatorDigest({ budgetMs: 1_000, now: () => clock });
+
+    expect(sentTo(govt)).toHaveLength(0);
+    expect(await lastSentOn(govt)).toBeNull();
+    expect(result.deferredByDeadline).toBeGreaterThanOrEqual(1);
+  });
+
+  it("M2: a failed send RELEASES the claim, so a retry the same day sends", async () => {
+    const govt = await govtWithPending();
+    sendMock.mockImplementationOnce(async () => ({
+      data: null,
+      error: { name: "application_error", message: "resend is down" },
+    }));
+
+    const failed = await runDailyOperatorDigest();
+    expect(failed.errors).toBeGreaterThanOrEqual(1);
+    expect(await lastSentOn(govt)).toBeNull();
+
+    const retried = await runDailyOperatorDigest();
+    expect(retried.sent).toBeGreaterThanOrEqual(1);
+    expect(sentTo(govt)).toHaveLength(2);
+    expect(await lastSentOn(govt)).toBe(arCalendarDay());
+  });
+
+  it("M2: a THROWING send releases the claim too", async () => {
+    const govt = await govtWithPending();
+    sendMock.mockImplementationOnce(async () => {
+      throw new Error("socket hang up");
+    });
+
+    await runDailyOperatorDigest();
+
+    expect(await lastSentOn(govt)).toBeNull();
+  });
+
+  it("L3: a govt operator who is also an org member gets ONE mail with both panels", async () => {
+    const govt = await govtWithPending();
+    await makeOrgWithOpenCase(false, govt);
+
+    await runDailyOperatorDigest();
+
+    const mails = sentTo(govt);
+    expect(mails).toHaveLength(1);
+    expect(mails[0].html).toContain("Tu panel de gobierno");
+    expect(mails[0].html).toContain("Tu panel de organización");
+  });
+
+  it("M1: every digest carries RFC 2369 / RFC 8058 one-click unsubscribe headers", async () => {
+    const govt = await govtWithPending();
+
+    await runDailyOperatorDigest();
+
+    const [mail] = sentTo(govt);
+    expect(mail?.headers?.["List-Unsubscribe"]).toBe(
+      `<https://mimar.com.ar/api/digest/unsubscribe?u=${govt}&t=${generateDigestUnsubscribeToken(govt)}>`,
+    );
+    expect(mail?.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+  });
+});
+
+describe("/api/digest/unsubscribe — GET never writes (security review 2026-09-18, M1)", () => {
+  afterEach(cleanup);
+
+  const BASE = "https://mimar.com.ar/api/digest/unsubscribe";
+  const linkFor = (userId: string, token = generateDigestUnsubscribeToken(userId)) =>
+    `${BASE}?u=${userId}&t=${token}`;
+  const formPost = (url: string, fields: Record<string, string>) =>
+    new NextRequest(url, {
+      method: "POST",
+      body: new URLSearchParams(fields).toString(),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+    });
+
+  it("GET with a valid link renders a confirm form and does NOT opt the user out", async () => {
+    const user = await makeGovtProfile();
+
+    const res = await unsubscribeGET(new NextRequest(linkFor(user)));
+    const html = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(html).toContain('<form method="post"');
+    expect(html).toContain(`name="u" value="${user}"`);
+    // THE POINT: a mail scanner fetching this link changes nothing.
+    expect(await optedOut(user)).toBe(false);
+  });
+
+  it("POST from the confirm form opts the user out", async () => {
+    const user = await makeGovtProfile();
+    const t = generateDigestUnsubscribeToken(user);
+
+    const res = await unsubscribePOST(formPost(BASE, { u: user, t }));
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("Listo");
+    expect(await optedOut(user)).toBe(true);
+  });
+
+  it("RFC 8058 one-click POST (u, t in the URL) opts the user out", async () => {
+    const user = await makeGovtProfile();
+
+    const res = await unsubscribePOST(formPost(linkFor(user), { "List-Unsubscribe": "One-Click" }));
+
+    expect(res.status).toBe(200);
+    expect(await optedOut(user)).toBe(true);
+  });
+
+  it("a forged token changes nothing, on either verb", async () => {
+    const user = await makeGovtProfile();
+    const other = await makeGovtProfile();
+    const stolen = generateDigestUnsubscribeToken(other);
+
+    const get = await unsubscribeGET(new NextRequest(linkFor(user, stolen)));
+    expect(await get.text()).toContain("Enlace inválido");
+    const oneClick = await unsubscribePOST(
+      formPost(linkFor(user, stolen), { "List-Unsubscribe": "One-Click" }),
+    );
+    expect(oneClick.status).toBe(400);
+    await unsubscribePOST(formPost(BASE, { u: user, t: stolen }));
+
+    expect(await optedOut(user)).toBe(false);
+  });
+
+  it("never reflects request input into the page (XSS)", async () => {
+    const payload = '"><script>alert(1)</script>';
+    const res = await unsubscribeGET(
+      new NextRequest(`${BASE}?u=${encodeURIComponent(payload)}&t=${encodeURIComponent(payload)}`),
+    );
+    const html = await res.text();
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("Enlace inválido");
   });
 });

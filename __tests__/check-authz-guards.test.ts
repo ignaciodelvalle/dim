@@ -891,7 +891,7 @@ describe("listRouteHandlerFiles", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the intentionally-public handlers are exactly the fourteen documented ones", () => {
+  it("the intentionally-public handlers are exactly the fifteen documented ones", () => {
     // A FIFTEENTH opt-out appearing here is a decision, not a detail: it means
     // an endpoint was made public and this list is where that shows up in review.
     //
@@ -1044,6 +1044,11 @@ describe("listRouteHandlerFiles", () => {
       "app/(public)/transparencia/datos/[dataset]/route.ts",
       // Sorts here and not first: `(` is 0x28, `.` is 0x2E.
       "app/.well-known/assetlinks.json/route.ts",
+      // The daily-digest unsubscribe link (T2-N1): the signed per-user token IS
+      // the capability, and it can only opt that one user out. GET only renders
+      // a confirm form; POST (the form, or RFC 8058 one-click) writes. Added by
+      // the T2-N1 commit without updating this list, which left this test red.
+      "app/api/digest/unsubscribe/route.ts",
       "app/api/health/route.ts",
       // Ordena entre `health` y `v1`: 'h' < 't' < 'v'.
       "app/api/telemetry/client-error/route.ts",

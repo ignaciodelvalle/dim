@@ -209,14 +209,38 @@ describe("dispatchJobs", () => {
     }
   });
 
+  it("the operator digest runs AFTER every delivery drain (security review 2026-09-18, pinned)", () => {
+    // It first landed in the producer block, ahead of the drains: a slow
+    // digest night (one Resend call per recipient) could spend the budget the
+    // legal-notification drains needed. A summary mail never outranks delivery.
+    const position = (name: string) => DAILY_JOB_ORDER.indexOf(name);
+    const digest = position("daily_operator_digest");
+    expect(digest).toBeGreaterThan(-1);
+    for (const drain of [
+      "process_eno_queue",
+      "drain_outbox",
+      "drain_notification_dead_letter",
+      "reconcile_push_receipts",
+    ]) {
+      expect(position(drain), drain).toBeGreaterThan(-1);
+      expect(digest, `daily_operator_digest must run after ${drain}`).toBeGreaterThan(
+        position(drain),
+      );
+    }
+    // And after today's expiries, so the counts it mails are what is left.
+    expect(digest).toBeGreaterThan(position("auto_expire_approvals"));
+  });
+
   it("DAILY_JOB_ORDER covers the whole fleet without duplicates", () => {
-    // Guards the SSOT list itself: 24 jobs, all unique.
+    // Guards the SSOT list itself: 25 jobs, all unique.
+    // 24 -> 25 on 2026-09-18 with daily-operator-digest (T2-N1) — the commit
+    // that added the job left this count at 24, so this test was red on main.
     // 23 -> 24 on 2026-09-15 with reconcile-push-receipts: the second half of a
     // native push send, which cannot run on the request path because Expo does
     // not know the answer yet (see the route's header).
     // 22 -> 23 on 2026-08-19 with expire-caretaker-grants (custodia-temporal C6).
-    expect(DAILY_JOB_ORDER.length).toBe(24);
-    expect(new Set(DAILY_JOB_ORDER).size).toBe(24);
+    expect(DAILY_JOB_ORDER.length).toBe(25);
+    expect(new Set(DAILY_JOB_ORDER).size).toBe(25);
   });
 
   it("C-b: cron_health runs FIRST — the deliberate reversal", () => {

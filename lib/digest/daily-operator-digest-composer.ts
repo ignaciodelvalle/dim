@@ -22,10 +22,20 @@ export type DigestQueueItem = {
   href: string;
 };
 
-export type ComposeDigestInput = {
-  /** es-AR display name for the recipient kind — drives the greeting line. */
+/**
+ * One panel's worth of queues. A user who is BOTH a govt operator and an org
+ * member gets ONE mail with one section per panel (security review
+ * 2026-09-18, L3) — never two mails the same morning.
+ */
+export type DigestSection = {
+  /** es-AR display name for the panel — drives the section's lead line. */
   recipientLabel: "gobierno" | "organización";
   items: readonly DigestQueueItem[];
+};
+
+export type ComposeDigestInput = {
+  /** Non-empty; rendered in the order given. */
+  sections: readonly DigestSection[];
   /** Absolute unsubscribe URL — works without login (signed token). */
   unsubscribeUrl: string;
   /** Absolute /cuenta URL — the alternative the mail also offers. */
@@ -57,35 +67,44 @@ export function digestSubject(items: readonly DigestQueueItem[]): string {
   return total === 1 ? "1 pendiente te espera en miMAR" : `${total} pendientes te esperan en miMAR`;
 }
 
-/**
- * Composes the digest subject/html/text for one recipient. `items` must be
- * non-empty and every count > 0 — the caller (daily-operator-digest.ts) never
- * sends a zero-total digest, and this function does not defend against it
- * beyond producing an honest (if useless) empty list.
- */
-export function composeDigestEmail(input: ComposeDigestInput): ComposedDigestEmail {
-  const { recipientLabel, items, unsubscribeUrl, accountUrl } = input;
-  const subject = digestSubject(items);
-
-  const rowsHtml = items
+function sectionHtml(section: DigestSection): string {
+  const rowsHtml = section.items
     .map(
       (item) => `
             <tr>
               <td style="padding:6px 0;color:#1a1a1a;">${escapeHtml(item.label)}</td>
               <td style="padding:6px 0;text-align:right;font-weight:600;">${item.count}</td>
-              <td style="padding:6px 0 6px 12px;"><a href="${item.href}">Ver</a></td>
+              <td style="padding:6px 0 6px 12px;"><a href="${escapeHtml(item.href)}">Ver</a></td>
             </tr>`,
     )
     .join("");
+  return `
+    <p>Tu panel de ${section.recipientLabel} en miMAR tiene pendientes:</p>
+    <table style="border-collapse:collapse;width:100%;max-width:480px;">
+      ${rowsHtml}
+    </table>`;
+}
 
-  const rowsText = items.map((item) => `- ${item.label}: ${item.count} — ${item.href}`).join("\n");
+function sectionText(section: DigestSection): string {
+  const rows = section.items.map((item) => `- ${item.label}: ${item.count} — ${item.href}`);
+  return [`Tu panel de ${section.recipientLabel} en miMAR tiene pendientes:`, "", ...rows].join(
+    "\n",
+  );
+}
+
+/**
+ * Composes the digest subject/html/text for one recipient. `sections` must be
+ * non-empty and every count > 0 — the caller (daily-operator-digest.ts) never
+ * sends a zero-total digest, and this function does not defend against it
+ * beyond producing an honest (if useless) empty list.
+ */
+export function composeDigestEmail(input: ComposeDigestInput): ComposedDigestEmail {
+  const { sections, unsubscribeUrl, accountUrl } = input;
+  const subject = digestSubject(sections.flatMap((s) => s.items));
 
   const html = `
     <p>Hola,</p>
-    <p>Tu panel de ${recipientLabel} en miMAR tiene pendientes:</p>
-    <table style="border-collapse:collapse;width:100%;max-width:480px;">
-      ${rowsHtml}
-    </table>
+    ${sections.map(sectionHtml).join("\n")}
     <p style="margin-top:16px;">
       <a href="${accountUrl}">Ir a miMAR</a>
     </p>
@@ -99,9 +118,7 @@ export function composeDigestEmail(input: ComposeDigestInput): ComposedDigestEma
   const text = [
     "Hola,",
     "",
-    `Tu panel de ${recipientLabel} en miMAR tiene pendientes:`,
-    "",
-    rowsText,
+    sections.map(sectionText).join("\n\n"),
     "",
     `Ir a miMAR: ${accountUrl}`,
     "",

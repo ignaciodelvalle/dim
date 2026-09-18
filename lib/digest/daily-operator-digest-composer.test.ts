@@ -44,11 +44,14 @@ describe("digestSubject", () => {
 
 describe("composeDigestEmail", () => {
   const input = {
-    recipientLabel: "gobierno" as const,
-    items: ITEMS,
+    sections: [{ recipientLabel: "gobierno" as const, items: ITEMS }],
     unsubscribeUrl: "https://mimar.com.ar/api/digest/unsubscribe?u=abc&t=xyz",
     accountUrl: "https://mimar.com.ar/cuenta",
   };
+  const withItems = (items: DigestQueueItem[]) => ({
+    ...input,
+    sections: [{ recipientLabel: "gobierno" as const, items }],
+  });
 
   it("carries the subject from digestSubject", () => {
     const { subject } = composeDigestEmail(input);
@@ -89,17 +92,44 @@ describe("composeDigestEmail", () => {
   });
 
   it("es-AR greeting uses the recipient label", () => {
-    const govt = composeDigestEmail({ ...input, recipientLabel: "gobierno" });
-    const org = composeDigestEmail({ ...input, recipientLabel: "organización" });
-    expect(govt.html).toContain("gobierno");
-    expect(org.html).toContain("organización");
+    const govt = composeDigestEmail(input);
+    const org = composeDigestEmail({
+      ...input,
+      sections: [{ recipientLabel: "organización", items: ITEMS }],
+    });
+    expect(govt.html).toContain("Tu panel de gobierno");
+    expect(org.html).toContain("Tu panel de organización");
+  });
+
+  it("L3: a govt operator who is also an org member gets BOTH panels in one mail", () => {
+    const orgItems: DigestQueueItem[] = [
+      { label: "Casos abiertos", count: 2, href: "https://mimar.com.ar/org/abc123/casos" },
+    ];
+    const { subject, html, text } = composeDigestEmail({
+      ...input,
+      sections: [
+        { recipientLabel: "gobierno", items: ITEMS },
+        { recipientLabel: "organización", items: orgItems },
+      ],
+    });
+    for (const out of [html, text]) {
+      expect(out).toContain("Tu panel de gobierno");
+      expect(out).toContain("Tu panel de organización");
+      expect(out).toContain("Casos abiertos");
+      expect(out).toContain("Aprobaciones pendientes");
+    }
+    // The subject counts across both panels: 4 + 2.
+    expect(subject).toBe("6 pendientes te esperan en miMAR");
+    // Government first, in the order given.
+    expect(html.indexOf("Tu panel de gobierno")).toBeLessThan(
+      html.indexOf("Tu panel de organización"),
+    );
   });
 
   it("escapes HTML-significant characters in a label (defense in depth)", () => {
-    const { html } = composeDigestEmail({
-      ...input,
-      items: [{ label: "<script>x</script>", count: 1, href: "https://mimar.com.ar/x" }],
-    });
+    const { html } = composeDigestEmail(
+      withItems([{ label: "<script>x</script>", count: 1, href: "https://mimar.com.ar/x" }]),
+    );
     expect(html).not.toContain("<script>x</script>");
     expect(html).toContain("&lt;script&gt;");
   });

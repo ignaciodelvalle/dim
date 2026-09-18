@@ -287,6 +287,13 @@ export const CRON_JOB_CEILINGS: Readonly<Record<string, CronJobCeiling>> = {
     honoursBudget: true,
     declaredIn: "src/modules/foster/infrastructure/foster-repository.ts",
   },
+  // --- security review 2026-09-18: was CEILING_EXEMPT as "bounded by rows",
+  //     which bounded the row count and not the time ---
+  daily_operator_digest: {
+    ceilingMs: 30_000,
+    honoursBudget: true,
+    declaredIn: "lib/infra/daily-operator-digest.ts",
+  },
 };
 
 /**
@@ -480,7 +487,6 @@ export const DAILY_JOB_ORDER: readonly string[] = [
   "vaccine_due",
   "post_adoption_checkin",
   "evaluate_alerts",
-  "daily_operator_digest",
   // --- delivery drains (moved earlier, S8: never starved by the budget) ---
   "process_eno_queue",
   "drain_outbox",
@@ -503,6 +509,16 @@ export const DAILY_JOB_ORDER: readonly string[] = [
   "close_followup_expired_adoptions",
   "escalate_stale_welfare_cases",
   "escalate_stale_disputes",
+  // The operator digest runs AFTER every delivery drain (security review
+  // 2026-09-18). It used to sit in the producer block, ahead of the drains —
+  // the exact position the S8 note above says starves delivery: a slow digest
+  // night (a Resend call per recipient) spent the budget the drains needed.
+  // A digest is a convenience summary and a drain is a legal notification;
+  // the convenience goes last. After the expiry/escalation block on purpose,
+  // too: the counts it mails are then the ones left after today's expiries.
+  // Ahead of the purges only because data_lifecycle is built to take whatever
+  // remains, and the digest honours its fair share like every other job.
+  "daily_operator_digest",
   // --- retention purges ---
   "purge_scan_events",
   "data_lifecycle",

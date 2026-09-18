@@ -7,16 +7,21 @@
 // route's own auth (authorizeCronRequest) accepts that Bearer header or the
 // legacy `x-cron-secret` header, same as every other job in the fleet.
 //
-// NO WALL-CLOCK CEILING (see __tests__/cron-budget-ceiling.test.ts's
-// CEILING_EXEMPT — this job is listed there): the work is bounded by ROWS
-// (active govt accounts + active org memberships, a v1-scale set), not by a
-// keyset loop with a self-imposed clock. runDailyOperatorDigest short-
-// circuits entirely when the mail channel is not configured, so a misrouted
-// or misconfigured environment costs one cheap env check, not a DB scan.
+// BOUNDED BY THE CLOCK, AND BY THE RUN'S BUDGET (security review 2026-09-18).
+// The first version was listed in cron-budget-ceiling's CEILING_EXEMPT as
+// "bounded by rows" — true of the row COUNT, false of the time: per-recipient
+// count queries, a full auth.users paging and sequential Resend calls, inside
+// the dispatcher's shared 55 s with no clock. It now declares
+// DIGEST_MAX_DURATION_MS (CRON_JOB_CEILINGS) and narrows it to the share the
+// dispatcher hands down via effectiveDeadlineMs; runDailyOperatorDigest checks
+// that deadline between recipients and stops before claiming another one.
+// runDailyOperatorDigest still short-circuits entirely when the mail channel
+// is not configured, so a misconfigured environment costs one cheap env check.
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
-import { runDailyOperatorDigest } from "@/lib/infra/daily-operator-digest";
+import { effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
+import { DIGEST_MAX_DURATION_MS, runDailyOperatorDigest } from "@/lib/infra/daily-operator-digest";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +34,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authError.error }, { status: authError.status });
   }
 
+  // RN #9: min(own ceiling, the share the dispatcher handed down).
+  const budgetMs = effectiveDeadlineMs(DIGEST_MAX_DURATION_MS, request.headers);
+
   try {
     const result = await withCronRun(
       CRON_NAME,
-      () => runDailyOperatorDigest(),
+      () => runDailyOperatorDigest({ budgetMs }),
       (r) => ({
         itemsProcessed: r.sent,
         // Genuine per-recipient errors flip the run to 'failed' (alerts +

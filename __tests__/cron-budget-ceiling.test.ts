@@ -126,8 +126,6 @@ const CEILING_EXEMPT: Readonly<Record<string, string>> = {
   drain_notification_dead_letter: "bounded by BATCH_SIZE = 200 rows per invocation, not by clock",
   reconcile_push_receipts:
     "bounded by RECEIPT_BATCH_SIZE = 1000 rows read once per invocation, not by clock; no keyset loop",
-  daily_operator_digest:
-    "bounded by ROWS (active govt accounts + active org memberships, v1 scale) via a single scan; short-circuits entirely when the mail channel is not configured — no keyset loop, no wall-clock deadline",
 };
 
 const srcCache = new Map<string, string>();
