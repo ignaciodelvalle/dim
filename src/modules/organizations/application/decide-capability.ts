@@ -1,6 +1,7 @@
 // Use-case: decide (approve / deny / revoke) a capability grant request.
 //
-// Auth handled by caller: Supabase session + getActiveMemberships[length-1] +
+// Auth handled by caller: live session + requireOrgAccessByToken(orgToken from
+// the form — the org whose panel is open, never the session default) +
 // getGrantedCapabilities. Caller passes the resolved `active` context and `granted` set.
 
 import { isValidCapability } from "@/src/modules/organizations/domain/capabilities";

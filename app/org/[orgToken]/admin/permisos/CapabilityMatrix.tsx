@@ -33,6 +33,8 @@ export type MatrixProps = {
   members: MatrixMember[];
   columns: MatrixColumn[];
   organizationId: string;
+  /** The org whose panel is open — a revoke is decided on it, not the session default. */
+  orgToken: string;
   /** The viewer's own membership ID — used to block self-grant in empty cells. */
   callerMembershipId: string;
 };
@@ -46,7 +48,7 @@ export type MatrixColumn = {
 // Single revoke cell — each cell needs its own action state
 // ---------------------------------------------------------------------------
 
-function RevokeCell({ grantId }: { grantId: string }) {
+function RevokeCell({ grantId, orgToken }: { grantId: string; orgToken: string }) {
   const [state, formAction, isSubmitting] = useActionState<CapabilityActionState, FormData>(
     decideCapabilityAction,
     { error: null },
@@ -57,6 +59,7 @@ function RevokeCell({ grantId }: { grantId: string }) {
     return (
       <div className="flex flex-col items-center gap-1">
         <form action={formAction}>
+          <input type="hidden" name="orgToken" value={orgToken} />
           <input type="hidden" name="grantId" value={grantId} />
           <input type="hidden" name="decision" value="revoked" />
           <button
@@ -222,6 +225,7 @@ export function CapabilityMatrix({
   members,
   columns,
   organizationId,
+  orgToken,
   callerMembershipId,
 }: MatrixProps) {
   if (members.length === 0) {
@@ -281,7 +285,7 @@ export function CapabilityMatrix({
                   // Explicit approved grant — interactive revoke
                   return (
                     <td key={col.capability} className="px-2 py-2 text-center">
-                      <RevokeCell grantId={grantId} />
+                      <RevokeCell grantId={grantId} orgToken={orgToken} />
                     </td>
                   );
                 }

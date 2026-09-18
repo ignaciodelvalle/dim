@@ -34,7 +34,6 @@ import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token
 import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/reference/ar-provincias";
 import { isManagerRole } from "@/src/modules/organizations/domain/role-rules";
 import {
-  getActiveMemberships,
   getGrantedCapabilities,
   requireCapability,
 } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -695,9 +694,19 @@ export async function decideCapabilityAction(
   }
   const decision = decisionRaw as "approved" | "denied" | "revoked";
 
-  const memberships = await getActiveMemberships(user.id);
-  const active = memberships[memberships.length - 1];
-  if (!active) return { error: "No pertenecés a ninguna organización activa." };
+  // CONFUSED DEPUTY, fixed 2026-09-18 (T1-L12) — the twin of the
+  // requestCapabilityAction fix above (2026-08-10). This resolved the org as
+  // `getActiveMemberships(user.id)` then `memberships[memberships.length - 1]`,
+  // the session-default membership. An admin of two organizations standing on
+  // /org/{A}/admin/permisos decided with B's authority and B's context: the
+  // use-case's scope guard then refused every grant of A ("pertenece a otra
+  // organización"), and had the guard ever been loosened, the audit row and
+  // the notification CTA would have named B. The org now comes from the form's
+  // orgToken — the page the admin opened — and both bind to it.
+  const orgToken = String(formData.get("orgToken") ?? "").trim();
+  if (!orgToken) return { error: "No pudimos determinar la organización." };
+
+  const active = await requireOrgAccessByToken(orgToken);
 
   const granted = await getGrantedCapabilities(active.membership);
 
