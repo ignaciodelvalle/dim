@@ -47,6 +47,8 @@ import { fileURLToPath } from "node:url";
 
 import { type Browser, type Page, chromium } from "@playwright/test";
 
+import { passSecondFactorIfAsked } from "../e2e/_mfa";
+import { leftSignIn } from "../e2e/_sign-in-route";
 import {
   type QaFinding,
   type QaRunOutcome,
@@ -724,7 +726,11 @@ async function login(page: Page, base: string, email: string, password: string):
   // nobody had run them since the toggle landed. getByRole pins the input.
   await page.getByRole("textbox", { name: /contraseña/i }).fill(password);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 25_000 });
+  // leftSignIn, not `!startsWith("/login")`: the sign-in page is /iniciar-sesion
+  // and the old predicate held before a credential was typed (e2e/_sign-in-route.ts).
+  await page.waitForURL(leftSignIn, { timeout: 25_000 });
+  // Institutional accounts owe TOTP since T2-S6 (e2e/_mfa.ts).
+  await passSecondFactorIfAsked(page, email, password);
 }
 
 function panoramaPath(email: string): string {

@@ -25,6 +25,7 @@
 
 import { writeFileSync } from "node:fs";
 import { createServerClient } from "@supabase/ssr";
+import { upgradeSeedSessionToAal2 } from "./lib/seed-mfa";
 
 const DEFAULT_EMAILS = [
   "owner@dim.test",
@@ -73,6 +74,9 @@ async function mint(email: string): Promise<MintedAccount> {
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { email, cookies: [], error: error.message };
+  // Institutional accounts owe TOTP since T2-S6: bring the session to aal2
+  // (no-op for personal accounts). scripts/lib/seed-mfa.ts.
+  await upgradeSeedSessionToAal2(supabase, email, password);
   return { email, cookies: [...jar.entries()].map(([name, value]) => ({ name, value })) };
 }
 

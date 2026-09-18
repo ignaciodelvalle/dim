@@ -1,6 +1,6 @@
 // Second factor (TOTP) for institutional accounts — T2-S6.
 //
-// Three layers, all without a live GoTrue (the local stack needs a restart before
+// Three layers (plus the harness TOTP helper, section 4), all without a live GoTrue (the local stack needs a restart before
 // its TOTP endpoints answer, see supabase/config.toml [auth.mfa.totp]):
 //
 //   1. mfa-policy.ts — the pure requirement table.
@@ -55,6 +55,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { RateLimitError } from "@/lib/infra/rate-limit";
+import { base32Decode, secondsLeftInStep, totp, totpFromKey } from "@/scripts/lib/totp";
 import {
   confirmMfaEnrolmentAction,
   startMfaEnrolmentAction,
@@ -392,5 +393,50 @@ describe("resetMfaFactorsForAuthority", () => {
     h.adminListFactors.mockResolvedValue({ data: { factors: [] }, error: null });
     expect(await resetMfaFactorsForAuthority("admin-1", input)).toEqual({ ok: true, removed: 0 });
     expect(h.writeAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The test-harness TOTP helper (scripts/lib/totp.ts) — RFC 6238 Appendix B
+// ---------------------------------------------------------------------------
+
+describe("scripts/lib/totp.ts — RFC 6238 test vectors", () => {
+  const SEEDS = {
+    sha1: Buffer.from("12345678901234567890"),
+    sha256: Buffer.from("12345678901234567890123456789012"),
+    sha512: Buffer.from("1234567890123456789012345678901234567890123456789012345678901234"),
+  } as const;
+  const VECTORS: Array<[number, string, string, string]> = [
+    [59, "94287082", "46119246", "90693936"],
+    [1111111109, "07081804", "68084774", "25091201"],
+    [1111111111, "14050471", "67062674", "99943326"],
+    [1234567890, "89005924", "91819424", "93441116"],
+    [2000000000, "69279037", "90698825", "38618901"],
+    [20000000000, "65353130", "77737706", "47863826"],
+  ];
+
+  it.each(VECTORS)("T=%i → sha1 %s, sha256 %s, sha512 %s", (time, sha1, sha256, sha512) => {
+    expect(totpFromKey(SEEDS.sha1, { time, digits: 8 })).toBe(sha1);
+    expect(totpFromKey(SEEDS.sha256, { time, digits: 8, algorithm: "sha256" })).toBe(sha256);
+    expect(totpFromKey(SEEDS.sha512, { time, digits: 8, algorithm: "sha512" })).toBe(sha512);
+  });
+
+  it("decodes base32 the way authenticator apps do (the RFC seed, 6 digits)", () => {
+    expect(base32Decode("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ").toString()).toBe(
+      "12345678901234567890",
+    );
+    expect(base32Decode("gezd gnbv gy3t qojq gezd gnbv gy3t qojq====").toString()).toBe(
+      "12345678901234567890",
+    );
+    // Six digits = the last six of the eight-digit vector.
+    expect(totp("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", { time: 59 })).toBe("287082");
+    expect(() => base32Decode("A1")).toThrow(/invalid character/);
+  });
+
+  it("changes code at the step boundary and not inside it", () => {
+    const s = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    expect(totp(s, { time: 60 })).toBe(totp(s, { time: 89 }));
+    expect(totp(s, { time: 89 })).not.toBe(totp(s, { time: 90 }));
+    expect(secondsLeftInStep(30, 61)).toBe(29);
   });
 });

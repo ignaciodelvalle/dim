@@ -48,6 +48,7 @@
 import { type Page, type Response, expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
+import { passSecondFactorIfAsked } from "./_mfa";
 import { BRANDED_NOT_FOUND_TESTID, NOT_FOUND_HEADING } from "./_page-identity";
 import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 import { assertRealPage } from "./demo/_helpers";
@@ -216,6 +217,7 @@ async function loginAs(page: Page, email: string, password: string): Promise<voi
   await page.getByRole("textbox", { name: "Contraseña" }).fill(password);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   await page.waitForURL(leftSignIn, { timeout: 15_000 });
+  await passSecondFactorIfAsked(page, email, password);
 }
 
 /** Verify an account can sign in (via supabase-js). Returns true when seeded. */

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Page, expect, test } from "@playwright/test";
 
+import { passSecondFactorIfAsked } from "./_mfa";
 import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 
 /**
@@ -92,6 +93,8 @@ async function loginAsOperator(page: Page, email: string): Promise<void> {
   // Operators land on their portal root (/gob or /admin) after login.
   // Wait for any URL change away from the sign-in page to confirm auth worked.
   await page.waitForURL(leftSignIn, { timeout: 20_000 });
+  // Operators owe the second factor since T2-S6 (e2e/_mfa.ts).
+  await passSecondFactorIfAsked(page, email, SHARED_PASSWORD);
 }
 
 // ---------------------------------------------------------------------------

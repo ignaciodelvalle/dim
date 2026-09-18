@@ -25,6 +25,7 @@ loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
 import { createClient } from "@supabase/supabase-js";
+import { upgradeSeedSessionToAal2 } from "./lib/seed-mfa";
 
 const MAX_CHUNK_SIZE = 3180;
 
@@ -103,7 +104,10 @@ async function main() {
     process.exit(1);
   }
 
-  const session = data.session;
+  // Institutional accounts owe TOTP since T2-S6: bring the session to aal2
+  // (no-op for personal accounts). scripts/lib/seed-mfa.ts.
+  await upgradeSeedSessionToAal2(supabase, email, password);
+  const session = (await supabase.auth.getSession()).data.session ?? data.session;
   const projectRef = projectRefFromUrl(supabaseUrl);
   const cookieKey = `sb-${projectRef}-auth-token`;
 

@@ -14,6 +14,7 @@ loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
 import { createClient } from "@supabase/supabase-js";
+import { upgradeSeedSessionToAal2 } from "./lib/seed-mfa";
 
 const BASE = "http://localhost:3001";
 const REPS = 3;
@@ -65,11 +66,15 @@ async function getCookie(email: string, password: string): Promise<string> {
   const supabase = createClient(supabaseUrl, anonKey);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.session) throw new Error(`Sign-in failed for ${email}: ${error?.message}`);
+  // Institutional accounts owe TOTP since T2-S6: bring the session to aal2
+  // (no-op for personal accounts). scripts/lib/seed-mfa.ts.
+  await upgradeSeedSessionToAal2(supabase, email, password);
+  const session = (await supabase.auth.getSession()).data.session ?? data.session;
 
   const url = new URL(supabaseUrl);
   const projectRef = url.hostname.split(".")[0];
   const cookieKey = `sb-${projectRef}-auth-token`;
-  const sessionJson = JSON.stringify(data.session);
+  const sessionJson = JSON.stringify(session);
   const pairs = createChunks(cookieKey, sessionJson);
   return pairs.map(({ name, value }) => `${name}=${value}`).join("; ");
 }

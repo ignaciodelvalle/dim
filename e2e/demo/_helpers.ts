@@ -8,6 +8,7 @@ import {
   expect,
 } from "@playwright/test";
 
+import { passSecondFactorIfAsked } from "../_mfa";
 import {
   BRANDED_NOT_FOUND_TESTID,
   CRASH_BOUNDARY,
@@ -282,6 +283,9 @@ export async function loginAs(
     }
   }
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+  // An institutional account lands on /mfa (or /mfa/configurar) since T2-S6;
+  // the cached cookies must be the aal2 session, not the half-signed-in one.
+  await passSecondFactorIfAsked(page, email, SHARED_PASSWORD);
 
   // Cache the session so the next `loginAs` for this account costs no login
   // budget. The landing path is recorded too, so a replayed session leaves the

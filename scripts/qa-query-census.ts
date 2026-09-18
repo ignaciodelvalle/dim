@@ -17,6 +17,7 @@ loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
 import { createClient } from "@supabase/supabase-js";
+import { upgradeSeedSessionToAal2 } from "./lib/seed-mfa";
 
 const BASE = "http://localhost:3001";
 const HITS = 3;
@@ -36,8 +37,12 @@ async function getCookie(email: string): Promise<string> {
     password: "Test1234!",
   });
   if (error || !data.session) throw new Error(`sign-in failed: ${email}`);
+  // Institutional accounts owe TOTP since T2-S6: bring the session to aal2
+  // (no-op for personal accounts). scripts/lib/seed-mfa.ts.
+  await upgradeSeedSessionToAal2(supabase, email, "Test1234!");
+  const session = (await supabase.auth.getSession()).data.session ?? data.session;
   const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname.split(".")[0];
-  return `sb-${ref}-auth-token=${JSON.stringify(data.session)}`;
+  return `sb-${ref}-auth-token=${JSON.stringify(session)}`;
 }
 
 const APP_CALLS_SQL = `SELECT coalesce(sum(calls),0) FROM pg_stat_statements s JOIN pg_roles r ON r.oid = s.userid WHERE r.rolname = 'postgres' AND s.query NOT ILIKE '%pg_stat%' AND s.query NOT ILIKE '%pg_roles%'`;

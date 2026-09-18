@@ -1,6 +1,7 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
 import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
+import { passSecondFactorIfAsked } from "./_mfa";
 import { endSponsorship, pickSponsorablePetToken, sponsorPet } from "./_shelter-custody";
 import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 import { resetAuthLoginRateLimits } from "./demo/_db-cleanup";
@@ -154,6 +155,8 @@ async function login(page: Page, email: string) {
       { timeout: 30_000, intervals: [150, 250, 500, 500, 1000, 1500] },
     )
     .toBe(true);
+  // Leaving the sign-in page may mean landing on /mfa (T2-S6, e2e/_mfa.ts).
+  await passSecondFactorIfAsked(page, email, PASSWORD);
 }
 
 async function stateFor(browser: Browser, email: string): Promise<StorageState> {

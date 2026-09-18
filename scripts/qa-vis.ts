@@ -61,6 +61,8 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { resolve } from "node:path";
 
 import { type Browser, type BrowserContext, type Page, chromium } from "@playwright/test";
+import { passSecondFactorIfAsked } from "../e2e/_mfa";
+import { leftSignIn } from "../e2e/_sign-in-route";
 
 // ---------------------------------------------------------------------------
 // Args
@@ -179,7 +181,11 @@ async function login(page: Page): Promise<void> {
   // nobody had run them since the toggle landed. getByRole pins the input.
   await page.getByRole("textbox", { name: /contraseña/i }).fill(cfg.password);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
+  // leftSignIn, not `!startsWith("/login")`: the sign-in page is /iniciar-sesion
+  // and the old predicate held before a credential was typed (e2e/_sign-in-route.ts).
+  await page.waitForURL(leftSignIn, { timeout: 30_000 });
+  // Institutional accounts owe TOTP since T2-S6 (e2e/_mfa.ts).
+  await passSecondFactorIfAsked(page, cfg.email, cfg.password);
 }
 
 // ---------------------------------------------------------------------------
