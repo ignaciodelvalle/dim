@@ -110,7 +110,7 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
 // session is a FRESH recovery session (amr method "recovery", just now) — the
 // only shape the action accepts since A04-1.
 function mockUpdateClient({
-  user = null as { id: string } | null,
+  user = null as { id: string; app_metadata?: Record<string, unknown> } | null,
   userError = null as unknown,
   updateError = null as unknown,
   amr = [{ method: "recovery", timestamp: nowSeconds() }] as unknown,
@@ -369,6 +369,37 @@ describe("updatePasswordAction — recovery proof (A04-1)", () => {
     expect(updateUser).toHaveBeenCalledOnce();
   });
 
+  // LOW-7 (2026-09-18): a first-access LINK session is amr `otp` too. An account
+  // that still owes its first password must pay it at /primer-acceso, where the
+  // arming stamp decides which session may — never here.
+  it("refuses an account whose first-access password is still pending, before updateUser", async () => {
+    const { updateUser } = mockUpdateClient({
+      user: { id: "user-uuid", app_metadata: { password_setup_pending: true } },
+      amr: [{ method: "otp", timestamp: nowSeconds() }],
+    });
+    const result = await updatePasswordAction({ error: null }, form());
+    expect(result.error).toMatch(/primera contraseña/);
+    expect(result.ok).toBeFalsy();
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  // LOW-6 (2026-09-18): GoTrue refuses to set a password from an aal1 session of
+  // an account with a verified factor (measured on local v2.188.1). The code was
+  // right; the person must be told where the way out is, not to retry.
+  it("points an account with a second factor at the admin reset when GoTrue demands aal2", async () => {
+    mockUpdateClient({
+      user: { id: "user-uuid" },
+      updateError: {
+        status: 401,
+        code: "insufficient_aal",
+        message: "AAL2 session is required to update email or password when MFA is enabled.",
+      },
+    });
+    const result = await updatePasswordAction({ error: null }, form());
+    expect(result.error).toMatch(/verificación en dos pasos/);
+    expect(result.error).toMatch(/restablezca tus credenciales/);
+  });
+
   it("refuses a recovery session older than the window", async () => {
     const stale = nowSeconds() - RECOVERY_PROOF_WINDOW_MS / 1000 - 60;
     const { updateUser } = mockUpdateClient({
@@ -512,6 +543,20 @@ describe("changePasswordAction (A04-1)", () => {
     );
     expect(result.error).toMatch(/demasiados intentos/i);
     expect(signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("an account with a second factor is pointed at the admin reset, not at 'another password'", async () => {
+    const { mainSignOut } = mockLive();
+    const { signOut } = mockThrowaway({
+      updateError: {
+        code: "insufficient_aal",
+        message: "AAL2 session is required to update email or password when MFA is enabled.",
+      },
+    });
+    const result = await changePasswordAction({ error: null }, form());
+    expect(result.error).toMatch(/restablezca tus credenciales/);
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(mainSignOut).not.toHaveBeenCalled();
   });
 
   it("returns one generic sentence when the update fails, never GoTrue's text", async () => {

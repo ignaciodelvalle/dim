@@ -109,6 +109,14 @@ import { useActionNavigate } from "@/lib/ui/use-action-redirect";
 import { destroyRecoverySession } from "@/src/modules/auth/application/password-reset/destroy-recovery-session";
 import { revokeOtherSessions } from "@/src/modules/auth/application/password-reset/revoke-other-sessions";
 import {
+  PASSWORD_SETUP_PENDING_RECOVERY_MESSAGE,
+  isPasswordSetupPending,
+} from "@/src/modules/auth/domain/first-access";
+import {
+  MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE,
+  isInsufficientAalError,
+} from "@/src/modules/auth/domain/mfa-policy";
+import {
   MIN_PASSWORD_LENGTH,
   validateNewPassword,
 } from "@/src/modules/auth/domain/new-password-rules";
@@ -253,6 +261,15 @@ export function ResetCodeStep({
 
     // From here on a LIVE recovery session exists in this browser's cookie jar,
     // and every exit below must either finish the reset or destroy it.
+
+    // An account that still owes its FIRST password pays it at /primer-acceso
+    // only (first-access.ts): drop the session, change nothing.
+    if (isPasswordSetupPending(redeemed.data.user ?? redeemed.data.session.user)) {
+      await destroyRecoverySession(auth);
+      setWorking(false);
+      setCodeError(PASSWORD_SETUP_PENDING_RECOVERY_MESSAGE);
+      return;
+    }
     let updated: Awaited<ReturnType<typeof auth.updateUser>> | null = null;
     let threw = false;
     try {
@@ -275,7 +292,13 @@ export function ResetCodeStep({
       // local clear unconditional; read its header before simplifying this back.
       await destroyRecoverySession(auth);
       setWorking(false);
-      setCodeError(RESET_CODE_MESSAGES.update_failed);
+      // An account with a second factor cannot set its password from a recovery
+      // session (aal1); the code was right, so do not tell the person to retry.
+      setCodeError(
+        isInsufficientAalError(updated?.error)
+          ? MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE
+          : RESET_CODE_MESSAGES.update_failed,
+      );
       return;
     }
 

@@ -30,6 +30,10 @@
 import { requireLiveUser } from "@/lib/infra/live-user";
 import { RateLimitError, emailRateLimitKey, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { createAnonClient } from "@/lib/supabase/anon";
+import {
+  MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE,
+  isInsufficientAalError,
+} from "@/src/modules/auth/domain/mfa-policy";
 import { validateNewPassword } from "@/src/modules/auth/domain/new-password-rules";
 
 import { LOGIN_EMAIL_LIMIT } from "../login-limits";
@@ -85,6 +89,11 @@ export async function changePasswordAction(
     // Best-effort cleanup of the proof session; revokeOtherSessions below does
     // not run on this branch.
     await throwaway.auth.signOut({ scope: "local" }).catch(() => undefined);
+    // The proof session is a fresh PASSWORD sign-in, i.e. aal1, and GoTrue will
+    // not set a password from aal1 on an account with a verified factor.
+    if (isInsufficientAalError(updateError)) {
+      return { error: MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE };
+    }
     // One sentence, never GoTrue's text (A04-6).
     return { error: UPDATE_FAILED };
   }

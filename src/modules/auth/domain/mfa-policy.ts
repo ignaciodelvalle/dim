@@ -92,3 +92,26 @@ export const MFA_CHALLENGE_MESSAGE =
   "Tu cuenta institucional pide el código de verificación de tu app de autenticación. Ingresalo para seguir.";
 export const MFA_ENROL_MESSAGE =
   "Tu cuenta institucional necesita un segundo factor de verificación. Configuralo para seguir.";
+
+// PASSWORD CHANGES ON AN ACCOUNT WITH A FACTOR (2026-09-18). GoTrue refuses to
+// set a password from an aal1 session once the account has a verified factor —
+// "AAL2 session is required to update email or password when MFA is enabled",
+// code `insufficient_aal`, measured on local GoTrue v2.188.1. Every self-service
+// path we have sets it from an aal1 session: the recovery code and the recovery
+// link (a recovery session is aal1 by nature) and /cuenta/contrasena's proof
+// session (a fresh password sign-in). So for these accounts self-service
+// recovery CANNOT work, and saying "probá con otra contraseña" would send the
+// person round in circles. The way out is the admin credential reset, which
+// goes through the admin API — not subject to the check (measured the same day)
+// — and hands them a first-access link.
+export const MFA_PASSWORD_CHANGE_NEEDS_ADMIN_MESSAGE =
+  "Tu cuenta tiene verificación en dos pasos, así que su contraseña no se puede cambiar por esta vía. Pedile a una persona con rol de administración de miMAR que restablezca tus credenciales: te va a dar un link para elegir una contraseña nueva.";
+
+/** GoTrue's refusal to change a password from an aal1 session of an account with MFA. */
+export function isInsufficientAalError(
+  error: { code?: string | null; message?: string | null } | null | undefined,
+): boolean {
+  if (!error) return false;
+  if (error.code === "insufficient_aal") return true;
+  return /AAL2 session is required/i.test(error.message ?? "");
+}

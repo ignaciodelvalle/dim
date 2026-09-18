@@ -29,6 +29,18 @@ export const FIRST_ACCESS_PATH = "/primer-acceso";
 /** Key inside GoTrue's `app_metadata`. */
 export const PASSWORD_SETUP_PENDING_KEY = "password_setup_pending";
 
+/**
+ * Refusal for the RECOVERY paths while the flag is set (2026-09-18). The
+ * recovery proof accepts `otp` sessions — and a first-access link session is
+ * one — so without this a person (or whoever holds the link) could set the
+ * password at /recuperar/actualizar and walk past /primer-acceso: the flag
+ * stayed set, and the arming stamp that pins WHICH session may pay it
+ * (isSessionAfterArming, below) was never consulted. A pending account owes
+ * its password to the first-access step and to nothing else.
+ */
+export const PASSWORD_SETUP_PENDING_RECOVERY_MESSAGE =
+  "Tu cuenta todavía tiene que elegir su primera contraseña. Entrá con el link de primer acceso que te llegó por mail; si venció, pedile uno nuevo a una persona con rol de administración.";
+
 /** `app_metadata` patch that clears the flag once the password is set. */
 export function completedPasswordSetupMetadata(): Record<string, boolean> {
   return { [PASSWORD_SETUP_PENDING_KEY]: false };

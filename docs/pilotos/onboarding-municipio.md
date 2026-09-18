@@ -179,6 +179,18 @@ revocaciones (sin poder leerlo ni crear la revocación).
   un mail): es exactamente cómo se desarma el control para una cuenta. Un admin
   no puede restablecer su propio factor; si el único admin pierde el teléfono,
   hace falta otra cuenta admin — tené siempre dos.
+- **Se olvidó la contraseña (y tiene la app configurada) — tampoco hay
+  autoservicio.** Supabase no deja cambiar la contraseña desde una sesión de
+  recuperación (nivel `aal1`) si la cuenta tiene segundo factor. Si la persona
+  prueba con `/recuperar`, el código le funciona pero al guardar la contraseña
+  ve un mensaje que le dice que le pida a administración el restablecimiento.
+  La salida es **Resetear credenciales** desde su página de detalle (usa la API
+  de administración, que sí puede; medido en GoTrue local): la contraseña
+  vieja deja de servir, se cierran sus sesiones y le das el link nuevo. La app
+  de autenticación sigue vinculada — no hace falta volver a configurarla.
+- **El link de primer acceso sólo sirve para `/primer-acceso`.** Si una cuenta
+  todavía no eligió su primera contraseña, la página de recuperación la manda
+  de vuelta a ese paso en vez de dejarla elegir la contraseña por otro lado.
 - **Configurar la app pide una sesión recién iniciada** (15 minutos). Si la
   persona dejó la pantalla abierta y vuelve más tarde, le pedimos que cierre
   sesión y entre de nuevo. Y cuando termina de configurarla le llega un mail
