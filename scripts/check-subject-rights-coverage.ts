@@ -12,9 +12,9 @@
 // not see what was about to be destroyed.
 //
 // This fence makes the omission a red CI instead of an audit finding: every
-// table in the public schema must be classified into exactly one of four lists,
-// and the two covered lists are verified BOTH WAYS against the live function
-// bodies.
+// table in the public schema carries a classification of BOTH rights — its
+// art. 14 side (export) and its art. 16 side (erase) — and every side that says
+// "covered" is verified BOTH WAYS against the live function bodies.
 //
 // WHAT IT PROVES, AND — SAID PLAINLY — WHAT IT DOES NOT
 // ---------------------------------------------------------------------------
@@ -38,27 +38,44 @@
 // EVERY NUMBER IN THIS HEADER IS FENCED, and that is new. It said "eighteen"
 // and "twelve" — the arithmetic was consistent with itself and both halves were
 // stale, which is the failure mode a lone reader cannot catch. The counts are
-// derivable from the four lists BELOW IN THIS SAME FILE, so
+// derivable from the classification BELOW IN THIS SAME FILE, so
 // __tests__/documented-subject-rights-counts.test.ts flows this comment block
 // into prose and asserts each word against the list it describes. Correct the
 // list and this header goes red until it agrees; there is no longer a version
 // of this file where the prose and the data disagree in silence.
 //
-// THE FOUR LISTS, AND WHY THERE ARE FOUR RATHER THAN THREE
+// ONE CLASSIFICATION PER SIDE, NOT ONE PER TABLE (A05-2, 2026-09)
 // ---------------------------------------------------------------------------
-//   IN_EXPORT / IN_ERASE — the table is named in that function's live body. A
-//     table may be in both. Verified in both directions.
-//   EXEMPT — the table holds no personal data of a natural person beyond an
-//     opaque actor FK recording who performed an official act. One written
-//     reason per entry.
-//   KNOWN_GAP — the table DOES hold subject data and neither RPC reaches it.
+// The first version sorted TABLES into four lists, and a table named by ONE RPC
+// landed in IN_EXPORT or IN_ERASE and was counted as covered — the missing half
+// had no place to be written down. Five tables sat like that
+// (organization_memberships and custody_disputes export-only, case_events and
+// libreta_share_tokens erase-only, pet_identifications erased from TypeScript),
+// and `attachments` was filed as EXEMPT while it holds files the subject
+// uploaded. So CLASSIFICATION below states each side separately, as one of:
+//   covered — the table is named in that function's live body. Verified in
+//     both directions.
+//   covered_outside_sql(where, reason) — reached by a named TypeScript step of
+//     the erasure, because SQL cannot (object storage, event-backed releases).
+//     The fence checks the named function exists in the named file.
+//   exempt(reason) — this side holds no personal data of a natural person
+//     beyond an opaque actor FK recording who performed an official act.
+//   gap(reason) — this side DOES hold subject data and the right does not
+//     reach it.
+// A side left out, or carrying an empty reason, is a violation — not a default.
 //
-// The fourth list is the point. A three-list design forces every uncovered
+// IN_EXPORT, IN_ERASE, EXEMPT and KNOWN_GAP are still exported, DERIVED from
+// that one table: a list is the tables whose side(s) say so, and EXEMPT /
+// KNOWN_GAP hold only tables where BOTH sides agree.
+//
+// WHY "gap" EXISTS AT ALL
+// ---------------------------------------------------------------------------
+// The gap state is the point. A design without it forces every uncovered
 // table into EXEMPT, and there are seventeen tables here that hold real
 // subject data the RPCs do not touch. Writing "exempt" next to each of them
 // would be seventeen false statements in the one file whose whole job is to
 // stop a false statement about coverage. KNOWN_GAP names the debt, prints it on
-// every run, and still fails on a table that is in no list at all — so the NEXT
+// every run, and still fails on a table with no classification — so the NEXT
 // pet_caretaker_grants cannot arrive unnoticed, and the existing ones cannot be
 // laundered into "reviewed and fine".
 //
@@ -70,9 +87,9 @@
 // number the CI line prints has always been computed from the list; what used
 // to be maintained by hand — these sentences — is now fenced against it too.
 //
-// Moving a table OUT of KNOWN_GAP is done by adding it to a function, not by
-// editing this file: check 4 fails a KNOWN_GAP entry that the live body
-// mentions, and check 3 fails an IN_* entry that it does not.
+// Moving a side OUT of gap is done by adding the table to that function, not by
+// editing this file alone: check 4 fails a non-covered side whose live body
+// mentions the table, and check 3 fails a covered side whose body does not.
 //
 // WHICH DATABASE — this fence skips, loudly
 // ---------------------------------------------------------------------------
@@ -85,6 +102,9 @@
 // Exits 0 when every table is classified and both directions hold, and when the
 //   run was skipped.
 // Exits 1 listing each violation.
+
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 import postgres from "postgres";
 
@@ -99,142 +119,251 @@ import {
 } from "./_db-target";
 
 const SKIPPED_CHECKS =
-  "  NOT RUN: subject-rights table classification, and the two-way check of\n" +
+  "  NOT RUN: subject-rights per-side classification, and the two-way check of\n" +
   "  export_subject_data / erase_subject_data against their declared tables.";
 
-/** Tables `export_subject_data` returns a section for, or reads to scope one. */
-export const IN_EXPORT: readonly string[] = [
-  "audit_log",
-  "custody_dispute_parties",
-  "custody_disputes",
-  "foster_volunteers",
-  "notifications",
-  "operator_feed_watermarks",
-  "org_contact_messages",
-  "organization_invitations",
-  "organization_memberships",
-  "ownerships",
-  "pet_caretaker_grants",
-  "pet_events",
-  "pet_identifications",
-  "pet_tags",
-  "pet_transfers",
-  "pets",
-  "physical_tag_interest",
-  "profiles",
-  "push_subscriptions",
-  // Native (Expo) push destinations (migration 0222). Returned MINUS
-  // `expo_push_token`: unlike the web row above — where dropping p256dh + auth
-  // leaves an endpoint that can no longer deliver anything a browser accepts —
-  // an Expo token has no second factor and IS the deliverable address, so
-  // returning it would put a live delivery credential into a file the subject
-  // may forward. device_id, platform, app_version and the timestamps are what
-  // art. 14 needs here: that a device is registered, and since when.
-  "push_targets",
-  "welfare_reports",
-];
+/** Where a `covered_outside_sql` side is reached: a file and a function in it. */
+export type OutsideSqlSite = { readonly file: string; readonly fn: string };
 
-/** Tables `erase_subject_data` writes to, or reads to scope a write. */
-export const IN_ERASE: readonly string[] = [
-  "audit_log",
-  "case_events",
-  "custody_dispute_parties",
-  "foster_volunteers",
+/** How ONE right (art. 14 export, or art. 16 erase) treats ONE table. */
+export type Side =
+  | { readonly state: "covered" }
+  | {
+      readonly state: "covered_outside_sql";
+      readonly where: OutsideSqlSite;
+      readonly reason: string;
+    }
+  | { readonly state: "exempt"; readonly reason: string }
+  | { readonly state: "gap"; readonly reason: string };
+
+export type Classification = { readonly export: Side; readonly erase: Side };
+
+const covered: Side = { state: "covered" };
+const exempt = (reason: string): Side => ({ state: "exempt", reason });
+const gap = (reason: string): Side => ({ state: "gap", reason });
+
+/** Named in BOTH live bodies. */
+const BOTH_COVERED: Classification = { export: covered, erase: covered };
+/** No personal data on either side — one reason serves both. */
+const bothExempt = (reason: string): Classification => ({
+  export: exempt(reason),
+  erase: exempt(reason),
+});
+/** Subject data neither right reaches — one reason serves both. */
+const bothGap = (reason: string): Classification => ({ export: gap(reason), erase: gap(reason) });
+
+const ERASE_TS = "src/modules/auth/application/subject-rights/erase-subject-data.ts";
+
+/**
+ * THE classification — every public table, each right stated on its own.
+ *
+ * Exempt actor FKs are deliberately out of scope: the accountability trail they
+ * form is the thing art. 16 may NOT erase, and `audit_log` — which both RPCs
+ * already reach — is its canonical instrument.
+ */
+export const CLASSIFICATION: Readonly<Record<string, Classification>> = {
+  _dim_migrations: bothExempt("Migration ledger: filename, checksum, applied_at. No person."),
+  alert_firings: bothGap("Free-text `notes` written by a govt operator while working an alert."),
+  alert_subscriptions: bothGap("The subject's own alert `label` and thresholds (actor_user_id)."),
+  appointments: bothGap(
+    "owner_user_id plus `notes_from_owner`, `notes_from_org`, `cancellation_reason`.",
+  ),
+  approval_requests: bothGap(
+    "applicant_user_id / target_user_id, a free-form `payload` jsonb and `decision_notes`.",
+  ),
+  ar_localities: bothExempt("INDEC locality catalogue. Public reference data."),
+  ar_localities_import_runs: bothExempt("Telemetry for the locality catalogue import job."),
+  // Was EXEMPT until A05-2 — wrongly: a row names the uploader and carries the
+  // caption they typed. Each side is now stated for what it is.
+  attachments: {
+    export: gap(
+      "export_subject_data returns no attachments section: the subject cannot see, under art. 14, the rows (uploaded_by_user_id, caption, storage_path, mime_type) describing files they uploaded.",
+    ),
+    erase: {
+      state: "covered_outside_sql",
+      where: { file: ERASE_TS, fn: "purgeOwnedPetAttachments" },
+      reason:
+        "Deletes the storage object AND the row for every pet the subject owns. It cannot move into the RPC — SQL has no object-store access, so deleting the row there would orphan the file. RESIDUAL, stated rather than hidden: an attachment the subject uploaded onto SOMEBODY ELSE'S pet is not reached.",
+    },
+  },
+  audit_log: BOTH_COVERED,
+  // 0130/0208: erase redacts the subject's own reporter_comment notes; the export
+  // has never returned a case_events section.
+  case_events: {
+    export: gap(
+      "export_subject_data has no case_events section, so the reporter_comment notes art. 16 redacts are never shown to the subject under art. 14.",
+    ),
+    erase: covered,
+  },
+  cases: bothGap(
+    "applicant_user_id and the free-text `opened_reason`; the shell around case_events.",
+  ),
+  cron_runs: bothExempt("Cron telemetry. Drained on a 90-day TTL by runDataLifecyclePurge."),
+  custody_dispute_parties: BOTH_COVERED,
+  custody_disputes: {
+    export: covered,
+    erase: exempt(
+      "The dispute shell is an official record: jurisdiction, status, the authority's resolution_summary. The subject's own words live in custody_dispute_parties (redacted there); raised_by_user_id / resolved_by_user_id are actor FKs of official acts.",
+    ),
+  },
+  eno_processing_queue: bothExempt(
+    "Work queue keyed on pet_event_id — status, retries, last error.",
+  ),
+  event_notification_outbox: bothGap(
+    "`payload_snapshot` carries a copy of the source event's payload.",
+  ),
+  foster_proposals: bothGap(
+    "volunteer_user_id plus `proposed_notes`, `response_notes`, `cancellation_reason` — free text about the volunteer.",
+  ),
+  foster_volunteers: BOTH_COVERED,
+  govt_assignments: bothGap("The subject's official assignment, `revocation_reason` and `notes`."),
+  govt_business_rules: bothGap("Operator `notes` and the created_by / updated_by actor pair."),
+  jurisdictions_census: bothExempt("Published census figures per jurisdiction."),
   // 0207: the erasure revokes the subject's outstanding libreta shares (their
-  // own grants of access die with the account). The art. 14 side is still a
-  // gap — export_subject_data does not return the `label` the user typed —
-  // but the table can no longer sit in KNOWN_GAP: erase reaches it.
-  "libreta_share_tokens",
-  "notifications",
+  // own grants of access die with the account).
+  libreta_share_tokens: {
+    export: gap(
+      "export_subject_data does not return the share rows, so the `label` the user typed and the shares art. 16 revokes are never shown under art. 14.",
+    ),
+    erase: covered,
+  },
+  notification_dead_letter: bothGap(
+    "The undelivered notification's `payload` — its title and body.",
+  ),
+  notifications: BOTH_COVERED,
   // 0208: the watermark row is DELETED (user_id is its PK — it cannot exist
   // without naming the subject), and the export returns it first so art. 14
   // shows what art. 16 is about to destroy.
-  "operator_feed_watermarks",
-  "org_contact_messages",
+  operator_feed_watermarks: BOTH_COVERED,
+  org_contact_messages: BOTH_COVERED,
+  organization_capability_grants: bothGap("`requested_reason` and `decision_reason` free text."),
+  organization_coverage: bothExempt("An organization's declared coverage zones."),
   // 0208: REDACTED, not deleted. The invitee email is sentinelled and
   // outstanding invitations are revoked on both sides, while the actor FKs and
   // the accepted rows stay — an accepted invitation is the provenance of an
   // organization membership, and that trail is not the subject's alone.
-  "organization_invitations",
-  "ownerships",
-  "pet_caretaker_grants",
-  "pet_events",
-  "pet_tags",
-  "pet_transfers",
-  "pets",
+  organization_invitations: BOTH_COVERED,
+  // ERRATA #2 in erase-subject-data.ts: never read by erase_subject_data, despite
+  // 0208's header claiming "both RPCs since 0059".
+  organization_memberships: {
+    export: covered,
+    erase: gap(
+      "erase_subject_data never reads it: the subject's membership rows stay live with their `title`. Closing it (`left_at = now()`, `title = NULL`) is an open art. 16 item.",
+    ),
+  },
+  organizations: bothGap(
+    "A legal entity, but `email` / `phone` may be a natural person's for a one-person org, and created_by / verified_by are actor FKs.",
+  ),
+  ownerships: BOTH_COVERED,
+  panorama_cube: bothExempt("k-anonymised aggregate (k=5, AGENTS.md §6). No row is a person."),
+  panorama_cube_meta: bothExempt("Build metadata for panorama_cube — timestamps and row counts."),
+  panorama_kpi_cube: bothExempt("k-anonymised KPI aggregate (k=5). No row is a person."),
+  panorama_kpi_cube_meta: bothExempt("Build metadata for panorama_kpi_cube."),
+  pet_achievement_views: bothGap(
+    "One row per (user, pet, achievement) — a per-user reading record.",
+  ),
+  pet_caretaker_grants: BOTH_COVERED,
+  pet_events: BOTH_COVERED,
+  pet_identifications: {
+    export: covered,
+    erase: {
+      state: "covered_outside_sql",
+      where: { file: ERASE_TS, fn: "releaseMicrochipsForErasedPets" },
+      reason:
+        "Every active chip of a pet the erasure suppressed is released through a microchip_replaced event (the table is canonical and event-backed, so a bare UPDATE in SQL would leave replay drift). The row describes the animal; releasing it is what frees the chip for re-registration.",
+    },
+  },
+  pet_service_dog: bothGap(
+    "Credential fields and `notes`, plus verified_by / revoked_by actor FKs.",
+  ),
+  pet_tags: BOTH_COVERED,
+  pet_transfers: BOTH_COVERED,
+  pets: BOTH_COVERED,
   // 0208: DELETED. `user_id` is NOT NULL, so the row cannot be anonymised in
   // place — a demand signal is not a lawful basis for keeping a named row.
-  "physical_tag_interest",
-  "profiles",
-  "push_subscriptions",
-  // 0222: DELETED outright, on the push_subscriptions precedent directly above.
-  // Every column is the subject's own — device_id is an install identifier,
-  // expo_push_token a deliverable address for that install, platform and
-  // app_version describe their hardware — and none of it describes an animal or
-  // a third party, so redaction would preserve nothing of residual value.
-  "push_targets",
-  "welfare_reports",
-];
-
-/**
- * No personal data of a natural person, beyond an opaque actor FK recording who
- * performed an official act. Those FKs are deliberately out of scope: the
- * accountability trail they form is the thing art. 16 may NOT erase, and
- * `audit_log` — which both RPCs already reach — is its canonical instrument.
- */
-export const EXEMPT: Record<string, string> = {
-  _dim_migrations: "Migration ledger: filename, checksum, applied_at. No person.",
-  ar_localities: "INDEC locality catalogue. Public reference data.",
-  ar_localities_import_runs: "Telemetry for the locality catalogue import job.",
-  attachments:
-    "Reached from TypeScript rather than SQL: erase-subject-data.ts::purgeOwnedPetAttachments deletes the storage object AND the row for every pet the subject owns. It cannot move into the RPC — SQL has no object-store access, so deleting the row here would orphan the file. RESIDUAL, stated rather than hidden: an attachment the subject uploaded onto SOMEBODY ELSE'S pet is not reached by either path.",
-  cron_runs: "Cron telemetry. Drained on a 90-day TTL by runDataLifecyclePurge.",
-  eno_processing_queue: "Work queue keyed on pet_event_id — status, retries, last error.",
-  jurisdictions_census: "Published census figures per jurisdiction.",
-  organization_coverage: "An organization's declared coverage zones.",
-  panorama_cube: "k-anonymised aggregate (k=5, AGENTS.md §6). No row is a person.",
-  panorama_cube_meta: "Build metadata for panorama_cube — timestamps and row counts.",
-  panorama_kpi_cube: "k-anonymised KPI aggregate (k=5). No row is a person.",
-  panorama_kpi_cube_meta: "Build metadata for panorama_kpi_cube.",
-  rate_limit_buckets:
+  physical_tag_interest: BOTH_COVERED,
+  profiles: BOTH_COVERED,
+  push_subscriptions: BOTH_COVERED,
+  // Native (Expo) push destinations (migration 0222). Exported MINUS
+  // `expo_push_token`: an Expo token has no second factor and IS the deliverable
+  // address, so returning it would put a live delivery credential into a file
+  // the subject may forward. Erased outright on the push_subscriptions
+  // precedent: every column is the subject's own.
+  push_targets: BOTH_COVERED,
+  rate_limit_buckets: bothExempt(
     "Abuse-prevention counters on a short-lived cohort key, drained every run by runDataLifecyclePurge. A security control's live window is not what art. 16 reaches, and the row expires on its own.",
-  service_schedule_rules: "Opening hours of a service offering. No person.",
-  time_slots: "Capacity counters on a service offering. No person.",
+  ),
+  reminders: bothGap("user_id plus the reminder's `title` and `description`."),
+  service_offerings: bothGap(
+    "provider_user_id — a natural person can be the provider — and `description`.",
+  ),
+  service_schedule_rules: bothExempt("Opening hours of a service offering. No person."),
+  time_slots: bothExempt("Capacity counters on a service offering. No person."),
+  welfare_report_attachments: bothGap("uploaded_by_user_id and `original_filename`."),
+  welfare_reports: BOTH_COVERED,
 };
 
+const TABLES = Object.keys(CLASSIFICATION).sort();
+
+function tablesWhere(pred: (c: Classification) => boolean): string[] {
+  return TABLES.filter((t) => pred(CLASSIFICATION[t]));
+}
+
+function sideReason(side: Side): string {
+  return side.state === "covered" ? "" : side.reason;
+}
+
+/** Tables `export_subject_data` names — its `covered` export sides. Derived. */
+export const IN_EXPORT: readonly string[] = tablesWhere((c) => c.export.state === "covered");
+
+/** Tables `erase_subject_data` names — its `covered` erase sides. Derived. */
+export const IN_ERASE: readonly string[] = tablesWhere((c) => c.erase.state === "covered");
+
+function bothSidesAre(state: "exempt" | "gap"): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const t of tablesWhere((c) => c.export.state === state && c.erase.state === state)) {
+    const { export: ex, erase: er } = CLASSIFICATION[t];
+    const a = sideReason(ex);
+    const b = sideReason(er);
+    out[t] = a === b ? a : `export: ${a} / erase: ${b}`;
+  }
+  return out;
+}
+
+/** Tables with no personal data on EITHER side. Derived. */
+export const EXEMPT: Record<string, string> = bothSidesAre("exempt");
+
 /**
- * Tables that DO hold subject data and that neither RPC reaches. This is a debt
- * register, not an exemption list — see the header. Every entry names what is
- * actually in there, so the size of the remaining art. 14 / art. 16 gap is a
- * number somebody can read rather than a thing somebody has to rediscover.
+ * Tables that hold subject data that NEITHER right reaches — the two-sided debt
+ * register. One-sided gaps are listed by `sideGaps()`, not here. Derived.
  */
-export const KNOWN_GAP: Record<string, string> = {
-  alert_firings: "Free-text `notes` written by a govt operator while working an alert.",
-  alert_subscriptions: "The subject's own alert `label` and thresholds (actor_user_id).",
-  appointments: "owner_user_id plus `notes_from_owner`, `notes_from_org`, `cancellation_reason`.",
-  approval_requests:
-    "applicant_user_id / target_user_id, a free-form `payload` jsonb and `decision_notes`.",
-  cases: "applicant_user_id and the free-text `opened_reason`; the shell around case_events.",
-  event_notification_outbox: "`payload_snapshot` carries a copy of the source event's payload.",
-  foster_proposals:
-    "volunteer_user_id plus `proposed_notes`, `response_notes`, `cancellation_reason` — free text about the volunteer.",
-  govt_assignments: "The subject's official assignment, `revocation_reason` and `notes`.",
-  govt_business_rules: "Operator `notes` and the created_by / updated_by actor pair.",
-  notification_dead_letter: "The undelivered notification's `payload` — its title and body.",
-  organization_capability_grants: "`requested_reason` and `decision_reason` free text.",
-  organizations:
-    "A legal entity, but `email` / `phone` may be a natural person's for a one-person org, and created_by / verified_by are actor FKs.",
-  pet_achievement_views: "One row per (user, pet, achievement) — a per-user reading record.",
-  pet_service_dog: "Credential fields and `notes`, plus verified_by / revoked_by actor FKs.",
-  reminders: "user_id plus the reminder's `title` and `description`.",
-  service_offerings: "provider_user_id — a natural person can be the provider — and `description`.",
-  welfare_report_attachments: "uploaded_by_user_id and `original_filename`.",
-};
+export const KNOWN_GAP: Record<string, string> = bothSidesAre("gap");
+
+/** Every side in `gap`, per right — one-sided gaps included. */
+export function sideGaps(
+  classification: Readonly<Record<string, Classification>> = CLASSIFICATION,
+): { export: string[]; erase: string[] } {
+  const keys = Object.keys(classification).sort();
+  return {
+    export: keys.filter((t) => classification[t].export?.state === "gap"),
+    erase: keys.filter((t) => classification[t].erase?.state === "gap"),
+  };
+}
 
 type Violation = { kind: string; message: string };
 
 type FunctionDefRow = { proname: string; def: string };
 type TableRow = { tablename: string };
+
+/** Reads a repo-relative source file, or null when absent. Injectable for tests. */
+export type SourceReader = (repoRelativePath: string) => string | null;
+
+const REPO_ROOT = resolve(import.meta.dirname, "..");
+
+export const readRepoSource: SourceReader = (p) => {
+  const abs = join(REPO_ROOT, p);
+  return existsSync(abs) ? readFileSync(abs, "utf8") : null;
+};
 
 /**
  * Does the function body name this table? Matched as `public.<name>` with a
@@ -246,64 +375,44 @@ export function bodyMentions(def: string, table: string): boolean {
   return new RegExp(`\\bpublic\\.${table}\\b`).test(def);
 }
 
-/** Which of the four lists name this table. */
-function declaredIn(t: string): string[] {
-  const where: string[] = [];
-  if (IN_EXPORT.includes(t)) where.push("IN_EXPORT");
-  if (IN_ERASE.includes(t)) where.push("IN_ERASE");
-  if (Object.hasOwn(EXEMPT, t)) where.push("EXEMPT");
-  if (Object.hasOwn(KNOWN_GAP, t)) where.push("KNOWN_GAP");
-  return where;
-}
+const STATES = new Set(["covered", "covered_outside_sql", "exempt", "gap"]);
+
+/** A reason short enough to be a placeholder is not a written reason. */
+export const MIN_REASON_LENGTH = 20;
 
 /**
- * Check 1 — every live table is classified, and EXEMPT / KNOWN_GAP are
- * exclusive of everything else. IN_EXPORT + IN_ERASE is the only legal pairing.
+ * Check 1 — every live table has an entry, and every entry states BOTH sides
+ * with a known state and, off `covered`, a written reason. The type system
+ * already refuses a missing side at compile time; this is the runtime half, for
+ * a classification that reaches `evaluate` through a cast or a test.
  */
-function checkClassification(tables: readonly string[]): Violation[] {
+function checkClassification(
+  tables: readonly string[],
+  classification: Readonly<Record<string, Classification>>,
+): Violation[] {
   const violations: Violation[] = [];
   for (const t of tables) {
-    const where = declaredIn(t);
-    if (where.length === 0) {
+    const c = classification[t];
+    if (c === undefined) {
       violations.push({
         kind: "unclassified",
-        message: `✗ ${t} — in NO list. A new public table must be declared in scripts/check-subject-rights-coverage.ts: add it to a subject-rights RPC and list it in IN_EXPORT / IN_ERASE, or classify it as EXEMPT (no personal data of a natural person) or KNOWN_GAP (holds subject data neither RPC reaches) with a written reason. This is the check that pet_caretaker_grants needed and did not have.`,
+        message: `✗ ${t} — has NO classification. A new public table must be declared in CLASSIFICATION (scripts/check-subject-rights-coverage.ts) with BOTH its export (art. 14) and erase (art. 16) side stated: covered (named in that RPC), covered_outside_sql, exempt (no personal data of a natural person) or gap (subject data the right does not reach), each non-covered side with a written reason. This is the check that pet_caretaker_grants needed and did not have.`,
       });
       continue;
     }
-    const covered = where.filter((w) => w.startsWith("IN_"));
-    const uncovered = where.filter((w) => !w.startsWith("IN_"));
-    if (covered.length > 0 && uncovered.length > 0) {
-      violations.push({
-        kind: "double_classified",
-        message: `✗ ${t} — declared both as covered (${covered.join(" + ")}) and as ${uncovered.join(" + ")}. Pick one.`,
-      });
-    }
-    if (uncovered.length > 1) {
-      violations.push({
-        kind: "double_classified",
-        message: `✗ ${t} — declared as both EXEMPT and KNOWN_GAP. Pick one.`,
-      });
-    }
-  }
-  return violations;
-}
-
-/** Check 2 — no stale entry: a declared table that no longer exists. */
-function checkStaleEntries(live: ReadonlySet<string>): Violation[] {
-  const violations: Violation[] = [];
-  const allLists = [
-    ["IN_EXPORT", IN_EXPORT],
-    ["IN_ERASE", IN_ERASE],
-    ["EXEMPT", Object.keys(EXEMPT)],
-    ["KNOWN_GAP", Object.keys(KNOWN_GAP)],
-  ] as const;
-  for (const [list, names] of allLists) {
-    for (const t of names) {
-      if (!live.has(t)) {
+    for (const right of ["export", "erase"] as const) {
+      const side = (c as Partial<Classification>)[right];
+      if (side === undefined || !STATES.has((side as { state?: string }).state ?? "")) {
         violations.push({
-          kind: "stale",
-          message: `✗ ${t} — listed in ${list} but no such table exists in the public schema. Remove the entry.`,
+          kind: "unclassified_side",
+          message: `✗ ${t} — its ${right} side is ${side === undefined ? "not stated" : `an unknown state (${JSON.stringify(side)})`}. Every table states both rights; there is no default.`,
+        });
+        continue;
+      }
+      if (side.state !== "covered" && (side.reason ?? "").trim().length < MIN_REASON_LENGTH) {
+        violations.push({
+          kind: "unreasoned_side",
+          message: `✗ ${t} — its ${right} side is ${side.state} with no written reason (under ${MIN_REASON_LENGTH} characters). Say what the table holds and why this right does or does not reach it.`,
         });
       }
     }
@@ -311,27 +420,42 @@ function checkStaleEntries(live: ReadonlySet<string>): Violation[] {
   return violations;
 }
 
+/** Check 2 — no stale entry: a classified table that no longer exists. */
+function checkStaleEntries(
+  live: ReadonlySet<string>,
+  classification: Readonly<Record<string, Classification>>,
+): Violation[] {
+  return Object.keys(classification)
+    .filter((t) => !live.has(t))
+    .map((t) => ({
+      kind: "stale",
+      message: `✗ ${t} — classified but no such table exists in the public schema. Remove the entry.`,
+    }));
+}
+
+const RIGHTS = [
+  ["export", "export_subject_data"],
+  ["erase", "erase_subject_data"],
+] as const;
+
 /**
- * Check 3 — forward direction: a declared table must actually be in the live
+ * Check 3 — forward direction: a `covered` side must actually be in the live
  * body. Catches a future CREATE OR REPLACE that drops a section, and catches a
  * hand-patched environment whose function does not match the migrations.
  */
 function checkForwardDirection(
   live: ReadonlySet<string>,
-  exportDef: string,
-  eraseDef: string,
+  classification: Readonly<Record<string, Classification>>,
+  defs: { export: string; erase: string },
 ): Violation[] {
   const violations: Violation[] = [];
-  const pairs = [
-    ["IN_EXPORT", "export_subject_data", IN_EXPORT, exportDef],
-    ["IN_ERASE", "erase_subject_data", IN_ERASE, eraseDef],
-  ] as const;
-  for (const [list, fn, names, def] of pairs) {
-    for (const t of names) {
-      if (live.has(t) && !bodyMentions(def, t)) {
+  for (const [right, fn] of RIGHTS) {
+    for (const [t, c] of Object.entries(classification)) {
+      if (!live.has(t) || c[right]?.state !== "covered") continue;
+      if (!bodyMentions(defs[right], t)) {
         violations.push({
           kind: "missing_from_function",
-          message: `✗ ${t} — declared ${list} but the LIVE ${fn} body never names public.${t}. Either a replace dropped the section, or this database was not migrated.`,
+          message: `✗ ${t} — its ${right} side is declared covered but the LIVE ${fn} body never names public.${t}. Either a replace dropped the section, or this database was not migrated.`,
         });
       }
     }
@@ -340,29 +464,56 @@ function checkForwardDirection(
 }
 
 /**
- * Check 4 — reverse direction: an EXEMPT or KNOWN_GAP table must NOT be in
- * either body. This is what makes closing a gap a one-way door — you cannot add
- * a table to a function and leave it sitting in the debt register.
+ * Check 4 — reverse direction, PER SIDE: a side that is not `covered` must not
+ * be named by that side's body. This is what makes closing a gap a one-way
+ * door — you cannot add a table to a function and leave that side sitting in
+ * the debt register — and, since A05-2, it holds for each right separately.
  */
 function checkReverseDirection(
   live: ReadonlySet<string>,
-  exportDef: string,
-  eraseDef: string,
+  classification: Readonly<Record<string, Classification>>,
+  defs: { export: string; erase: string },
 ): Violation[] {
   const violations: Violation[] = [];
-  for (const t of [...Object.keys(EXEMPT), ...Object.keys(KNOWN_GAP)]) {
-    if (!live.has(t)) continue;
-    const inExport = bodyMentions(exportDef, t);
-    const inErase = bodyMentions(eraseDef, t);
-    if (!inExport && !inErase) continue;
-    const listName = Object.hasOwn(EXEMPT, t) ? "EXEMPT" : "KNOWN_GAP";
-    const where = [inExport && "export_subject_data", inErase && "erase_subject_data"]
-      .filter(Boolean)
-      .join(" and ");
-    violations.push({
-      kind: "covered_but_listed_uncovered",
-      message: `✗ ${t} — listed as ${listName} but ${where} names public.${t}. Move it to IN_EXPORT / IN_ERASE.`,
-    });
+  for (const [right, fn] of RIGHTS) {
+    for (const [t, c] of Object.entries(classification)) {
+      const side = c[right];
+      if (!live.has(t) || side === undefined || side.state === "covered") continue;
+      if (bodyMentions(defs[right], t)) {
+        violations.push({
+          kind: "covered_but_listed_uncovered",
+          message: `✗ ${t} — its ${right} side is declared ${side.state} but ${fn} names public.${t}. Declare that side covered.`,
+        });
+      }
+    }
+  }
+  return violations;
+}
+
+/**
+ * Check 5 — a `covered_outside_sql` side names a function that exists. The
+ * claim "TypeScript reaches it" is otherwise a sentence; this makes it a
+ * pointer that goes red when the function is renamed or removed.
+ */
+function checkOutsideSqlSites(
+  classification: Readonly<Record<string, Classification>>,
+  readSource: SourceReader,
+): Violation[] {
+  const violations: Violation[] = [];
+  for (const [t, c] of Object.entries(classification)) {
+    for (const right of ["export", "erase"] as const) {
+      const side = c[right];
+      if (side?.state !== "covered_outside_sql") continue;
+      const src = readSource(side.where.file);
+      const declared =
+        src !== null && new RegExp(`\\bfunction\\s+${side.where.fn}\\s*\\(`).test(src);
+      if (!declared) {
+        violations.push({
+          kind: "outside_sql_site_missing",
+          message: `✗ ${t} — its ${right} side is covered_outside_sql by ${side.where.file}::${side.where.fn}, and ${src === null ? "that file does not exist" : "that file declares no such function"}. Point it at the step that actually reaches the table, or declare the side a gap.`,
+        });
+      }
+    }
   }
   return violations;
 }
@@ -371,14 +522,18 @@ export function evaluate(
   tables: readonly string[],
   exportDef: string,
   eraseDef: string,
+  classification: Readonly<Record<string, Classification>> = CLASSIFICATION,
+  readSource: SourceReader = readRepoSource,
 ): { violations: Violation[]; gapCount: number } {
   const live = new Set(tables);
+  const defs = { export: exportDef, erase: eraseDef };
   return {
     violations: [
-      ...checkClassification(tables),
-      ...checkStaleEntries(live),
-      ...checkForwardDirection(live, exportDef, eraseDef),
-      ...checkReverseDirection(live, exportDef, eraseDef),
+      ...checkClassification(tables, classification),
+      ...checkStaleEntries(live, classification),
+      ...checkForwardDirection(live, classification, defs),
+      ...checkReverseDirection(live, classification, defs),
+      ...checkOutsideSqlSites(classification, readSource),
     ],
     gapCount: Object.keys(KNOWN_GAP).filter((t) => live.has(t)).length,
   };
@@ -485,6 +640,12 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   );
   console.log(
     `  Open art. 14 / art. 16 debt (${gapCount} tables): ${Object.keys(KNOWN_GAP).join(", ")}.`,
+  );
+  const oneSided = sideGaps();
+  const exportOnlyGaps = oneSided.export.filter((t) => !Object.hasOwn(KNOWN_GAP, t));
+  const eraseOnlyGaps = oneSided.erase.filter((t) => !Object.hasOwn(KNOWN_GAP, t));
+  console.log(
+    `  One-sided debt — art. 14 (export) gap only: ${exportOnlyGaps.join(", ") || "none"}; art. 16 (erase) gap only: ${eraseOnlyGaps.join(", ") || "none"}.`,
   );
   console.log(dbLine);
 }

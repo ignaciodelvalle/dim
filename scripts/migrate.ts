@@ -81,7 +81,18 @@
  *   tsx scripts/migrate.ts --baseline      mark ALL files applied, run no SQL
  *   tsx scripts/migrate.ts --baseline 0042_foo.sql
  *                                          mark files up to (incl.) 0042 applied
- *   tsx scripts/migrate.ts --strict        treat checksum drift as a hard error
+ *   tsx scripts/migrate.ts --strict        drift is fatal in EVERY mode, --status included
+ *   tsx scripts/migrate.ts --allow-drift   downgrade drift to a warning — only for
+ *                                          an exception recorded in
+ *                                          docs/db/migration-errata.md
+ *
+ * CHECKSUM DRIFT IS FATAL BY DEFAULT (C06-5, 2026-09). It used to be a warning
+ * unless --strict was passed, and no caller passed it — deploy:staging ran the
+ * bare runner — so an edited, already-applied migration shipped with a banner
+ * nobody reads in a deploy log. Now apply, --dry-run and --check refuse on
+ * drift (exit 3). --status stays informational (it prints the drifted files and
+ * exits 0) unless --strict is also given. --strict and --allow-drift together
+ * are a usage error.
  *
  * Flags combine where sensible (e.g. `--baseline --dry-run` previews a baseline).
  *
@@ -92,7 +103,7 @@
  *   0  success
  *   1  a migration failed to apply (forward-apply path)
  *   2  DATABASE_URL not set
- *   3  checksum drift detected under --strict
+ *   3  checksum drift detected (any mode but --status, unless --allow-drift)
  *   4  bad CLI usage (e.g. --baseline target not found)
  *   5  schema-populated guard tripped (unbaselined existing DB detected)
  *   6  --check found pending migrations (DB is behind the committed tree)
@@ -201,6 +212,18 @@ interface Cli {
   baseline: boolean;
   baselineUpTo?: string;
   strict: boolean;
+  allowDrift: boolean;
+}
+
+/**
+ * Does checksum drift stop this run? Fatal by default; --allow-drift is the
+ * written-down exception, --status is a report and not a gate, and --strict
+ * makes even the report refuse.
+ */
+export function driftIsFatal(cli: Pick<Cli, "strict" | "allowDrift" | "status">): boolean {
+  if (cli.strict) return true;
+  if (cli.allowDrift) return false;
+  return !cli.status;
 }
 
 export function parseArgs(argv: string[]): Cli {
@@ -210,6 +233,7 @@ export function parseArgs(argv: string[]): Cli {
     dryRun: false,
     baseline: false,
     strict: false,
+    allowDrift: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -226,6 +250,9 @@ export function parseArgs(argv: string[]): Cli {
       case "--strict":
         cli.strict = true;
         break;
+      case "--allow-drift":
+        cli.allowDrift = true;
+        break;
       case "--baseline": {
         cli.baseline = true;
         // Optional positional value immediately after --baseline that isn't a flag.
@@ -239,6 +266,9 @@ export function parseArgs(argv: string[]): Cli {
       default:
         throw new Error(`Unknown argument: ${arg}`);
     }
+  }
+  if (cli.strict && cli.allowDrift) {
+    throw new Error("--strict and --allow-drift contradict each other; pass one of them.");
   }
   return cli;
 }
@@ -383,15 +413,22 @@ async function main(): Promise<void> {
     const recorded = await readRecorded(sql);
     const appliedSet = new Set(recorded.keys());
 
-    // Drift check runs for every mode (status/apply/dry-run). Under --strict it
-    // is fatal; otherwise it's a loud warning.
+    // Drift check runs for every mode. Fatal unless this is a --status report
+    // or --allow-drift was passed for a recorded exception (driftIsFatal).
     const drifted = detectDrift(allFiles, diskChecksums, recorded);
     if (drifted.length > 0) {
       warnDrift(drifted);
-      if (cli.strict) {
-        console.error("FATAL: --strict and checksum drift detected. Refusing to continue.");
+      if (driftIsFatal(cli)) {
+        console.error(
+          "FATAL: checksum drift detected. An applied migration is immutable — correct it in docs/db/migration-errata.md, not in the file. If this drift is a recorded exception, re-run with --allow-drift. Refusing to continue.",
+        );
         process.exit(3);
       }
+      console.warn(
+        cli.allowDrift
+          ? "  Continuing under --allow-drift."
+          : "  --status is a report, not a gate: continuing.",
+      );
     }
 
     // ---- --status / --check ---------------------------------------------
