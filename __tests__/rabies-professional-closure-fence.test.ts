@@ -35,6 +35,22 @@ const ALLOWED_WRITERS = [
   "src/modules/events/application/lifecycle/death-record-use-case.ts",
 ];
 
+/**
+ * Files that NAME the event type without writing the event. Each must reach the
+ * event only through an allowed writer — the second test below checks that it
+ * imports one — so an entry here cannot become a back door: a file that dropped
+ * the writer and inserted the event itself would fail that test.
+ *
+ * Added 2026-09-18 (pilot contract T0-1): the Atender action lets a verified vet
+ * close an observation. The WRITE happens in `professionalCloseObservation`; the
+ * action then passes `eventType: "rabies_observation_ended"` to
+ * `completeAtenderSignature` only to link the owner's notice to the event that
+ * was already written. The regex below cannot tell that argument from a write.
+ */
+const REFERENCES_NOT_WRITES: Record<string, { via: string }> = {
+  "app/org/[orgToken]/atender/actions.ts": { via: "professionalCloseObservation" },
+};
+
 function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
@@ -74,6 +90,7 @@ describe("rabies observation — clinical outcome fence", () => {
     for (const rel of productionSources()) {
       const normalized = rel.replace(/\\/g, "/");
       if (ALLOWED_WRITERS.includes(normalized)) continue;
+      if (normalized in REFERENCES_NOT_WRITES) continue;
       const src = stripComments(readFileSync(join(ROOT, rel), "utf8"));
       // A WRITE looks like `eventType: "rabies_observation_ended"` or
       // `validateEventPayload("rabies_observation_ended", …)`. A read
@@ -87,6 +104,23 @@ describe("rabies observation — clinical outcome fence", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("every reference-not-write entry reaches the event only through an allowed writer", () => {
+    for (const [rel, { via }] of Object.entries(REFERENCES_NOT_WRITES)) {
+      const src = stripComments(readFileSync(join(ROOT, rel), "utf8"));
+      // It must call the allowed writer…
+      expect(new RegExp(`\\b${via}\\s*\\(`).test(src), `${rel} must call ${via}()`).toBe(true);
+      // …and must not write the event itself: no validateEventPayload for it,
+      // and no spine insert in the same file.
+      expect(
+        /validateEventPayload\(\s*["']rabies_observation_ended["']/.test(src),
+        `${rel} validates a rabies_observation_ended payload itself`,
+      ).toBe(false);
+      expect(/insert\(\s*petEvents\s*\)/.test(src), `${rel} inserts into petEvents itself`).toBe(
+        false,
+      );
+    }
   });
 
   it("the fence is non-vacuous: the allowed writers really do emit the event", () => {

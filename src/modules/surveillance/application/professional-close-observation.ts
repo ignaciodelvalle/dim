@@ -112,6 +112,9 @@ export type ProfessionalCloseObservationInput = {
  * notification service, linked to the ended event.
  */
 export type ProfessionalCloseOwnerNotice = {
+  // no-cta: this is the notice CONTENT, not a delivered row. Both deliverers
+  // attach the destination: completeAtenderSignature links the ended event on
+  // the veterinary path, and the State path pushes ctaLabel/ctaUrl with it.
   notificationType: "rabies_observation_completed_professional_owner";
   severity: "info" | "urgent";
   title: string;
@@ -312,6 +315,9 @@ export async function professionalCloseObservation(
     ? `${ACTOR_PROSE.vet} de ${actor.organizationName}`
     : ACTOR_PROSE[actor.profile.role];
   const ownerNotice: ProfessionalCloseOwnerNotice = {
+    // no-cta: content only — even a positive (urgent) reaches the owner WITH a
+    // destination, because the deliverer adds it: completeAtenderSignature links
+    // the ended event on the veterinary path, the State path pushes ctaUrl.
     notificationType: "rabies_observation_completed_professional_owner",
     severity: input.outcome === "positive_rabies" ? "urgent" : "info",
     title: `Observación cerrada profesionalmente — ${pet.name}`,
