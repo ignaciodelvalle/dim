@@ -14,7 +14,10 @@
 #
 # CONFIGURATION (must be set for full coverage):
 #   - Repository VARIABLE  STAGING_HEALTH_URL  (optional) — overrides the default
-#     https://dim-staging.vercel.app/api/health if the staging origin moves.
+#     https://www.mimar.com.ar/api/health if the public origin moves. The poll
+#     watches the PUBLIC domain on purpose (pilot T1-P6): municipalities reach
+#     the app through www.mimar.com.ar, so a broken domain, DNS record or
+#     certificate is an outage even while the Vercel alias still answers.
 #   - Repository SECRET    STAGING_URL         (required for job (b)) — the staging
 #     origin the synthetic monitor points at (e.g. https://dim-staging.vercel.app).
 #     When ABSENT, job (b) logs a notice and SKIPS (green, not failed) so a fresh
@@ -72,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      STAGING_HEALTH_URL: ${{ vars.STAGING_HEALTH_URL || 'https://dim-staging.vercel.app/api/health' }}
+      STAGING_HEALTH_URL: ${{ vars.STAGING_HEALTH_URL || 'https://www.mimar.com.ar/api/health' }}
     steps:
       - name: Curl /api/health and assert healthy
         run: |
