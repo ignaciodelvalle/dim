@@ -14,11 +14,53 @@
 import { eq } from "drizzle-orm";
 
 import { db, organizationInvitations, organizations } from "@/db";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
+import type { RateLimitConfig } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils/format";
 
 import { AcceptButton } from "./AcceptButton";
 import { maskEmail } from "./helpers";
+
+// Per-IP ceiling for `invite_resolve` (audit A03-3). Until 2026-09-18 this page
+// had none: one indexed read per attacker-supplied token, answering with four
+// distinguishable states (not found / accepted / revoked / expired) and, for a
+// live token, the org's name and the invited role.
+//
+// THE CALLER IS NOT THE CROWD /perdidas is sized for. An invitation is opened
+// by the one person it was mailed to, and crawlers are kept out (robots.txt
+// disallows /r/). The crowd case is an onboarding: a shelter sends its
+// volunteers their invitations during a meeting and they open them in the same
+// room, behind the same carrier gateway or office Wi-Fi. Opening one takes
+// about three renders (the link, the bounce through login or signup, the
+// return).
+//
+//   per minute   60 = twenty volunteers opening theirs in the same minute,
+//                     three renders each
+//   per hour    300 = that meeting five times over
+//
+// What it bounds: the state oracle, over an `INV-` space of 31^8 — at 300/hr
+// one address needs ~2.8 × 10^9 hours to walk it — and the read behind it.
+// Acceptance itself still needs a session whose e-mail matches the invitation,
+// so the oracle never yielded a privilege; it yielded free reads. Fails open,
+// like every caller of `isPublicTokenReadThrottled`.
+const INVITE_RESOLVE_LIMIT: RateLimitConfig = { maxPerMinute: 60, maxPerHour: 300 };
+
+function InviteThrottleNotice() {
+  return (
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
+      <div className="w-full max-w-sm space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
+        <h1 className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
+          Demasiadas consultas
+        </h1>
+        <p className="text-sm text-[var(--color-ln-ink-2)]">
+          Recibimos muchas consultas desde tu conexión en poco tiempo. Esperá un minuto y volvé a
+          abrir el link de la invitación.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
@@ -35,6 +77,12 @@ export default async function InviteAcceptPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+
+  // Before the lookup, not after it: a limiter consulted after the read it is
+  // meant to bound bounds nothing. Derivation above.
+  if (await isPublicTokenReadThrottled("invite_resolve", INVITE_RESOLVE_LIMIT)) {
+    return <InviteThrottleNotice />;
+  }
 
   // Load invitation row — only the columns the page actually uses.
   // (organizations has sensitive fields like cuit/cbu; narrow the select so
