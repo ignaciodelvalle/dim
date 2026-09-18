@@ -381,8 +381,20 @@ export async function discoverPetToken(
  * It read "Confirmar" until SheetMounter/MarkFoundConfirmation renamed it to
  * "Marcar como encontrada"; the specs that kept the old regex are the story
  * `ensurePetFound` below exists to end.
+ *
+ * Since T1-L14 (2026-09-18) the participle agrees with the pet's sex through
+ * `foundParticiple`: "encontrado", "encontrada", or "encontrada/o" when the
+ * sex is unknown. The specs discover their pets at runtime, so the regex takes
+ * all three rather than guessing which one the seed hands them.
  */
-export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
+export const MARK_FOUND_BUTTON = /^marcar como encontrad(?:a|o|a\/o)$/i;
+
+/**
+ * The not-lost face of the same sheet (`PetNotLostNotice`). It read "no figura
+ * como perdida" — feminine for every animal — until T1-L14 rephrased it
+ * without a gendered adjective.
+ */
+export const MARK_FOUND_NOT_LOST_NOTICE = /no figura en modo perdido/i;
 
 /**
  * Land on the pet's profile with NO `?sheet=` param, and refuse to assert until
@@ -445,10 +457,10 @@ export const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
  *     the state the stale banner requires (`LostCaseBlock`: the caller mounts
  *     the block only when `pet.status === 'lost'`, and a null episode there
  *     means the episode auto-closed).
- *   - A drifted commit label. The sheet's button is the literal "Marcar como
- *     encontrada" and `MARK_FOUND_BUTTON` matches it. The sex-dependent
- *     `foundParticiple` labels belong to the INLINE forms in `LostCaseBlock`,
- *     not to the sheet this helper drives.
+ *   - A drifted commit label. At the time the sheet's button was the literal
+ *     "Marcar como encontrada" and `MARK_FOUND_BUTTON` matched it. (Since
+ *     T1-L14 the sheet uses `foundParticiple` too, and the regex takes every
+ *     form it can produce.)
  *   - A cold server. Two consecutive runs against a warm one reproduced it.
  *
  * What is left, and untested: something between the committed rows and the
@@ -595,7 +607,7 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
   // for one of the two mutually exclusive faces to exist, so a sheet that
   // renders NEITHER (a third state nobody predicted) times out and says so,
   // instead of quietly taking the "nothing to do" branch.
-  const notLost = sheet.getByText(/no figura como perdida/i);
+  const notLost = sheet.getByText(MARK_FOUND_NOT_LOST_NOTICE);
   await expect
     .poll(async () => (await confirm.count()) + (await notLost.count()), {
       timeout: 20_000,

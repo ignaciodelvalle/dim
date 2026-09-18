@@ -25,7 +25,11 @@ import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnToggleGroup } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
 import { useStepFocus } from "@/lib/ui/use-step-focus";
-import { markLostActionLabel, markLostTitleForPet } from "@/lib/utils/format";
+import {
+  lostThirdPersonPhrase,
+  markLostActionLabel,
+  markLostTitleForPet,
+} from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -204,7 +208,7 @@ export function MarkLostWizard({
   if (submitted) {
     const profileHref = `/mis-mascotas/${petPublicToken}`;
     const printHref = `/mis-mascotas/${petPublicToken}/cartel`;
-    const shareText = `${petName} está perdida — ayudanos a encontrarla. Su perfil público:`;
+    const shareText = lostShareText(petName, petSex);
     // The credential url comes from the deep-link table: this is the link a
     // lost-pet post carries into WhatsApp, so it is the single string in this
     // wizard that has to survive a route rename. `origin` is still empty during
@@ -579,4 +583,17 @@ export function MarkLostWizard({
       </div>
     </>
   );
+}
+
+/**
+ * The text the success screen's "Compartir por WhatsApp" pre-fills (T1-L14).
+ *
+ * It said "{nombre} está perdida — ayudanos a encontrarla" to every animal: a
+ * male dog's lost post went out feminine into every group chat it was shared
+ * to. The adjective now comes from lostThirdPersonPhrase ("está perdido" /
+ * "está perdida" / "se perdió" for an unknown sex), and the second clause is
+ * pronoun-free so it needs no gender at all.
+ */
+export function lostShareText(petName: string, petSex: string | null | undefined): string {
+  return `${petName} ${lostThirdPersonPhrase(petSex)} — ayudanos a que vuelva a casa. Su perfil público:`;
 }

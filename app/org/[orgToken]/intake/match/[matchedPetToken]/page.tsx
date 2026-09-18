@@ -17,6 +17,7 @@ import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { validateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { petPhotoUrl } from "@/lib/infra/storage";
+import { foundParticiple } from "@/lib/utils/format";
 
 import { MatchConfirmationCard } from "./MatchConfirmationCard";
 
@@ -63,7 +64,8 @@ export default async function IntakeMatchPage({
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-title font-semibold text-ln-op-ink">Mascota ya no esta perdida</h1>
           <p className="text-md text-ln-op-mute">
-            {pet.name} ya fue encontrada o su estado cambio. Podes continuar el ingreso normalmente.
+            {pet.name} ya fue {foundParticiple(pet.sex)} o su estado cambió. Podés continuar el
+            ingreso normalmente.
           </p>
           <Link
             href={`/org/${orgToken}/intake`}
