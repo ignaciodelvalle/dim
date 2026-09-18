@@ -30,7 +30,15 @@
 //                          and DOCS files only — in source the same shape is
 //                          mostly form-field plumbing, and the credential kinds
 //                          above already cover what source can leak.
-//   demo_password          the seeded demo accounts' password, by value. It is
+//   env_secret_assignment  `FOO_SECRET=…`, `BAR_API_KEY: …`, `X_TOKEN="…"`,
+//                          `DB_PASSWORD=…` — an env-var-shaped name ending in
+//                          SECRET/PASSWORD/TOKEN/API_KEY, quoted or bare
+//                          (YAML, .env), whose value looks high-entropy
+//                          (>= 16 chars, a digit, two character classes).
+//                          Config and docs only, like password_assignment.
+//                          Added 2026-09-18 (security review): a pasted
+//                          `CRON_SECRET=<hex>` in a runbook matched nothing.
+//   demo_password         the seeded demo accounts' password, by value. It is
 //                          published (the seed scripts need it), but the demo
 //                          accounts also exist on staging, so it is confined to
 //                          the code that logs those accounts in and kept out of
@@ -75,6 +83,7 @@ export const SECRET_KINDS = [
   "aws_access_key_id",
   "private_key_block",
   "password_assignment",
+  "env_secret_assignment",
   "demo_password",
 ] as const;
 
@@ -188,6 +197,32 @@ function looksRandom(s: string): boolean {
 const PASSWORD_ASSIGNMENT =
   /\b(?:password|passwd|pwd|secret|contraseña|db_password|postgres_password)\b["']?\s*[:=]\s*["'`]([^"'`\s]{4,})["'`]/gi;
 
+/**
+ * `NAME_SECRET=value`, `FOO_API_KEY: value`, `export DB_PASSWORD="value"` — the
+ * env-var shape, quoted or not (YAML and .env write values bare). The name must
+ * END in one of the credential words, so `SECRET_PATH=` or `TOKEN_TTL_MS=` do
+ * not match. Case-sensitive on purpose: SHOUTING_SNAKE is what names an env var.
+ * The value stops at whitespace, a quote, a comma or a `#` comment.
+ */
+const ENV_SECRET_ASSIGNMENT =
+  /(?<![A-Za-z0-9_])[A-Z0-9_]*(?:SECRET|PASSWORD|TOKEN|API_KEY)["']?\s*[:=]\s*["'`]?([^\s"'`,#]+)/g;
+
+/** Minimum length for an env-style value to be worth reporting as a secret. */
+const ENV_SECRET_MIN_LENGTH = 16;
+
+/**
+ * High-entropy enough to be a real credential rather than a label: at least
+ * ENV_SECRET_MIN_LENGTH chars, a digit, and at least two character classes
+ * (lower, upper, digit, symbol). A hex secret (`openssl rand -hex 32`) passes;
+ * a descriptive dummy such as `test-cron-secret-value` does not.
+ */
+export function looksHighEntropy(value: string): boolean {
+  if (value.length < ENV_SECRET_MIN_LENGTH) return false;
+  if (!/\d/.test(value)) return false;
+  const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(value)).length;
+  return classes >= 2;
+}
+
 /** Split so this file never contains the literal it hunts for. */
 export const DEMO_PASSWORD = ["Test", "1234!"].join("");
 
@@ -248,6 +283,26 @@ const scanPasswordAssignment: LineScanner = (line, configOrDoc) => {
     .map((value) => ({ kind: "password_assignment", secret: value }));
 };
 
+const scanEnvSecretAssignment: LineScanner = (line, configOrDoc) => {
+  if (!configOrDoc) return [];
+  return [...line.matchAll(ENV_SECRET_ASSIGNMENT)]
+    .map((m) => m[1])
+    .filter((value) => {
+      if (isPlaceholder(value)) return false;
+      if (!looksHighEntropy(value)) return false;
+      // A URL is not the secret; a postgres URL with a password is its own kind.
+      if (value.includes("://")) return false;
+      // A JWT is judged by scanJwt, which knows the demo issuer and that an anon
+      // key is public by design — do not second-guess it here.
+      if (/^eyJ[A-Za-z0-9_-]+\.eyJ/.test(value)) return false;
+      // The local stack's published sb_secret key, and the demo password, each
+      // have their own kind (and their own exemption).
+      if (value === LOCAL_DEMO_SECRET_KEY || value === DEMO_PASSWORD) return false;
+      return true;
+    })
+    .map((value) => ({ kind: "env_secret_assignment", secret: value }));
+};
+
 const scanDemoPassword: LineScanner = (line) =>
   line.includes(DEMO_PASSWORD) ? [{ kind: "demo_password", secret: DEMO_PASSWORD }] : [];
 
@@ -257,14 +312,27 @@ const SCANNERS: LineScanner[] = [
   scanSimple,
   scanResend,
   scanPasswordAssignment,
+  scanEnvSecretAssignment,
   scanDemoPassword,
 ];
+
+/**
+ * `DB_PASSWORD="…"` is both a password_assignment and an env_secret_assignment.
+ * Report it once, under the older kind, so an allowlist entry never has to be
+ * written twice for one value.
+ */
+function dedupeOverlap(hits: LineHit[]): LineHit[] {
+  const passwordValues = new Set(
+    hits.filter((h) => h.kind === "password_assignment").map((h) => h.secret),
+  );
+  return hits.filter((h) => !(h.kind === "env_secret_assignment" && passwordValues.has(h.secret)));
+}
 
 /** Every secret-shaped finding in one file's text. */
 export function findSecrets(path: string, src: string): SecretFinding[] {
   const configOrDoc = isConfigOrDoc(path);
   return src.split(/\r?\n/).flatMap((line, i) =>
-    SCANNERS.flatMap((scan) => scan(line, configOrDoc)).map(({ kind, secret }) => ({
+    dedupeOverlap(SCANNERS.flatMap((scan) => scan(line, configOrDoc))).map(({ kind, secret }) => ({
       line: i + 1,
       kind,
       preview: kind === "demo_password" ? "the seeded demo password" : preview(secret),

@@ -69,6 +69,10 @@ const SAMPLES: Record<SecretKind, { path: string; text: string }> = {
     path: "config/app.yml",
     text: cat("password", ': "', "Sup3rS3cret!", '"'),
   },
+  env_secret_assignment: {
+    path: ".env.example",
+    text: cat("CRON_", "SECRET=", "9f3a1c7e", "b2d44e6f", "8a0b1c2d3e4f5a6b"),
+  },
   demo_password: { path: "docs/runbook.md", text: `Log in with ${DEMO_PASSWORD}` },
 };
 
@@ -182,6 +186,57 @@ describe("password_assignment — config and docs only, placeholders skipped", (
 
   it("reports the demo password once, under its own kind", () => {
     expect(kinds("a.md", cat('password: "', DEMO_PASSWORD, '"'))).toEqual(["demo_password"]);
+  });
+});
+
+describe("env_secret_assignment — env-var names, quoted or bare, high-entropy values only", () => {
+  // Every value assembled at runtime so this file never matches itself.
+  const HEX = cat("9f3a1c7e", "b2d44e6f", "8a0b1c2d3e4f5a6b");
+  const B64 = cat("Zq8vT2mL", "pX4nR7sK", "w1Yb");
+
+  it("fires on bare YAML, bare .env, quoted, and exported assignments", () => {
+    const cases: [string, string][] = [
+      [".github/workflows/x.yml", cat("      CRON_", "SECRET: ", HEX)],
+      [".env.example", cat("RESEND_", "API_KEY=", B64)],
+      ["docs/ops/runbook.md", cat("export VERCEL_", 'TOKEN="', B64, '"')],
+      ["config/app.toml", cat("SMTP_", "PASSWORD = '", B64, "'")],
+      ["a.json", cat('"WEBHOOK_', 'SECRET": "', HEX, '"')],
+    ];
+    for (const [path, line] of cases) {
+      expect(kinds(path, line), `${path}: ${line.slice(0, 14)}`).toEqual(["env_secret_assignment"]);
+    }
+  });
+
+  it("does not fire in source (same scope rule as password_assignment)", () => {
+    expect(kinds("lib/x.ts", cat("CRON_", "SECRET=", HEX))).toEqual([]);
+  });
+
+  it("requires the credential word at the END of the name", () => {
+    expect(kinds("a.env", cat("SECRET_", "PATH=", HEX))).toEqual([]);
+    expect(kinds("a.env", cat("TOKEN_", "SALT_FILE=", B64))).toEqual([]);
+  });
+
+  it("skips placeholders, low-entropy labels and short values", () => {
+    for (const v of [
+      "${{ secrets.CRON_SECRET }}",
+      "<your-token>",
+      "test-cron-secret-value",
+      "a1b2c3d4",
+      "CRON_SECRET_VALUE_GOES_HERE",
+      "****************",
+    ]) {
+      expect(kinds("a.yml", cat("CRON_", "SECRET: ", v)), v).toEqual([]);
+    }
+  });
+
+  it("leaves URLs and JWTs to the kinds that understand them", () => {
+    expect(kinds("a.yml", cat("AUTH_", "TOKEN: https://example.org/", HEX))).toEqual([]);
+    const anon = jwt({ iss: "supabase", role: "anon" });
+    expect(kinds("a.yml", cat("ANON_", "TOKEN: ", anon))).toEqual([]);
+  });
+
+  it('reports DB_PASSWORD="…" once, under password_assignment', () => {
+    expect(kinds("a.env", cat("DB_", 'PASSWORD="', B64, '"'))).toEqual(["password_assignment"]);
   });
 });
 
