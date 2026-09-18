@@ -107,14 +107,54 @@ export const PROFESSIONAL_OUTCOMES: readonly RabiesObservationOutcome[] = [
  * longer be followed) and end an observation early by nature; gating them would
  * hold a confirmed rabies back for a week.
  *
- * `lost_to_followup` stays ungated, and it is the one that could be argued: it
- * asserts nothing clinical either way, and the decision named "loss of the
- * animal" among the outcomes that do not wait.
+ * The veterinarian's OTHER two early exits are closed separately, by
+ * `vetCloseRefusal` below (security review of the vet close, PO D1 2026-09-18):
+ * `dead` and `lost_to_followup` ended the observation exactly like a negative —
+ * banner gone, bite case closed, adoption gates open, no authority told.
  *
  * Only the VETERINARY door applies this. The State's closers (admin, govt) keep
  * the power to close negative early; the caller decides by role.
  */
 export const OUTCOMES_CERTIFYING_NO_SIGNS: readonly RabiesObservationOutcome[] = ["negative"];
+
+/**
+ * Why a VETERINARIAN may not record `outcome` now, or null when they may.
+ *
+ * PO decision D1 (2026-09-18): "tiene que esperar, es un tema de plazos
+ * legales" — before the window ends a vet may only record what REPORTS signs.
+ * Every other early close had the same effect as a negative: the observation
+ * ends, the public banner disappears, the bite case closes and no authority
+ * hears of it (the urgent fan-out fires only for a positive).
+ *
+ *   - `negative_before_deadline` — the original gate (mustWaitForObservationEnd).
+ *   - `lost_to_followup_never` — refused AT ANY TIME. The vet door is Atender:
+ *     the animal is physically at the clinic, so "lost, no contact" cannot be
+ *     true from there. Losing track of an animal is the State's close to make.
+ *   - `dead_before_deadline` — a death during the observation belongs to the
+ *     sanitary authority, which has to take the laboratory sample. The vet
+ *     records the death on the pet's record and notifies the authority; after
+ *     the window, `dead` is allowed like any other outcome.
+ *
+ * `positive_rabies` is never refused: a confirmed rabies must not wait a week.
+ *
+ * Pure, so the close use case (the authority) and the Atender screen (which
+ * only mirrors it) ask the same question. The State's closers never ask it.
+ */
+export type VetCloseRefusal =
+  | "negative_before_deadline"
+  | "lost_to_followup_never"
+  | "dead_before_deadline";
+
+export function vetCloseRefusal(
+  outcome: RabiesObservationOutcome,
+  deadline: Date,
+  now: Date,
+): VetCloseRefusal | null {
+  if (outcome === "lost_to_followup") return "lost_to_followup_never";
+  if (outcome === "dead" && now.getTime() < deadline.getTime()) return "dead_before_deadline";
+  if (mustWaitForObservationEnd(outcome, deadline, now)) return "negative_before_deadline";
+  return null;
+}
 
 /**
  * True when `outcome` certifies no signs and `now` is still before the

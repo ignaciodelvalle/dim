@@ -723,18 +723,107 @@ describe("professionalCloseObservation — the vet's negative waits for the dead
     );
   });
 
-  it("does NOT hold back what already happened: positive, death, lost animal", async () => {
+  it("does NOT hold back a positive: it goes through before the deadline", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "positive_rabies", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    expect(deps.repo.insertObservationEnded).toHaveBeenCalledTimes(1);
+  });
+
+  // PO D1 (2026-09-18), from the security review of this door: a vet's early
+  // `dead` or `lost_to_followup` had the same effect as an early negative —
+  // banner gone, bite case closed, no authority told.
+  function expectNothingWritten(deps: ReturnType<typeof depsWithDeadline>) {
+    expect(deps.repo.insertObservationEnded).not.toHaveBeenCalled();
+    expect(deps.repo.closeObservationIfOpen).not.toHaveBeenCalled();
+    expect(deps.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+    expect(deps.closeCase).not.toHaveBeenCalled();
+  }
+
+  it("refuses the vet's 'sin seguimiento' BEFORE the deadline — the animal is at the clinic", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "lost_to_followup", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe(
+      "Desde la clínica no podés cerrar la observación como “sin seguimiento”: Luna está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad, que es quien cierra una observación sin seguimiento.",
+    );
+    expectNothingWritten(deps);
+  });
+
+  it("refuses the vet's 'sin seguimiento' AFTER the deadline too — at any time", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "lost_to_followup", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("“sin seguimiento”");
+    expectNothingWritten(deps);
+  });
+
+  it("refuses the vet's death BEFORE the deadline and sends them to the record and the authority", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "dead", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe(
+      "Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio. Registrá la muerte desde la libreta de Luna y avisá ahora a la autoridad sanitaria de tu localidad. Después del 24 de septiembre de 2026 a las 09:00 podés registrarlo acá.",
+    );
+    expectNothingWritten(deps);
+  });
+
+  it("accepts the vet's death once the deadline has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_DEADLINE);
+    const deps = depsWithDeadline();
+
+    const result = await professionalCloseObservation(
+      { ...BASE_INPUT, outcome: "dead", actor: VET_ACTOR },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    expect(deps.repo.closeObservationIfOpen).toHaveBeenCalledWith(
+      "pet-3",
+      "completed_dead",
+      expect.any(Date),
+      "fake-tx",
+    );
+  });
+
+  it("the State keeps death and 'sin seguimiento' at any time", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(BEFORE_DEADLINE);
 
-    for (const outcome of ["positive_rabies", "dead", "lost_to_followup"] as const) {
-      const deps = depsWithDeadline();
-      const result = await professionalCloseObservation(
-        { ...BASE_INPUT, outcome, actor: VET_ACTOR },
-        deps,
-      );
-      expect(result.ok, outcome).toBe(true);
-      expect(deps.repo.insertObservationEnded, outcome).toHaveBeenCalledTimes(1);
+    for (const actor of [ADMIN_ACTOR, GOVT_IN_JURISDICTION]) {
+      for (const outcome of ["dead", "lost_to_followup"] as const) {
+        const deps = depsWithDeadline();
+        const result = await professionalCloseObservation({ ...BASE_INPUT, outcome, actor }, deps);
+        expect(result.ok, `${actor.profile.role}/${outcome}`).toBe(true);
+        expect(deps.repo.insertObservationEnded).toHaveBeenCalledTimes(1);
+      }
     }
   });
 

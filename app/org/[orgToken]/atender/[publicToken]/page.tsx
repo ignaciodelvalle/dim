@@ -28,8 +28,8 @@ import { CloseObservationForm } from "@/app/admin/observaciones/[publicToken]/Cl
 import { formatObservationEnd } from "@/src/modules/surveillance/application/professional-close-observation";
 import {
   isObservationOpen,
-  mustWaitForObservationEnd,
   resolveObservationDeadline,
+  vetCloseRefusal,
 } from "@/src/modules/surveillance/domain/rabies-observation";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
 import { atenderCloseRabiesObservationAction } from "../actions";
@@ -124,8 +124,17 @@ export default async function AtenderSignPage({
   // close as if it were available.
   const mostrarCierre = activeEvento === "observacion" && observacionAbierta;
   const finObservacion = mostrarCierre ? await loadObservationEnd(pet.id) : null;
+  // PO D1 (2026-09-18): the same refusal the server applies, asked of each
+  // outcome, so the form never offers what would bounce. "Sin seguimiento" is
+  // refused at any time — the form withholds it even without a deadline.
+  const ahora = new Date();
   const negativoBloqueadoHasta =
-    finObservacion && mustWaitForObservationEnd("negative", finObservacion, new Date())
+    finObservacion &&
+    vetCloseRefusal("negative", finObservacion, ahora) === "negative_before_deadline"
+      ? formatObservationEnd(finObservacion)
+      : undefined;
+  const fallecidoBloqueadoHasta =
+    finObservacion && vetCloseRefusal("dead", finObservacion, ahora) === "dead_before_deadline"
       ? formatObservationEnd(finObservacion)
       : undefined;
   const justSigned = sp.firmado === "1";
@@ -288,6 +297,8 @@ export default async function AtenderSignPage({
                       access.pet.publicToken,
                     )}
                     negativeLockedUntil={negativoBloqueadoHasta}
+                    deadLockedUntil={fallecidoBloqueadoHasta}
+                    withholdLostToFollowup
                   />
                 </>
               ) : (
