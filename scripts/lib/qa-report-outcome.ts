@@ -34,12 +34,39 @@ export type QaFinding = {
 };
 
 export type QaRunOutcome =
-  | { kind: "completed"; findings: QaFinding[] }
+  | {
+      kind: "completed";
+      findings: QaFinding[];
+      /**
+       * How many `step()` calls actually succeeded. Optional — most callers
+       * do not track it and their `completed` runs stay green regardless
+       * (unchanged behavior). When a caller DOES pass it and it is `0`, the
+       * run produced no data at all — every step failed (a login that never
+       * landed, a stack that never came up) — which is what the harness
+       * exists to run, not a finding about the product. That is a harness
+       * problem, not a report row, so it exits like a crash.
+       *
+       * Bug this closes: qa-panorama-vis's login step failed, the run
+       * returned `{ kind: "completed", findings: [...] }` with a single
+       * "every view: the login did not land" finding, and exited 0 — a
+       * report with a green check and zero real coverage, indistinguishable
+       * from a clean night.
+       */
+      successfulSteps?: number;
+    }
   | { kind: "harness-crash"; message: string };
 
-/** 0 for any run that completed (findings included); 1 only when the harness could not run. */
+/**
+ * 0 for a run that completed with at least one real step succeeding (or that
+ * did not report a step count at all — most callers don't track it, and stay
+ * green as before); 1 when the harness could not run, OR when it "completed"
+ * but every step failed (zero successful steps is not a finding, it is the
+ * harness never having run at all).
+ */
 export function reportOnlyExitCode(outcome: QaRunOutcome): 0 | 1 {
-  return outcome.kind === "completed" ? 0 : 1;
+  if (outcome.kind === "harness-crash") return 1;
+  if (outcome.successfulSteps === 0) return 1;
+  return 0;
 }
 
 /** Markdown for the GitHub job summary — findings stay visible without a failing run. */
