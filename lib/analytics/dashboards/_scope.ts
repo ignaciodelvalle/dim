@@ -19,6 +19,7 @@ import {
   jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
+  withoutSyntheticRows,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 
@@ -32,6 +33,25 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 // jurisdiction to be inside the viewer's scope. Admin keeps universal scope
 // (returns null; the payload-based drill-down behavior is unchanged).
 export function petsCurrentJurisdictionClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
+  // T1-P1: the synthetic-row exclusion rides on the scope clause (lib/metrics/scope.ts).
+  return withoutSyntheticRows(
+    actor.role,
+    "pets",
+    jurisdictionOnlyPetsCurrentJurisdictionClause(
+      actor,
+      jurisdictions,
+      adminProvince,
+      adminLocality,
+    ),
+  );
+}
+
+function jurisdictionOnlyPetsCurrentJurisdictionClause(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
@@ -54,6 +74,7 @@ export function petsCurrentJurisdictionClause(
     return eq(pets.jurisdictionProvince, adminProvince);
   }
   return (
+    // synthetic: covered — petsCurrentJurisdictionClause wraps this with withoutSyntheticRows.
     jurisdictionPairClause(
       jurisdictions,
       sql`${pets.jurisdictionProvince}`,
@@ -72,6 +93,20 @@ export function casesScopeClause(
   jurisdictions: DashboardJurisdiction[],
   adminProvince?: string,
   adminLocality?: string,
+): SQL | null {
+  // T1-P1: the synthetic-row exclusion rides on the scope clause (lib/metrics/scope.ts).
+  return withoutSyntheticRows(
+    actor.role,
+    "cases",
+    jurisdictionOnlyCasesScopeClause(actor, jurisdictions, adminProvince, adminLocality),
+  );
+}
+
+function jurisdictionOnlyCasesScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ) {
   if (hasNationalReadScope(actor.role)) {
     // Backward-compat: no adminProvince → unrestricted, exactly as before.
@@ -85,6 +120,7 @@ export function casesScopeClause(
     return eq(cases.jurisdictionProvince, adminProvince);
   }
   return (
+    // synthetic: covered — casesScopeClause wraps this with withoutSyntheticRows.
     jurisdictionPairClause(
       jurisdictions,
       sql`${cases.jurisdictionProvince}`,
@@ -110,6 +146,20 @@ export function custodyDisputesScopeClause(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
+  // T1-P1: the synthetic-row exclusion rides on the scope clause (lib/metrics/scope.ts).
+  return withoutSyntheticRows(
+    actor.role,
+    "custodyDisputes",
+    jurisdictionOnlyCustodyDisputesScopeClause(actor, jurisdictions, adminProvince, adminLocality),
+  );
+}
+
+function jurisdictionOnlyCustodyDisputesScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
   if (hasNationalReadScope(actor.role)) {
     // Backward-compat: no adminProvince → unrestricted, exactly as before.
     if (!adminProvince) return null;
@@ -122,6 +172,7 @@ export function custodyDisputesScopeClause(
     return eq(custodyDisputes.jurisdictionProvince, adminProvince);
   }
   return (
+    // synthetic: covered — custodyDisputesScopeClause wraps this with withoutSyntheticRows.
     jurisdictionPairClause(
       jurisdictions,
       sql`${custodyDisputes.jurisdictionProvince}`,
@@ -147,6 +198,20 @@ export function welfareReportsScopeClause(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
+  // T1-P1: the synthetic-row exclusion rides on the scope clause (lib/metrics/scope.ts).
+  return withoutSyntheticRows(
+    actor.role,
+    "welfareReports",
+    jurisdictionOnlyWelfareReportsScopeClause(actor, jurisdictions, adminProvince, adminLocality),
+  );
+}
+
+function jurisdictionOnlyWelfareReportsScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
   if (hasNationalReadScope(actor.role)) {
     if (!adminProvince) return null;
     if (adminLocality) {
@@ -158,6 +223,7 @@ export function welfareReportsScopeClause(
     return eq(welfareReports.jurisdictionProvince, adminProvince);
   }
   return (
+    // synthetic: covered — welfareReportsScopeClause wraps this with withoutSyntheticRows.
     jurisdictionPairClause(
       jurisdictions,
       sql`${welfareReports.jurisdictionProvince}`,
@@ -187,6 +253,7 @@ export function organizationsScopeClause(
     return eq(organizations.jurisdictionProvince, adminProvince);
   }
   return (
+    // synthetic: exempt — organizations carry no seed marker (T1-P1 report).
     jurisdictionPairClause(
       jurisdictions,
       sql`${organizations.jurisdictionProvince}`,

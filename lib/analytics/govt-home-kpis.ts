@@ -26,6 +26,7 @@ import {
   petsScopeClause,
   rabiesDoseQualifies,
   rabiesSignedByMatriculaCondition,
+  withoutSyntheticRows,
 } from "@/lib/metrics";
 import { openObservationStatusSql } from "@/lib/metrics/observation-status";
 import { TERMINAL_STATUSES as WELFARE_TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
@@ -41,6 +42,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Scope clause for cases rows (uses cases.jurisdictionProvince/Locality).
 function casesScopeClause(ctx: ProjectionContext) {
+  // T1-P1: synthetic rows ride out with the scope (lib/metrics/scope.ts).
+  return withoutSyntheticRows(ctx.actor.role, "cases", jurisdictionOnlyCasesScopeClause(ctx));
+}
+
+function jurisdictionOnlyCasesScopeClause(ctx: ProjectionContext) {
   if (ctx.scope.kind === "global") {
     // Admin province drill-down: narrow to the selected province/locality.
     if (!ctx.adminProvince) return null;
@@ -58,6 +64,7 @@ function casesScopeClause(ctx: ProjectionContext) {
   // locality/barrio in it (critique of PR #762, finding 7) — the inline exact-pair
   // build here was NOT covered by 7a17ec97's subsumption fix.
   return (
+    // synthetic: covered — casesScopeClause wraps this with withoutSyntheticRows.
     jurisdictionPairClause(
       jurisdictions,
       sql`${cases.jurisdictionProvince}`,
@@ -88,6 +95,15 @@ function petsCurrentJurisdictionGuard(ctx: ProjectionContext) {
 
 // Scope clause for welfare_reports rows.
 function welfareReportsScopeClause(ctx: ProjectionContext) {
+  // T1-P1: synthetic rows ride out with the scope (lib/metrics/scope.ts).
+  return withoutSyntheticRows(
+    ctx.actor.role,
+    "welfareReports",
+    jurisdictionOnlyWelfareReportsScopeClause(ctx),
+  );
+}
+
+function jurisdictionOnlyWelfareReportsScopeClause(ctx: ProjectionContext) {
   if (ctx.scope.kind === "global") {
     // Admin province drill-down: narrow to the selected province/locality.
     if (!ctx.adminProvince) return null;
@@ -103,6 +119,7 @@ function welfareReportsScopeClause(ctx: ProjectionContext) {
   if (jurisdictions.length === 0) return sql`false`;
   // Whole-province subsumption via the shared clause (critique of PR #762, finding 7).
   return (
+    // synthetic: covered — welfareReportsScopeClause wraps this with withoutSyntheticRows.
     jurisdictionPairClause(
       jurisdictions,
       sql`${welfareReports.jurisdictionProvince}`,

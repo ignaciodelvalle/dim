@@ -6,7 +6,8 @@
 //     becomes a dot; a bite WITHOUT coords is counted into noCoordCount, never
 //     plotted as a fake centroid dot (fallback honesty, §5).
 //   - SCOPE (privacy hinge): a govt operator sees ONLY their jurisdiction's bites
-//     (pet-home attribution via petsScope) — a neighbouring province's bite is
+//     (incident-place attribution, which falls back to the pet's home when the
+//     payload names no place — these fixtures name none) — a neighbouring province's bite is
 //     EXCLUDED (out-of-scope operators never receive individual dots).
 //   - admin (national) sees both provinces' bites.
 //

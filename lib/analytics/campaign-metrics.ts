@@ -216,6 +216,7 @@ async function resolveOfferingIds(
   // jurisdictionPairClause applies whole-province subsumption — see
   // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
   // (2026-07-22) — same bug class as commit 68501bb4.
+  // synthetic: exempt — service_offerings carry no seed marker (T1-P1 report).
   const scopeClause =
     jurisdictionPairClause(
       [...jurisdictions],

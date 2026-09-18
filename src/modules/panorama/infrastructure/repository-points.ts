@@ -22,12 +22,12 @@ import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import {
   type LayerRows,
   PER_LAYER_CAP,
+  biteIncidentScope,
   eventWindowCol,
   jurisdictionColumnsScope,
   mordedurasEventPredicate,
   normNameSql,
   petEventsScope,
-  petsScope,
   provinceIsoMapSql,
 } from "./repository-scope";
 
@@ -56,14 +56,16 @@ export async function loadBiteEvents(
   // F4 temporal reproduction: upper-bound the event window so the layer can be
   // reconstructed "as of t" while the TimeScrubber plays.
   if (asOf) base.push(lte(tcol, asOf));
-  // incident_reported carries NO jurisdiction in its payload (only outbreak_signal
-  // snapshots pet_jurisdiction_* — see petEventsScopeClause jsdoc), so scope by the
-  // pet's home jurisdiction via the JOIN to pets, exactly like loadMordedurassByUnit.
-  // The old petEventsScope filtered out every real bite for scoped govt users.
+  // A bite counts where it OCCURRED: incident_reported carries the incident's own
+  // jurisdiction_province/_locality in its payload (event-schemas.ts), and the
+  // scope reads it, falling back to the pet's home field by field exactly like the
+  // bite case does (biteIncidentScope, repository-scope.ts). NOT petEventsScope —
+  // that one reads outbreak_signal's pet_jurisdiction_* snapshot, which this event
+  // never carries, and filtered out every real bite for scoped govt users.
   // PRIVACY (Slice 2): this scope binding is the operator-jurisdiction gate — a govt
   // user physically cannot fetch a bite outside their scope; admins must have drilled
   // into a province (server-authoritative points gate in get-layer-features/route).
-  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const scope = biteIncidentScope(actor, jurisdictions, adminProvince, adminLocality);
   if (scope) base.push(sql`(${scope})`);
 
   const rows = await db
@@ -135,8 +137,7 @@ export async function loadDenunciaCentroids(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${welfareReports.jurisdictionProvince}`,
-    sql`${welfareReports.jurisdictionLocality}`,
+    "welfareReports",
     adminProvince,
     adminLocality,
   );
@@ -261,8 +262,7 @@ export async function loadShelters(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${organizations.jurisdictionProvince}`,
-    sql`${organizations.jurisdictionLocality}`,
+    "organizations",
     adminProvince,
     adminLocality,
   );
@@ -318,8 +318,7 @@ export async function loadClinics(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${organizations.jurisdictionProvince}`,
-    sql`${organizations.jurisdictionLocality}`,
+    "organizations",
     adminProvince,
     adminLocality,
   );
@@ -378,8 +377,7 @@ export async function loadDecomisos(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${cases.jurisdictionProvince}`,
-    sql`${cases.jurisdictionLocality}`,
+    "cases",
     adminProvince,
     adminLocality,
   );

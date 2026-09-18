@@ -131,6 +131,7 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
   // jurisdictionPairClause applies whole-province subsumption — see
   // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
   // (2026-07-22) — same bug class as commit 68501bb4.
+  // synthetic: exempt — organizations carry no seed marker (T1-P1 report).
   const jurisdictionPredicate =
     profile.role === "govt"
       ? (jurisdictionPairClause(

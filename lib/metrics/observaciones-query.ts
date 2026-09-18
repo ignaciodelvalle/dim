@@ -18,7 +18,7 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
 import type { DashboardJurisdiction } from "@/lib/metrics/context";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { jurisdictionPairClause, withoutSyntheticRows } from "@/lib/metrics/scope";
 import {
   OPEN_OBSERVATION_STATUSES,
   RABIES_OBSERVATION_STATUSES,
@@ -103,7 +103,12 @@ export async function fetchObservaciones(scope: ObservacionesScope, filters: Obs
         sql`${pets.jurisdictionLocality}`,
       ) ?? sql`false`,
     );
-  } else {
+  }
+  // T1-P1: synthetic (seed-tagged) animals are not a govt/national reader's
+  // observations. Admin keeps them for demos.
+  const synthetic = withoutSyntheticRows(scope.role, "pets", null);
+  if (synthetic) conditions.push(synthetic);
+  if (scope.role !== "govt") {
     if (scope.province) conditions.push(eq(pets.jurisdictionProvince, scope.province));
     if (scope.locality) conditions.push(eq(pets.jurisdictionLocality, scope.locality));
   }

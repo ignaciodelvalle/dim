@@ -43,6 +43,7 @@ import {
 import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
+import { withoutSyntheticRows } from "@/lib/metrics/scope";
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
 import { isUuid } from "@/lib/utils/uuid";
 import {
@@ -225,7 +226,13 @@ export async function loadWelfareInspectorDetail(
   const [report] = await db
     .select(GOB_WELFARE_DETAIL_SELECT)
     .from(welfareReports)
-    .where(welfareReportParamCondition(idOrCode))
+    // T1-P1: a seed-tagged report does not exist for a non-admin reader (404).
+    .where(
+      and(
+        welfareReportParamCondition(idOrCode),
+        withoutSyntheticRows(profile.role, "welfareReports", null) ?? undefined,
+      ),
+    )
     .limit(1);
   if (!report) return { ok: false };
 

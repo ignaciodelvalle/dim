@@ -410,6 +410,64 @@ describe("reportBite — incident jurisdiction overrides pet home jurisdiction",
 });
 
 // ---------------------------------------------------------------------------
+// T1-G2 (localidad plan L2·1) — the INDEC id of the incident locality rides onto
+// the case. The web writer resolves it with locality "soft" (a map pin carries a
+// name, never an id); the use-case stamps it only when the case routes to the
+// INCIDENT locality, never on the pet-home fallback.
+// ---------------------------------------------------------------------------
+
+describe("reportBite — incident locality id (T1-G2)", () => {
+  const LOCALITY_ID = "b0000000-0000-4000-8000-0000000000c1";
+
+  it("stamps the resolved incident locality id on the case", async () => {
+    const deps = makeDeps();
+    await reportBite(
+      {
+        ...BASE_INPUT,
+        eventJurisdictionProvince: "Córdoba",
+        eventJurisdictionLocality: "Río Cuarto",
+        eventLocalityId: LOCALITY_ID,
+      },
+      deps,
+    );
+    expect(deps.openCase).toHaveBeenCalledWith(
+      expect.objectContaining({ jurisdictionLocality: "Río Cuarto", localityId: LOCALITY_ID }),
+      "fake-tx",
+    );
+  });
+
+  it("an incident locality the catalog did not resolve still opens the case, with no id", async () => {
+    const deps = makeDeps();
+    const result = await reportBite(
+      {
+        ...BASE_INPUT,
+        eventJurisdictionProvince: "Córdoba",
+        eventJurisdictionLocality: "Paraje Sin Catalogo",
+        eventLocalityId: null,
+      },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    expect(deps.openCase).toHaveBeenCalledWith(
+      expect.objectContaining({ jurisdictionLocality: "Paraje Sin Catalogo", localityId: null }),
+      "fake-tx",
+    );
+  });
+
+  it("never stamps an incident id on a case that fell back to the pet's home locality", async () => {
+    const deps = makeDeps();
+    await reportBite(
+      { ...BASE_INPUT, eventJurisdictionProvince: "Córdoba", eventLocalityId: LOCALITY_ID },
+      deps,
+    );
+    expect(deps.openCase).toHaveBeenCalledWith(
+      expect.objectContaining({ jurisdictionLocality: "Lomas de Zamora", localityId: null }),
+      "fake-tx",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // A1 (Lote A) — the observation deadline honors the per-jurisdiction
 // `rabies_observation_window` rule at report time. The cron later reads the
 // stored `observation_until` verbatim, so this write is the whole enforcement.

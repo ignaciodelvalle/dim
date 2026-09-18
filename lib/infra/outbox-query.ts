@@ -37,7 +37,7 @@ import { type SQL, and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { eventNotificationOutbox } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { jurisdictionPairClause, syntheticRowExclusion } from "@/lib/metrics/scope";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { keysetWhere } from "@/lib/utils/keyset-pagination";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
@@ -160,6 +160,10 @@ export function buildOutboxWhere(
         sql`${eventNotificationOutbox.targetJurisdictionLocality}`,
       ) ?? sql`false`;
     conditions.push(jurisClause);
+    // T1-P1: the govt twin never lists a notification about a synthetic
+    // (seed-tagged) pet. This is the one intended difference from /admin/outbox
+    // besides the jurisdiction itself — admin keeps the whole queue for demos.
+    conditions.push(syntheticRowExclusion.outbox());
   }
 
   // --- User-facing filter conditions (identical on both surfaces) ---

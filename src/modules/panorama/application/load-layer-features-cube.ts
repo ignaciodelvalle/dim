@@ -50,6 +50,7 @@
 import type { PanoramaCubeRow } from "@/db/schema";
 import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import { seesSyntheticRows } from "@/lib/metrics/scope";
 
 import { readCubeMeta, readCubeRows } from "@/src/modules/panorama/infrastructure/repository";
 import type { ChoroplethMetric } from "@/src/modules/panorama/infrastructure/repository";
@@ -157,6 +158,10 @@ export async function resolveCubeFreshness(
   // --- eligibility (cheap checks first, no DB) ---
   if (!cubeReadsEnabled()) return null;
   if (!hasNationalReadScope(actor.role)) return null;
+  // T1-P1: the cube is built as ADMIN and so it counts the synthetic seed. Only a
+  // viewer who sees synthetic rows may be served from it; a `national` viewer
+  // reads live, where the scope clause excludes them (lib/metrics/scope.ts).
+  if (!seesSyntheticRows(actor.role)) return null;
   if (adminLocality) return null; // locality drill → live (see header)
   if (verifiedOnly) return null;
   // National + department IS cube-eligible (superset over the truncated live view);

@@ -200,6 +200,7 @@ export async function fetchQueueHealthScoped(
     // (visibleRequestsClause) uses — so this aging COUNTER and that queue can
     // never diverge (a whole-CABA operator's "cola pendiente" tile and their
     // queue show the same population). Exact pairs are kept for barrio operators.
+    // synthetic: exempt — approval_requests carry no seed marker (T1-P1 report).
     const jurisClause = jurisdictionPairClause(
       ctx.scope.jurisdictions,
       sql`${approvalRequests.jurisdictionProvince}`,

@@ -39,7 +39,7 @@ import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { jurisdictionPairClause, withoutSyntheticRows } from "@/lib/metrics/scope";
 import { formatCount, formatDate, speciesLabel } from "@/lib/utils/format";
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
@@ -158,11 +158,16 @@ export default async function DecomisosDashboardPage({
     // disagree with the detail page about what this operator governs.
     // `?? sql\`false\`` is the fail-closed leg: zero assignments means zero
     // rows, never an absent predicate.
+    // T1-P1: a decomiso over a synthetic pet is synthetic — only admin sees it.
     jurisdictionFence =
-      jurisdictionPairClause(
-        session.jurisdictions.map((j) => ({ province: j.province, locality: j.locality })),
-        sql`${cases.jurisdictionProvince}`,
-        sql`${cases.jurisdictionLocality}`,
+      withoutSyntheticRows(
+        session.profile.role,
+        "cases",
+        jurisdictionPairClause(
+          session.jurisdictions.map((j) => ({ province: j.province, locality: j.locality })),
+          sql`${cases.jurisdictionProvince}`,
+          sql`${cases.jurisdictionLocality}`,
+        ) ?? sql`false`,
       ) ?? sql`false`;
   }
 

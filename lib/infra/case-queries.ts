@@ -9,7 +9,7 @@
 
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
 import { notReportedClause } from "@/lib/infra/content-reports";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { jurisdictionPairClause, syntheticRowExclusion } from "@/lib/metrics/scope";
 import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 import {
   type SQL,
@@ -454,12 +454,15 @@ export async function findOpenCasesForPetWithCodes(
   // no divergence. An empty scope fails closed (`false`), never wide-open.
   let scopeClause: SQL | undefined;
   if (govtScope !== undefined) {
-    scopeClause =
+    // T1-P1: a govt reader never sees a case over a synthetic pet or report.
+    scopeClause = and(
       jurisdictionPairClause(
         [...govtScope],
         sql`${cases.jurisdictionProvince}`,
         sql`${cases.jurisdictionLocality}`,
-      ) ?? sql`false`;
+      ) ?? sql`false`,
+      syntheticRowExclusion.cases(),
+    );
   }
 
   const rows = await db
@@ -866,12 +869,15 @@ export function buildGovtCaseWhereClause(
   // locality) pairs would under-scope a whole-province operator down to
   // literal sentinel-locality rows only (fail-closed but wrong; caught by
   // pre-push review 2026-07-21).
-  const jurisdictionFilter: SQL =
+  // T1-P1: the govt queue carries the synthetic-row exclusion with its scope
+  // (lib/metrics/scope.ts) — list and count share it, so they cannot diverge.
+  const jurisdictionFilter: SQL = sql`(${
     jurisdictionPairClause(
       [...jurisdictions],
       sql`${cases.jurisdictionProvince}`,
       sql`${cases.jurisdictionLocality}`,
-    ) ?? sql`false`;
+    ) ?? sql`false`
+  } AND ${syntheticRowExclusion.cases()})`;
   const filterClauses = buildCaseKindStatusClauses(filters);
   if (filters.province) {
     filterClauses.push(eq(cases.jurisdictionProvince, filters.province) as ReturnType<typeof and>);
@@ -1157,11 +1163,15 @@ export async function listOutbreakInvestigationsForGovt(
     : // jurisdictionPairClause applies whole-province subsumption — see
       // lib/metrics/scope.ts (found via authz-subsumption fence hardening,
       // 2026-07-22 — same bug class as commit 68501bb4).
-      (jurisdictionPairClause(
-        [...jurisdictions],
-        sql`${cases.jurisdictionProvince}`,
-        sql`${cases.jurisdictionLocality}`,
-      ) ?? undefined);
+      // T1-P1: synthetic cases excluded for the non-admin reader.
+      and(
+        jurisdictionPairClause(
+          [...jurisdictions],
+          sql`${cases.jurisdictionProvince}`,
+          sql`${cases.jurisdictionLocality}`,
+        ) ?? sql`false`,
+        syntheticRowExclusion.cases(),
+      );
 
   const rows = await db
     .select({ c: CASE_OUTBREAK_LIST_SELECT })
@@ -1209,12 +1219,16 @@ export async function getOutbreakInvestigationDetail(
   // jurisdictionPairClause applies whole-province subsumption — see
   // lib/metrics/scope.ts (found via authz-subsumption fence hardening,
   // 2026-07-22 — same bug class as commit 68501bb4).
+  // T1-P1: a synthetic case is not found for the non-admin reader.
   const jurisdictionFilter = !isAdmin
-    ? (jurisdictionPairClause(
-        [...jurisdictions],
-        sql`${cases.jurisdictionProvince}`,
-        sql`${cases.jurisdictionLocality}`,
-      ) ?? undefined)
+    ? and(
+        jurisdictionPairClause(
+          [...jurisdictions],
+          sql`${cases.jurisdictionProvince}`,
+          sql`${cases.jurisdictionLocality}`,
+        ) ?? sql`false`,
+        syntheticRowExclusion.cases(),
+      )
     : undefined;
 
   const [row] = await db

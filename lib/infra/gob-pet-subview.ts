@@ -43,6 +43,7 @@ import {
 } from "@/lib/domain/jurisdiction-canonical";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { type PetOpenCase, findOpenCasesForPetWithCodes } from "@/lib/infra/case-queries";
+import { withoutSyntheticRows } from "@/lib/metrics/scope";
 import type { WelfareReportStatus } from "@/src/modules/welfare/domain/types";
 import { isTerminalStatus } from "@/src/modules/welfare/domain/welfare-status-rules";
 import { and, desc, eq, isNull } from "drizzle-orm";
@@ -127,7 +128,14 @@ export async function loadGobPetSubView(
       jurisdictionLocality: pets.jurisdictionLocality,
     })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    // T1-P1: a synthetic (seed-tagged) animal does not exist for a non-admin
+    // reader — same { ok:false } as a missing token, same query shape.
+    .where(
+      and(
+        eq(pets.publicToken, publicToken),
+        withoutSyntheticRows(profile.role, "pets", null) ?? undefined,
+      ),
+    )
     .limit(1);
 
   // Linking authorization — gather every welfare report / case that names this

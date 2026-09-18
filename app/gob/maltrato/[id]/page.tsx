@@ -59,6 +59,7 @@ import {
   welfareReportParamCondition,
 } from "@/lib/infra/welfare-inspector-detail";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
+import { withoutSyntheticRows } from "@/lib/metrics/scope";
 import { createClient } from "@/lib/supabase/server";
 import { calendarDaysAgoInAr, formatDate, formatDateTime } from "@/lib/utils/format";
 import {
@@ -130,7 +131,13 @@ export default async function GobMaltratoDetailPage({
   const [report] = await db
     .select(GOB_WELFARE_DETAIL_SELECT)
     .from(welfareReports)
-    .where(welfareReportParamCondition(id))
+    // T1-P1: a seed-tagged report does not exist for a non-admin reader (404).
+    .where(
+      and(
+        welfareReportParamCondition(id),
+        withoutSyntheticRows(profile.role, "welfareReports", null) ?? undefined,
+      ),
+    )
     .limit(1);
   if (!report) notFound();
 

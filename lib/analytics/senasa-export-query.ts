@@ -16,7 +16,11 @@ import { type SQL, and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 
 import { auditLog, db, petEvents, pets } from "@/db";
 import type { SenasaEventRow } from "@/lib/analytics/senasa-export";
-import { type ProjectionContext, jurisdictionPairClause } from "@/lib/metrics";
+import {
+  type ProjectionContext,
+  jurisdictionPairClause,
+  withoutSyntheticRows,
+} from "@/lib/metrics";
 
 /** Filas por página del keyset. Acota la memoria, no el total exportado. */
 const SENASA_PAGE_SIZE = 1000;
@@ -93,6 +97,10 @@ export async function* streamSenasaBatch(
       ) ?? sql`false`;
     where = and(base, scopeClause);
   }
+  // T1-P1: a synthetic (seed-tagged) animal never reaches SENASA from a non-admin
+  // export. Admin keeps the whole set for demos.
+  const synthetic = withoutSyntheticRows(ctx.actor.role, "pets", null);
+  if (synthetic) where = and(where, synthetic);
 
   let cursor: { occurredAt: Date; id: string } | null = null;
 

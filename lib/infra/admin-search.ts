@@ -21,7 +21,7 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { db, organizations, ownerships, petServiceDog, pets, profiles } from "@/db";
 import type { ServiceDogType, UserRole, orgTypeEnum } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { jurisdictionPairClause, withoutSyntheticRows } from "@/lib/metrics/scope";
 import { hashDni } from "@/lib/utils/dni-hash";
 import { likeContains } from "@/lib/utils/like-helpers";
 
@@ -126,12 +126,17 @@ export async function searchUsers(
     // assignment matches every barrio, not just the sentinel locality string)
     // — see lib/metrics/scope.ts. Found via authz-subsumption fence hardening
     // (2026-07-22) — same bug class as commit 68501bb4.
-    const jurisdictionClause =
+    // T1-P1: an owner is in scope through a REAL pet only — the owner of a
+    // synthetic (seed-tagged) animal is not a citizen of this municipality.
+    const jurisdictionClause = withoutSyntheticRows(
+      scope.role,
+      "pets",
       jurisdictionPairClause(
         [...scope.jurisdictions],
         sql`${pets.jurisdictionProvince}`,
         sql`${pets.jurisdictionLocality}`,
-      ) ?? sql`false`;
+      ) ?? sql`false`,
+    );
     scopeConditions.push(
       // profiles.id ∈ SELECT DISTINCT ownerUserId FROM ownerships JOIN pets ON ...
       sql`${profiles.id} IN (
@@ -247,6 +252,7 @@ export async function searchOrganizations(
   // jurisdictionPairClause applies whole-province subsumption — see
   // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
   // (2026-07-22) — same bug class as commit 68501bb4.
+  // synthetic: exempt — organizations carry no seed marker (T1-P1 report).
   const scopePredicate =
     scope.role === "admin"
       ? undefined
@@ -347,14 +353,19 @@ export async function searchServiceDogCredentials(
   // jurisdictionPairClause applies whole-province subsumption — see
   // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
   // (2026-07-22) — same bug class as commit 68501bb4.
+  // T1-P1: a service-dog credential on a synthetic pet is synthetic.
   const scopePredicate =
     scope.role === "admin"
       ? undefined
-      : (jurisdictionPairClause(
-          [...scope.jurisdictions],
-          sql`${pets.jurisdictionProvince}`,
-          sql`${pets.jurisdictionLocality}`,
-        ) ?? sql`false`);
+      : (withoutSyntheticRows(
+          scope.role,
+          "pets",
+          jurisdictionPairClause(
+            [...scope.jurisdictions],
+            sql`${pets.jurisdictionProvince}`,
+            sql`${pets.jurisdictionLocality}`,
+          ) ?? sql`false`,
+        ) ?? undefined);
 
   const statusFilter = filters.status ?? "vigente";
   const statusPredicate =

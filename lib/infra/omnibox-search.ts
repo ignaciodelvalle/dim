@@ -40,7 +40,7 @@ import { cases, db, ownerships, petIdentifications, pets, welfareReports } from 
 import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import { searchUsers } from "@/lib/infra/admin-search";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { jurisdictionPairClause, withoutSyntheticRows } from "@/lib/metrics/scope";
 import { likeContains } from "@/lib/utils/like-helpers";
 
 // Per-type cap. The dropdown only ever shows a handful of rows per group; a low
@@ -98,12 +98,17 @@ function caseJurisdictionScope(scope: Extract<OmniboxScope, { role: "admin" } | 
   // match a barrio-tagged (Palermo) case on PROVINCE alone — the same predicate
   // canReadCase re-gates with. Fail-closed: govt with no assignments (should be
   // short-circuited upstream) yields `false`, never an unscoped leak.
+  // T1-P1: synthetic rows never reach a non-admin search (lib/metrics/scope.ts).
   return (
-    jurisdictionPairClause(
-      [...scope.jurisdictions],
-      sql`${cases.jurisdictionProvince}`,
-      sql`${cases.jurisdictionLocality}`,
-    ) ?? sql`false`
+    withoutSyntheticRows(
+      scope.role,
+      "cases",
+      jurisdictionPairClause(
+        [...scope.jurisdictions],
+        sql`${cases.jurisdictionProvince}`,
+        sql`${cases.jurisdictionLocality}`,
+      ) ?? sql`false`,
+    ) ?? undefined
   );
 }
 
@@ -115,12 +120,17 @@ function caseJurisdictionScope(scope: Extract<OmniboxScope, { role: "admin" } | 
 // an unscoped leak.
 function petJurisdictionScope(scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>) {
   if (scope.role === "admin") return undefined;
+  // T1-P1: synthetic rows never reach a non-admin search (lib/metrics/scope.ts).
   return (
-    jurisdictionPairClause(
-      [...scope.jurisdictions],
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    ) ?? sql`false`
+    withoutSyntheticRows(
+      scope.role,
+      "pets",
+      jurisdictionPairClause(
+        [...scope.jurisdictions],
+        sql`${pets.jurisdictionProvince}`,
+        sql`${pets.jurisdictionLocality}`,
+      ) ?? sql`false`,
+    ) ?? undefined
   );
 }
 
@@ -339,14 +349,19 @@ async function searchWelfareReports(
   const trimmed = query.trim();
   if (!trimmed) return [];
 
+  // T1-P1: a seed-tagged denuncia never reaches a non-admin search.
   const scopePredicate =
     scope.role === "admin"
       ? undefined
-      : (jurisdictionPairClause(
-          [...scope.jurisdictions],
-          sql`${welfareReports.jurisdictionProvince}`,
-          sql`${welfareReports.jurisdictionLocality}`,
-        ) ?? sql`false`);
+      : (withoutSyntheticRows(
+          scope.role,
+          "welfareReports",
+          jurisdictionPairClause(
+            [...scope.jurisdictions],
+            sql`${welfareReports.jurisdictionProvince}`,
+            sql`${welfareReports.jurisdictionLocality}`,
+          ) ?? sql`false`,
+        ) ?? undefined);
   // Reference codes are opaque non-PII identifiers (same class as cases.publicCode).
   const codePredicate = ilike(welfareReports.referenceCode, likeContains(trimmed));
   const where = scopePredicate ? and(scopePredicate, codePredicate) : codePredicate;

@@ -45,6 +45,7 @@ import {
   jurisdictionPairClause,
   petsScopeClause,
   suppressedMetric,
+  withoutSyntheticRows,
 } from "@/lib/metrics";
 import type { Cell, MetricResult, SuppressedCells } from "@/lib/metrics";
 import { openObservationStatusSql } from "@/lib/metrics/observation-status";
@@ -73,6 +74,11 @@ export const RABIES_OBSERVATION_WINDOW_DAYS = 10;
 // ---------------------------------------------------------------------------
 
 function outboxScopeClause(ctx: ProjectionContext) {
+  // T1-P1: an outbox row whose source event is about a synthetic pet is synthetic.
+  return withoutSyntheticRows(ctx.actor.role, "outbox", outboxJurisdictionClause(ctx));
+}
+
+function outboxJurisdictionClause(ctx: ProjectionContext) {
   if (ctx.scope.kind === "global") {
     // Admin province drill-down (Panorama-style), mirroring petsScopeClause /
     // petEventsScopeClause (lib/metrics/scope.ts). Backward-compat: no
@@ -93,6 +99,7 @@ function outboxScopeClause(ctx: ProjectionContext) {
   // only rows whose locality string exactly equals the whole-province name.
   // Previously this hand-rolled an exact (province AND locality) pair, so the
   // SLA tile read "sin entregas" for deliveries the operator legitimately owns.
+  // synthetic: covered — outboxScopeClause wraps this with withoutSyntheticRows.
   return jurisdictionPairClause(
     jurisdictions,
     sql`${eventNotificationOutbox.targetJurisdictionProvince}`,
@@ -354,10 +361,15 @@ export async function fetchRabiesObservationCompliance(
         province: j.province,
         locality: j.locality,
       });
-      const pairClause = jurisdictionPairClause(
-        [j],
-        sql`${pets.jurisdictionProvince}`,
-        sql`${pets.jurisdictionLocality}`,
+      // T1-P1: per-jurisdiction partials carry the synthetic exclusion too.
+      const pairClause = withoutSyntheticRows(
+        ctx.actor.role,
+        "pets",
+        jurisdictionPairClause(
+          [j],
+          sql`${pets.jurisdictionProvince}`,
+          sql`${pets.jurisdictionLocality}`,
+        ),
       );
       const scopeFragment = pairClause ? sql` AND (${pairClause})` : sql``;
       const partial = await fetchRabiesComplianceForScope(

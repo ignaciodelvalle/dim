@@ -451,6 +451,7 @@ export async function fetchFosterPoolUtilization(
     // jurisdictionPairClause applies whole-province subsumption — see
     // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
     // (2026-07-22) — same bug class as commit 68501bb4.
+    // synthetic: exempt — foster_volunteers carry no seed marker (T1-P1 report).
     volunteerScopeConditions.push(
       jurisdictionPairClause(
         [...jurisdictions],

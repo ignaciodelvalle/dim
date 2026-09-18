@@ -14,7 +14,7 @@ import { analyticsDb as db, petEvents, pets } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import { buildProjectionScope } from "@/lib/metrics/context";
 import { planProvinceDisclosure } from "@/lib/metrics/province-disclosure";
-import { jurisdictionPairClause } from "@/lib/metrics/scope";
+import { jurisdictionPairClause, withoutSyntheticRows } from "@/lib/metrics/scope";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -75,6 +75,20 @@ export function regionRankingPetsScope(
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
+  // T1-P1: synthetic pets ride out with the scope (lib/metrics/scope.ts).
+  return withoutSyntheticRows(
+    actor.role,
+    "pets",
+    regionRankingJurisdictionOnly(actor, jurisdictions, adminProvince, adminLocality),
+  );
+}
+
+function regionRankingJurisdictionOnly(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
   if (actor.role !== "govt") {
     if (!adminProvince) return null;
     if (adminLocality) {
@@ -88,6 +102,7 @@ export function regionRankingPetsScope(
     }
     return eq(pets.jurisdictionProvince, adminProvince);
   }
+  // synthetic: covered — regionRankingPetsScope wraps this with withoutSyntheticRows.
   return jurisdictionPairClause(
     jurisdictions,
     sql`${pets.jurisdictionProvince}`,

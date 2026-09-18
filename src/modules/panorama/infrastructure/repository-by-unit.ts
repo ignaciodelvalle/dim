@@ -29,6 +29,9 @@ import type { AggregationLevel } from "@/src/modules/panorama/domain/types";
 import {
   PER_LAYER_CAP,
   type RollupRow,
+  biteIncidentLocalitySql,
+  biteIncidentProvinceSql,
+  biteIncidentScope,
   eventWindowCol,
   jurisdictionColumnsScope,
   mordedurasEventPredicate,
@@ -422,15 +425,18 @@ export async function loadMordedurassByUnit(
   // task #77 bitemporal: "valid" (occurred_at, default) or "transaction" (recorded_at).
   basis: TimeBasis = "valid",
 ): Promise<AggregatedPointRows> {
-  // pets-table scope + pets-JOIN attribution (same rationale as perdidas): the
-  // incident payload never carries flat province/locality, so the pet's home
-  // jurisdiction is the map unit.
-  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  // A bite counts where it OCCURRED — the incident_reported payload carries the
+  // incident's own jurisdiction_province/_locality (event-schemas.ts), with the
+  // pet's home as the field-by-field fallback the bite case uses too
+  // (biteIncidentProvinceSql, repository-scope.ts). The map unit is that place.
+  const scope = biteIncidentScope(actor, jurisdictions, adminProvince, adminLocality);
+  const provinceExpr = biteIncidentProvinceSql();
+  const localityExpr = biteIncidentLocalitySql();
   const tcol = eventWindowCol(basis);
   const conditions: SQL[] = [
     mordedurasEventPredicate(),
     gte(tcol, since),
-    isNotNull(pets.jurisdictionProvince),
+    sql`${provinceExpr} IS NOT NULL`,
   ];
   if (asOf) conditions.push(lte(tcol, asOf));
   if (scope) conditions.push(sql`(${scope})`);
@@ -438,13 +444,13 @@ export async function loadMordedurassByUnit(
   if (level === "province") {
     const rows = await db
       .select({
-        province: pets.jurisdictionProvince,
+        province: provinceExpr,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
       .innerJoin(pets, eq(petEvents.petId, pets.id))
       .where(and(...conditions))
-      .groupBy(pets.jurisdictionProvince)
+      .groupBy(provinceExpr)
       .limit(PER_LAYER_CAP);
     const rollup: RollupRow[] = rows
       .filter((r) => r.province)
@@ -470,8 +476,8 @@ export async function loadMordedurassByUnit(
 
   const rows = await db
     .select({
-      province: pets.jurisdictionProvince,
-      locality: pets.jurisdictionLocality,
+      province: provinceExpr,
+      locality: localityExpr,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
       // Department roll-up keys (PO "Option A") — pinned deterministically via MIN,
@@ -485,13 +491,13 @@ export async function loadMordedurassByUnit(
     .leftJoin(
       arLocalities,
       and(
-        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-        sql`${arLocalities.localityNameNorm} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(provinceExpr)}`,
+        sql`${arLocalities.localityNameNorm} = ${normNameSql(localityExpr)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
-    .where(and(...conditions, isNotNull(pets.jurisdictionLocality)))
-    .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality)
+    .where(and(...conditions, sql`${localityExpr} IS NOT NULL`))
+    .groupBy(provinceExpr, localityExpr)
     .limit(PER_LAYER_CAP);
   const rollup: RollupRow[] = rows
     .filter((r) => r.province && r.locality)
@@ -505,14 +511,14 @@ export async function loadMordedurassByUnit(
       departmentName: r.departmentName,
       count: r.n,
     }));
-  // Events whose pet home jurisdiction has a province but NO locality — invisible at
+  // Bites whose incident place has a province but NO locality — invisible at
   // the detail tier, counted at province level (WARNING 4 reconciliation). Same
   // predicate + scope as the rollup (conditions already pins isNotNull(province)).
   const [residual] = await db
     .select({ n: countDistinct(petEvents.id) })
     .from(petEvents)
     .innerJoin(pets, eq(petEvents.petId, pets.id))
-    .where(and(...conditions, sql`${pets.jurisdictionLocality} IS NULL`));
+    .where(and(...conditions, sql`${localityExpr} IS NULL`));
   const noLocalityCount = residual?.n ?? 0;
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
@@ -545,8 +551,7 @@ export async function loadDenunciasByUnit(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${welfareReports.jurisdictionProvince}`,
-    sql`${welfareReports.jurisdictionLocality}`,
+    "welfareReports",
     adminProvince,
     adminLocality,
   );
