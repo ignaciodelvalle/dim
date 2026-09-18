@@ -59,8 +59,11 @@ database that holds real data.
   first. This converts the unbaselined-prod path from a confusing partial failure
   into a clear, actionable abort.
 - **Checksum drift** — each file's sha256 is stored on apply. If a file is
-  edited after being applied, later runs **warn loudly** (the DB no longer
-  matches the committed SQL). Pass `--strict` to make drift a hard error.
+  edited after being applied, later runs **refuse with exit 3** (the DB no
+  longer matches the committed SQL). `--status` alone still reports and exits
+  0; `--strict` makes even that refuse, and `deploy:staging` passes it.
+  `--allow-drift` downgrades drift to a warning and is only for an exception
+  recorded in the errata below.
   Consequence: an applied file is immutable, **comments included**. When one of
   them says something false, correct it in
   [`docs/db/migration-errata.md`](../db/migration-errata.md) — never in the file.
@@ -74,7 +77,8 @@ pnpm db:migrate:status                # applied vs pending
 pnpm db:migrate:baseline              # mark ALL applied, run no SQL
 tsx scripts/migrate.ts --baseline 0042_foo.sql   # baseline up to (incl.) 0042
 tsx scripts/migrate.ts --dry-run      # show what WOULD apply, apply nothing
-tsx scripts/migrate.ts --strict       # treat checksum drift as fatal
+tsx scripts/migrate.ts --strict       # drift fatal in every mode, --status too
+tsx scripts/migrate.ts --allow-drift  # drift only warns (recorded exception)
 ```
 
 ## First adoption on an existing database (CRITICAL)

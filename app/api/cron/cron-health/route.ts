@@ -23,7 +23,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 
 import { analyticsDb, cronRuns, db } from "@/db";
 import { STUCK_RUNNING_MS } from "@/lib/analytics/admin-metrics";
@@ -40,8 +40,13 @@ const CRON_NAME = "cron_health";
 // constants here, so healthy crons were reported "never_ran" while their
 // telemetry accumulated under an unregistered name. The parity fitness test
 // (__tests__/cron-registry-parity.test.ts) keeps vercel.json ⇄ registry ⇄
-// route constants in lock-step. This meta-cron checks itself too (its own
-// previous run is subject to the same staleness rule).
+// route constants in lock-step. This meta-cron checks itself too: its own
+// PREVIOUS run is subject to the same staleness and last-failed rules. The
+// "previous" is load-bearing (C04-3, 2026-09): the lookup used to take the
+// latest cron_health row, which is always the 'running' row this very request
+// inserted a moment earlier — so the self-check read "ok" every time, and a
+// meta-cron that had failed or skipped for days could never report itself.
+// The lookup now excludes the current run id.
 
 type CronHealthResult = {
   cronName: string;
@@ -99,7 +104,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           details: cronRuns.details,
         })
         .from(cronRuns)
-        .where(eq(cronRuns.cronName, entry.cronName))
+        // `ne(id, run.id)`: never evaluate the row this request just inserted
+        // (only ever matches for entry.cronName === CRON_NAME; see the header).
+        .where(and(eq(cronRuns.cronName, entry.cronName), ne(cronRuns.id, run.id)))
         .orderBy(desc(cronRuns.startedAt))
         .limit(1);
 

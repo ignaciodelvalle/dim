@@ -22,6 +22,7 @@ import {
   checksum,
   computePending,
   detectDrift,
+  driftIsFatal,
   isNoTransaction,
   listMigrationFiles,
   parseArgs,
@@ -144,7 +145,13 @@ describe("parseArgs", () => {
       dryRun: false,
       baseline: false,
       strict: false,
+      allowDrift: false,
     });
+  });
+
+  it("parses --allow-drift, and refuses it next to --strict", () => {
+    expect(parseArgs(["--allow-drift"]).allowDrift).toBe(true);
+    expect(() => parseArgs(["--strict", "--allow-drift"])).toThrow(/contradict/);
   });
 
   it("parses --status, --dry-run, --strict", () => {
@@ -178,6 +185,24 @@ describe("parseArgs", () => {
 
   it("throws on unknown args", () => {
     expect(() => parseArgs(["--nope"])).toThrow(/Unknown argument/);
+  });
+});
+
+// C06-5: drift used to be a warning unless --strict, and no caller passed it.
+describe("driftIsFatal — fatal by default", () => {
+  it("is fatal for a bare apply, --dry-run and --check", () => {
+    expect(driftIsFatal(parseArgs([]))).toBe(true);
+    expect(driftIsFatal(parseArgs(["--dry-run"]))).toBe(true);
+    expect(driftIsFatal(parseArgs(["--check"]))).toBe(true);
+  });
+
+  it("lets --status report without refusing, unless --strict", () => {
+    expect(driftIsFatal(parseArgs(["--status"]))).toBe(false);
+    expect(driftIsFatal(parseArgs(["--status", "--strict"]))).toBe(true);
+  });
+
+  it("downgrades to a warning only under --allow-drift", () => {
+    expect(driftIsFatal(parseArgs(["--allow-drift"]))).toBe(false);
   });
 });
 
@@ -265,6 +290,23 @@ describe("migrate runner e2e (local DB, scratch dir + table)", { timeout: 30_000
     expect(second.status).toBe(0);
     expect(second.stdout).toContain("Nothing pending");
   });
+
+  it("checksum drift refuses a bare run (exit 3); --status and --allow-drift go on", async () => {
+    const file = path.join(dir, "0000_e2e.sql");
+    writeFileSync(file, "select 1;\n");
+    expect(runMigrate([], dir).status).toBe(0);
+    // Edit the applied file: the ledger's checksum no longer matches.
+    writeFileSync(file, "select 2;\n");
+
+    const bare = runMigrate([], dir);
+    expect(bare.status, bare.stdout).toBe(3);
+    expect(bare.stderr).toContain("checksum drift");
+
+    expect(runMigrate(["--status"], dir).status).toBe(0);
+    expect(runMigrate(["--status", "--strict"], dir).status).toBe(3);
+    expect(runMigrate(["--allow-drift"], dir).status).toBe(0);
+    // Five tsx cold starts: more than the describe's 30 s allows for two.
+  }, 90_000);
 
   it("--baseline marks files applied WITHOUT executing their SQL", async () => {
     // This migration would FAIL if executed (references a missing table), proving

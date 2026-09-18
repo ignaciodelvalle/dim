@@ -32,10 +32,8 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { eq } from "drizzle-orm";
-
-import { cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { refreshCube } from "@/src/modules/panorama/infrastructure/cube-builder";
 
 export const dynamic = "force-dynamic";
@@ -43,54 +41,56 @@ export const maxDuration = 300;
 
 const CRON_NAME = "refresh_cube";
 
+/**
+ * A run is 'ok' only when BOTH cubes swapped — a KPI-only failure is a real
+ * (alertable) partial failure, even though its reader degrades to live.
+ */
+function bothCubesSwapped(r: Awaited<ReturnType<typeof refreshCube>>): boolean {
+  return r.status === "ok" && r.kpi.status === "ok";
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
   if (authError) {
     return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }
 
-  const [run] = await db
-    .insert(cronRuns)
-    .values({ cronName: CRON_NAME, status: "running" })
-    .returning();
-
-  // One retry on a statement timeout (SQLSTATE 57014). Builder reads now run on
-  // a dedicated long-timeout client (task #22), so this should be rare — it
-  // covers a genuinely pathological query (cold cache + contention past even the
-  // long ceiling). A failed build is already fail-safe (read errors return a
-  // structured error result, last-good cube preserved, reader falls to live) —
-  // the retry just avoids wasting the whole (manually-invoked) run on one cold
-  // query.
-  let result = await refreshCube();
-  // The KPI-strip phase (own failure domain inside the builder) participates in
-  // the retry too: a cold-query timeout in its fan-out is exactly as retryable
-  // as one in the layer loaders.
-  const timedOut = (r: typeof result) =>
-    /57014|statement timeout/i.test(`${r.error ?? ""} ${r.kpi.error ?? ""}`);
-  if ((result.status !== "ok" || result.kpi.status !== "ok") && timedOut(result)) {
-    result = await refreshCube();
-  }
-  // A run is 'ok' only when BOTH cubes swapped — a KPI-only failure is a real
-  // (alertable) partial failure, even though its reader degrades to live.
-  const cronStatus = result.status === "ok" && result.kpi.status === "ok" ? "ok" : "failed";
-
-  await db
-    .update(cronRuns)
-    .set({
-      status: cronStatus,
-      finishedAt: new Date(),
-      itemsProcessed: result.rowCount,
+  // withCronRun (C04-4, 2026-09): this route used to insert and finalize its own
+  // cron_runs row, so a failed build was recorded but never ALERTED (every other
+  // cron pages through withCronRun / runCaseCron), and a THROW from the builder
+  // left the row at 'running' until cron-health's stuck threshold noticed.
+  // withCronRun finalizes on throw, and `failed` below turns a structured
+  // failure into the same page.
+  const result = await withCronRun(
+    CRON_NAME,
+    async () => {
+      // One retry on a statement timeout (SQLSTATE 57014). Builder reads now run
+      // on a dedicated long-timeout client (task #22), so this should be rare —
+      // it covers a genuinely pathological query (cold cache + contention past
+      // even the long ceiling). A failed build is already fail-safe (read errors
+      // return a structured error result, last-good cube preserved, reader falls
+      // to live) — the retry just avoids wasting the whole run on one cold query.
+      let r = await refreshCube();
+      // The KPI-strip phase (own failure domain inside the builder) participates
+      // in the retry too: a cold-query timeout in its fan-out is exactly as
+      // retryable as one in the layer loaders.
+      const timedOut = (x: typeof r) =>
+        /57014|statement timeout/i.test(`${x.error ?? ""} ${x.kpi.error ?? ""}`);
+      if ((r.status !== "ok" || r.kpi.status !== "ok") && timedOut(r)) {
+        r = await refreshCube();
+      }
+      return r;
+    },
+    (r) => ({
+      itemsProcessed: r.rowCount,
       details:
-        result.status === "ok"
-          ? {
-              rowCount: result.rowCount,
-              durationMs: result.durationMs,
-              perMetric: result.perMetric,
-              kpi: result.kpi,
-            }
-          : { error: result.error ?? "unknown", kpi: result.kpi },
-    })
-    .where(eq(cronRuns.id, run.id));
+        r.status === "ok"
+          ? { rowCount: r.rowCount, durationMs: r.durationMs, perMetric: r.perMetric, kpi: r.kpi }
+          : { error: r.error ?? "unknown", kpi: r.kpi },
+      failed: !bothCubesSwapped(r),
+    }),
+  );
+  const cronStatus = bothCubesSwapped(result) ? "ok" : "failed";
 
   return NextResponse.json(
     {
