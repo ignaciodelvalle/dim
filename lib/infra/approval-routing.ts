@@ -12,7 +12,7 @@
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
-import { db, govtAssignments } from "@/db";
+import { db, govtAssignments, profiles } from "@/db";
 import { localitiesCoveringSearch } from "@/lib/domain/jurisdiction-canonical";
 import { recordEmptyFanout } from "@/lib/infra/empty-fanout-trace";
 import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
@@ -71,14 +71,31 @@ export async function findAuthoritiesForJurisdiction(
 ): Promise<string[]> {
   const coveringLocalities = localitiesCoveringSearch(jurisdiction.province, jurisdiction.locality);
 
+  // THE HOLDER MUST STILL BE REACHABLE (T2-S5, 2026-09-18). An unrevoked
+  // assignment is not enough: this used to read govt_assignments alone, so an
+  // operator whose PROFILE was deactivated kept being paged about bites, rabies
+  // closures and denuncias for as long as one assignment row stayed open — and,
+  // worse, her silent presence made `govts.length > 0`, so the admin fallback
+  // that exists exactly for "nobody covers this" never fired. Deactivation paths
+  // do not all revoke assignments (reset-institutional-credentials deactivates
+  // without touching them; a hand-patched row does neither), so the profile is
+  // the authority here, not the assignment. `isSystem` for the same reason the
+  // admin fallback carries it (notification-recipients.ts): a service account is
+  // not a person and must not pad the list the empty-fan-out check reads.
+  //
+  // Every call site is a "who do we tell" fan-out (reviewed together, T2-S5) —
+  // none of them is a history view that would want a deactivated holder back.
   const govts = await db
     .select({ userId: govtAssignments.userId })
     .from(govtAssignments)
+    .innerJoin(profiles, eq(profiles.id, govtAssignments.userId))
     .where(
       and(
         eq(govtAssignments.jurisdictionProvince, jurisdiction.province),
         inArray(govtAssignments.jurisdictionLocality, coveringLocalities),
         isNull(govtAssignments.revokedAt),
+        isNull(profiles.deactivatedAt),
+        eq(profiles.isSystem, false),
       ),
     );
 
