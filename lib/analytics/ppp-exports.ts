@@ -21,14 +21,16 @@
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
 import { PPP_AUTHENTICITY_NOTE, documentAttributionLine } from "@/lib/analytics/export-attribution";
+import { CABA_PROVINCE } from "@/lib/domain/ppp-export-eligibility";
 import { formatDate, speciesLabel } from "@/lib/utils/format";
 
 export const PPP_EXPORT_SCHEMA_VERSION = "2026-05-21";
 
 // CABA jurisdiction constant — used for validation. Canonical display name
 // per PROVINCES in lib/ar-provincias.ts (CHECK constraint enforces this since
-// migration 0055).
-export const CABA_PROVINCE = "CABA";
+// migration 0055). Defined in the pure eligibility module so the owner page can
+// read the same value without importing this renderer (and pdf-lib).
+export { CABA_PROVINCE };
 
 // ---------------------------------------------------------------------------
 // DTO types
