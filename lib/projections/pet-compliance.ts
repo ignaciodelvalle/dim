@@ -19,8 +19,8 @@
 import { type ProvenanceTier, provenanceTier } from "@/lib/domain/provenance";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { computeConfidence } from "@/lib/events/event-confidence";
+import { addCalendarMonths } from "@/lib/utils/calendar-months";
 import {
-  addCalendarMonths,
   formatDateArOmitCurrentYear,
   isoDateInAr,
   parseDateInput,

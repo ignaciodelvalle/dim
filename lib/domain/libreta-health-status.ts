@@ -13,7 +13,8 @@
 //                            same drug name
 
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
-import { addCalendarMonths, isoDateInAr, parseDateInput } from "@/lib/utils/format";
+import { addCalendarMonths } from "@/lib/utils/calendar-months";
+import { isoDateInAr, parseDateInput } from "@/lib/utils/format";
 
 export type VaccineSnapshot = {
   /** Catalog display name. */

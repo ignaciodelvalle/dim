@@ -1,7 +1,9 @@
 "use client";
 
 // PppExportAffordance — the owner's way to emit the RUPPPA registration PDF
-// (CABA, Ley 5470 / Ord. 41.831) from the PPP card of the pet's compliance
+// (CABA's registry; its legal basis lives in lib/analytics/ppp-exports.ts — no
+// citation is written in this module, see the fence in pet-compliance.test.ts)
+// from the PPP card of the pet's compliance
 // panel (L-11). generatePppExportAction existed complete — render, upload,
 // signed URL, audit — and no component invoked it, so no PPP owner in CABA
 // could reach the document.

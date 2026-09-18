@@ -38,6 +38,11 @@ import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructu
 
 import { loadOrgShellAccess } from "./_lib/org-shell-access";
 
+// One topbar class for both frames (the normal portal and the degraded one a
+// missed membership deadline renders), so the two cannot drift apart.
+const ORG_TOPBAR_CLASS =
+  "sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]";
+
 // A funcionario works with three portals open at once, and all four of them
 // returned the ROOT title verbatim — "miMAR — Mi Mascota Argentina" — so the
 // browser tabs were indistinguishable (QA 2026-08-07). The public routes were
@@ -157,7 +162,7 @@ export default async function OrgLayout({
           />
         }
         topbar={
-          <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+          <header className={ORG_TOPBAR_CLASS}>
             <div className="flex-1" />
             {topbarActions}
           </header>
@@ -266,7 +271,7 @@ export default async function OrgLayout({
         />
       }
       topbar={
-        <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+        <header className={ORG_TOPBAR_CLASS}>
           {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
           <AppShellDrawer sections={navSections} variant="org" brandSubtitle="Organización" />
           {/* Left: org breadcrumbs (client component, uses usePathname) */}
