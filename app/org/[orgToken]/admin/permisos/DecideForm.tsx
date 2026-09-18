@@ -10,10 +10,13 @@ import { useActionState, useState } from "react";
 const initialState: CapabilityActionState = { error: null };
 
 export function DecideForm({
+  orgToken,
   grantId,
   pending,
   approved,
 }: {
+  /** The org whose panel is open — the decision is bound to it, not the session default. */
+  orgToken: string;
   grantId: string;
   pending: boolean;
   approved: boolean;
@@ -37,6 +40,7 @@ export function DecideForm({
     }
     return (
       <form action={formAction} className="flex flex-col gap-2 w-full">
+        <input type="hidden" name="orgToken" value={orgToken} />
         <input type="hidden" name="grantId" value={grantId} />
         <input type="hidden" name="decision" value={decision} />
         <OpTextarea

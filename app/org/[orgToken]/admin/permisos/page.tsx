@@ -214,7 +214,12 @@ export default async function PermisosPage({
                     </div>
                     <OpPill tone="open">Pendiente</OpPill>
                   </div>
-                  <DecideForm grantId={row.id} pending={true} approved={false} />
+                  <DecideForm
+                    orgToken={orgToken}
+                    grantId={row.id}
+                    pending={true}
+                    approved={false}
+                  />
                 </li>
               ))}
             </ul>
@@ -285,7 +290,12 @@ export default async function PermisosPage({
                     </div>
                     <OpPill tone="ok">Concedido</OpPill>
                   </div>
-                  <DecideForm grantId={row.id} pending={false} approved={true} />
+                  <DecideForm
+                    orgToken={orgToken}
+                    grantId={row.id}
+                    pending={false}
+                    approved={true}
+                  />
                 </li>
               ))}
             </ul>
@@ -308,6 +318,7 @@ export default async function PermisosPage({
             members={matrixMembers}
             columns={MATRIX_COLUMNS}
             organizationId={organization.id}
+            orgToken={orgToken}
             callerMembershipId={callerMembership.id}
           />
         </OpCardBody>

@@ -19,7 +19,12 @@
 import { type ProvenanceTier, provenanceTier } from "@/lib/domain/provenance";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { computeConfidence } from "@/lib/events/event-confidence";
-import { formatDateArOmitCurrentYear, parseDateInput } from "@/lib/utils/format";
+import {
+  formatDateArOmitCurrentYear,
+  isoDateInAr,
+  parseDateInput,
+  pluralizeEs,
+} from "@/lib/utils/format";
 
 // Minimal event shape — decoupled from ProjectionEvent so tests stay trivial.
 // Carries provenance (the ConfidenceInput fields) so an obligation is only
@@ -69,6 +74,23 @@ export type ComplianceObligationRule = {
   legalBasis: string | null;
   authority: string | null;
   sourceUrl: string | null;
+};
+
+/**
+ * The OPERATIONAL parameters of the jurisdiction's rabies and sterilization
+ * rules (T1-G1) — the payload half of the resolved rule row, where
+ * `ComplianceObligationRule` is the tier + citation half. Resolved by callers
+ * through the same cascade (resolveBusinessRule) and mapped with
+ * `complianceRuleParams` (lib/domain/business-rules-defaults.ts); null = the
+ * jurisdiction set no value, and then nothing is derived from it.
+ *
+ * Before T1-G1 these four fields were only RENDERED ("refuerzo cada 12 meses")
+ * and never computed with: a signed dose without next_due_at read "Registrada"
+ * forever in a jurisdiction that had stated its booster cadence.
+ */
+export type ComplianceRuleParams = {
+  rabies: { frequencyMonths: number | null; minAgeMonths: number | null };
+  sterilization: { minAgeMonths: number | null; mandatoryFromMonths: number | null };
 };
 
 /** The three jurisdiction-tiered obligations (PPP has its own gate + input). */
@@ -153,6 +175,15 @@ export type ObligationCard = {
    * obligations).
    */
   requirementTier?: "recommended" | "optional" | "not_regulated";
+  /**
+   * True when nothing is on record AND the pet is still younger than the age
+   * from which its jurisdiction's rule applies (T1-G1: rabies `min_age_months`,
+   * sterilization `max(min_age_months, mandatory_from_months)`). The card
+   * stays visible — it says from when it applies — but is EXCLUDED from the
+   * "N de M al día" count: an obligation that does not apply yet is neither
+   * met nor missed. Internal to the projection's summary; not serialised.
+   */
+  notYetRequired?: boolean;
 };
 
 export type ComplianceState = {
@@ -224,6 +255,18 @@ export type ComplianceInput = {
    * caller that forgets this loses warmth, never accuracy.
    */
   viewerUserId?: string | null;
+  /**
+   * Operational parameters of the resolved rules (T1-G1). Optional: absent,
+   * nothing is derived from the jurisdiction beyond its tier — exactly the
+   * pre-T1-G1 behavior.
+   */
+  ruleParams?: ComplianceRuleParams;
+  /**
+   * The pet's date of birth ("YYYY-MM-DD"), for the age-gated rule fields.
+   * Unknown → no age gate is applied: an animal of unknown age is never
+   * exempted from an obligation on a guess.
+   */
+  dateOfBirth?: string | null;
 };
 
 // Legal footnotes — generic stopgaps only (spec CS5, RG1 ratified 2026-08-16).
@@ -306,6 +349,9 @@ const VERIFICADO_STATE = "Verificado";
  * have silently resurrected empty not_regulated cards with nothing to say.
  */
 const SIN_REGISTRO_STATE = "Sin registro";
+
+/** State of an obligation the pet is still too young for (T1-G1). */
+const NOT_YET_REQUIRED_STATE = "Aún no corresponde";
 
 /**
  * Summary label when NO obligation is counted (M = 0) — every resolved rule is
@@ -397,6 +443,59 @@ function parseNextDue(raw: string): Date | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? parseDateInput(raw) : new Date(raw);
 }
 
+/**
+ * "YYYY-MM-DD" plus N calendar months, the day clamped to the target month's
+ * last day (31/01 + 1 month = 28/02 or 29/02). Pure calendar arithmetic on the
+ * date string — no instant, so no timezone can shift it.
+ */
+function addCalendarMonths(ymd: string, months: number): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return null;
+  const monthIndex = Number(m[1]) * 12 + (Number(m[2]) - 1) + months;
+  const year = Math.floor(monthIndex / 12);
+  const month = (monthIndex % 12) + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const day = Math.min(Number(m[3]), lastDay);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * The AR calendar day from which an age-gated rule applies to this pet, or
+ * null when it cannot be judged (no rule value, or no date of birth).
+ */
+function appliesFromYmd(
+  dateOfBirth: string | null | undefined,
+  ageMonths: number | null | undefined,
+): string | null {
+  if (ageMonths == null || !dateOfBirth) return null;
+  return addCalendarMonths(dateOfBirth.slice(0, 10), ageMonths);
+}
+
+/**
+ * The "not yet" card for an obligation the pet is still too young for. Only
+ * built when NOTHING is on record — a dose or a sterilization that exists is
+ * always shown for what it is.
+ */
+function notYetRequiredCard(
+  key: ObligationKey,
+  label: string,
+  legalFootnote: string,
+  fromYmd: string,
+  ageMonths: number,
+  now: Date,
+): ObligationCard {
+  const from = parseDateInput(fromYmd) ?? now;
+  return {
+    key,
+    label,
+    state: NOT_YET_REQUIRED_STATE,
+    tone: "neutral",
+    detail: `Corresponde desde el ${formatDateArOmitCurrentYear(from, now)} (a los ${ageMonths} ${pluralizeEs(ageMonths, "mes")})`,
+    legalFootnote,
+    notYetRequired: true,
+  };
+}
+
 // Map a reminder variant to the coarse compliance tone + labels.
 function rabiesFromVariant(variant: ReminderVariant, dueAt: Date, now: Date): ObligationCard {
   const until = formatDateArOmitCurrentYear(dueAt, now);
@@ -456,6 +555,21 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
   // No dose at all → "Sin registro". (A reminder without a dose still needs the
   // dose to judge provenance, so it also lands here for the provenance overlay.)
   if (!dose && !input.rabiesReminder) {
+    // T1-G1: the jurisdiction's `min_age_months` — a puppy younger than it has
+    // nothing missing yet. Unknown age or no rule value → the obligation
+    // applies as before.
+    const minAge = input.ruleParams?.rabies.minAgeMonths ?? null;
+    const fromYmd = appliesFromYmd(input.dateOfBirth, minAge);
+    if (minAge != null && fromYmd && isoDateInAr(input.now) < fromYmd) {
+      return notYetRequiredCard(
+        "rabies",
+        "Vacuna antirrábica",
+        FOOTNOTE.rabies,
+        fromYmd,
+        minAge,
+        input.now,
+      );
+    }
     return {
       key: "rabies",
       label: "Vacuna antirrábica",
@@ -479,11 +593,33 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     const p = (dose?.payload ?? {}) as Record<string, unknown>;
     const nextDueRaw = typeof p.next_due_at === "string" ? p.next_due_at : null;
     const nextDue = nextDueRaw ? parseNextDue(nextDueRaw) : null;
+    // T1-G1: no next_due_at on the dose → the jurisdiction's booster cadence
+    // (`frequency_months`) dates it: occurred_at's AR calendar day plus N
+    // months. An explicit next_due_at (above) always wins — the vet's date is
+    // the override, the rule is the fallback.
+    const frequency = input.ruleParams?.rabies.frequencyMonths ?? null;
+    const ruleDueYmd =
+      !nextDue && dose && frequency != null
+        ? addCalendarMonths(isoDateInAr(new Date(dose.occurredAt)), frequency)
+        : null;
+    const ruleDue = ruleDueYmd ? parseDateInput(ruleDueYmd) : null;
     if (nextDue && Number.isFinite(nextDue.getTime())) {
       base =
         nextDue <= input.now
           ? rabiesFromVariant("overdue", nextDue, input.now)
           : rabiesFromVariant("upcoming", nextDue, input.now);
+      currencyKnown = true;
+    } else if (ruleDue && frequency != null) {
+      const derived =
+        ruleDue <= input.now
+          ? rabiesFromVariant("overdue", ruleDue, input.now)
+          : rabiesFromVariant("upcoming", ruleDue, input.now);
+      // Say where the date came from: the dose carries none, the jurisdiction's
+      // cadence produced it.
+      base = {
+        ...derived,
+        detail: `${derived.detail} · refuerzo cada ${frequency} ${pluralizeEs(frequency, "mes")}`,
+      };
       currencyKnown = true;
     } else {
       // A dose IS on record but its payload carries no next_due_at, so we can't
@@ -578,6 +714,27 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
   // non-compliant despite a signed record. Any satisfying event clears it.
   const events = input.events.filter((e) => e.eventType === "sterilization_performed");
   if (events.length === 0) {
+    // T1-G1: the obligation cannot apply before the jurisdiction's
+    // `mandatory_from_months`, nor before `min_age_months` (the age from which
+    // the procedure is allowed at all — nobody is obliged to what they may not
+    // yet do). The later of the two is when "Sin registro" starts to mean
+    // something is missing.
+    const params = input.ruleParams?.sterilization;
+    const ages = [params?.minAgeMonths, params?.mandatoryFromMonths].filter(
+      (n): n is number => n != null,
+    );
+    const startAge = ages.length > 0 ? Math.max(...ages) : null;
+    const fromYmd = appliesFromYmd(input.dateOfBirth, startAge);
+    if (startAge != null && fromYmd && isoDateInAr(input.now) < fromYmd) {
+      return notYetRequiredCard(
+        "sterilization",
+        "Esterilización",
+        STERILIZATION_FOOTNOTE.none,
+        fromYmd,
+        startAge,
+        input.now,
+      );
+    }
     return {
       key: "sterilization",
       label: "Esterilización",
@@ -811,7 +968,11 @@ function applyTierOverlay(
 ): ObligationCard | null {
   if (card === null || level === "mandatory") return card;
   const tier = level;
-  if (tier === "not_regulated" && card.state === SIN_REGISTRO_STATE) return null;
+  // Nothing on record, nothing claimed: a not-yet-applicable card (T1-G1) is
+  // "Sin registro" with a date attached, so it drops the same way.
+  if (tier === "not_regulated" && (card.state === SIN_REGISTRO_STATE || card.notYetRequired)) {
+    return null;
+  }
   const tone: ComplianceTone = card.tone === "over" || card.tone === "due" ? "neutral" : card.tone;
   return {
     ...card,
@@ -881,7 +1042,7 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
   // M counts MANDATORY obligations only (CS4): recommended / not_regulated
   // cards are visible but never enter the compliance percentage. Legacy
   // callers (no `obligations`) mark nothing, so countable === cards.
-  const countable = cards.filter((c) => c.requirementTier === undefined);
+  const countable = cards.filter((c) => c.requirementTier === undefined && !c.notYetRequired);
   const total = countable.length;
   // `currencyKnown === false` is a dose on record whose vigencia is unknowable.
   // It is NOT "al día": counting it produced "3 de 3 al día" beside a card the

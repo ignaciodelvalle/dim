@@ -18,6 +18,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { appointments, db, timeSlots } from "@/db";
 import { matchesDbError } from "@/lib/infra/db-errors";
 import { generateAppointmentToken } from "@/lib/infra/publicToken";
+import { slotRuleIsLive } from "@/lib/infra/slot-rule-liveness";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 
 import type { BookSlotResult } from "./types";
@@ -72,6 +73,7 @@ export async function bookSlotWriter(
           startsAt: timeSlots.startsAt,
           status: timeSlots.status,
           serviceOfferingId: timeSlots.serviceOfferingId,
+          ruleLive: sql<boolean>`${slotRuleIsLive()}`,
         })
         .from(timeSlots)
         .where(eq(timeSlots.id, slotId))
@@ -88,6 +90,15 @@ export async function bookSlotWriter(
       }
       if (slot.startsAt <= new Date()) {
         throw new BookingError("El turno ya pasó.");
+      }
+      // T1-L16: the rule that materialised this slot must still stand for its
+      // date. Deleting (archiving) or pausing a rule, or moving its
+      // effective_until earlier, never touched the slots already materialised
+      // 60 days ahead — they stayed bookable. Re-checked HERE, under the lock,
+      // rather than by cancelling slots on delete: nothing is written to a slot
+      // that already holds appointments, so those stay exactly as they were.
+      if (!slot.ruleLive) {
+        throw new BookingError("Este horario ya no está en la agenda del prestador.");
       }
 
       // Identity guard — this pet must not already hold this slot. Capacity was

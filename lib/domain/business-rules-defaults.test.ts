@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BUSINESS_RULES_DEFAULTS,
+  complianceRuleParams,
   microchipObligationApplies,
   microchipObligationRuleInfo,
   obligationRuleInfo,
@@ -137,5 +138,34 @@ describe("microchipObligationRuleInfo — OR5 parity with microchipObligationApp
     expect(microchipObligationRuleInfo({ payload: { required: false } }).requirementLevel).toBe(
       "not_regulated",
     );
+  });
+});
+
+// T1-G1 — the payload half of the rabies + sterilization rules reaches the
+// compliance projection. Each field is mapped from ITS OWN key (distinct
+// values, so a swapped key fails), and the empty defaults claim nothing.
+describe("complianceRuleParams — payload fields the projection computes with", () => {
+  it("maps each operational field from its own payload key", () => {
+    expect(
+      complianceRuleParams(
+        { payload: { frequency_months: 12, min_age_months: 3 } },
+        { payload: { min_age_months: 5, mandatory_from_months: 7 } },
+      ),
+    ).toEqual({
+      rabies: { frequencyMonths: 12, minAgeMonths: 3 },
+      sterilization: { minAgeMonths: 5, mandatoryFromMonths: 7 },
+    });
+  });
+
+  it("the empty defaults map to nulls — nothing derived without a rule row", () => {
+    expect(
+      complianceRuleParams(
+        { payload: BUSINESS_RULES_DEFAULTS.rabies_vaccination },
+        { payload: BUSINESS_RULES_DEFAULTS.sterilization },
+      ),
+    ).toEqual({
+      rabies: { frequencyMonths: null, minAgeMonths: null },
+      sterilization: { minAgeMonths: null, mandatoryFromMonths: null },
+    });
   });
 });

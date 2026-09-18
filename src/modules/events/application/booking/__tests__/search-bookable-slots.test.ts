@@ -225,8 +225,11 @@ describe("searchBookableOfferings — the slot window", () => {
     });
 
     const query = compile(control.captured[1]?.where);
+    // The rule-liveness term (T1-L16, lib/infra/slot-rule-liveness.ts) is the
+    // same predicate bookSlotWriter re-checks under the lock, so this read never
+    // advertises a slot of a deleted/paused/ended schedule rule.
     expect(query.sql).toBe(
-      '("time_slots"."service_offering_id" in ($1) and "time_slots"."status" = $2 and "time_slots"."starts_at" >= $3 and "time_slots"."starts_at" <= $4 and "time_slots"."bookings_count" < "time_slots"."capacity")',
+      `("time_slots"."service_offering_id" in ($1) and "time_slots"."status" = $2 and ("time_slots"."rule_id" is null or exists (select 1 from service_schedule_rules ssr where ssr.id = "time_slots"."rule_id" and ssr.status = 'active' and ("time_slots"."starts_at" at time zone ssr.timezone)::date >= ssr.effective_from and (ssr.effective_until is null or ("time_slots"."starts_at" at time zone ssr.timezone)::date <= ssr.effective_until))) and "time_slots"."starts_at" >= $3 and "time_slots"."starts_at" <= $4 and "time_slots"."bookings_count" < "time_slots"."capacity")`,
     );
     // The capacity comparison carries NO param — it is two identifiers, which is
     // what makes it mean "this slot has room" rather than "this slot has room

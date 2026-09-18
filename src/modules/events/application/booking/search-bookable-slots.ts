@@ -65,6 +65,7 @@ import {
   localitiesCoveringSearch,
   offeringCoverageLabel,
 } from "@/lib/domain/jurisdiction-canonical";
+import { slotRuleIsLive } from "@/lib/infra/slot-rule-liveness";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 
 /**
@@ -388,6 +389,7 @@ export async function searchBookableOfferings(args: {
           offeringRows.map((r) => r.offeringId),
         ),
         eq(timeSlots.status, "open"),
+        slotRuleIsLive(),
         gte(timeSlots.startsAt, windowStart),
         lte(timeSlots.startsAt, windowEnd),
         hasRoom(),
@@ -459,6 +461,7 @@ export async function readBookableOffering(args: {
       and(
         eq(timeSlots.serviceOfferingId, row.offeringId),
         eq(timeSlots.status, "open"),
+        slotRuleIsLive(),
         gte(timeSlots.startsAt, args.now),
         lte(timeSlots.startsAt, windowEnd),
         hasRoom(),

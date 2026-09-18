@@ -21,6 +21,7 @@ import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site
 import { checkChipMatchesCanonical } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { matchesDbError } from "@/lib/infra/db-errors";
+import { createNotification } from "@/lib/infra/notification-service";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { parseDateInput } from "@/lib/utils/format";
@@ -255,6 +256,28 @@ export async function markAppointmentAttendedWriter(
         });
       }
     });
+
+    // 6. Tell the owner (T1-L5). Cancel-by-org in this same module always did;
+    // attend and no-show wrote nothing, so an owner learned their turno was
+    // closed only by opening /mis-turnos. OUTSIDE the transaction on purpose
+    // (ARCH-P): createNotification never throws and dead-letters on failure,
+    // so a notification fault can never roll back the medical event. The
+    // dedupe key is per appointment AND outcome — an appointment reaches
+    // `attended` at most once (the conditional flip above), so a retry of the
+    // same call collapses instead of notifying twice.
+    if (appointment.ownerUserId) {
+      await createNotification({
+        userId: appointment.ownerUserId,
+        notificationType: "appointment_attended",
+        title: "Turno atendido",
+        body: `Registramos la atención de ${pet.name}. Ya figura en su libreta.`,
+        severity: "info",
+        ctaLabel: "Ver mis turnos",
+        ctaUrl: "/mis-turnos",
+        relatedPetId: pet.id,
+        dedupeKey: `appointment:${appointment.id}:attended`,
+      });
+    }
 
     return { ok: true };
   } catch (err: unknown) {
