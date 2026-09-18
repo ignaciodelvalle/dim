@@ -26,16 +26,14 @@ import {
   INTAKE_CSV_MAX_ROWS,
   decodeIntakeCsv,
   findExactDuplicateRows,
-  mapIntakeCsvRecord,
   sniffIntakeCsvDelimiter,
 } from "@/lib/domain/intake-csv";
-import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { deriveBulkIdempotencyKey } from "@/lib/events/event-idempotency";
-import { lookupByChip } from "@/lib/infra/chip-lookup";
-import { lookupByTattoo } from "@/lib/infra/tattoo-lookup";
 import { pluralizeEs } from "@/lib/utils/format";
 import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { createIntake, parseIntakeForm } from "@/src/modules/pets/application/intake/create-intake";
+import { createIntake } from "@/src/modules/pets/application/intake/create-intake";
+
+import { buildRowFormData, validateIntakeRows } from "./validate-rows";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,65 +68,6 @@ export type ImportIntakeRowResult = {
 export type ImportIntakeRowsResult =
   | { ok: true; results: ImportIntakeRowResult[] }
   | { error: string };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function buildRowFormData(fields: Record<string, string>): FormData {
-  const fd = new FormData();
-  for (const [key, value] of Object.entries(fields)) {
-    if (typeof value === "string" && value !== "") fd.set(key, value);
-  }
-  return fd;
-}
-
-/**
- * Chip/tattoo pre-checks (design D5). Chip collisions with lost/active/
- * deceased pets and possible tattoo matches all require the INDIVIDUAL form —
- * a bulk import must never auto-confirm an identity match, and the
- * photo-verification rule for tattoos is non-negotiable.
- */
-async function identifierPrecheckErrors(fields: Record<string, string>): Promise<string[]> {
-  const errors: string[] = [];
-
-  const chip = fields.microchipId ?? "";
-  if (chip) {
-    const chipValidation = validateMicrochipId(chip);
-    if (!chipValidation.ok) {
-      errors.push("microchip: formato inválido (15 dígitos ISO 11784/11785)");
-    } else {
-      const match = await lookupByChip(chipValidation.normalized);
-      if (match) {
-        if (match.pet.status === "lost") {
-          errors.push(
-            "microchip: coincide con una mascota perdida en miMAR — usá el formulario individual para confirmar la coincidencia",
-          );
-        } else if (match.pet.status === "active") {
-          errors.push(
-            "microchip: ya registrado para una mascota activa con familia — usá el formulario individual",
-          );
-        } else {
-          errors.push(
-            "microchip: asociado a una mascota registrada como fallecida — requiere revisión, usá el formulario individual",
-          );
-        }
-      }
-    }
-  }
-
-  const tattoo = fields.tattooCode ?? "";
-  if (tattoo) {
-    const tattooMatch = await lookupByTattoo(tattoo);
-    if (tattooMatch && tattooMatch.pet.status !== "deceased") {
-      errors.push(
-        "tatuaje: posible coincidencia con una mascota registrada — requiere verificación por foto, usá el formulario individual",
-      );
-    }
-  }
-
-  return errors;
-}
 
 // ---------------------------------------------------------------------------
 // validateIntakeCsvAction
@@ -188,28 +127,13 @@ export async function validateIntakeCsvAction(
 
   const duplicates = findExactDuplicateRows(records);
 
-  const rows: IntakeCsvRowPreview[] = [];
-  for (const [index, record] of records.entries()) {
-    const { fields, errors } = mapIntakeCsvRecord(record);
-
-    if (errors.length === 0) {
-      // The EXACT write-time rules — preview and write can never diverge (D1).
-      const { error: parseError } = parseIntakeForm(buildRowFormData(fields));
-      if (parseError) errors.push(parseError);
-    }
-
-    if (errors.length === 0) {
-      errors.push(...(await identifierPrecheckErrors(fields)));
-    }
-
-    rows.push({
-      index,
-      record,
-      fields,
-      valid: errors.length === 0,
-      errors,
-      duplicate: duplicates.has(index),
-    });
+  // Up to two lookups per row, under a budget (L-15) — see validate-rows.ts.
+  const rows = await validateIntakeRows(records, duplicates);
+  if (rows === null) {
+    return {
+      error:
+        "La validación del archivo tardó demasiado y la cortamos. No se importó nada. Probá de nuevo en unos minutos o dividí el archivo en partes más chicas.",
+    };
   }
 
   return { ok: true, fileHash, rows };

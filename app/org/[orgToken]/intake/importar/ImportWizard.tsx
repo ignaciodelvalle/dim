@@ -10,11 +10,24 @@
 // Only VALID rows are ever submitted (spec 1.4); at zero valid rows the
 // confirm CTA is disabled (spec 1.9). Exact full-row duplicates get a visual
 // warning but import normally — littermates are legitimate (spec 1.10).
+//
+// A TANDA THAT THROWS ENDS THE RUN IN AN HONEST STATE (L-15). A chunk that
+// RETURNS an error is reported per row and the run goes on; a chunk whose call
+// THROWS (network cut, lambda killed, deploy mid-import) used to escape
+// confirmImport entirely — the wizard sat on "Importando…" forever and the
+// report of the rows already written was lost with it. Now the run stops at
+// that tanda and lands on the report: the rows already written, plus how to
+// finish. Resuming needs no new mechanism — it already existed and nothing on
+// screen said so: every row's idempotency key is derived from the FILE's hash
+// and the row's position, so re-uploading the SAME, UNMODIFIED file re-sends
+// the written rows as no-ops and writes only the rest. An edited file has a
+// different hash, which is why the copy insists on "sin modificarlo".
 
 import { useRef, useState } from "react";
 
 import { OpButton, OpFileInput } from "@/components/ui/dashboard";
 import { buildFailedRowsCsv } from "@/lib/domain/intake-csv";
+import { pluralizeEs } from "@/lib/utils/format";
 
 import {
   type ImportIntakeRowResult,
@@ -63,6 +76,12 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
   } | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [results, setResults] = useState<ImportIntakeRowResult[]>([]);
+  // Set when a tanda THREW and the run stopped short (see the header).
+  const [interrupted, setInterrupted] = useState<{
+    atChunk: number;
+    totalChunks: number;
+    notConfirmed: number;
+  } | null>(null);
   // Hiding the native control also hides the filename it used to print, so the
   // wizard now owns that feedback (OpFileInput `status`).
   const [selectedFileName, setSelectedFileName] = useState("");
@@ -91,7 +110,13 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
       }
       setPreview({ fileHash: res.fileHash, rows: res.rows });
       setResults([]);
+      setInterrupted(null);
       setStep("preview");
+    } catch {
+      // Nothing is written by validation, so the honest message is short.
+      setError(
+        "No pudimos validar el archivo. No se importó nada. Probá de nuevo en unos minutos.",
+      );
     } finally {
       setValidating(false);
     }
@@ -103,14 +128,32 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
     const chunks = chunkRows(rowsToImport, CHUNK_SIZE);
 
     setStep("importing");
+    setInterrupted(null);
     setProgress({ done: 0, total: chunks.length });
 
     const accumulated: ImportIntakeRowResult[] = [];
-    for (const chunk of chunks) {
-      const res = await importIntakeRowsAction(orgToken, {
-        fileHash: preview.fileHash,
-        rows: chunk,
-      });
+    for (const [chunkIndex, chunk] of chunks.entries()) {
+      let res: Awaited<ReturnType<typeof importIntakeRowsAction>>;
+      try {
+        res = await importIntakeRowsAction(orgToken, {
+          fileHash: preview.fileHash,
+          rows: chunk,
+        });
+      } catch {
+        // The call itself died: whether THIS tanda's rows were written is
+        // unknown, and the later tandas were never sent. Stop here and show
+        // what is known — the same-file re-upload settles the rest without
+        // duplicates (see the header).
+        const unconfirmed = chunks.slice(chunkIndex).reduce((n, c) => n + c.length, 0);
+        setResults(accumulated);
+        setInterrupted({
+          atChunk: chunkIndex + 1,
+          totalChunks: chunks.length,
+          notConfirmed: unconfirmed,
+        });
+        setStep("report");
+        return;
+      }
       if ("error" in res) {
         // A whole-chunk failure (auth loss, transient) still lands in the
         // report per row — a row that passed preview MAY fail at confirm and
@@ -126,6 +169,15 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
 
     setResults(accumulated);
     setStep("report");
+  }
+
+  function restartWithSameFile() {
+    setPreview(null);
+    setResults([]);
+    setInterrupted(null);
+    setSelectedFileName("");
+    setError(null);
+    setStep("upload");
   }
 
   function downloadFailedRowsCsv() {
@@ -346,6 +398,33 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-mute">
             Resultado de la importación
           </h2>
+
+          {interrupted && (
+            <div
+              role="alert"
+              className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-3 text-md text-ln-op-ink"
+            >
+              <p className="font-medium text-ln-op-warn">
+                La importación se cortó en la tanda {interrupted.atChunk} de{" "}
+                {interrupted.totalChunks}.
+              </p>
+              <p>
+                {results.length === 0
+                  ? "No llegamos a confirmar ninguna fila antes del corte."
+                  : "Las filas de abajo ya quedaron registradas."}{" "}
+                Quedan {interrupted.notConfirmed} {pluralizeEs(interrupted.notConfirmed, "fila")}{" "}
+                sin confirmar: las de la tanda que se cortó pueden haberse registrado o no.
+              </p>
+              <p>
+                Para terminar, volvé a subir el mismo archivo, sin modificarlo. Las filas que ya
+                están registradas se reconocen y no se duplican (en el resultado van a figurar otra
+                vez como importadas); solo se registran las que faltan.
+              </p>
+              <OpButton type="button" variant="primary" onClick={restartWithSameFile}>
+                Volver a subir el archivo
+              </OpButton>
+            </div>
+          )}
 
           <ul className="divide-y divide-ln-op-line rounded-[var(--radius-md)] border border-ln-op-line">
             {results.map((result) => (
