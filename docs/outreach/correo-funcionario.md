@@ -14,10 +14,7 @@ Le escribo porque MiMAR resuelve algo que hoy vive en planillas sueltas: **ver, 
 
 No es una libreta digital para el dueño de la mascota. Es la herramienta de su oficina: alarmas de lo que no puede ignorar hoy, colas de trabajo con decisión documentada (Ley 25.326), y exportes que alimentan lo que ya usa (SENASA, fiscalía, Excel) en vez de pedirle reescribir todo.
 
-Preparé un acceso de demostración con datos sintéticos para que lo vea con sus propios ojos, sin instalar nada:
-
-**Entrá a:** https://dim-staging.vercel.app/login
-**Usuario:** govt@dim.test · **Contraseña:** Test1234!
+Puedo mostrárselo en vivo, en una demo de 5 minutos, sobre **www.mimar.com.ar** — o si prefiere avanzar directamente, le creamos una cuenta institucional para su jurisdicción y le llega el acceso por mail (elige su propia contraseña al entrar, nosotros no la vemos ni la mandamos por otro medio).
 
 Con eso, en tres pasos ve el corazón:
 1. **Panel** — las alarmas del día (rabia fuera de los 10 días, denuncia crítica sin asignar, brote en barrio de baja cobertura).
@@ -39,8 +36,8 @@ MiMAR — Mi Mascota Argentina
 
 **Antes de mandar:**
 - Reemplazá `[JURISDICCIÓN]`, `[Nombre, Cargo]` y la firma. El asunto con el nombre de SU municipio/provincia sube muchísimo la tasa de apertura.
-- `govt@dim.test` es el operador de CABA (ciudad completa). Si el destinatario es de otra provincia, avisale en el correo que la cuenta demo está cargada con datos de CABA, o pedime una cuenta demo con el scope de su jurisdicción.
-- Verificá que el QR y los datos estén vivos: abrí `https://dim-staging.vercel.app/p/DIM-PAMP-0001` (la mascota insignia, Pampa) antes de enviar.
+- No hay cuenta de prueba genérica para compartir por correo: la cuenta institucional se crea desde `/admin/govts/new` con las localidades reales de esa jurisdicción (ver `docs/pilotos/onboarding-municipio.md`), y el acceso le llega a la persona por mail — no se comparte una contraseña por escrito.
+- Verificá que el QR y los datos estén vivos: abrí `https://www.mimar.com.ar/p/DIM-PAMP-0001` (la mascota insignia, Pampa) antes de enviar.
 
 **Qué NO prometer** (honestidad = la ventaja ante un funcionario):
 - No digas "integrado con SENASA/Mi Argentina" — eso es roadmap post-piloto, no está hoy.
