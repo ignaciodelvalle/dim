@@ -831,7 +831,7 @@ describe("professionalCloseObservation — the vet's negative waits for the dead
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toBe(
-      "Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio. Registrá la muerte desde la libreta de Luna y avisá ahora a la autoridad sanitaria de tu localidad. Después del 24 de septiembre de 2026 a las 09:00 podés registrarlo acá.",
+      "Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio: avisá ahora a la autoridad sanitaria de tu localidad. Desde la clínica no se registra la muerte; pedile a quien tiene a Luna a su cargo que la registre desde su libreta, y eso también le llega a la autoridad. Después del 24 de septiembre de 2026 a las 09:00 podés cerrar la observación acá.",
     );
     expectNothingWritten(deps);
   });

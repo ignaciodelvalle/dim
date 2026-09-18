@@ -217,8 +217,15 @@ export function vetRefusalMessage(
       return `Todavía no podés registrar un resultado negativo: el período de observación termina el ${formatObservationEnd(deadline)}, y los signos de rabia pueden aparecer hasta el último día. Antes de esa fecha sólo podés registrar un resultado positivo.`;
     case "lost_to_followup_never":
       return `Desde la clínica no podés cerrar la observación como “sin seguimiento”: ${petName} está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad, que es quien cierra una observación sin seguimiento.`;
+    // It used to say "registrá la muerte desde la libreta de {pet}". A walk-in
+    // veterinarian has no such door: the web death form sits behind
+    // requirePetAccess and the API's appendDeath behind PetHolderAccess, both of
+    // which admit only whoever HOLDS the animal, and Atender offers no death
+    // kind. So the copy now names what the vet can do (tell the authority) and
+    // who can record the death (whoever holds the animal — whose record also
+    // fires the urgent death-in-observation alert to the authority).
     case "dead_before_deadline":
-      return `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio. Registrá la muerte desde la libreta de ${petName} y avisá ahora a la autoridad sanitaria de tu localidad. Después del ${formatObservationEnd(deadline)} podés registrarlo acá.`;
+      return `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio: avisá ahora a la autoridad sanitaria de tu localidad. Desde la clínica no se registra la muerte; pedile a quien tiene a ${petName} a su cargo que la registre desde su libreta, y eso también le llega a la autoridad. Después del ${formatObservationEnd(deadline)} podés cerrar la observación acá.`;
   }
 }
 

@@ -102,7 +102,7 @@ export function CloseObservationForm({
       ? `El resultado negativo se habilita cuando termina el período de observación, el ${negativeLockedUntil}: los signos de rabia pueden aparecer hasta el último día.`
       : null,
     deadLockedUntil
-      ? `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que toma la muestra para el laboratorio: registrá la muerte desde la libreta y avisale ahora. Acá se habilita desde el ${deadLockedUntil}.`
+      ? `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que toma la muestra para el laboratorio: avisale ahora. Desde la clínica no se registra la muerte; pedile a quien tiene al animal a su cargo que la registre desde su libreta. Acá se habilita desde el ${deadLockedUntil}.`
       : null,
     withholdLostToFollowup
       ? "“Sin seguimiento” no se registra desde la clínica: el animal está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad."

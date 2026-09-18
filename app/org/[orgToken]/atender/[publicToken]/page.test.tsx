@@ -183,6 +183,12 @@ describe("atender sign page — the observation close waits for the deadline", (
     expect(html).toContain(
       "Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que toma la muestra para el laboratorio",
     );
+    // A walk-in vet has no door to record a death (the web form and the API
+    // both require holding the animal): the copy names who does, not "registrá".
+    expect(html).toContain(
+      "Desde la clínica no se registra la muerte; pedile a quien tiene al animal a su cargo que la registre desde su libreta.",
+    );
+    expect(html).not.toContain("registrá la muerte desde la libreta");
   });
 
   it("never offers 'sin seguimiento' to the vet, and says why — before or after the deadline", async () => {
