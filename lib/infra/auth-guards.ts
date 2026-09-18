@@ -21,6 +21,7 @@ import {
 } from "@/lib/infra/request-cache";
 import type { createClient } from "@/lib/supabase/server";
 import { FIRST_ACCESS_PATH } from "@/src/modules/auth/domain/first-access";
+import { MFA_CHALLENGE_PATH, MFA_ENROL_PATH } from "@/src/modules/auth/domain/mfa-policy";
 
 export type AuthenticatedSession = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -108,6 +109,11 @@ export async function requireUserOrRedirect(returnTo?: string): Promise<Authenti
     // plain NO_SESSION bounce, which would send the person to a login they have
     // no password for.
     if (live.passwordSetupPending) redirect(FIRST_ACCESS_PATH);
+    // Second factor (T2-S6): an institutional session that signed in but has
+    // not passed TOTP (or has no factor yet) goes to the step it owes, with the
+    // attempted path preserved. Before the NO_SESSION bounce for the same reason
+    // as first access: the login page would send them straight back here.
+    if (live.mfaPending) redirect(await mfaStepPath(live.mfaPending, returnTo));
     if (live.reason === "NO_SESSION") {
       redirect(
         returnTo ? `/iniciar-sesion?returnTo=${encodeURIComponent(returnTo)}` : "/iniciar-sesion",
@@ -123,6 +129,15 @@ export async function requireUserOrRedirect(returnTo?: string): Promise<Authenti
   }
 
   return { supabase: live.supabase, user: live.user };
+}
+
+// Where an institutional session that owes its second factor goes (T2-S6),
+// carrying the attempted path — the caller's, or the full URL middleware
+// stamped — so the operator lands back on it after the six digits.
+async function mfaStepPath(pending: "enrol" | "challenge", returnTo?: string): Promise<string> {
+  const base = pending === "enrol" ? MFA_ENROL_PATH : MFA_CHALLENGE_PATH;
+  const target = returnTo ?? (await currentReturnTo());
+  return target ? `${base}?returnTo=${encodeURIComponent(target)}` : base;
 }
 
 export type OrgAccessSession = AuthenticatedSession & {

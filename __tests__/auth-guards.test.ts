@@ -36,7 +36,13 @@ vi.mock("next/navigation", () => ({
 // ---------------------------------------------------------------------------
 
 const mockGetUser = vi.fn();
-const mockSupabaseClient = { auth: { getUser: () => mockGetUser() } };
+// getSession carries the access token whose `aal` claim the second-factor policy
+// reads (T2-S6). Default: no session token → the claim is unknown → the policy
+// fails open, which is what every pre-MFA test in this file relies on.
+const mockGetSession = vi.fn();
+const mockSupabaseClient = {
+  auth: { getUser: () => mockGetUser(), getSession: () => mockGetSession() },
+};
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => mockSupabaseClient),
@@ -88,6 +94,7 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_MAINTENANCE_MODE", "0");
   // Default: no session (safest default — each test sets what it needs)
   mockGetUser.mockResolvedValue(noSession());
+  mockGetSession.mockResolvedValue({ data: { session: null } });
 });
 
 afterEach(() => {
@@ -262,6 +269,61 @@ describe("requireUserOrRedirect", () => {
       const result = await requireUserOrRedirect();
       expect(result.user.id).toBe("user-invited");
     }
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Second factor (T2-S6) — institutional sessions go to /mfa or /mfa/configurar
+// ---------------------------------------------------------------------------
+
+describe("second factor for institutional accounts (T2-S6)", () => {
+  const govt = {
+    id: "user-govt",
+    role: "govt",
+    displayName: "Funcionaria",
+    accountType: "institutional",
+    deactivatedAt: null,
+    deletedAt: null,
+  };
+  const verifiedTotp = [{ id: "f-1", factor_type: "totp", status: "verified" }];
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const tokenAt = (aal: string) => `${b64({ alg: "HS256" })}.${b64({ aal, amr: [] })}.sig`;
+
+  function signedIn(factors: unknown[] | undefined, aal: string, profile: object = govt) {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-govt", email: "g@x.test", factors } },
+      error: null,
+    });
+    mockGetSession.mockResolvedValue({ data: { session: { access_token: tokenAt(aal) } } });
+    mockGetProfileCached.mockResolvedValue(profile);
+    mockGetJurisdictionsCached.mockResolvedValue([]);
+  }
+
+  it("sends an institutional account with no verified factor to enrol", async () => {
+    signedIn([{ id: "f-0", factor_type: "totp", status: "unverified" }], "aal1");
+    await expect(requireGobReadAccessOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mfa/configurar");
+  });
+
+  it("sends a verified-factor account still at aal1 to the challenge, keeping returnTo", async () => {
+    signedIn(verifiedTotp, "aal1");
+    await expect(requireUserOrRedirect("/gob/cola")).rejects.toThrow(
+      "NEXT_REDIRECT:/mfa?returnTo=%2Fgob%2Fcola",
+    );
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/mfa");
+  });
+
+  it("lets an aal2 session with a verified factor through", async () => {
+    signedIn(verifiedTotp, "aal2");
+    const result = await requireAdminOrGovtOrRedirect();
+    expect(result.profile.role).toBe("govt");
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("does not ask a personal account for a second factor", async () => {
+    signedIn(undefined, "aal1", { ...govt, role: "owner", accountType: "personal" });
+    const result = await requireUserOrRedirect();
+    expect(result.user.id).toBe("user-govt");
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

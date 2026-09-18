@@ -23,6 +23,7 @@ import { createInstitutionalAccountForAuthority as _createInstitutional } from "
 import { deactivateAdminForAuthority as _deactivateAdmin } from "@/src/modules/organizations/application/admin-institutional/deactivate-admin";
 import { deactivateGovtForAuthority as _deactivateGovt } from "@/src/modules/organizations/application/admin-institutional/deactivate-govt";
 import { resetInstitutionalCredentialsForAuthority as _resetCredentials } from "@/src/modules/organizations/application/admin-institutional/reset-institutional-credentials";
+import { resetMfaFactorsForAuthority as _resetMfaFactors } from "@/src/modules/organizations/application/admin-institutional/reset-mfa-factors";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -32,6 +33,7 @@ export type { AssignGovtLocalityResult } from "@/src/modules/organizations/appli
 export type { CreateInstitutionalResult } from "@/src/modules/organizations/application/admin-institutional/types";
 export type { DeactivateResult } from "@/src/modules/organizations/application/admin-institutional/types";
 export type { ResetCredentialsResult } from "@/src/modules/organizations/application/admin-institutional/types";
+export type { ResetMfaFactorsResult } from "@/src/modules/organizations/application/admin-institutional/reset-mfa-factors";
 
 // ---------------------------------------------------------------------------
 // Action wrappers — thin controllers for UI components
@@ -91,6 +93,17 @@ export async function resetInstitutionalCredentialsAction(input: {
   if ("error" in result) {
     revalidatePath("/admin/govts");
     revalidatePath(`/admin/govts/${input.targetUserId}`);
+  }
+  return result;
+}
+
+// T2-S6: admin-assisted second-factor recovery (no Supabase recovery codes).
+export async function resetMfaFactorsAction(input: { targetUserId: string; reason: string }) {
+  const { user } = await requireAdminOrRedirect();
+  const result = await _resetMfaFactors(user.id, input);
+  if ("ok" in result) {
+    revalidatePath(`/admin/govts/${input.targetUserId}`);
+    revalidatePath(`/admin/admins/${input.targetUserId}`);
   }
   return result;
 }

@@ -267,7 +267,8 @@ The PO may report things he sees while testing. Those go to the state topic as n
 | What | Why it is his |
 |---|---|
 | Change `admin@dim.test`'s password from the Supabase dashboard before day 1 (the repo publishes the current one, on a superadmin, on a reachable domain). | A secret. Recommend it in every tanda report until done. |
-| Enable leaked-password protection (Pro plan — already Pro), set `minimum_password_length = 8` + complexity, `otp_length = 8`, `otp_expiry = 600`, `secure_password_change = true` on the hosted project. | Hosted Auth settings. |
+| Enable leaked-password protection (Pro plan — already Pro), set `minimum_password_length = 8` + complexity, `otp_length = 8`, `otp_expiry = 600`, `secure_password_change = true` (dashboard: Authentication → "Secure password change") on the hosted project. The last one closes what app code cannot (T2-S1): a stolen access token calling GoTrue's `/auth/v1/user` directly. The app's own doors already work with it ON — `/cuenta/contrasena` updates through a seconds-old proof session, the recovery form through a fresh recovery session. | Hosted Auth settings. |
+| Confirm TOTP MFA is enabled (enroll + verify) on the hosted project (dashboard: Authentication → Multi-Factor). Institutional accounts cannot enter any portal without it since T2-S6; the runbook is `docs/pilotos/onboarding-municipio.md` §3.1. | Hosted Auth setting. |
 | Confirm `CRON_ALERT_WEBHOOK` is set in Vercel; decide PITR. | Env var and billing. |
 | Play: production access after the 14-day closed test (~2026-09-26); discard the stray draft of release 12; Data Safety form. | Store account. |
 | Convenio with the municipality; who is data controller and who is processor (Ley 25.326 art. 25); registry inscription (art. 21); the controller's name and address for `/privacidad` and `/terminos`. | Legal; needs a lawyer. |

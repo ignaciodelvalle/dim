@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
+import { ResetMfaButton } from "@/app/admin/_components/ResetMfaButton";
 import { DeactivateAdminActions } from "@/app/admin/admins/_components/DeactivateAdminForm";
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
@@ -175,6 +176,9 @@ export default async function AdminDetailPage({
                 email={email}
                 detailPath={`/admin/admins/${target.id}`}
               />
+            )}
+            {!isSelf && (
+              <ResetMfaButton targetUserId={target.id} displayName={target.displayName} />
             )}
           </div>
         </section>

@@ -1,6 +1,6 @@
 {
   "app/actions/admin-decisions.ts": 3,
-  "app/actions/admin-institutional.ts": 3,
+  "app/actions/admin-institutional.ts": 4,
   "app/actions/admin-proposals.ts": 2,
   "app/actions/admin-revocations.ts": 2,
   "app/actions/alert-firings.ts": 6,

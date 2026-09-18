@@ -101,6 +101,7 @@
 // for operators.
 
 import { reportError } from "@/lib/infra/report-error";
+import { verifiedTokenClaims } from "@/lib/infra/verified-token-claims";
 
 /**
  * One workday. The duration `[auth.sessions] timebox` used to impose on
@@ -114,36 +115,9 @@ export const OPERATOR_SHIFT_EXPIRED_MESSAGE =
 
 type AmrEntry = { method?: unknown; timestamp?: unknown };
 
-/**
- * Decode a JWT's payload segment WITHOUT verifying it.
- *
- * Private on purpose: nothing outside this module should be able to reach a
- * decode-without-verify. The only exported entry point takes a token the caller
- * has already had validated by GoTrue.
- *
- * `atob` rather than `Buffer` so the module stays usable from the Edge runtime
- * if the enforcement point ever moves into middleware. Returns null on anything
- * unexpected — a malformed token is not this function's problem to report; the
- * caller that could not have got here without a validated token decides what an
- * absent answer means.
- */
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  const segments = token.split(".");
-  if (segments.length !== 3) return null;
-  const payload = segments[1];
-  if (!payload) return null;
-  try {
-    // base64url → base64, then pad to a multiple of 4.
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-    const json = atob(padded);
-    const parsed: unknown = JSON.parse(json);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
-    return parsed as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
+// The decode-without-verify lives in ./verified-token-claims.ts, shared with the
+// recovery form and MFA enforcement. It is still reachable only through entry
+// points that name the precondition: a token `getUser()` has just validated.
 
 /**
  * The instant this session was authenticated, from the `amr` claim.
@@ -186,8 +160,7 @@ export function sessionStartFromClaims(claims: Record<string, unknown> | null): 
  * verify the signature and must never be handed a raw cookie value.
  */
 export function verifiedSessionStart(accessToken: string | null | undefined): Date | null {
-  if (!accessToken) return null;
-  return sessionStartFromClaims(decodeJwtPayload(accessToken));
+  return sessionStartFromClaims(verifiedTokenClaims(accessToken));
 }
 
 export type OperatorShiftInput = {

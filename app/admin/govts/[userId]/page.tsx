@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 
 import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentialsButton";
+import { ResetMfaButton } from "@/app/admin/_components/ResetMfaButton";
 import { AssignLocalityForm } from "@/app/admin/govts/_components/AssignLocalityForm";
 import { DeactivateGovtActions } from "@/app/admin/govts/_components/DeactivateGovtForm";
 import { RevokeLocalityRowActions } from "@/app/admin/govts/_components/RevokeLocalityRowActions";
@@ -265,6 +266,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
               email={email}
               detailPath={`/admin/govts/${govt.id}`}
             />
+            <ResetMfaButton targetUserId={govt.id} displayName={govt.displayName} />
           </div>
         </section>
       )}

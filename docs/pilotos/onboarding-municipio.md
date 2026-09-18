@@ -134,6 +134,44 @@ Desde `/admin/govts/[userId]` (la página de detalle del operador):
 
 Ambas acciones son admin-only.
 
+### 3.1 Verificación en dos pasos (TOTP) — obligatoria para cuentas institucionales
+
+Toda cuenta institucional (`govt`, `national`, `admin`) pide, además de la
+contraseña, un código de 6 números de una app de autenticación (Google
+Authenticator, Microsoft Authenticator, 1Password…). Lo exige el servidor en
+cada portal y en cada acción (`requireLiveUser`, `src/modules/auth/domain/mfa-policy.ts`),
+leyendo el nivel de la sesión del token que GoTrue firmó — no algo que diga el
+navegador.
+
+- **Primer ingreso.** Después de elegir la contraseña en `/primer-acceso`, la
+  persona cae en `/mfa/configurar`: escanea el QR (o carga la clave a mano),
+  escribe el primer código y entra. Avisale antes de la reunión que va a
+  necesitar el teléfono con una de esas apps instalada. Queda en el audit log
+  como `mfa_factor_enrolled`.
+- **Cada ingreso siguiente.** Contraseña y después `/mfa` con el código de la
+  app. Sin el código no llega a ninguna pantalla de `/gob` ni `/admin`.
+- **Perdió el teléfono o borró la app — no hay códigos de recuperación.**
+  Supabase no los ofrece y no los construimos. La salida es asistida: otra
+  persona admin, desde `/admin/govts/[userId]` (o `/admin/admins/[userId]`),
+  usa **Restablecer segundo factor** (`ResetMfaButton`,
+  `reset-mfa-factors.ts`). Pide motivo, borra todos los factores de la cuenta
+  y queda en el audit log como `mfa_factors_reset_by_admin` con los ids
+  borrados. En su próximo ingreso, con su contraseña, la persona configura una
+  app nueva. **Antes de apretar el botón, confirmá la identidad por otro
+  canal** (llamada al teléfono institucional, no un mail): es exactamente cómo
+  se desarma el control para una cuenta. Un admin no puede restablecer su
+  propio factor; si el único admin pierde el teléfono, hace falta otra cuenta
+  admin — tené siempre dos.
+- **La app móvil no sirve para cuentas institucionales.** Las rutas `/api/v1`
+  aplican la misma regla y la app no tiene el paso del código, así que una
+  cuenta institucional queda afuera con "sesión expirada". Es a propósito: los
+  portales de operador son web.
+
+Qué tiene que tener encendido el proyecto de Supabase (lo toca el PO, ver
+`docs/handoff/rumbo-al-piloto.md` §7): **Authentication → Multi-Factor →
+TOTP** habilitado para enrolar y verificar (viene encendido por defecto en
+proyectos hospedados; confirmalo), y **Secure password change** encendido.
+
 ## 4. Aprobar veterinarios y organizaciones — `/gob/cola`
 
 Una vez que la persona entró, puede operar la cola de aprobaciones de su
@@ -236,7 +274,8 @@ y esta ruta no cambia.
 - [ ] Si corresponde, la cuenta `national` de observador creada
 - [ ] Confirmado que el mail de acceso salió, o el link copiado y enviado
       a mano
-- [ ] La persona entró, fijó su contraseña en `/primer-acceso`
+- [ ] La persona entró, fijó su contraseña en `/primer-acceso` y configuró
+      la verificación en dos pasos en `/mfa/configurar` (§3.1)
 - [ ] Reglas de la jurisdicción cargadas por nosotros en `/gob/reglas`
 - [ ] Verificado en vivo: la cola (`/gob/cola`) muestra únicamente lo de
       su jurisdicción, sin filas sintéticas

@@ -2418,6 +2418,13 @@ export const AUDIT_LOG_ACTIONS = [
   "admin_deactivated_by_admin",
   "govt_deactivated_by_admin",
   "operator_credentials_reset",
+  // T2-S6 (migration 0229): TOTP second factor for institutional accounts.
+  // enrolled — the account holder verified a new factor at /mfa/configurar.
+  // reset_by_admin — an admin removed every factor of another institutional
+  // account (lost phone); the next sign-in enrols again. Payload carries the
+  // removed factor ids, never a secret.
+  "mfa_factor_enrolled",
+  "mfa_factors_reset_by_admin",
   "govt_locality_assigned",
   "institutional_create_orphan_auth_user", // compensating-delete failure leak log
   // Slice 3a: user self-service profile edits
