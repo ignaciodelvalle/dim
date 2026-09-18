@@ -426,13 +426,15 @@ export const profiles = pgTable(
     // Daily operator digest (T2-N1, migration 0230). Opt-out is per-account,
     // defaults to false (institutional operators are subscribed by default —
     // the digest only ever fires for a role that actually holds a queue).
-    // dailyDigestLastSentOn is the idempotency watermark: the cron does
-    // `UPDATE ... WHERE daily_digest_last_sent_on IS DISTINCT FROM $today
-    // RETURNING id` before composing the mail, so a retried run (or a second
-    // dispatcher pass the same day) cannot double-send — the row-level lock on
-    // that UPDATE serializes concurrent attempts for the same user for free,
-    // no separate dedupe table needed. AR calendar day (see
-    // lib/infra/daily-operator-digest.ts), not UTC.
+    // dailyDigestLastSentOn is the idempotency watermark: the cron claims it
+    // with a conditional UPDATE (compare-and-swap, `IS DISTINCT FROM $today`)
+    // immediately before the send — after composing the mail, not before — so
+    // a retried run (or a second dispatcher pass the same day) cannot
+    // double-send; the row-level lock on that UPDATE serializes concurrent
+    // attempts for the same user for free, no separate dedupe table needed. A
+    // failed send puts the previous value back so a retry can resend (security
+    // review 2026-09-18; migration 0230's header describes the first version).
+    // AR calendar day (see lib/infra/daily-operator-digest.ts), not UTC.
     dailyDigestOptOut: boolean("daily_digest_opt_out").notNull().default(false),
     dailyDigestLastSentOn: date("daily_digest_last_sent_on"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
