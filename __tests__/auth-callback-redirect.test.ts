@@ -35,6 +35,7 @@ vi.mock("@/lib/infra/role-landing", async (importOriginal) => {
 });
 
 import { GET } from "@/app/auth/callback/route";
+import { safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
 
 const ORIGIN = "http://localhost:3000";
@@ -82,6 +83,51 @@ describe("auth/callback open-redirect defense", () => {
   it("resolves org-aware landing when no next is provided", async () => {
     const location = await locationFor({ code: "abc" });
     expect(location).toBe(`${ORIGIN}/inicio`);
+  });
+
+  it("rejects a tab-smuggled next (/\\t/evil.com) that the URL parser would turn into //evil.com", async () => {
+    const location = await locationFor({ code: "abc", next: "/\t/evil.com" });
+    expect(location).toBe(`${ORIGIN}/inicio`);
+    expect(location).not.toContain("evil.com");
+  });
+});
+
+// safeReturnTo directly — the same guard feeds /mfa and /mfa/configurar, whose
+// client forms hand the result to window.location.assign. The attack string is
+// the review's: `/mfa?returnTo=%2F%2509%2Fevil.com` arrives at the server as
+// "/%09/evil.com", decodes to "/\t/evil.com", and a browser parser strips the
+// tab before resolving — landing on //evil.com.
+describe("safeReturnTo refuses anything a browser would resolve off-origin", () => {
+  it.each([
+    ["encoded tab", "/%09/evil.com"],
+    ["encoded LF", "/%0A/evil.com"],
+    ["encoded CR", "/%0D/evil.com"],
+    ["raw tab", "/\t/evil.com"],
+    ["raw LF", "/\n/evil.com"],
+    ["tab before the second slash at the start", "/%09%2Fevil.com"],
+    ["encoded backslash", "/%5Cevil.com"],
+    ["encoded backslash after a slash", "/%5C/evil.com"],
+    ["NUL", "/%00/evil.com"],
+    ["DEL", "/%7F/evil.com"],
+    ["C1 control", "/%C2%85/evil.com"],
+    ["protocol-relative", "//evil.com"],
+    ["encoded protocol-relative", "%2F%2Fevil.com"],
+    ["absolute", "https://evil.com"],
+    ["javascript scheme", "javascript:alert(1)"],
+  ])("%s → null", (_label, input) => {
+    expect(safeReturnTo(input)).toBeNull();
+  });
+
+  it.each([
+    ["/gob", "/gob"],
+    [
+      "/mis-mascotas/DIM-1234-5678?tab=salud#vacunas",
+      "/mis-mascotas/DIM-1234-5678?tab=salud#vacunas",
+    ],
+    ["%2Fadmin%2Fgovts", "/admin/govts"],
+    ["/buscar?q=perro%20negro", "/buscar?q=perro negro"],
+  ])("keeps the same-origin path %s", (input, expected) => {
+    expect(safeReturnTo(input)).toBe(expected);
   });
 });
 

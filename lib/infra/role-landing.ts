@@ -202,6 +202,29 @@ export async function resolveUserLanding(userId: string): Promise<string> {
 // single "/" are allowed — rejects protocol-relative ("//evil.com"),
 // backslash tricks, and absolute URLs. Returns null when the input is unsafe,
 // so callers can fall back to their role-based default.
+//
+// CONTROL CHARACTERS ARE REFUSED OUTRIGHT (2026-09-18). The string checks
+// alone were not enough: `/%09/evil.com` decodes to "/\t/evil.com", which
+// passes a "starts with one slash" test — and the WHATWG URL parser, which is
+// what `window.location.assign` and every browser `Location` follow, STRIPS
+// tab, LF and CR before parsing, so the browser saw "//evil.com" and left the
+// origin. A legitimate in-app path never carries a control character, so any
+// of them (C0, DEL, C1) is a refusal rather than something to clean up.
+//
+// And the verdict is then asked of the parser itself, not re-derived from the
+// string: resolved against a placeholder origin, the path must stay on that
+// origin and its pathname must start with exactly one "/". Whatever other
+// normalisation a parser applies, the answer is the parser's.
+const RETURN_TO_PROBE_ORIGIN = "https://return-to.invalid";
+
+function hasControlCharacter(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return true;
+  }
+  return false;
+}
+
 export function safeReturnTo(value: string | null | undefined): string | null {
   if (!value) return null;
   const decoded = (() => {
@@ -215,5 +238,15 @@ export function safeReturnTo(value: string | null | undefined): string | null {
   if (!decoded.startsWith("/")) return null;
   if (decoded.startsWith("//")) return null;
   if (decoded.includes("\\")) return null;
+  if (hasControlCharacter(decoded)) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(decoded, RETURN_TO_PROBE_ORIGIN);
+  } catch {
+    return null;
+  }
+  if (parsed.origin !== RETURN_TO_PROBE_ORIGIN) return null;
+  if (!parsed.pathname.startsWith("/") || parsed.pathname.startsWith("//")) return null;
   return decoded;
 }
