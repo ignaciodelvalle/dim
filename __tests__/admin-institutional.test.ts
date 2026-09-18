@@ -9,8 +9,10 @@
 //   - afterAll deletes them with app.allow_audit_mutation GUC
 //   - Each test calls the inner *ForAuthority writer directly (no Next.js runtime)
 
+import { randomUUID } from "node:crypto";
+
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The access-link mail goes out through Resend (security review, T1-P3). The
@@ -51,7 +53,15 @@ vi.mock(
   },
 );
 
-import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
+import {
+  attachments,
+  auditLog,
+  db,
+  govtAssignments,
+  notifications,
+  profiles,
+  rateLimitBuckets,
+} from "@/db";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import {
   FIRST_ACCESS_MESSAGES,
@@ -2099,5 +2109,34 @@ describe("accounts with a verified TOTP factor — the admin resets reach them (
 
     const { data: armed } = await adminSdk.auth.admin.getUserById(mfaGovtId);
     expect(armed.user?.app_metadata?.password_setup_pending).toBe(true);
+  }, 30_000);
+
+  it("MFA reset lifts the verification hook's lockout: this account's mfa_verify_fail rows go, nothing else", async () => {
+    await signInWithFactor();
+    const otherUser = randomUUID();
+    const expires = new Date(Date.now() + 86_400_000);
+    const own = [`mfa_verify_fail:${mfaGovtId}:hour:1`, `mfa_verify_fail:${mfaGovtId}:day:1`];
+    const kept = [`mfa_verify_fail:${otherUser}:hour:1`, `auth_mfa_code_user:${mfaGovtId}:1`];
+    await db
+      .insert(rateLimitBuckets)
+      .values([...own, ...kept].map((bucketKey) => ({ bucketKey, count: 20, expiresAt: expires })))
+      .onConflictDoNothing();
+    try {
+      const result = await resetMfaFactorsForAuthority(deactivateActorId, {
+        targetUserId: mfaGovtId,
+        reason: RESET_REASON,
+      });
+      if ("error" in result) throw new Error(result.error);
+
+      const left = await db
+        .select({ key: rateLimitBuckets.bucketKey })
+        .from(rateLimitBuckets)
+        .where(inArray(rateLimitBuckets.bucketKey, [...own, ...kept]));
+      expect(left.map((r) => r.key).sort()).toEqual([...kept].sort());
+    } finally {
+      await db
+        .delete(rateLimitBuckets)
+        .where(inArray(rateLimitBuckets.bucketKey, [...own, ...kept]));
+    }
   }, 30_000);
 });
