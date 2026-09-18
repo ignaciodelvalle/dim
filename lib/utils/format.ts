@@ -1078,7 +1078,9 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   admin_event_amended: "Evento corregido por admin",
   // Appointments
   appointment_cancelled_by_org: "Turno cancelado por la organización",
+  appointment_attended: "Turno atendido",
   appointment_cancelled_by_owner: "Turno cancelado",
+  appointment_no_show: "Turno ausente",
   // Approval requests
   approval_request_approved: "Solicitud aprobada",
   approval_request_auto_expired: "Solicitud vencida automáticamente",

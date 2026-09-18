@@ -13,6 +13,9 @@
 //
 // All DB rows seeded and cleaned in beforeAll/afterAll.
 
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -41,6 +44,7 @@ import {
 } from "@/lib/infra/publicToken";
 import { cancelAppointmentByOrg } from "@/src/modules/events/application/attendance/cancel-appointment-by-org";
 import { markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
+import { markAppointmentNoShow } from "@/src/modules/events/application/attendance/mark-appointment-no-show";
 import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -609,6 +613,23 @@ describe("markAppointmentAttendedWriter", () => {
     expect(remRows.length).toBeGreaterThan(0);
     expect(remRows[0]!.reminderType).toBe("vaccine");
     expect(remRows[0]!.dueAt?.toISOString()).toBe("2027-05-18T12:00:00.000Z");
+
+    // T1-L5: the owner is told, with a CTA to their turnos, keyed to THIS
+    // appointment and outcome.
+    const ownerNotifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.dedupeKey, `appointment:${vaccinationApptId}:attended`));
+    expect(ownerNotifs).toHaveLength(1);
+    expect(ownerNotifs[0]).toMatchObject({
+      userId: ownerUserId,
+      notificationType: "appointment_attended",
+      title: "Turno atendido",
+      body: "Registramos la atención de Attendance Test Dog. Ya figura en su libreta.",
+      ctaLabel: "Ver mis turnos",
+      ctaUrl: "/mis-turnos",
+      relatedPetId: petId,
+    });
   });
 
   it("invalid payload (missing vaccine_name) — returns error, no event inserted", async () => {
@@ -660,33 +681,76 @@ describe("markAppointmentAttendedWriter", () => {
   });
 });
 
-describe("markAppointmentNoShowAction", () => {
-  it("no-show: sets status + no pet_event emitted", async () => {
+describe("markAppointmentNoShow", () => {
+  it("no-show: sets status, emits no pet_event, and notifies the owner once", async () => {
     const eventCountBefore = await db.$count(petEvents, eq(petEvents.petId, petId));
 
-    // markAppointmentNoShowAction needs an authenticated session.
-    // Test the DB mutation directly to keep tests fast.
-    const now = new Date();
-    await db
-      .update(appointments)
-      .set({
-        status: "no_show",
-        noShowMarkedAt: now,
-        notesFromOrg: "Did not arrive",
-        updatedAt: now,
-      })
-      .where(eq(appointments.id, noShowApptId));
+    const result = await markAppointmentNoShow(noShowApptId, "No llegó");
+    expect(result).toEqual({ ok: true });
 
     const [appt] = await db
-      .select({ status: appointments.status })
+      .select({ status: appointments.status, notesFromOrg: appointments.notesFromOrg })
       .from(appointments)
       .where(eq(appointments.id, noShowApptId))
       .limit(1);
 
     expect(appt!.status).toBe("no_show");
+    expect(appt!.notesFromOrg).toBe("No llegó");
 
     const eventCountAfter = await db.$count(petEvents, eq(petEvents.petId, petId));
     expect(eventCountAfter).toBe(eventCountBefore);
+
+    // T1-L5: the owner is told, keyed to this appointment and outcome.
+    const ownerNotifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.dedupeKey, `appointment:${noShowApptId}:no_show`));
+    expect(ownerNotifs).toHaveLength(1);
+    expect(ownerNotifs[0]).toMatchObject({
+      userId: ownerUserId,
+      notificationType: "appointment_no_show",
+      title: "Turno marcado como ausente",
+      body: "El turno de Attendance Test Dog quedó registrado como ausente. Motivo: No llegó",
+      severity: "warning",
+      ctaLabel: "Ver mis turnos",
+      ctaUrl: "/mis-turnos",
+      relatedPetId: petId,
+    });
+
+    // A second no-show on the same appointment is refused and notifies nobody.
+    const again = await markAppointmentNoShow(noShowApptId, "No llegó");
+    expect(again).toMatchObject({ error: expect.stringContaining("ya fue procesado") });
+    const total = await db.$count(
+      notifications,
+      and(
+        eq(notifications.userId, ownerUserId),
+        eq(notifications.notificationType, "appointment_no_show"),
+      ),
+    );
+    expect(total).toBe(1);
+  });
+});
+
+// T1-L5 fence: every outcome writer of the attendance module tells the owner.
+// The set is DERIVED from the directory, not listed, so a fourth outcome writer
+// enters scope the moment it is written. Comment lines are dropped first so a
+// comment that merely mentions the call cannot satisfy it.
+describe("attendance outcome writers — owner is always notified", () => {
+  it("every writer in the attendance module writes an owner notification", () => {
+    const dir = join(process.cwd(), "src/modules/events/application/attendance");
+    const writers = readdirSync(dir).filter(
+      (name) => name.endsWith(".ts") && name !== "types.ts" && !name.includes(".test."),
+    );
+    // Non-vacuity: cancel, attend and no-show at least.
+    expect(writers.length).toBeGreaterThanOrEqual(3);
+    const silent = writers.filter((name) => {
+      const code = readFileSync(join(dir, name), "utf8")
+        .split("\n")
+        .filter((line) => !line.trim().startsWith("//") && !line.trim().startsWith("*"))
+        .join("\n");
+      return !/createNotifications?(Bulk)?\(|\.insert\(notifications\)/.test(code);
+    });
+    expect(silent).toEqual([]);
   });
 });
 
