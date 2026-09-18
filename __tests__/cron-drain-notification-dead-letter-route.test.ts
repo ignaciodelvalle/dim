@@ -11,6 +11,7 @@
 //   7. Global failure (select throws) → ok:false + HTTP 500
 //   8. Recipient erased (profile deleted_at set) → not replayed, redacted (A06-G2)
 //   9. Every resolve drops the payload (A06-G1) and error_message (HIGH-1)
+//  10. A row resolved between scan and lock is not replayed (LOW-1)
 //
 // Mocks @/db (cronRuns, notificationDeadLetter, profiles, db) + @/lib/infra/notification-service.
 
@@ -37,7 +38,12 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
   /** Table sentinel, so the select double can tell the profile lookup apart. */
   const PROFILES = { __table: "profiles" };
 
-  function buildDbMock(rows: Row[], selectThrows = false, erasedUserIds: string[] = []) {
+  function buildDbMock(
+    rows: Row[],
+    selectThrows = false,
+    erasedUserIds: string[] = [],
+    concurrentlyResolvedIds: string[] = [],
+  ) {
     const cronInsertReturningMock = vi.fn().mockResolvedValue([{ id: FAKE_RUN_ID }]);
     const cronInsertValuesMock = vi.fn().mockReturnValue({ returning: cronInsertReturningMock });
     const insertMock = vi.fn().mockReturnValue({ values: cronInsertValuesMock });
@@ -51,25 +57,39 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
       ? vi.fn().mockRejectedValue(new Error("db down"))
       : vi.fn().mockResolvedValue(rows);
     const orderByMock = vi.fn().mockReturnValue({ limit: limitMock });
-    const whereMock = vi.fn().mockReturnValue({ orderBy: orderByMock });
-    // The recipient lookup: select().from(profiles).where().limit(). Every
+    // The in-transaction re-read of the dead letter: select().from().where().for("update"),
+    // one per replayable row, in row order. A row named in concurrentlyResolvedIds
+    // was resolved (and redacted) between the scan and the lock (LOW-1).
+    const replayable = rows.filter(
+      (r) => typeof (r.payload as { title?: unknown } | null)?.title === "string",
+    );
+    const lockQueue = [...replayable];
+    const lockDeadLetterMock = vi.fn(async () => {
+      const row = lockQueue.shift();
+      if (!row) return [];
+      return concurrentlyResolvedIds.includes(row.id)
+        ? [{ resolvedAt: new Date(), payload: {} }]
+        : [{ resolvedAt: null, payload: row.payload }];
+    });
+    const whereMock = vi.fn().mockReturnValue({ orderBy: orderByMock, for: lockDeadLetterMock });
+    // The recipient lock: select().from(profiles).where().for("share"). Every
     // recipient is a live profile unless the test names it as erased.
     let profileLookupUserId = "";
+    const profileLockMock = vi.fn(async (_mode: string) => [
+      { deletedAt: erasedUserIds.includes(profileLookupUserId) ? new Date() : null },
+    ]);
     const profileChain = {
       where: vi.fn(() => profileChain),
-      limit: vi.fn(async () => [
-        { deletedAt: erasedUserIds.includes(profileLookupUserId) ? new Date() : null },
-      ]),
+      for: profileLockMock,
     };
     const fromMock = vi.fn((table: unknown) =>
       table === PROFILES ? profileChain : { where: whereMock },
     );
     // The route asks about one recipient at a time, in row order — an
     // unreplayable row never reaches the lookup, so it is not queued.
-    const recipientQueue = rows
-      .map((r) => (r.payload as { userId?: unknown; title?: unknown }) ?? {})
-      .filter((p) => typeof p.title === "string")
-      .map((p) => String(p.userId));
+    const recipientQueue = replayable.map((r) =>
+      String((r.payload as { userId?: unknown }).userId),
+    );
     const selectMock = vi.fn(() => ({
       from: (table: unknown) => {
         if (table === PROFILES) profileLookupUserId = recipientQueue.shift() ?? "";
@@ -77,12 +97,15 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
       },
     }));
 
-    const dbMock = {
+    const dbMock: Record<string, unknown> = {
       insert: insertMock,
       update: updateMock,
       select: selectMock,
     };
-    return { dbMock, updateSetMock };
+    // The replay runs in a transaction; the double hands the same chains to it.
+    const transactionMock = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(dbMock));
+    dbMock.transaction = transactionMock;
+    return { dbMock, updateSetMock, transactionMock, lockDeadLetterMock, profileLockMock };
   }
 
   function mockDeps(
@@ -90,8 +113,10 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     createResults: Array<{ status: "inserted" | "duplicate" | "dead_lettered" }>,
     selectThrows = false,
     erasedUserIds: string[] = [],
+    concurrentlyResolvedIds: string[] = [],
   ) {
-    const { dbMock, updateSetMock } = buildDbMock(rows, selectThrows, erasedUserIds);
+    const { dbMock, updateSetMock, transactionMock, lockDeadLetterMock, profileLockMock } =
+      buildDbMock(rows, selectThrows, erasedUserIds, concurrentlyResolvedIds);
     vi.doMock("@/db", () => ({
       db: dbMock,
       cronRuns: {},
@@ -114,7 +139,7 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
       createNotification: createMock,
     }));
 
-    return { createMock, updateSetMock };
+    return { createMock, updateSetMock, transactionMock, lockDeadLetterMock, profileLockMock };
   }
 
   const validPayload = {
@@ -253,6 +278,46 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     expect(resolving).toEqual([
       expect.objectContaining({ payload: {}, errorMessage: "[redacted]" }),
     ]);
+  });
+
+  // LOW-1: an erasure (or another run) that commits between the scan and the
+  // replay must win — the replay re-reads the row under lock and stands down.
+  it("does not replay a row resolved between the scan and the lock", async () => {
+    const { createMock, updateSetMock } = mockDeps(
+      [{ id: "dl-9", payload: validPayload }],
+      [{ status: "inserted" }],
+      false,
+      [],
+      ["dl-9"],
+    );
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, scanned: 1, resolved: 0, skippedConcurrent: 1 });
+    expect(createMock).not.toHaveBeenCalled();
+    // Nothing to resolve: the row is already resolved and redacted. (The one
+    // update left is the cron_runs bookkeeping.)
+    const resolving = updateSetMock.mock.calls.filter(
+      (c) => (c[0] as { resolvedAt?: unknown }).resolvedAt instanceof Date,
+    );
+    expect(resolving).toHaveLength(0);
+  });
+
+  it("replays inside a transaction holding the recipient FOR SHARE and the row FOR UPDATE", async () => {
+    const { transactionMock, lockDeadLetterMock, profileLockMock } = mockDeps(
+      [{ id: "dl-10", payload: validPayload }],
+      [{ status: "inserted" }],
+    );
+    await callRoute({ "x-cron-secret": "test-secret" });
+
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(profileLockMock).toHaveBeenCalledWith("share");
+    expect(lockDeadLetterMock).toHaveBeenCalledWith("update");
+    // Profile first, then the dead letter: erase_subject_data's order, so no deadlock.
+    expect(profileLockMock.mock.invocationCallOrder[0]).toBeLessThan(
+      lockDeadLetterMock.mock.invocationCallOrder[0],
+    );
   });
 
   it("returns ok:false + HTTP 500 when the scan throws", async () => {

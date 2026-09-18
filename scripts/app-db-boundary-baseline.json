@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "generatedAt": "2026-09-02",
+    "generatedAt": "2026-09-18",
     "description": "Canon B02 (PO 2026-09-02): writes go only through src/modules use cases. Every app/** file below already writes to the database directly and is grandfathered debt — the list may SHRINK, never grow. A new writer, a stale entry, or a changed write surface fails lint:app-db-boundary. `readers` is the tolerated read-path count (reported, never enforced); `spineWriters` counts app/** files inserting straight into petEvents and is pinned EXACTLY (invariant #2).",
-    "readers": 175,
+    "readers": 174,
     "spineWriters": 1
   },
   "writers": {
@@ -44,7 +44,7 @@
     },
     "app/api/cron/drain-notification-dead-letter/route.ts": {
       "kinds": ["insert", "update"],
-      "tables": ["cronRuns", "notificationDeadLetter"]
+      "tables": ["cronRuns"]
     },
     "app/api/cron/drain-outbox/route.ts": {
       "kinds": ["insert", "transaction", "update"],
