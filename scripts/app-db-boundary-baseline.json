@@ -58,10 +58,6 @@
       "kinds": ["insert", "update"],
       "tables": ["cronRuns"]
     },
-    "app/api/cron/refresh-cube/route.ts": {
-      "kinds": ["insert", "update"],
-      "tables": ["cronRuns"]
-    },
     "app/api/v1/me/caretaker-grants/commands.ts": {
       "kinds": ["insert"],
       "tables": ["auditLog"]
