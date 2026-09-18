@@ -69,7 +69,7 @@ jobs:
         #
         # The four DB-backed fences (lint:rls, lint:scope-authz, lint:spine,
         # lint:locality) are NOT here: this job has no Postgres, so all four
-        # would skip and report nothing. They run in the `test` job, which has
+        # would skip and report nothing. They run in the `test-shard` jobs, which have
         # the real stack.
         run: pnpm lint:authz
 
@@ -80,7 +80,7 @@ jobs:
         # indistinguishable from the absence of the act (Ley 25.326).
         #
         # Offline — pure static analysis over the "use server" surface, so it
-        # belongs in this job, not the DB-backed `test` job. Its own step (not
+        # belongs in this job, not the DB-backed `test-shard` jobs. Its own step (not
         # appended to a chain) so a failure names THIS fence, matching the
         # 2026-08-16 split that stopped one fence from starving the rest.
         # See scripts/check-audit-log-coverage.ts for the two anti-rot guards
@@ -541,7 +541,7 @@ jobs:
     #
     # It does NOT replay db/migrations/*.sql, despite what this comment said
     # until 2026-07-27. The check is schema.ts against itself via push
-    # idempotency; the migration tree is covered by the `test` job's bootstrap.
+    # idempotency; the migration tree is covered by the `test-shard` jobs' bootstrap.
     services:
       postgres:
         image: postgres:16
@@ -649,10 +649,50 @@ jobs:
           fi
           echo "::notice::Only known false-positive drifts detected (permanent_conditions, pulse_until, org_coverage constraint, govt_business_rules constraint, org_invitations index, expires_at default); treating as no-op."
 
-  test:
-    name: Tests (vitest)
+  test-shard:
+    name: Tests (vitest) · shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 2026-09-18: ONE JOB → FOUR SHARDS + A MERGE JOB (`test`, below). Read the
+    # history further down first; this is the "faster suite" it asked for.
+    #
+    # What the clock said. Run 35238180229 (the last green one) spent 25 min in
+    # the vitest step: unit project 2m40s (parallel), db project 18m25s
+    # (SERIAL — fileParallelism:false, one shared Postgres), then ~3m40s of v8
+    # → istanbul coverage conversion. Setup before it: ~4m45s. 1529 files then;
+    # 1562 now. The next two runs (35256428022, 35362940004) were killed at 30.
+    # The serial db lane is the whole problem, and no single-runner setting can
+    # parallelise it: its isolation is the reason it is serial.
+    #
+    # Sharding gives each slice its OWN runner, therefore its own Supabase
+    # stack — the db project stays serial INSIDE a shard, so the isolation it
+    # declared is intact; four shards just run four of those lanes side by side.
+    # `vitest --shard` slices by a hash of the path, deterministic run to run.
+    #
+    # Budget: expected ~13-15 min per shard (4m45s setup + ~1/4 of the suite +
+    # its share of coverage conversion). 25 is a stated ~10-min margin, not a
+    # hope. If a shard creeps past ~18, raise the shard COUNT (the matrix below
+    # and the `/4` in the vitest command), never this number.
+    #
+    # WHAT DID NOT CHANGE — the verdict. No shard grades anything: each writes a
+    # vitest blob (its file results, unhandled errors and coverage map), and the
+    # `test` job merges all four and runs the SAME `pnpm test:verified` over
+    # the merged report. check-suite-coverage still compares against every
+    # DISCOVERED file, so a shard that dies, times out, or never uploads shows
+    # up there as its files "never reported" — red, by name. The coverage
+    # floors are graded once, on the merged map (vitest.config.ts skips them
+    # only in a literal `--shard` run, which could not measure them honestly).
+    #
+    # Alternatives rejected: dropping coverage from the gate turns the V1-9
+    # ratchet floors into decoration; a bigger timeout is the bump the comment
+    # below already ruled out, and the suite grows every week.
+    timeout-minutes: 25
+    strategy:
+      # A failing shard must NOT cancel its siblings: the merge job would then
+      # report their files as missing, which reads as a dead worker and hides
+      # the actual failure behind three fake ones.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     # Tests need the full Supabase local stack (Postgres + GoTrue + PostgREST),
     # not just bare Postgres — 11 tests call admin.auth.admin.{listUsers,
@@ -695,6 +735,9 @@ jobs:
     # hang. If this ever creeps past ~25 again, the answer is a faster suite,
     # not another bump — raising it forever is how a timeout stops meaning
     # anything.
+    #
+    # 2026-09-18: it crept past 25 and then past 30 (see the shard note at the
+    # top of this job). That is the day the sharding above replaced the bump.
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
@@ -828,9 +871,15 @@ jobs:
       # See docs/plans/ola1-spec-conflicts.md §SC-1.
       # ---------------------------------------------------------------------
 
+      #
+      # SHARDING: the fences run on shard 1 only. They grade the schema, which
+      # is identical on all four stacks, so four copies would add nothing but
+      # four identical reds. Keep `matrix.shard == 1` on every fence below.
+      # ---------------------------------------------------------------------
+
       - name: "Fence: RLS coverage (lint:rls)"
         # Every public table has RLS enabled AND at least one policy.
-        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' && matrix.shard == 1 }}
         run: pnpm lint:rls
 
       - name: "Fence: subject-rights coverage (lint:subject-rights)"
@@ -839,29 +888,29 @@ jobs:
         # lists are verified BOTH ways against the live function bodies. The
         # omission this catches — a new PII table in neither RPC — is exactly
         # what happened to pet_caretaker_grants (0189 → 0205).
-        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' && matrix.shard == 1 }}
         run: pnpm lint:subject-rights
 
       - name: "Fence: jurisdiction scope ↔ RLS (lint:scope-authz)"
         # The jurisdiction WHERE-clauses are backed by a real RLS policy.
-        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' && matrix.shard == 1 }}
         run: pnpm lint:scope-authz
 
       - name: "Fence: event spine integrity (lint:spine)"
         # No pet exists as a cache row without its pet_registered event
         # (invariant #3 — caches never outrank the spine).
-        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' && matrix.shard == 1 }}
         run: pnpm lint:spine
 
       - name: "Fence: INDEC locality catalogue (lint:locality)"
-        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' && matrix.shard == 1 }}
         run: pnpm lint:locality
 
       - name: "Fence: breed/species catalogues (lint:catalogs)"
         # 2026-08-13: raza era texto libre y dos perros que la ley alcanza
         # estaban sin marcar por cómo se escribieron — "Pit Bull Terrier
         # Americano" y "Ovejero alemán".
-        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' && matrix.shard == 1 }}
         run: pnpm lint:catalogs
 
       - name: "Fence: live function bodies match their source (check:function-parity)"
@@ -891,23 +940,118 @@ jobs:
         # a FAILURE here") — never a silent skip. Verified locally 2026-08-16.
         # NOT added to `pnpm verify`: that would make the PO's DoD command
         # unrunnable without Docker up, which is a worse trade.
-        if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.seed.outcome == 'success' && matrix.shard == 1 }}
         run: pnpm check:function-parity
 
-      - name: Run tests with coverage (vitest) + suite verdict
+      - name: Run this shard's slice (vitest --shard, blob + coverage)
         # `if:` — see the fence block above. The suite must get its chance to
         # report even when a fence is red; the job stays red either way.
         if: ${{ !cancelled() && steps.seed.outcome == 'success' }}
+        # NOT `test:verified`, deliberately: a shard discovers 1562 files and
+        # runs a quarter of them, so the verdict here would name ~1170 files as
+        # "never reported". The verdict runs once, in the `test` job, over the
+        # merged blobs — see the note at the top of this job.
+        #
+        # This step still fails on its own when a test fails or a worker exits
+        # unexpectedly (vitest's exit code), so a red shard is visible where it
+        # happened; the `test` job then says which files and why.
+        #
+        # The blob carries this shard's coverage map; the ratchet floors are
+        # graded on the merged map, not here. Coverage's text table would be a
+        # quarter-suite number that means nothing, so the shard prints only a
+        # summary; the full table is printed by the merge.
+        run: >-
+          pnpm exec vitest run --shard=${{ matrix.shard }}/4
+          --reporter=default --reporter=blob
+          --coverage --coverage.reporter=text-summary
+
+      - name: Upload this shard's blob report
+        # `always()`: a shard that failed still carries the results the merge
+        # needs to NAME the failure. A shard that produced no blob at all (it
+        # died before writing one, or setup never reached vitest) uploads
+        # nothing, and the merge verdict lists its files as never reported.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-blob-${{ matrix.shard }}
+          path: .vitest-reports/
+          # upload-artifact >= 4.4 SKIPS dot-directories by default; without
+          # this the artifact is silently empty and every file reads as missing.
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: pnpm exec supabase stop --no-backup
+
+  test:
+    # The job that owns the verdict. Named "Tests (vitest)" so the check the
+    # run summary has always shown still means "the whole suite ran and
+    # passed" — which is now true of this job and of no single shard.
+    name: Tests (vitest)
+    runs-on: ubuntu-latest
+    needs: test-shard
+    # Runs whatever the shards did — failed, timed out or green — because the
+    # point of this job is to say WHICH files did not make it. Only a cancelled
+    # workflow skips it.
+    if: ${{ !cancelled() }}
+    # Download + merge + coverage merge of four maps: a few minutes. No
+    # database: nothing here executes a test.
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        # No `version:` input on purpose. The version comes from the
+        # `packageManager` field in the root package.json, which is the
+        # single place this repo pins pnpm — and this action FAILS when
+        # both are set and the strings differ ("11" is not "11.1.1").
+        # See docs/mobile/eas-build-profiles.md, "One pnpm, everywhere".
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download the shards' blob reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vitest-blob-*
+          merge-multiple: true
+          path: .vitest-reports/
+
+      - name: Merge shards (vitest) + coverage floors + suite verdict
+        # Runs even if the download failed (no shard uploaded anything): the
+        # verdict must still print, and with no blobs it fails loudly.
+        if: ${{ !cancelled() }}
         # Coverage-threshold enforcement (V1-9). The thresholds in
         # vitest.config.ts are RATCHET FLOORS set just under current coverage —
         # they prevent regression below today's level. vitest exits non-zero if
         # any glob drops below its floor. Raise the floors incrementally
-        # post-launch as coverage improves.
+        # post-launch as coverage improves. They are graded HERE, on the four
+        # shards' coverage maps merged into one.
         #
         # `test:verified` (not `test:coverage`) since 2026-08-09: it runs the
-        # SAME vitest with `--coverage` passed through, and then runs
+        # SAME vitest with the args passed through, and then runs
         # scripts/check-suite-coverage.ts — the check that asks "did every
-        # discovered test file actually REPORT?".
+        # discovered test file actually REPORT?". With `--merge-reports` the
+        # vitest it runs replays the shards' results instead of executing them,
+        # so the JSON report it grades is the union of all four shards and the
+        # discovered set is the whole tree, exactly as in the one-job layout.
+        # The merge also re-raises every unhandled error a shard recorded
+        # (a worker exit included), so vitest's own exit code is the same one a
+        # single run would have produced, and it is re-folded the same way.
+        #
+        # `--merge-reports=<dir>` with the `=`: run-verified-suite treats any
+        # bare positional as a FILE FILTER and skips the verdict, loudly.
         #
         # Why that matters here: vitest's exit code lies in both directions. A
         # worker that dies takes its files with it and the run still exits 0. It
@@ -916,11 +1060,7 @@ jobs:
         # `test:coverage` runs vitest alone, so the only thing standing between
         # a dead worker and a green build was the coverage thresholds noticing
         # the drop — an accidental guard, not a designed one.
-        run: pnpm test:verified -- --coverage
-
-      - name: Stop Supabase local stack
-        if: always()
-        run: pnpm exec supabase stop --no-backup
+        run: pnpm test:verified -- --merge-reports=.vitest-reports --coverage
 
   e2e:
     name: E2E (Playwright)

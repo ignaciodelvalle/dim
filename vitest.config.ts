@@ -32,6 +32,19 @@ const escapeGlob = (p: string): string => p.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&
 const dbInclude = dbFiles.map(escapeGlob);
 const unitInclude = unitFiles.map(escapeGlob);
 
+// A `--shard=i/N` run executes a SLICE of the suite, so its coverage is a slice
+// too: every file under coverage.include that another shard exercises reads as
+// uncovered here. Grading the ratchet floors against that would fail every
+// shard for a reason that is not a regression. CI's vitest job shards (see the
+// `test-shard` and `test` jobs in .github/workflows/ci.yml): each shard writes
+// a blob carrying its coverage map, and the merge run — which carries no
+// `--shard` — merges the maps and grades the floors against the WHOLE suite.
+//
+// Keyed on the literal flag, not an env var, on purpose: there is no knob that
+// turns the floors off. The only run that skips them is one that could not
+// measure them honestly anyway.
+const isShardRun = process.argv.some((a) => a === "--shard" || a.startsWith("--shard="));
+
 // Shared Vite layer — repeated per project because inline Vitest projects do
 // NOT inherit the root config's `plugins`/`resolve`.
 const sharedViteConfig = () => ({
@@ -140,25 +153,27 @@ export default defineConfig({
       // points UNDER the current measured coverage so CI prevents REGRESSION
       // without failing today. Raise them incrementally post-launch as coverage
       // improves — never lower a floor below what's achieved.
-      thresholds: {
-        "lib/business-rules-**": { branches: 80 },
-        "lib/**-rules/**": { branches: 80 },
-        "lib/**": { branches: 55 },
-        // RECALIBRATED 2026-07-28 to the first measurement anyone could
-        // reproduce. The 30 came from a local run; CI — clean checkout,
-        // bootstrapped DB, seeded population — measures 23,89%, and the local
-        // number cannot be re-checked because the coverage run OOMs a worker on
-        // this machine. A floor nobody can verify is not a ratchet.
-        //
-        // This is NOT accepting a regression: nothing dropped, the previous
-        // figure was calibrated against an environment that does not enforce
-        // anything. Raise it from CI's number as coverage improves — and never
-        // from a local one again.
-        "app/actions/**": { branches: 22 },
-        "app/api/**": { branches: 8 },
-        "src/modules/**/domain/**": { branches: 88 },
-        "src/modules/**": { branches: 55 },
-      },
+      thresholds: isShardRun
+        ? undefined
+        : {
+            "lib/business-rules-**": { branches: 80 },
+            "lib/**-rules/**": { branches: 80 },
+            "lib/**": { branches: 55 },
+            // RECALIBRATED 2026-07-28 to the first measurement anyone could
+            // reproduce. The 30 came from a local run; CI — clean checkout,
+            // bootstrapped DB, seeded population — measures 23,89%, and the local
+            // number cannot be re-checked because the coverage run OOMs a worker on
+            // this machine. A floor nobody can verify is not a ratchet.
+            //
+            // This is NOT accepting a regression: nothing dropped, the previous
+            // figure was calibrated against an environment that does not enforce
+            // anything. Raise it from CI's number as coverage improves — and never
+            // from a local one again.
+            "app/actions/**": { branches: 22 },
+            "app/api/**": { branches: 8 },
+            "src/modules/**/domain/**": { branches: 88 },
+            "src/modules/**": { branches: 55 },
+          },
     },
   },
 });
