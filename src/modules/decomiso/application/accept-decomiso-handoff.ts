@@ -35,6 +35,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase as libCloseCase, openCase as libOpenCase } from "@/lib/infra/case-helpers";
 
 import type { NewNotification } from "../domain/types";
+import { lockHandoffCaseOrThrow } from "./lock-handoff-case";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -193,6 +194,11 @@ export async function acceptDecomisoHandoffInTx(
   // opposite order — the 40P01 cycle. This function is the first call inside
   // its `db.transaction`, so this is the transaction's first statement.
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${caseRow.primaryPetId as string}))`);
+
+  // Re-check under a row lock what was validated before the transaction: the
+  // case is still open and still addressed to THIS org. A reassign that
+  // committed in between moved it away (lock-handoff-case.ts).
+  await lockHandoffCaseOrThrow(tx, caseRow.id, ctx.organization.id);
 
   // 6. custody_transferred (shelter_custody → shelter_custody, govt→receiver).
   const transferPayload = validateEventPayload("custody_transferred", {

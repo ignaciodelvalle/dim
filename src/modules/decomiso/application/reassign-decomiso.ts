@@ -14,7 +14,7 @@
 //   4. Notify the new receiver (decomiso_handoff_proposed_receiver).
 //   5. Audit log: decomiso_handoff_cancelled.
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   auditLog,
@@ -34,6 +34,7 @@ import {
   type DecomisoActorScope,
   actorCoversCaseJurisdiction,
 } from "./decomiso-jurisdiction-fence";
+import { lockHandoffCaseOrThrow } from "./lock-handoff-case";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -206,6 +207,14 @@ export async function reassignDecomisoInTx(
 ): Promise<{ ok: true; pendingNotifications: NewNotification[] }> {
   const now = new Date();
   const pendingNotifications: NewNotification[] = [];
+
+  // Same locks, same order, as acceptDecomisoHandoffInTx: the pet advisory lock
+  // (L-9) as the transaction's first statement, then the case row. Re-checks
+  // that the case is still open and still addressed to the receiver the pre-tx
+  // validation saw — an accept (or another reassign) that committed in between
+  // makes this one refuse instead of re-pointing a case already handed off.
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${caseRow.primaryPetId as string}))`);
+  await lockHandoffCaseOrThrow(tx, caseRow.id, caseRow.receiverOrganizationId);
 
   // 5. Emit note_added documenting the supersession.
   const cancelNotePayload = validateEventPayload("note_added", {
