@@ -1736,7 +1736,8 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 0226 — the erasure reaches the notification dead letter (A06-G2)
+// 0226 — the erasure reaches the notification dead letter (A06-G2), and 0228
+// redacts its error_message too (HIGH-1)
 // ---------------------------------------------------------------------------
 //
 // A dead letter stores the full notification insert, and the drain cron replays
@@ -1745,6 +1746,7 @@ describe("ARCH-H: trigger passthrough abuse rejection", () => {
 // art. 16 had just removed.
 describe("erase_subject_data — redacts the subject's notification dead letters (0226)", () => {
   const KEY_PREFIX = "sr-0226-dead-letter";
+  const NL = String.fromCharCode(10);
 
   function deadLetterFor(userId: string, suffix: string, resolved: boolean) {
     const dedupeKey = `${KEY_PREFIX}:${suffix}:${userId}`;
@@ -1757,7 +1759,9 @@ describe("erase_subject_data — redacts the subject's notification dead letters
         body: "Roberto Sánchez la tiene. Contacto: 11-9999-8888",
         dedupeKey,
       },
-      errorMessage: "pool blip: connection terminated",
+      // What drizzle's DrizzleQueryError put here before the write side was
+      // sanitised: the query and its params, i.e. the notification (0228).
+      errorMessage: `Failed query: insert into "notifications" ("user_id", "title") values ($1, $2)${NL}params: ${userId},Roberto Sánchez 11-9999-8888`,
       resolvedAt: resolved ? new Date("2026-09-01T12:00:00Z") : null,
     };
   }
@@ -1797,8 +1801,9 @@ describe("erase_subject_data — redacts the subject's notification dead letters
       expect(row.payload).toEqual({});
       // Marked resolved, so the drain never scans it again.
       expect(row.resolvedAt).not.toBeNull();
-      // What stays records THAT a delivery failed and when — not to whom or what.
-      expect(row.errorMessage).toBe("pool blip: connection terminated");
+      // error_message held the query params — the notification itself — so it
+      // is redacted too (0228 corrects 0226, which kept it).
+      expect(row.errorMessage).toBe("[redacted]");
       expect(row.dedupeKey).toMatch(new RegExp(`^${KEY_PREFIX}:`));
     }
     // A row already resolved keeps its original resolution time.
@@ -1813,6 +1818,7 @@ describe("erase_subject_data — redacts the subject's notification dead letters
       .where(eq(notificationDeadLetter.dedupeKey, `${KEY_PREFIX}:pending:${otherUserId}`));
     expect(row?.payload).toMatchObject({ userId: otherUserId, title: "Encontraron a Pochi" });
     expect(row?.resolvedAt).toBeNull();
+    expect(row?.errorMessage).toContain("params:");
   });
 
   it("counts the redaction in the subject_erasure audit payload", async () => {

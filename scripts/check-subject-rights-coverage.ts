@@ -232,7 +232,9 @@ export const CLASSIFICATION: Readonly<Record<string, Classification>> = {
   },
   // 0226: every dead letter addressed to the subject loses its payload and is
   // marked resolved, so the drain cron cannot replay a notification the
-  // erasure just redacted. The art. 14 side is still a gap —
+  // erasure just redacted. 0228: error_message is redacted too — it held
+  // drizzle's query params, i.e. the notification again (0226 wrongly called
+  // it harmless). The art. 14 side is still a gap —
   // export_subject_data does not return undelivered notifications.
   notification_dead_letter: {
     export: gap(

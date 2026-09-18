@@ -34,7 +34,10 @@
 //     is the belt-and-braces for a row that landed after the erasure ran.
 //   - EVERY resolve redacts the payload to `{}` (A06-G1). The payload is the
 //     full notification — title, body, a finder's phone — and once the row is
-//     resolved it is a second copy with no purpose. dedupe_key, error_message
+//     resolved it is a second copy with no purpose. error_message goes too
+//     (HIGH-1, migration 0228): rows written before the write side was
+//     sanitised hold drizzle's `Failed query … params: …`, i.e. the same
+//     notification again, so 0226's "error_message stays" was wrong. dedupe_key
 //     and the timestamps stay: they record that a delivery failed and when.
 //
 // Returns: { ok, scanned, resolved, stillFailing, invalid, skippedErased, runId } and HTTP 500
@@ -104,11 +107,22 @@ function toInput(payload: unknown): CreateNotificationInput | null {
  */
 const REDACTED_PAYLOAD = {};
 
-/** Mark a row resolved AND drop its payload, in one statement. */
+/**
+ * What a resolved dead letter keeps of its error_message. Same literal as
+ * erase_subject_data and the 0228 backfill.
+ */
+const REDACTED_ERROR_MESSAGE = "[redacted]";
+
+/** Mark a row resolved AND drop its payload and error_message, in one statement. */
 async function resolveAndRedact(id: string, now: Date): Promise<void> {
   await db
     .update(notificationDeadLetter)
-    .set({ retriedAt: now, resolvedAt: now, payload: REDACTED_PAYLOAD })
+    .set({
+      retriedAt: now,
+      resolvedAt: now,
+      payload: REDACTED_PAYLOAD,
+      errorMessage: REDACTED_ERROR_MESSAGE,
+    })
     .where(eq(notificationDeadLetter.id, id));
 }
 

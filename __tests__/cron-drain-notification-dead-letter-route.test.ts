@@ -10,7 +10,7 @@
 //   6. Malformed payload → invalid, row resolved so it stops blocking the scan
 //   7. Global failure (select throws) → ok:false + HTTP 500
 //   8. Recipient erased (profile deleted_at set) → not replayed, redacted (A06-G2)
-//   9. Every resolve drops the payload (A06-G1)
+//   9. Every resolve drops the payload (A06-G1) and error_message (HIGH-1)
 //
 // Mocks @/db (cronRuns, notificationDeadLetter, profiles, db) + @/lib/infra/notification-service.
 
@@ -237,6 +237,9 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
         .filter((set) => set.resolvedAt instanceof Date);
       expect(resolving).toHaveLength(1);
       expect(resolving[0].payload).toEqual({});
+      // HIGH-1: error_message may hold drizzle's query params — the same
+      // notification again — so the resolve clears it as well.
+      expect(resolving[0]).toMatchObject({ errorMessage: "[redacted]" });
     },
   );
 
@@ -247,7 +250,9 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     const resolving = updateSetMock.mock.calls
       .map((c) => c[0] as { resolvedAt?: unknown; payload?: unknown })
       .filter((set) => set.resolvedAt instanceof Date);
-    expect(resolving).toEqual([expect.objectContaining({ payload: {} })]);
+    expect(resolving).toEqual([
+      expect.objectContaining({ payload: {}, errorMessage: "[redacted]" }),
+    ]);
   });
 
   it("returns ok:false + HTTP 500 when the scan throws", async () => {

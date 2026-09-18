@@ -10,7 +10,7 @@
 //   3. fetchUnreadNotificationCount spans ALL rows, not just a page (review C.3)
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { DrizzleQueryError, and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // The Web Push leg is replaced with a spy so the suppressPush gate can be
@@ -23,7 +23,8 @@ vi.mock("@/lib/infra/web-push", () => ({
 
 import { db, notificationDeadLetter, notifications } from "@/db";
 import { fetchUnreadNotificationCount } from "@/lib/analytics/owner-dashboard";
-import { createNotification } from "@/lib/infra/notification-service";
+import { summarizeDeadLetterError } from "@/lib/infra/dead-letter-error-summary";
+import { createNotification, createNotificationsBulk } from "@/lib/infra/notification-service";
 import { sendPushForNotifications } from "@/lib/infra/web-push";
 import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
@@ -62,11 +63,15 @@ afterAll(async () => {
   await db
     .delete(notificationDeadLetter)
     .where(eq(notificationDeadLetter.dedupeKey, DEAD_LETTER_KEY));
+  await db
+    .delete(notificationDeadLetter)
+    .where(like(notificationDeadLetter.dedupeKey, `${PARAMS_KEY_PREFIX}%`));
   await admin.auth.admin.deleteUser(userId);
 });
 
 const DEDUPE_KEY = "test:notif-service:dedupe-1";
 const DEAD_LETTER_KEY = "test:notif-service:dead-letter-1";
+const PARAMS_KEY_PREFIX = "test:notif-service:dead-letter-params-";
 
 describe("createNotification — idempotency", () => {
   it("collapses two inserts with the same dedupeKey into one row", async () => {
@@ -219,5 +224,111 @@ describe("fetchUnreadNotificationCount — spans all rows, not one page", () => 
       );
     const afterRead = await fetchUnreadNotificationCount(userId, "custody");
     expect(afterRead).toBe(0);
+  });
+});
+
+// A Postgres error as postgres.js raises it: the server's `detail` carries row
+// values (a unique violation reads `Key (col)=(value)`), the identifiers do not.
+function postgresError(): Error {
+  return Object.assign(new Error('duplicate key value violates unique constraint "x"'), {
+    name: "PostgresError",
+    code: "23505",
+    constraint_name: "notifications_dedupe_key_uidx",
+    table_name: "notifications",
+    detail: "Key (dedupe_key)=(Juan Perez 11-5555-0000) already exists.",
+  });
+}
+
+const FINDER_TEXT = "Juan Perez 11-5555-0000";
+
+/** drizzle's wrapper: message = `Failed query: <sql>` + newline + `params: <params>`. */
+function drizzleQueryError(cause?: unknown): DrizzleQueryError {
+  return new DrizzleQueryError(
+    'insert into "notifications" ("user_id", "title", "body") values ($1, $2, $3)',
+    ["00000000-0000-0000-0000-000000000001", "Encontraron a Pampa", FINDER_TEXT],
+    cause as Error | undefined,
+  );
+}
+
+describe("summarizeDeadLetterError — no row data reaches error_message", () => {
+  it("keeps SQLSTATE and schema identifiers of a wrapped Postgres error, not params or detail", () => {
+    const summary = summarizeDeadLetterError(drizzleQueryError(postgresError()));
+    expect(summary).toBe(
+      "PostgresError: code=23505 constraint=notifications_dedupe_key_uidx table=notifications",
+    );
+  });
+
+  it("reduces a query wrapper with no coded cause to its name", () => {
+    const summary = summarizeDeadLetterError(drizzleQueryError(new Error("boom")));
+    expect(summary).toBe("Error");
+    expect(summary).not.toContain("params");
+    expect(summary).not.toContain(FINDER_TEXT);
+  });
+
+  it("keeps the first line of an uncoded error that is not a query dump", () => {
+    expect(summarizeDeadLetterError(new Error("Connection terminated\nsecond line"))).toBe(
+      "Error: Connection terminated",
+    );
+  });
+
+  it("never stringifies a thrown non-error", () => {
+    expect(summarizeDeadLetterError(FINDER_TEXT)).toBe("non-error thrown (string)");
+  });
+});
+
+describe("dead-letter rows carry no query params (single and bulk paths)", () => {
+  function clientThrowing(err: unknown) {
+    return {
+      insert: () => ({
+        values: () => ({
+          onConflictDoNothing: () => ({
+            returning: () => {
+              throw err;
+            },
+          }),
+        }),
+      }),
+    };
+  }
+
+  async function errorMessagesFor(keyPrefix: string): Promise<string[]> {
+    const rows = await db
+      .select({ errorMessage: notificationDeadLetter.errorMessage })
+      .from(notificationDeadLetter)
+      .where(like(notificationDeadLetter.dedupeKey, `${keyPrefix}%`));
+    return rows.map((r) => r.errorMessage ?? "");
+  }
+
+  it("createNotification stores the summary, not the DrizzleQueryError message", async () => {
+    const key = `${PARAMS_KEY_PREFIX}single`;
+    await createNotification(
+      { userId, notificationType: "test_notification", title: FINDER_TEXT, dedupeKey: key },
+      clientThrowing(drizzleQueryError(postgresError())),
+    );
+    const messages = await errorMessagesFor(key);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("code=23505");
+    expect(messages[0]).not.toContain("params");
+    expect(messages[0]).not.toContain(FINDER_TEXT);
+  });
+
+  it("createNotificationsBulk stores the summary on every row of a failed chunk", async () => {
+    const prefix = `${PARAMS_KEY_PREFIX}bulk-`;
+    const result = await createNotificationsBulk(
+      [0, 1].map((i) => ({
+        userId,
+        notificationType: "test_notification",
+        title: FINDER_TEXT,
+        dedupeKey: `${prefix}${i}`,
+      })),
+      clientThrowing(drizzleQueryError()),
+    );
+    expect(result.deadLetteredCount).toBe(2);
+    const messages = await errorMessagesFor(prefix);
+    expect(messages).toHaveLength(2);
+    for (const m of messages) {
+      expect(m).not.toContain("params");
+      expect(m).not.toContain(FINDER_TEXT);
+    }
   });
 });

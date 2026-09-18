@@ -31,6 +31,7 @@
 import "server-only";
 
 import { db as defaultDb, notificationDeadLetter, notifications } from "@/db";
+import { summarizeDeadLetterError } from "@/lib/infra/dead-letter-error-summary";
 import { sendPushForNotifications } from "@/lib/infra/web-push";
 import { sql } from "drizzle-orm";
 
@@ -255,7 +256,11 @@ async function deadLetter(
   err: unknown,
   client: DbOrTx,
 ): Promise<void> {
-  const errorMessage = err instanceof Error ? err.message : String(err);
+  // NEVER err.message: a DrizzleQueryError's message carries the query params,
+  // i.e. the whole notification (recipient, title, body, CTA) — and on the bulk
+  // path every recipient of the chunk. See lib/infra/dead-letter-error-summary.ts
+  // and migration 0228, which corrects 0226's claim that this column is harmless.
+  const errorMessage = summarizeDeadLetterError(err);
   try {
     // Dead-letter on the SHARED pool, not the caller's client: if `client` is a
     // transaction that just failed/aborted, further statements on it would also
