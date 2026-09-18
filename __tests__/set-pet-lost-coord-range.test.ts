@@ -130,6 +130,14 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
+// next/cache — setPetLostAction revalidates the owner page, the public
+// credential and the pet list on success (T1-C1, 2026-09-18), and the real
+// revalidatePath throws outside a Next request.
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+}));
+
 // ---------------------------------------------------------------------------
 // Imports (after all mocks)
 // ---------------------------------------------------------------------------
