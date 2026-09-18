@@ -15,6 +15,8 @@
 // @no-auth-required: anonymous finder submits the form via the public-finder
 // page. Rate-limited by (IP + publicToken) via the persistent DB-backed limiter
 // to mitigate abuse across all Vercel workers. Limit: 1/min, 10/hour per key.
+// And by the token alone (`found_notify_token`, lib/infra/anonymous-report-
+// limits.ts), so the addresses a sender controls no longer multiply the alerts.
 //
 // ARCH-P: a notification failure never surfaces an error to the anonymous
 // finder (they already submitted successfully at that point). What that
@@ -53,6 +55,10 @@
 import { randomUUID } from "node:crypto";
 
 import { db, pets } from "@/db";
+import {
+  ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL,
+  ANONYMOUS_REPORT_TOKEN_LIMIT,
+} from "@/lib/infra/anonymous-report-limits";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { resolveLostPetAlertRecipients } from "@/lib/infra/pet-alert-recipients";
 import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
@@ -157,6 +163,21 @@ export async function notifyOwnerOfFoundPet(
   // still an honest refusal.
   const recipients = await resolveLostPetAlertRecipients(pet.id);
   if (recipients.length === 0) return { ok: false, error: "No se encontró un dueño activo." };
+
+  // THE ANIMAL'S OWN CEILING (audit A03-2). The bucket above is per ADDRESS,
+  // and this action writes nothing but urgent notifications — so N addresses
+  // meant 10 × N "alguien encontró a tu mascota" an hour. This one is keyed on
+  // the token alone, and placed after every refusal that writes nothing; the
+  // derivation and the placement are in lib/infra/anonymous-report-limits.ts.
+  // The refusal tells a finder who HAS the animal what still works.
+  try {
+    await enforceRateLimit("found_notify_token", publicToken, ANONYMOUS_REPORT_TOKEN_LIMIT);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return { ok: false, error: ANONYMOUS_REPORT_TOKEN_BUSY_WITH_ANIMAL };
+    }
+    throw err;
+  }
 
   // Truncate finder-supplied strings so a notification cannot be used as a
   // payload-size vector. Plenty of room for a useful message.

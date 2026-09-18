@@ -18,6 +18,8 @@ import { notFound } from "next/navigation";
 import { db, organizationMemberships } from "@/db";
 import { queryPublicOfferings } from "@/lib/infra/org-public-offerings";
 import { queryOrgPublicProfile } from "@/lib/infra/org-public-profile";
+import { PUBLIC_BROWSE_READ_LIMIT } from "@/lib/infra/public-browse-limits";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { orgLogoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
@@ -86,12 +88,53 @@ export async function generateMetadata({
   };
 }
 
+function RefugioThrottleNotice() {
+  return (
+    <main className="min-h-screen bg-[var(--color-ln-paper)]">
+      <div className="mx-auto max-w-lg px-6 py-12 text-center space-y-3">
+        <h1 className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
+          Demasiadas consultas
+        </h1>
+        <p className="text-sm text-[var(--color-ln-ink-2)]">
+          Recibimos muchas consultas desde tu conexión en poco tiempo. Esperá un minuto y volvé a
+          intentarlo.
+        </p>
+        <Link
+          href="/refugios"
+          className="inline-block text-sm text-[var(--color-ln-azul)] underline"
+        >
+          Ver todos los refugios
+        </Link>
+      </div>
+    </main>
+  );
+}
+
 export default async function RefugioPage({
   params,
 }: {
   params: Promise<{ orgToken: string }>;
 }) {
   const { orgToken } = await params;
+
+  // PER-IP BUDGET BEFORE ANYTHING ELSE (audit A03-3). This route resolves an
+  // attacker-supplied org token into three queries per hit, the directory at
+  // /refugios hands out every token, and it had no limiter at all — the
+  // throttle census only looked for PET-token resolvers, so it never saw it.
+  // Its own bucket; the ceiling and why it fails open are derived in
+  // lib/infra/public-browse-limits.ts (crawlers are wanted here: the sitemap
+  // lists every shelter).
+  //
+  // Ahead of the session read too, not only the queries: `getUser()` is a
+  // GoTrue round-trip whenever a cookie is present, and it should not be
+  // something a throttled caller can still spend.
+  //
+  // KNOWN RESIDUAL, the one /p/{token} documents: `generateMetadata` above
+  // resolves the org once per request outside this guard. Guarding it too would
+  // bill one visit twice; it is one indexed read of public fields.
+  if (await isPublicTokenReadThrottled("org_public_profile", PUBLIC_BROWSE_READ_LIMIT)) {
+    return <RefugioThrottleNotice />;
+  }
 
   // Optional session — drives the foster CTA target in HelpPanel and,
   // later, the admin/coordinator banner (P2-11). Anonymous visitors

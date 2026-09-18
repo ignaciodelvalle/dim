@@ -1167,3 +1167,270 @@ describe("the authenticated alias is a pinned set, not an open door", SCAN_BUDGE
     expect(code(realCall).includes(ALIAS)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The ROUTE census — every anonymous route whose URL carries an identifier.
+//
+// WHY A SECOND CENSUS (audit A03-3, 2026-09-18). Everything above enumerates
+// CALL SITES of `publicPetByToken`: its subject is code that resolves a PET
+// token. `/refugios/{orgToken}` resolves an ORG token and `/r/invite/{token}`
+// an invitation, so neither could ever enter that census however unthrottled
+// they were — and both were, with no limiter at all. Adding their lookup
+// helpers to LOOKUP_MARKERS would be the trap this file already names: a
+// marker list sees only the spellings it knows, and the next org-token page
+// would read through a helper nobody added.
+//
+// So the subject comes from the ROUTE TREE instead. Under the anonymous roots,
+// a route entry file with a `[segment]` in its path takes an identifier from
+// whoever types the URL, and that is what needs a budget, whatever kind of
+// token it happens to be. Nothing has to be registered for a new one to be in
+// scope; it is in scope by being a route with a dynamic segment.
+//
+// Files the pet census above already governs (token resolvers and callers of
+// the door) are left to it. Its forms and ordering rules are the stricter
+// ones, and one file judged by two rules that can disagree is a file whose
+// verdict depends on which test ran.
+//
+// THE ORDERING RULE: the first thing a handler awaits, apart from reading its
+// own request — `params`, `searchParams`, `headers()`, `cookies()`, the local
+// `callerIpFromHeaders()` wrapper — must be the limiter. That names the
+// subject (work done before the budget) instead of a list of query spellings,
+// and it counts a session read as work: `getUser()` is a GoTrue round-trip.
+// `generateMetadata` is not a handler here; the residual it leaves is the one
+// lib/infra/public-token-throttle.ts documents for /p/{token}.
+//
+// STATED BLIND SPOTS. Server actions under these segments (`action.ts`,
+// `actions.ts`) are POST endpoints but not route entry files; the pet census
+// covers the ones that resolve a pet token. A layout renders inside its page's
+// request rather than as a route, so a layout that read by the URL token
+// before the page's guard would not be seen here.
+// ---------------------------------------------------------------------------
+
+/** The trees an anonymous caller reaches without a session. */
+const ROUTE_ROOTS = ["app/(public)/", "app/r/", "app/libreta/"] as const;
+
+/** Next's file conventions for a separately requestable route. */
+const ROUTE_ENTRY_FILES = new Set([
+  "page.tsx",
+  "page.ts",
+  "route.ts",
+  "opengraph-image.tsx",
+  "twitter-image.tsx",
+]);
+
+/** Awaits that only read the request itself — allowed before the limiter. */
+const REQUEST_SHAPE_AWAIT =
+  /^(?:(?:\w+\.)?params\b|searchParams\b|headers\(\)|cookies\(\)|callerIpFromHeaders\(\))/;
+
+/** The two limiter calls a route entry file may lead with. */
+const ROUTE_GUARD_AWAIT = /^(?:isPublicTokenReadThrottled|enforceRateLimit)\(/;
+
+/** A handler block: the page/image component or an HTTP method. */
+const HANDLER_BLOCK =
+  /^[ \t]*export\s+(?:default\b|(?:async\s+)?function\s+(?:GET|POST|PUT|PATCH|DELETE|HEAD)\b|const\s+(?:GET|POST|PUT|PATCH|DELETE|HEAD)\b)/;
+
+/**
+ * Routes in scope that legitimately lead with something else. Each names the
+ * reason and what bounds it instead. Empty on purpose: every route this census
+ * found on its first run already led with a limiter or was made to.
+ */
+const ROUTE_EXEMPT: Record<string, string> = {};
+
+function isRouteEntry(file: string): boolean {
+  if (!ROUTE_ROOTS.some((root) => file.startsWith(root))) return false;
+  const parts = file.split("/");
+  const base = parts.at(-1) ?? "";
+  if (!ROUTE_ENTRY_FILES.has(base)) return false;
+  // A dynamic segment anywhere in the path: [x], [...x] or [[...x]].
+  return parts.slice(0, -1).some((segment) => /^\[.+\]$/.test(segment));
+}
+
+/** Every file the pet census above governs, so this one does not judge it twice. */
+function petCensusFiles(): Set<string> {
+  const doorCallers = allSources().filter((s) => code(s.src).includes(DOOR) && !definesDoor(s.src));
+  return new Set([...publicTokenResolvers(), ...doorCallers].map((s) => s.file));
+}
+
+function identifierRoutes(): Source[] {
+  const governed = petCensusFiles();
+  return allSources().filter((s) => isRouteEntry(s.file) && !governed.has(s.file));
+}
+
+/** The text right after each `await` in a block, whitespace skipped, in order. */
+function awaitedExpressions(block: string): string[] {
+  const out: string[] = [];
+  const re = /\bawait\b\s*/g;
+  for (let m = re.exec(block); m !== null; m = re.exec(block)) {
+    out.push(block.slice(m.index + m[0].length, m.index + m[0].length + 60));
+  }
+  return out;
+}
+
+/** Why a route entry file fails the rule, or null when it passes. */
+function routeGuardProblem(src: string): string | null {
+  const handlers = exportBlocks(code(src)).filter((b) => HANDLER_BLOCK.test(b));
+  if (handlers.length === 0) return "no handler export found";
+  for (const block of handlers) {
+    const first = awaitedExpressions(block).find((e) => !REQUEST_SHAPE_AWAIT.test(e));
+    if (first === undefined) return "the handler awaits nothing but its request: no limiter ran";
+    if (!ROUTE_GUARD_AWAIT.test(first)) {
+      return `the first awaited work is \`${first.split("\n")[0].trim()}\`, not the limiter`;
+    }
+  }
+  return null;
+}
+
+/** The bucket literal each limiter call names, in code. */
+function routeBucketLiterals(src: string): string[] {
+  const out: string[] = [];
+  const re = /(?:isPublicTokenReadThrottled|enforceRateLimit)\(\s*"([^"]+)"/g;
+  const c = code(src);
+  for (let m = re.exec(c); m !== null; m = re.exec(c)) out.push(m[1]);
+  return out;
+}
+
+describe(
+  "every anonymous route with an identifier in its URL spends a limiter first",
+  SCAN_BUDGET,
+  () => {
+    it("finds the identifier routes beyond the pet census — org tokens and invitations included", () => {
+      const files = identifierRoutes().map((s) => s.file);
+      // NON-VACUITY. Seven on the day this landed; a drop means the walk or the
+      // segment match broke, and every assertion below would pass over nothing.
+      expect(files.length).toBeGreaterThanOrEqual(7);
+      // The two A03-3 found, named so a rename away from them is a decision.
+      expect(files).toContain("app/(public)/refugios/[orgToken]/page.tsx");
+      expect(files).toContain("app/r/invite/[token]/page.tsx");
+      // A route handler, not only pages.
+      expect(files).toContain("app/(public)/transparencia/datos/[dataset]/route.ts");
+      // The walk reaches every root it claims.
+      for (const root of ROUTE_ROOTS) {
+        expect(
+          files.some((f) => f.startsWith(root)),
+          `nothing found under ${root}`,
+        ).toBe(true);
+      }
+      // And it does not re-judge what the pet census owns.
+      expect(files).not.toContain("app/(public)/p/[publicToken]/page.tsx");
+      expect(files).not.toContain("app/(public)/adoptar/[petToken]/page.tsx");
+    });
+
+    it("keeps every exemption pointed at a route that is still in scope", () => {
+      const inScope = new Set(identifierRoutes().map((s) => s.file));
+      for (const [file, reason] of Object.entries(ROUTE_EXEMPT)) {
+        expect(inScope.has(file), `${file} is exempt but no longer in scope`).toBe(true);
+        expect(reason.length, `${file} needs a written reason`).toBeGreaterThan(40);
+      }
+    });
+
+    it("leads every handler with the limiter", () => {
+      const problems = identifierRoutes()
+        .filter((s) => ROUTE_EXEMPT[s.file] === undefined)
+        .map((s) => [s.file, routeGuardProblem(s.src)] as const)
+        .filter(([, problem]) => problem !== null)
+        .map(([file, problem]) => `${file}: ${problem}`);
+      expect(problems).toEqual([]);
+    });
+
+    it("gives each route its own literal bucket", () => {
+      const perFile = identifierRoutes()
+        .filter((s) => ROUTE_EXEMPT[s.file] === undefined)
+        .map((s) => ({ file: s.file, buckets: routeBucketLiterals(s.src) }));
+      const unnamed = perFile.filter((f) => f.buckets.length === 0).map((f) => f.file);
+      expect(unnamed, "a limiter bucket must be a string literal").toEqual([]);
+      const all = perFile.flatMap((f) => f.buckets);
+      expect(new Set(all).size).toBe(all.length);
+    });
+  },
+);
+
+describe("the route census bites", SCAN_BUDGET, () => {
+  it("flags the /refugios/{orgToken} shape it was written for: session and queries, no limiter", () => {
+    const before = `
+      export default async function RefugioPage({ params }) {
+        const { orgToken } = await params;
+        const supabase = await createClient();
+        const { data } = await supabase.auth.getUser();
+        const [org] = await Promise.all([queryOrgPublicProfile(orgToken)]);
+        return org;
+      }`;
+    expect(routeGuardProblem(before)).toMatch(/first awaited work is `createClient\(\)/);
+  });
+
+  it("flags a limiter that runs after the read it is meant to bound", () => {
+    const late = `
+      export default async function InvitePage({ params }) {
+        const { token } = await params;
+        const [row] = await db.select().from(invitations).where(eq(invitations.token, token));
+        if (await isPublicTokenReadThrottled("invite_resolve")) return null;
+        return row;
+      }`;
+    expect(routeGuardProblem(late)).toMatch(/first awaited work is `db\.select\(\)/);
+  });
+
+  it("accepts reading the request first: params, searchParams, headers, the IP wrapper", () => {
+    const ok = `
+      export default async function Page({ params, searchParams }) {
+        const { code } = await params;
+        const { nueva } = await searchParams;
+        const ip = await callerIpFromHeaders();
+        try {
+          await enforceRateLimit("denuncia_receipt", ip, { maxPerMinute: 30 });
+        } catch (err) {
+          return null;
+        }
+        const [row] = await db.select().from(reports);
+        return row;
+      }`;
+    expect(routeGuardProblem(ok)).toBeNull();
+    expect(routeBucketLiterals(ok)).toEqual(["denuncia_receipt"]);
+  });
+
+  it("does not accept a limiter that lives only in a comment", () => {
+    const commentOnly = `
+      export default async function Page({ params }) {
+        const { orgToken } = await params;
+        // await isPublicTokenReadThrottled("org_public_profile") runs here
+        const org = await queryOrgPublicProfile(orgToken);
+        return org;
+      }`;
+    expect(routeGuardProblem(commentOnly)).toMatch(/queryOrgPublicProfile/);
+  });
+
+  it("judges every HTTP method of a route handler, not only the first", () => {
+    const halfGuarded = `
+      export async function GET(request, ctx) {
+        const { dataset } = await ctx.params;
+        await enforceRateLimit("open_data_dataset", ip, { maxPerMinute: 30 });
+        return Response.json(await build(dataset));
+      }
+      export async function POST(request) {
+        return Response.json(await build(await request.json()));
+      }`;
+    expect(routeGuardProblem(halfGuarded)).toMatch(/first awaited work is `build\(/);
+  });
+
+  it("does not treat generateMetadata as the handler", () => {
+    // The documented residual: metadata resolves outside the guard so one
+    // visit is not billed twice. The page component still has to lead with it.
+    const metadataFirst = `
+      export async function generateMetadata({ params }) {
+        const org = await queryOrgPublicProfile((await params).orgToken);
+        return { title: org?.displayName };
+      }
+      export default async function Page({ params }) {
+        const { orgToken } = await params;
+        if (await isPublicTokenReadThrottled("org_public_profile")) return null;
+        return queryOrgPublicProfile(orgToken);
+      }`;
+    expect(routeGuardProblem(metadataFirst)).toBeNull();
+  });
+
+  it("reads the dynamic segment off the path, not off the file's contents", () => {
+    expect(isRouteEntry("app/(public)/refugios/[orgToken]/page.tsx")).toBe(true);
+    expect(isRouteEntry("app/(public)/docs/[...slug]/page.tsx")).toBe(true);
+    expect(isRouteEntry("app/(public)/refugios/page.tsx")).toBe(false);
+    expect(isRouteEntry("app/(public)/refugios/[orgToken]/OrgHero.tsx")).toBe(false);
+    expect(isRouteEntry("app/org/[orgToken]/page.tsx")).toBe(false);
+  });
+});

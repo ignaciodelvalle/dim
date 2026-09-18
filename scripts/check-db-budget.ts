@@ -210,6 +210,11 @@ export const DASHBOARD_PAGES = [
   // last child of ~21 dashboards, and while it was unbounded it hung six pages
   // whose own fan-outs this fence had already certified as budgeted.
   "components/ui/dashboard/DashboardFreshnessFooter.tsx",
+  // The root metadata route (audit A03-G2/G4). Anonymous, force-dynamic, and a
+  // three-way fan-out — one element under FANOUT_THRESHOLD, which is the only
+  // reason the discovery scan never flagged it while it ran with no deadline at
+  // all. Registered so the requirement does not depend on the fan-out's width.
+  "app/sitemap.ts",
 ] as const;
 
 // The route-handler globs scanned.

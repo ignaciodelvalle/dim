@@ -27,12 +27,20 @@ export async function queryLostListing(
   filters: LostListingFilters,
   cursor: LostListingCursor | null,
   pageSize: number = DEFAULT_PAGE_SIZE,
-  // Test seam, never passed in production. The superset-ordering defect below
-  // only exists ABOVE this cap, and the real value is 500 — a fixture large
-  // enough to cross it needs 500+ pets AND 500+ spine events, and pet_events
-  // cannot be torn down without the audited mutation-override hatch. Shrinking
-  // the cap reproduces the SAME mechanism at six rows: the bug is about
-  // ordering, and ordering does not care what the number is.
+  // Overrides the superset cap computed below. Two callers, for two reasons:
+  //
+  //   · TESTS. The superset-ordering defect below only exists ABOVE the cap,
+  //     and the real value is 500 — a fixture large enough to cross it needs
+  //     500+ pets AND 500+ spine events, and pet_events cannot be torn down
+  //     without the audited mutation-override hatch. Shrinking the cap
+  //     reproduces the SAME mechanism at six rows: the bug is about ordering,
+  //     and ordering does not care what the number is.
+  //   · BULK CALLERS THAT FILTER NOTHING (app/sitemap.ts, since audit
+  //     A03-G3/G8). The ×5 superset exists so /perdidas can drop rows by time
+  //     bucket and still fill a page; a caller with no such filter gets nothing
+  //     from it but a five-times-larger scan. This comment used to say "never
+  //     passed in production", and the sitemap was the caller paying for that:
+  //     5,000 became 25,000.
   fetchCapOverride?: number,
 ): Promise<{ items: LostListingItem[]; nextCursor: LostListingCursor | null }> {
   // Stage 1 — pull the pet rows in status='lost' that match the structural
@@ -171,7 +179,11 @@ export async function queryLostListing(
   // pattern as the public credential page at app/p/[publicToken]/page.tsx).
   const petIds = baseRows.map((r) => r.petId);
   const disclosingIds = baseRows.filter((r) => r.discloseLastLocationWhenLost).map((r) => r.petId);
-  const nonDisclosingIds = petIds.filter((id) => !disclosingIds.includes(id));
+  // A Set, not `disclosingIds.includes`: the includes form is O(n·d), invisible
+  // at /perdidas' 500 rows and hundreds of millions of comparisons on the event
+  // loop at the sitemap's old 25,000 (audit A03-G5/G8). Same result, O(n).
+  const disclosingIdSet = new Set(disclosingIds);
+  const nonDisclosingIds = petIds.filter((id) => !disclosingIdSet.has(id));
 
   // Fetch location-carrying events only for disclosing pets. hasPin is a
   // presence BOOLEAN (the listing never shows coords, so the values stay out

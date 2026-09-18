@@ -78,9 +78,19 @@ export default function robots(): MetadataRoute.Robots {
           "/denuncias/seguimiento",
           // Capability-bearing links. A shared libreta URL or a scan redirect is
           // a bearer token in a path; it must never end up in an index.
+          //
+          // THE TRAILING SLASH IS THE RULE, NOT STYLE. A robots.txt Disallow is
+          // a PREFIX match on the raw path (RFC 9309 §2.2.2), not a segment
+          // match. These two read "/t" and "/r" until 2026-09-18, and "/r"
+          // matched "/refugios" — so the sitemap below listed every verified
+          // shelter at priority 0.8 and this file told crawlers not to fetch a
+          // single one of them, three lines under the comment that names
+          // /refugios as open on purpose (audit A03-G1). "/t" would have done
+          // the same to any future /t… page. `__tests__/sitemap-robots.test.ts`
+          // checks every URL the sitemap emits against this list.
           "/libreta",
-          "/t",
-          "/r",
+          "/t/",
+          "/r/",
           // JSON surfaces. /api/v1 is a public read API, but a crawler indexing
           // JSON envelopes helps nobody and the page is the canonical rendering.
           "/api",

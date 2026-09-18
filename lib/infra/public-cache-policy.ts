@@ -37,7 +37,16 @@ export const NO_STORE_CACHE_CONTROL = "private, no-cache, no-store, max-age=0, m
 
 // Path PREFIXES whose entire subtree must always be live. Each carries a short
 // rationale (per-route policy, per the audit).
-const NO_STORE_PREFIXES: readonly string[] = [
+//
+// THIS LIST IS CHECKED AGAINST THE TREE, NOT AGAINST ITSELF (audit A03-1,
+// 2026-09-18). It was a hand list, and it drifted exactly the way hand lists
+// do: `/t/{serial}` and both `/refugios` pages were `force-dynamic` and never
+// stamped, while the fence asserted `/refugios` was correctly NOT here.
+// __tests__/public-cache-policy.test.ts now walks `app/(public)/**`,
+// `app/libreta/**` and `app/r/**` for `force-dynamic` route files and requires
+// each one to match this list or `NO_STORE_EXEMPT_DYNAMIC_ROUTES` below — and
+// every entry here to match a route that exists.
+export const NO_STORE_PREFIXES: readonly string[] = [
   // QR public credential (+ /encontre, /sighting, opengraph-image). Flips
   // active↔lost, and in lost mode discloses the owner's phone / last-seen
   // location gated by the disclose_*_when_lost prefs. A found pet must stop
@@ -65,14 +74,41 @@ const NO_STORE_PREFIXES: readonly string[] = [
   // the "Salir" button, and could cross-serve one reporter's denuncia to the
   // next visitor on the same edge node.
   "/denuncias/seguimiento",
+  // Physical-tag resolver. The same class as `/p/`, one hop earlier: a chapa
+  // whose owner revokes it, or whose pet is erased, must stop redirecting at
+  // once — a shared cache holding the old 307 keeps walking a scanner to a
+  // credential the owner took down. The trailing slash keeps it off any other
+  // page whose name happens to start with "t".
+  "/t/",
+  // The shelter directory and every shelter profile. Both render inside the
+  // auth-aware (public) layout — a signed-in visitor's HTML carries THEIR nav
+  // and name chip, which is why app/(public)/refugios/page.tsx caches its DATA
+  // and never its HTML — and the profile adds a viewer-dependent admin /
+  // coordinator banner on top: the cookie-dependent-variant hazard `/casos/`
+  // is listed for.
+  "/refugios",
 ];
 
 // Exact paths (no subtree) that must always be live.
-const NO_STORE_EXACT: readonly string[] = [
+export const NO_STORE_EXACT: readonly string[] = [
   // Lost-pet public listing. Reflects live lost/found state — a recovered pet
   // must not linger in the grid, and the KPI counts must be current.
   "/perdidas",
 ];
+
+/**
+ * `force-dynamic` routes under the public trees that are deliberately NOT
+ * stamped `no-store`, keyed by repo-relative file path, each with the reason.
+ *
+ * `force-dynamic` and `no-store` are not the same property — the first says
+ * "render per request", the second "no shared cache may keep the result" — so a
+ * route can legitimately be the first without needing the second (a page made
+ * dynamic only because CI builds have no database, and whose HTML is the same
+ * for every viewer). Such a route goes HERE, with its reason, rather than being
+ * silently absent from the list above. Empty today: every `force-dynamic` public
+ * route found on 2026-09-18 does need the header.
+ */
+export const NO_STORE_EXEMPT_DYNAMIC_ROUTES: Readonly<Record<string, string>> = {};
 
 /**
  * True when `pathname` is a public route whose response must carry

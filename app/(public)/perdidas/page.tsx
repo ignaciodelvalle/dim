@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
+  type LostListingCursor,
   type LostListingFilters,
   type LostListingItem,
   buildSearchParams,
@@ -9,6 +10,8 @@ import {
   lostUrgencyFor,
   parseSearchParams,
 } from "@/lib/infra/lost-listing";
+import { PUBLIC_BROWSE_READ_LIMIT } from "@/lib/infra/public-browse-limits";
+import { isPublicTokenReadThrottled } from "@/lib/infra/public-token-throttle";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { formatCount, lostLabel, pluralizeEs, sterilizedLabel } from "@/lib/utils/format";
@@ -59,28 +62,33 @@ export async function generateMetadata({
   };
 }
 
-export default async function PerdidasPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const { filters, cursor } = parseSearchParams(params);
+type LostBoard = {
+  /** null = the listing missed its deadline, or was never read. */
+  listing: { items: LostListingItem[]; nextCursor: LostListingCursor | null } | null;
+  counts: [number | null, number | null, number | null];
+};
 
-  // Fetch the catalog + the KPI counts in parallel. The counts ignore
-  // the user's current filters so the strip always reflects the universe.
-  //
-  // BOUNDED, and under TWO budgets rather than one (2026-08-09 resilience
-  // pass). This is a public, force-dynamic, `no-store` route — nothing shields
-  // it from a degraded DB, and unbounded it was one of the few unauthenticated
-  // pages that could hang outright. The split is not cosmetic: the listing IS
-  // the page, so it gets the full deadline and an honest error card; the three
-  // counts are decoration over the whole universe (three sitewide aggregates),
-  // so they get a short one and simply do not render when they miss it. A
-  // visitor looking for their dog gets the grid without the stat strip, which
-  // is strictly better than getting neither.
-  //
-  // Both races start together, so the split costs no wall-clock.
+/** What a throttled request renders from: nothing was read. */
+const UNREAD_BOARD: LostBoard = { listing: null, counts: [null, null, null] };
+
+// Fetch the catalog + the KPI counts in parallel. The counts ignore
+// the user's current filters so the strip always reflects the universe.
+//
+// BOUNDED, and under TWO budgets rather than one (2026-08-09 resilience
+// pass). This is a public, force-dynamic, `no-store` route — nothing shields
+// it from a degraded DB, and unbounded it was one of the few unauthenticated
+// pages that could hang outright. The split is not cosmetic: the listing IS
+// the page, so it gets the full deadline and an honest error card; the three
+// counts are decoration over the whole universe (three sitewide aggregates),
+// so they get a short one and simply do not render when they miss it. A
+// visitor looking for their dog gets the grid without the stat strip, which
+// is strictly better than getting neither.
+//
+// Both races start together, so the split costs no wall-clock.
+async function loadLostBoard(
+  filters: LostListingFilters,
+  cursor: LostListingCursor | null,
+): Promise<LostBoard> {
   const [listingLoad, countsLoad] = await Promise.all([
     loadWithTimeout(queryLostListing(filters, cursor, 24)),
     loadWithTimeout(
@@ -92,14 +100,39 @@ export default async function PerdidasPage({
       3_000,
     ),
   ]);
+  return {
+    listing: listingLoad.ok ? listingLoad.value : null,
+    counts: countsLoad.ok ? countsLoad.value : [null, null, null],
+  };
+}
 
-  const listing = listingLoad.ok ? listingLoad.value : null;
+export default async function PerdidasPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const { filters, cursor } = parseSearchParams(params);
+
+  // PER-IP BUDGET FIRST (audit A03-G7). This page is the bulk lost-pet feed:
+  // every card carries a credential token, `?cursor=` walks the population, and
+  // it had no limiter while the per-token pages it links to all did. Its own
+  // bucket, and a ceiling derived for a page crawlers are WANTED on — see
+  // lib/infra/public-browse-limits.ts, which also says why it fails open.
+  //
+  // Over the limit, the page still renders its chrome — heading, filters, the
+  // owner CTA — with a notice where the grid would be, and reads nothing.
+  const throttled = await isPublicTokenReadThrottled("lost_listing", PUBLIC_BROWSE_READ_LIMIT);
+  const board = throttled ? UNREAD_BOARD : await loadLostBoard(filters, cursor);
+
+  const listing = board.listing;
   const items = listing?.items ?? [];
   const nextCursor = listing?.nextCursor ?? null;
-  // null = the counts missed their deadline. Every consumer below checks, so a
-  // missing count is ABSENT, never rendered as a zero — "0 activas ahora" on
-  // this page would read as good news and be a lie.
-  const [totalActive, last24h, last7d] = countsLoad.ok ? countsLoad.value : [null, null, null];
+  // null = the counts missed their deadline (or were never read, throttled).
+  // Every consumer below checks, so a missing count is ABSENT, never rendered
+  // as a zero — "0 activas ahora" on this page would read as good news and be
+  // a lie.
+  const [totalActive, last24h, last7d] = board.counts;
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
 
@@ -157,7 +190,9 @@ export default async function PerdidasPage({
             the rest of the active filters. */}
         <QuickFilterRow filters={filters} />
 
-        {listing === null ? (
+        {throttled ? (
+          <LostListingThrottleNotice filters={filters} cursor={cursor} />
+        ) : listing === null ? (
           // The listing missed its deadline. Say so — the empty state below
           // would claim "no hay mascotas perdidas en este momento", which on
           // this page is the single most harmful thing we could get wrong.
@@ -263,6 +298,34 @@ export default async function PerdidasPage({
         </aside>
       </div>
     </main>
+  );
+}
+
+// Over the per-IP budget. Distinct from the deadline card above on purpose:
+// that one says the problem is ours, this one says it is the pace of requests
+// from this connection — and neither may read as "no hay mascotas perdidas".
+function LostListingThrottleNotice({
+  filters,
+  cursor,
+}: {
+  filters: LostListingFilters;
+  cursor: LostListingCursor | null;
+}) {
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] border-l-[3px] border-l-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
+      <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+        Recibimos muchas consultas desde tu conexión en poco tiempo.
+      </p>
+      <p className="text-xs text-[var(--color-ln-mute)]">
+        Por eso no mostramos el listado ahora. Esperá un minuto y volvé a intentarlo.
+      </p>
+      <Link
+        href={`/perdidas?${buildSearchParams(filters, cursor).toString()}`}
+        className="inline-block text-sm text-[var(--color-ln-err)] underline"
+      >
+        Reintentar
+      </Link>
+    </div>
   );
 }
 
