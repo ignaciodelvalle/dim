@@ -1,10 +1,22 @@
 "use client";
 
+// Accepting a transfer ends on a receipt (L-13), and THIS ISLAND MUST STAY
+// MOUNTED FOR THAT RECEIPT TO PAINT. acceptPetTransferAction calls
+// revalidatePath, so Next ships the page's re-rendered RSC tree back with the
+// action's response — the transfer is 'accepted' by then. When the page gated
+// this component on `status === "pending"`, that re-render unmounted it and a
+// local success flag ran against a component that was already gone (the exact
+// trap documented in app/(app)/cuidado/[grantToken]/CaretakerInvitationActions.tsx).
+// So the page renders this component UNCONDITIONALLY, in the same slot, and it
+// decides: the receipt if it just accepted, the controls while pending, nothing
+// otherwise. Same type, same position → React keeps the local state across the
+// refresh.
+
 import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
-import { useActionNavigate } from "@/lib/ui/use-action-redirect";
 import {
   acceptPetTransferAction,
   cancelPetTransferAction,
@@ -13,20 +25,22 @@ import {
 
 export function AcceptTransferActions({
   transferToken,
+  isPending,
   isRecipient,
   isSender,
   petToken,
   petName,
 }: {
   transferToken: string;
+  /** The transfer is still `pending` — the only state with controls. */
+  isPending: boolean;
   isRecipient: boolean;
   isSender: boolean;
   petToken: string;
   petName: string;
 }) {
   const [pending, startTransition] = useTransition();
-  // `busy` is what the controls read: the transition's pending PLUS the window
-  // where the document is on its way out (X1-F1 — see useActionNavigate).
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -36,11 +50,9 @@ export function AcceptTransferActions({
   // Previously accept fired on a single click while reject asked for a
   // reason + a second confirm click — backwards (audit finding, safety pass
   // 2026-07-19).
-  // Accepting a transfer twice returns a confusing post-hoc error, and the
-  // control invited exactly that: the transition's pending dropped the instant
-  // assign() returned, re-enabling the button over the unchanged page (X1-F1).
-  const [navigate, navigating] = useActionNavigate();
-  const busy = pending || navigating;
+  // Accepting twice is impossible from here: the success replaces the controls
+  // in the same render that ends the transition.
+  const busy = pending;
   const [confirmAccept, setConfirmAccept] = useState(false);
   const acceptTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -52,13 +64,28 @@ export function AcceptTransferActions({
         setConfirmAccept(false);
         return;
       }
-      // Ownership just changed (custody event emitted) — land on
-      // the pet profile with one full document navigation so its
-      // SSR ownership badges match the DB (soft push + refresh is
-      // banned — see lib/ui/full-page-action-nav.ts).
-      navigate(`/mis-mascotas/${petToken}`);
+      // Ownership just changed. The receipt replaces the controls; the pet's
+      // libreta (the old redirect target) is its first action. The action
+      // revalidated /mis-mascotas/{token}, so that navigation renders fresh.
+      setConfirmAccept(false);
+      setAccepted(true);
     });
   }
+
+  if (accepted) {
+    return (
+      <LnSuccessScreen
+        title="Transferencia aceptada"
+        description={`Ahora sos titular de ${petName}. Su libreta ya está en Mis mascotas, a tu nombre, y quien te la transfirió ya no la administra.`}
+        next={[
+          { label: `Ver la libreta de ${petName}`, href: `/mis-mascotas/${petToken}` },
+          { label: "Ir a mis mascotas", href: "/mis-mascotas" },
+        ]}
+      />
+    );
+  }
+
+  if (!isPending) return null;
 
   if (isRecipient) {
     return (

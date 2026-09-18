@@ -28,6 +28,10 @@
 //   reassignDecomisoInTx:
 //     - happy path: cancel note + new proposal + receiverOrg updated + audit
 //
+//   reassign -> accept (L-4):
+//     - the new receiver accepts against the latest proposal
+//     - the superseded receiver is refused
+//
 //   Pure domain rules:
 //     - motiveLabel — label for all motives
 //     - validateSeizureMotive — otro without/with detail
@@ -897,6 +901,283 @@ describe("reassignDecomisoInTx — happy path", () => {
     const auditPayload = auditRow.payload as Record<string, unknown>;
     expect(auditPayload.new_receiver_org_id).toBe(receiver2OrgId);
     expect(auditPayload.previous_receiver_org_id).toBe(receiverOrgId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reassign → accept (L-4)
+// ---------------------------------------------------------------------------
+// A reassign appends a SECOND custody_transfer_proposed on the same case —
+// append-only, the first one is never rewritten. The escalation cron already
+// reads that shape as normal (it keys on the LATEST proposal); the acceptance
+// validator used to read it as corruption and refuse forever, so a reassigned
+// decomiso could never be accepted by anyone.
+
+describe("reassign → accept (L-4)", () => {
+  it("the new receiver can accept a reassigned decomiso, against the latest proposal", async () => {
+    let govtCaseId!: string;
+    let govtCasePublicCode!: string;
+    const firstProposalAt = new Date(Date.now() - 60 * 60 * 1000);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        UPDATE cases SET status='closed', closed_reason='cancelled', closed_at=NOW()
+        WHERE primary_pet_id=${petId} AND status='open'
+      `);
+      await tx
+        .update(ownerships)
+        .set({ endedAt: new Date() })
+        .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+
+      const caseRow = await openCase(
+        {
+          kind: "custody_episode",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: petId,
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: "Buenos Aires",
+          jurisdictionLocality: "Tres Arroyos",
+          openedByUserId: govtUserId,
+          openedByOrganizationId: govtOrgId,
+          receiverOrganizationId: receiverOrgId,
+          openedReason: {
+            code: "decomiso_executed",
+            motive: "maltrato_fisico",
+            judicialRef: "IPP-TEST-L4",
+          },
+        },
+        tx,
+      );
+      govtCaseId = caseRow.id;
+      govtCasePublicCode = caseRow.publicCode;
+
+      // The ORIGINAL proposal, toward receiver 1, an hour ago.
+      await tx.insert(petEvents).values({
+        petId,
+        eventType: "custody_transfer_proposed",
+        occurredAt: firstProposalAt,
+        recordedAt: firstProposalAt,
+        recordedByUserId: govtUserId,
+        authorRole: "govt",
+        authorOrganizationId: govtOrgId,
+        authorVerified: true,
+        payload: validateEventPayload("custody_transfer_proposed", {
+          from_user_id: null,
+          from_organization_id: govtOrgId,
+          to_user_id: null,
+          to_organization_id: receiverOrgId,
+          reason: "other" as const,
+          matched_against_pet_id: null,
+          proposed_at: firstProposalAt.toISOString(),
+          notes: "from_decomiso=true test-l4",
+        }),
+        caseId: govtCaseId,
+      });
+
+      await tx.insert(ownerships).values({
+        petId,
+        ownerOrganizationId: govtOrgId,
+        role: "shelter_custody",
+        startedAt: firstProposalAt,
+      });
+    });
+
+    // The govt reassigns to receiver 2 — the real in-tx body.
+    await withMutationOverride(async (tx) => {
+      const [caseRow] = await tx.select().from(cases).where(eq(cases.id, govtCaseId)).limit(1);
+      await reassignDecomisoInTx(
+        {
+          id: caseRow.id,
+          primaryPetId: caseRow.primaryPetId,
+          publicCode: caseRow.publicCode,
+          receiverOrganizationId: caseRow.receiverOrganizationId,
+        },
+        {
+          id: receiver2OrgId,
+          displayName: "Refugio UC 2",
+          verified: true,
+          status: "active",
+          orgType: "shelter",
+        },
+        "Fido UC",
+        "Sin capacidad en el primer refugio",
+        {
+          user: { id: govtUserId },
+          govtOrg: {
+            id: govtOrgId,
+            displayName: "Autoridad UC",
+            jurisdictionProvince: "Buenos Aires",
+            jurisdictionLocality: "Tres Arroyos",
+          },
+        },
+        tx,
+      );
+    });
+
+    // Append-only: both proposals are still on the spine.
+    const proposals = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(
+        and(eq(petEvents.caseId, govtCaseId), eq(petEvents.eventType, "custody_transfer_proposed")),
+      );
+    expect(proposals).toHaveLength(2);
+
+    const receiver2Ctx = {
+      user: { id: receiverUserId },
+      organization: {
+        id: receiver2OrgId,
+        publicToken: UC_RCV2_ORG_TOKEN,
+        verified: true,
+        displayName: "Refugio UC 2",
+      },
+    };
+
+    const validation = await validateAcceptDecomisoHandoff(
+      { casePublicCode: govtCasePublicCode },
+      receiver2Ctx,
+      db,
+    );
+    if (!validation.ok) throw new Error(`validation refused: ${validation.error}`);
+    // The proposal it acts on is the reassignment, not the superseded one.
+    const livePayload = validation.proposalEvent.payload as Record<string, unknown>;
+    expect(livePayload.to_organization_id).toBe(receiver2OrgId);
+    expect(String(livePayload.notes)).toContain("reassignment=true");
+
+    await withMutationOverride(async (tx) => {
+      const [caseRow] = await tx.select().from(cases).where(eq(cases.id, govtCaseId)).limit(1);
+      const result = await acceptDecomisoHandoffInTx(
+        caseRow,
+        govtOrgId,
+        "Autoridad UC",
+        receiver2Ctx,
+        tx,
+      );
+      expect(result.ok).toBe(true);
+    });
+
+    const [closedCase] = await db.select().from(cases).where(eq(cases.id, govtCaseId)).limit(1);
+    expect(closedCase.status).toBe("closed");
+    expect(closedCase.closedReason).toBe("resolved");
+
+    const [rcv2Ownership] = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, receiver2OrgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    expect(rcv2Ownership).toBeDefined();
+  });
+
+  it("the superseded receiver is refused after a reassign", async () => {
+    // Same shape, but receiver 1 — whose proposal is the OLD one — tries.
+    let govtCasePublicCode!: string;
+    let govtCaseId!: string;
+    const firstProposalAt = new Date(Date.now() - 60 * 60 * 1000);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        UPDATE cases SET status='closed', closed_reason='cancelled', closed_at=NOW()
+        WHERE primary_pet_id=${petId} AND status='open'
+      `);
+      const caseRow = await openCase(
+        {
+          kind: "custody_episode",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: petId,
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: "Buenos Aires",
+          jurisdictionLocality: "Tres Arroyos",
+          openedByUserId: govtUserId,
+          openedByOrganizationId: govtOrgId,
+          receiverOrganizationId: receiverOrgId,
+          openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
+        },
+        tx,
+      );
+      govtCaseId = caseRow.id;
+      govtCasePublicCode = caseRow.publicCode;
+      await tx.insert(petEvents).values({
+        petId,
+        eventType: "custody_transfer_proposed",
+        occurredAt: firstProposalAt,
+        recordedAt: firstProposalAt,
+        recordedByUserId: govtUserId,
+        authorRole: "govt",
+        authorOrganizationId: govtOrgId,
+        authorVerified: true,
+        payload: validateEventPayload("custody_transfer_proposed", {
+          from_user_id: null,
+          from_organization_id: govtOrgId,
+          to_user_id: null,
+          to_organization_id: receiverOrgId,
+          reason: "other" as const,
+          matched_against_pet_id: null,
+          proposed_at: firstProposalAt.toISOString(),
+          notes: "from_decomiso=true test-l4-old",
+        }),
+        caseId: govtCaseId,
+      });
+    });
+
+    await withMutationOverride(async (tx) => {
+      const [caseRow] = await tx.select().from(cases).where(eq(cases.id, govtCaseId)).limit(1);
+      await reassignDecomisoInTx(
+        {
+          id: caseRow.id,
+          primaryPetId: caseRow.primaryPetId,
+          publicCode: caseRow.publicCode,
+          receiverOrganizationId: caseRow.receiverOrganizationId,
+        },
+        {
+          id: receiver2OrgId,
+          displayName: "Refugio UC 2",
+          verified: true,
+          status: "active",
+          orgType: "shelter",
+        },
+        "Fido UC",
+        "Reasignado",
+        {
+          user: { id: govtUserId },
+          govtOrg: {
+            id: govtOrgId,
+            displayName: "Autoridad UC",
+            jurisdictionProvince: "Buenos Aires",
+            jurisdictionLocality: "Tres Arroyos",
+          },
+        },
+        tx,
+      );
+    });
+
+    const result = await validateAcceptDecomisoHandoff(
+      { casePublicCode: govtCasePublicCode },
+      {
+        user: { id: receiverUserId },
+        organization: {
+          id: receiverOrgId,
+          publicToken: UC_RCV_ORG_TOKEN,
+          verified: true,
+          displayName: "Refugio UC",
+        },
+      },
+      db,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "El decomiso no fue dirigido a tu organización.",
+    });
+
+    await withMutationOverride(async (tx) => {
+      await closeCase({ caseId: govtCaseId, reason: "cancelled", closedByUserId: govtUserId }, tx);
+    });
   });
 });
 

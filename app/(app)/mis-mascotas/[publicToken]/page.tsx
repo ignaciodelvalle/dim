@@ -25,6 +25,7 @@ import {
   type AvatarSwitcherPet,
   PetSwitcherAvatars,
 } from "@/components/pet-profile/PetSwitcherAvatars";
+import { PppExportAffordance } from "@/components/pet-profile/PppExportAffordance";
 import { DegradedFallback } from "@/components/ui/DegradedFallback";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { db } from "@/db";
@@ -32,6 +33,7 @@ import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
 import { type CarouselPet, shouldShowCarousel } from "@/lib/domain/owner-carousel";
 import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { pppExportAvailability } from "@/lib/domain/ppp-export-eligibility";
 import { isPetAdoptedByUser } from "@/lib/infra/adoption-checkin";
 import {
   type PetAccessSuccess,
@@ -471,6 +473,21 @@ export default async function PetDetailPage({
   const credentialSituation = detail.situation;
   const chromeSituation = detail.chromeSituation;
 
+  // RUPPPA export (L-11): the LEGAL owner of a pet flagged potentially
+  // dangerous gets the button on the PPP card (CABA) or a plain note saying
+  // why not (elsewhere). Everyone else — a vet, a shelter, a foster — gets
+  // nothing. Not on a memorial: a deceased dog is registered nowhere.
+  const pppAvailability = memorial
+    ? null
+    : pppExportAvailability({
+        isLegalOwner: isOwner && ownershipRole === "owner",
+        potentiallyDangerousBreed: pet.potentiallyDangerousBreed ?? null,
+        jurisdictionProvince: pet.jurisdictionProvince ?? null,
+      });
+  const pppExportSlot = pppAvailability ? (
+    <PppExportAffordance petPublicToken={pet.publicToken} availability={pppAvailability} />
+  ) : null;
+
   // owner-ia-redesign P4 — the credential carousel ("the heart"). The profile
   // SWIPES between the owner's LIVE pets, urgent-first, deceased NEVER in the
   // swipe. Owner-only: org/admin/public/vet viewers of the same route get no
@@ -631,6 +648,7 @@ export default async function PetDetailPage({
             }
             petPublicToken={pet.publicToken}
             petSex={pet.sex}
+            pppExport={pppExportSlot}
             memorial={memorial}
             situation={credentialSituation}
             avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}

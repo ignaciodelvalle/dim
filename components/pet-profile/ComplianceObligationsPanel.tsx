@@ -13,6 +13,8 @@
 // bordered cards with a leading icon. No new color tokens (token ratchet).
 // ---------------------------------------------------------------------------
 
+import type { ReactNode } from "react";
+
 import { Icon } from "@/components/Icon";
 import { LnBadge, type LnBadgeProps } from "@/components/ui/Badge";
 import { LnLinkButton } from "@/components/ui/LinkButton";
@@ -176,12 +178,15 @@ function ObligationCardView({
   card,
   petPublicToken,
   bare = false,
+  pppExport = null,
 }: {
   card: ObligationCard;
   petPublicToken: string;
   /** Inside the credential sheet: render as a borderless divider-separated row
    *  (no nested box) so the whole compliance section reads as one document. */
   bare?: boolean;
+  /** See ComplianceObligationsPanel's `pppExport`. */
+  pppExport?: ReactNode;
 }) {
   const showTurnoAction = card.key === "rabies" && (card.tone === "due" || card.tone === "over");
   const isReserved = card.key === "rabies" && card.tone === "reserved";
@@ -190,6 +195,10 @@ function ObligationCardView({
   // Only for the flagged-PPP "Atestación requerida" state; the "Faltan datos"
   // (indeterminado) variant nudges toward completing breed/weight via its hint.
   const showPppRegister = card.key === "ppp" && card.state === "Atestación requerida";
+  // The RUPPPA export slot (L-11) belongs to a pet the regime APPLIES to — the
+  // attested / attestation-required card — never to the "Faltan datos" nudge,
+  // where the dog is not yet known to be PPP at all.
+  const showPppExport = card.key === "ppp" && card.state !== "Faltan datos" && pppExport != null;
 
   return (
     <div
@@ -279,6 +288,8 @@ function ObligationCardView({
         </LnLinkButton>
       )}
 
+      {showPppExport && <div data-slot="ppp-export">{pppExport}</div>}
+
       {isReserved && (
         <p className="mt-1 font-ln-sans text-xs text-[var(--color-ln-ink-2)]">
           Cuando el veterinario la aplique, se registra como evento y el estado pasa a Al día solo.
@@ -305,10 +316,18 @@ export function ComplianceObligationsPanel({
   state,
   petPublicToken,
   bare = false,
+  pppExport = null,
 }: {
   state: ComplianceState;
   petPublicToken: string;
   bare?: boolean;
+  /**
+   * The RUPPPA export affordance for the PPP card, built by the page from
+   * lib/domain/ppp-export-eligibility.ts (L-11). A SLOT rather than a flag so
+   * this server component never imports the server action — the caller
+   * decides eligibility, this only places it. Null → nothing.
+   */
+  pppExport?: ReactNode;
 }) {
   if (state.cards.length === 0) return null;
 
@@ -317,13 +336,24 @@ export function ComplianceObligationsPanel({
   const grid = bare ? (
     <div className="divide-y divide-[var(--color-ln-line-2)]">
       {state.cards.map((card) => (
-        <ObligationCardView key={card.key} card={card} petPublicToken={petPublicToken} bare />
+        <ObligationCardView
+          key={card.key}
+          card={card}
+          petPublicToken={petPublicToken}
+          bare
+          pppExport={pppExport}
+        />
       ))}
     </div>
   ) : (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {state.cards.map((card) => (
-        <ObligationCardView key={card.key} card={card} petPublicToken={petPublicToken} />
+        <ObligationCardView
+          key={card.key}
+          card={card}
+          petPublicToken={petPublicToken}
+          pppExport={pppExport}
+        />
       ))}
     </div>
   );

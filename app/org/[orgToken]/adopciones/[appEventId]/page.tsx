@@ -280,24 +280,30 @@ export default async function AdoptionReviewDetailPage({
         </OpCard>
       )}
 
-      {alreadyResolved ? (
-        <DecisionSummary
-          decision={decision[0]}
-          petAlreadyFinalized={petAlreadyFinalized}
-          finalizeHref={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
-        />
-      ) : petAlreadyFinalized ? (
-        <OpBreach
-          title={`${pet.name} ya fue adoptado/a`}
-          detail="No se pueden revisar más postulaciones para esta mascota."
-        />
-      ) : (
-        <ReviewButtons
-          orgToken={orgToken}
-          applicationEventId={appEventId}
-          applicantName={applicant?.displayName ?? "el postulante"}
-        />
-      )}
+      {/* ALWAYS rendered, in this slot: the decision's receipt lives inside
+          ReviewButtons and must survive the action's RSC refresh, which is the
+          render that turns `alreadyResolved` true. See its header. */}
+      <ReviewButtons
+        orgToken={orgToken}
+        applicationEventId={appEventId}
+        applicantName={applicant?.displayName ?? "el postulante"}
+        petName={pet.name}
+        finalizeHref={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
+        resolvedView={
+          alreadyResolved ? (
+            <DecisionSummary
+              decision={decision[0]}
+              petAlreadyFinalized={petAlreadyFinalized}
+              finalizeHref={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
+            />
+          ) : petAlreadyFinalized ? (
+            <OpBreach
+              title={`${pet.name} ya fue adoptado/a`}
+              detail="No se pueden revisar más postulaciones para esta mascota."
+            />
+          ) : null
+        }
+      />
 
       <p className="text-sm text-ln-op-mute">
         <Link

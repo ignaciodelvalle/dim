@@ -107,16 +107,17 @@ export default async function TransferPage({
         </LnCardBody>
       </LnCard>
 
-      {/* Actions */}
-      {transfer.status === "pending" && (
-        <AcceptTransferActions
-          transferToken={transfer.publicToken}
-          isRecipient={transfer.isRecipient}
-          isSender={transfer.isSender}
-          petToken={transfer.petToken}
-          petName={transfer.petName}
-        />
-      )}
+      {/* Actions — rendered unconditionally so the accept receipt survives the
+          action's RSC refresh; the component itself renders nothing once the
+          transfer is no longer pending (see its header). */}
+      <AcceptTransferActions
+        transferToken={transfer.publicToken}
+        isPending={transfer.status === "pending"}
+        isRecipient={transfer.isRecipient}
+        isSender={transfer.isSender}
+        petToken={transfer.petToken}
+        petName={transfer.petName}
+      />
     </div>
   );
 }

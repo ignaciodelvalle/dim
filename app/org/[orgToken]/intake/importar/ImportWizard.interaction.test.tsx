@@ -236,3 +236,94 @@ describe("<ImportWizard> — confirm, chunking and report", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("<ImportWizard> — a tanda that throws (L-15)", () => {
+  it("stops on the report with the rows already written and says how to resume", async () => {
+    // 12 valid rows → tandas of 5, 5, 2. The first commits; the second's CALL
+    // throws (network cut); the third must never be sent.
+    const rows = Array.from({ length: 12 }, (_, i) => previewRow(i));
+    validateMock.mockResolvedValue({ ok: true, fileHash: FILE_HASH, rows });
+    importMock
+      .mockImplementationOnce(async (_orgToken: string, input: { rows: { index: number }[] }) => ({
+        ok: true,
+        results: input.rows.map(
+          (r): ImportIntakeRowResult => ({
+            index: r.index,
+            outcome: "imported",
+            petToken: `DIM-TEST-${r.index}`,
+            petName: `Animal ${r.index + 1}`,
+          }),
+        ),
+      }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    render(<ImportWizard orgToken="ORG-TEST-0001" />);
+    selectCsvFile();
+    await waitFor(() => {
+      expect(screen.getByText("Válidas (12)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar importación" }));
+
+    // Not "Importando…" forever: it lands on the report.
+    await waitFor(() => {
+      expect(screen.getByText("Resultado de la importación")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Importando…/)).toBeNull();
+    expect(importMock).toHaveBeenCalledTimes(2);
+
+    // The five rows already written are still reported, with their fichas.
+    for (let i = 1; i <= 5; i++) {
+      expect(screen.getByText(`Importada — Animal ${i}`)).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("link", { name: "Ver ficha" })).toHaveLength(5);
+
+    // The honest state: where it stopped, how many are unconfirmed, and how to
+    // finish without duplicates.
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("La importación se cortó en la tanda 2 de 3.");
+    expect(alert).toHaveTextContent("Quedan 7 filas sin confirmar");
+    expect(alert).toHaveTextContent(
+      "volvé a subir el mismo archivo, sin modificarlo. Las filas que ya están registradas se reconocen y no se duplican",
+    );
+
+    // Resuming goes back to the upload step.
+    fireEvent.click(screen.getByRole("button", { name: "Volver a subir el archivo" }));
+    expect(screen.getByLabelText("Archivo CSV")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("a throw on the first tanda says nothing was confirmed", async () => {
+    validateMock.mockResolvedValue({
+      ok: true,
+      fileHash: FILE_HASH,
+      rows: [previewRow(0), previewRow(1)],
+    });
+    importMock.mockRejectedValueOnce(new Error("lambda killed"));
+
+    render(<ImportWizard orgToken="ORG-TEST-0001" />);
+    selectCsvFile();
+    await waitFor(() => {
+      expect(screen.getByText("Válidas (2)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar importación" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("La importación se cortó en la tanda 1 de 1.");
+    expect(alert).toHaveTextContent("No llegamos a confirmar ninguna fila antes del corte.");
+    expect(alert).toHaveTextContent("Quedan 2 filas sin confirmar");
+  });
+
+  it("a validation call that throws shows an error instead of hanging", async () => {
+    validateMock.mockRejectedValueOnce(new Error("socket hang up"));
+
+    render(<ImportWizard orgToken="ORG-TEST-0001" />);
+    selectCsvFile();
+
+    expect(
+      await screen.findByText(
+        "No pudimos validar el archivo. No se importó nada. Probá de nuevo en unos minutos.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Validando el archivo…")).toBeNull();
+  });
+});

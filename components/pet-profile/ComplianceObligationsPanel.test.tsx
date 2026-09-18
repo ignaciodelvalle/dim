@@ -161,3 +161,59 @@ describe("ComplianceObligationsPanel — rule-derived rabies date", () => {
     expect(html).not.toContain("SIN DATO");
   });
 });
+
+// ---------------------------------------------------------------------------
+// RUPPPA export slot (L-11)
+// ---------------------------------------------------------------------------
+// The page decides eligibility and hands the affordance in as a slot; the panel
+// only places it — on the PPP card of a pet the regime APPLIES to, never on the
+// "Faltan datos" nudge and never when the caller passed nothing.
+
+describe("ComplianceObligationsPanel — RUPPPA export slot", () => {
+  const SLOT = <span>SLOT-PPP-EXPORT</span>;
+
+  function pppInput(overrides: Partial<ComplianceInput>): ComplianceInput {
+    return { ...expiredRabiesInput(obligations()), ...overrides };
+  }
+
+  function renderWith(
+    input: ComplianceInput,
+    pppExport: Parameters<typeof ComplianceObligationsPanel>[0]["pppExport"],
+  ): string {
+    return renderToStaticMarkup(
+      <ComplianceObligationsPanel
+        state={deriveComplianceState(input)}
+        petPublicToken="TEST-0001"
+        pppExport={pppExport}
+      />,
+    );
+  }
+
+  it("renders the slot inside the PPP card when the regime applies", () => {
+    const html = renderWith(pppInput({ pppApplies: true, species: "dog" }), SLOT);
+    const pppCard = html.split('data-obligation="ppp"')[1] ?? "";
+    expect(pppCard).toContain('data-slot="ppp-export"');
+    expect(pppCard).toContain("SLOT-PPP-EXPORT");
+  });
+
+  it("renders no slot when the caller passes none (not the legal owner)", () => {
+    const html = renderWith(pppInput({ pppApplies: true, species: "dog" }), null);
+    expect(html).toContain('data-obligation="ppp"');
+    expect(html).not.toContain('data-slot="ppp-export"');
+  });
+
+  it("never renders it on the 'Faltan datos' nudge — the dog is not known to be PPP", () => {
+    const html = renderWith(
+      pppInput({ pppApplies: false, species: "dog", breed: null, estimatedWeightKg: null }),
+      SLOT,
+    );
+    expect(html).toContain("Faltan datos");
+    expect(html).not.toContain("SLOT-PPP-EXPORT");
+  });
+
+  it("never renders it when there is no PPP card at all", () => {
+    const html = renderWith(pppInput({ pppApplies: false, species: "cat" }), SLOT);
+    expect(html).not.toContain('data-obligation="ppp"');
+    expect(html).not.toContain("SLOT-PPP-EXPORT");
+  });
+});

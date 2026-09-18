@@ -9,7 +9,7 @@
 //   1. Load case by publicCode + validate kind/status/pet.
 //   2. Discriminator: opener must be sanitary_authority.
 //   3. Receiver authorization: canonicalReceiverOrgId === caller's org.
-//   4. Load proposal events (LIMIT 2) + duplicate-proposal guard + drift detection.
+//   4. Load the latest proposal event (a reassign appends one) + drift detection.
 //   5. ATOMIC tx (performed by caller — this function takes a tx parameter):
 //      a. custody_transferred event (shelter_custody → shelter_custody, govt→receiver).
 //      b. End govt's shelter_custody ownership.
@@ -116,27 +116,24 @@ export async function validateAcceptDecomisoHandoff(
     return { ok: false, error: "El decomiso no fue dirigido a tu organización." };
   }
 
-  // Load the latest custody_transfer_proposed — fail loudly if >1.
-  const proposalEvents = await dbInstance
+  // Load the LATEST custody_transfer_proposed — the live one.
+  //
+  // A case may legitimately carry several: every reassign appends a new
+  // proposal toward the new receiver and never rewrites the old one (events
+  // are append-only). The escalation cron models exactly this — it keys its
+  // 7-day clock on MAX(occurred_at) — so the acceptance reads the same way.
+  // Treating ">1" as corruption made every reassigned decomiso permanently
+  // unacceptable (L-4). The drift checks below still guard the live one: it
+  // must point at the case's canonical receiver.
+  const [proposalEvent] = await dbInstance
     .select()
     .from(petEvents)
     .where(
       and(eq(petEvents.caseId, caseRow.id), eq(petEvents.eventType, "custody_transfer_proposed")),
     )
-    .orderBy(desc(petEvents.recordedAt))
-    .limit(2);
-  const [proposalEvent, shadowProposalEvent] = proposalEvents;
+    .orderBy(desc(petEvents.occurredAt), desc(petEvents.recordedAt))
+    .limit(1);
   if (!proposalEvent) return { ok: false, error: "Propuesta de handoff no encontrada." };
-  if (shadowProposalEvent) {
-    console.error(
-      `decomiso-handshake integrity: case ${caseRow.id} has multiple custody_transfer_proposed events; refusing to accept until reconciled`,
-    );
-    return {
-      ok: false,
-      error:
-        "El caso tiene propuestas duplicadas. Contactá soporte para reconciliarlo antes de aceptar.",
-    };
-  }
 
   // Drift detection.
   const proposalPayload = proposalEvent.payload as {

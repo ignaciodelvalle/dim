@@ -117,6 +117,11 @@ export type CredentialFaceProps = {
    * (legal obligations) — see that file's scope-boundary doc comment.
    */
   firstSteps?: FirstStepItem[] | null;
+  /**
+   * RUPPPA export affordance for the PPP card (L-11) — passed straight through
+   * to ComplianceObligationsPanel. Owner-only; the page passes null otherwise.
+   */
+  pppExport?: ReactNode;
 };
 
 export function CredentialFace({
@@ -133,6 +138,7 @@ export function CredentialFace({
   actions,
   petSex,
   firstSteps,
+  pppExport = null,
 }: CredentialFaceProps) {
   const memorialYearRange =
     memorial?.birthYear && memorial?.deathYear
@@ -437,6 +443,7 @@ export function CredentialFace({
                 state={complianceState}
                 petPublicToken={petPublicToken}
                 bare
+                pppExport={pppExport}
               />
               {serviceDogRow}
             </div>
@@ -472,6 +479,7 @@ export function CredentialFace({
                     state={complianceState}
                     petPublicToken={petPublicToken}
                     bare
+                    pppExport={pppExport}
                   />
                   {serviceDogRow}
                 </DiscRow>
