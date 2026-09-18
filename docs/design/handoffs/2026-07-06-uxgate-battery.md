@@ -3,7 +3,7 @@
 Run these on the FIXED instance AFTER Wave F + the re-gate (running on a half-remediated build = noise). Builds on the two v1 cohorts (fixture citizen/operator) — these are NEW dimensions, not repeats.
 
 ## Common contract (every prompt inherits this)
-- Server: `http://localhost:3000` (built, not dev). Creds all `Test1234!`: owner@dim.test (10 pets, DIM-DEMO-0001=Rocco), owner2@, govt@, admin@, orgadmin@, alejo@/vet@.
+- Server: `http://localhost:3000` (built, not dev). Creds all `SHARED_PASSWORD`: owner@dim.test (10 pets, DIM-DEMO-0001=Rocco), owner2@, govt@, admin@, orgadmin@, alejo@/vet@.
 - **Rubric per key screen** (4 questions): ¿Sobra? · ¿Falta? · ¿Autocontenido? · ¿De un vistazo?
 - **Severity:** Blocker (rompe tarea/promesa) / Mayor (confunde o hace adivinar) / Menor (pulido). **PASS = 0 Blockers AND Mayores ≤ 5.**
 - Screenshot every key screen. Mark `[POCO INTUITIVO]`. Log every side-effect (for revert). **NO irreversible actions** (account delete, hard-delete, payments) — stop at the confirmation.

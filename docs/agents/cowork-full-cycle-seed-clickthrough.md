@@ -26,7 +26,7 @@ los datos por los flujos reales — como lo haría una persona. Nada de atajos.
    notas, denuncias). Jamás toques el elenco de demo: mascotas `DIM-DEMO-*`,
    `DIM-PAMP-0001` (Pampa), cuentas `cursor-*`, ni edites/borres datos que no
    creaste vos.
-3. **Cuentas: usá el elenco sembrado** (todas con `Test1234!`): `admin@dim.test`,
+3. **Cuentas: usá el elenco sembrado** (todas con `SHARED_PASSWORD`): `admin@dim.test`,
    `govt-local@dim.test` (CABA/Palermo), `orgadmin@dim.test` (Refugio Test),
    `vet@dim.test` (matriculado), `owner@dim.test`, `graciela@dim.test` (2ª dueña).
    **Hay rate limit real de login, por email Y por IP.** Los dos techos son

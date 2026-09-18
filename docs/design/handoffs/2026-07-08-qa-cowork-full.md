@@ -1,7 +1,7 @@
 # QA Cowork — Ronda nocturna COMPLETA (flujos mutantes, 5 personas)
 
 **URL:** https://dim-staging-a3ynpgcos-ignacio-dim.vercel.app
-**Cuentas:** owner@ / owner2@ / govt@ / admin@ / orgadmin@ / vet@ / lilian@ — todas `Test1234!`
+**Cuentas:** owner@ / owner2@ / govt@ / admin@ / orgadmin@ / vet@ / lilian@ — todas `SHARED_PASSWORD`
 **Tu lane:** TODOS los flujos con login y mutación. Cursor corre en paralelo un pack SOLO-LECTURA (anon + visual) — no se pisan.
 **Contexto:** los 4 blockers de tu pasada anterior están ARREGLADOS y verificados headless; tu trabajo hoy es re-confirmarlos click-through + validar la ola de fixes nueva. Cold start ~10s conocido. Reportá por circuito: RESUELTO/SIGUE/NUEVO + severidad.
 

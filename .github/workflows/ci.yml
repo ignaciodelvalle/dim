@@ -317,6 +317,16 @@ jobs:
         # ships from, or documents in one named place why it must not.
         run: pnpm lint:sched-refs
 
+      - name: Lint (secret scanning)
+        # L-24. Every tracked file is scanned for credential shapes — a postgres
+        # URL with an inline password, a non-demo service_role JWT or sb_secret
+        # key, live Stripe / Resend / AWS keys, private key blocks, literal
+        # passwords in config and docs, and the seeded demo password outside the
+        # code that logs the demo accounts in. The local stack's published demo
+        # values are exempt by exact value, not by directory; every other
+        # exception is an ALLOWLIST entry with a reason in scripts/check-secrets.ts.
+        run: pnpm lint:secrets
+
       - name: Lint (CI ↔ verify parity)
         # The ratchet that keeps this workflow honest. `pnpm verify` is the
         # Definition of Done and runs on one machine; CI is what blocks a merge.
@@ -1000,7 +1010,7 @@ jobs:
 
       - name: Bootstrap DB (schema + triggers + RLS + seeds)
         # Bootstraps the full schema, triggers, RLS policies, reference data,
-        # and test users (owner@dim.test / Test1234! — see scripts/seed-test-users.ts).
+        # and test users (owner@dim.test / SHARED_PASSWORD — see scripts/seed-test-users.ts).
         #
         # No NEXT_PUBLIC_SUPABASE_ANON_KEY here: it used to be pinned to
         # `dummy_anon_key`, and a step-level `env:` SHADOWS the $GITHUB_ENV

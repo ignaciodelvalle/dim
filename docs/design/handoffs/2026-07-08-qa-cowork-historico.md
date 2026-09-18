@@ -1,7 +1,7 @@
 # QA Cowork — CORRIDA HISTÓRICA — todo el sistema, sin excepción
 
 **URL:** https://dim-staging-f2a4yqxpz-ignacio-dim.vercel.app
-**Cuentas (todas `Test1234!`):** owner@ · owner2@ · govt@ (CABA ciudad-entera) · govt-local@ (una localidad) · admin@ · orgadmin@ (Refugio Test) · alejo@ (admin de 4 orgs) · lilian@ (vet, Clínica Recoleta) · vet@ (vet indiv.) · noeli@/graciela@ (foster) · ignacio@/lucas@ (owner/govt extra)
+**Cuentas (todas `SHARED_PASSWORD`):** owner@ · owner2@ · govt@ (CABA ciudad-entera) · govt-local@ (una localidad) · admin@ · orgadmin@ (Refugio Test) · alejo@ (admin de 4 orgs) · lilian@ (vet, Clínica Recoleta) · vet@ (vet indiv.) · noeli@/graciela@ (foster) · ignacio@/lucas@ (owner/govt extra)
 **Método:** click-through real, 5+ personas, sin atajos de API. Tenés toda la noche — profundidad sobre velocidad.
 **Reporte por ítem:** OK / PARCIAL / FALLA / N-A + severidad + evidencia. Los flujos NUNCA probados (bloque F) son la prioridad — nadie los corrió jamás.
 

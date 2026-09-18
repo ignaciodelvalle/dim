@@ -123,7 +123,7 @@ del rate limiter:
   mitad de tour (expiró, te desconectaste), NO reintentes el login vos
   mismo — avisale al operador y esperá. Un tour que se cae por sesión
   perdida se reporta como "no ejecutado", no como hallazgo.
-- Nueve cuentas, todas con password `Test1234!`:
+- Nueve cuentas, todas con password `SHARED_PASSWORD`:
 
 | # | Cuenta | Rol | Nota |
 |---|---|---|---|

@@ -66,8 +66,9 @@ coherente con las dos láminas de honestidad.
 
 ## 2. Las cuentas
 
-Todas comparten la contraseña **`Test1234!`**, escrita como constante
-`SHARED_PASSWORD` en `scripts/seed-test-users.ts:161`, y el script la vuelve a
+Todas comparten una contraseña, escrita como constante **`SHARED_PASSWORD`** en
+`scripts/seed-test-users.ts:161` (a propósito no se copia acá: `pnpm lint:secrets`
+la mantiene fuera de los documentos), y el script la vuelve a
 imponer en cada corrida (`setPassword`, línea 715: *"Always re-assert the shared
 password so seed re-runs leave a known login"*). Es una contraseña de datos
 sintéticos; no hay nada real detrás.
@@ -151,7 +152,7 @@ dice exactamente eso, así que no te contradice.
 
 ### Bloque C — `/gob`, acotado a una sola jurisdicción
 
-**Pestañas 2 → 3.** Ingresá con `govt@dim.test` / `Test1234!` y andá a `/gob`.
+**Pestañas 2 → 3.** Ingresá con `govt@dim.test` / `SHARED_PASSWORD` y andá a `/gob`.
 
 1. Mostrá el panel. **El mensaje es el recorte, no el gráfico:** este funcionario ve
    su territorio y nada más.
@@ -309,7 +310,7 @@ admitir**.
 > **Verificado contra la base de ensayo el 2026-09-14** (A, C y D; B sigue siendo del teléfono):
 > - **A → CABA.** `govt_assignments` vigente de `govt@dim.test`: CABA / Ciudad Autónoma de Buenos Aires. `govt-local@dim.test`: Buenos Aires / La Plata y CABA / Palermo.
 > - **C → la cola ENO de `govt@dim.test` va a estar VACÍA.** Hay 7 filas `eno_authority` en toda la base, las 7 de **Salta** y las 7 en estado `delivered` — ninguna en CABA y ninguna pendiente. Contá el Bloque D con la lámina. Y ojo con la palabra: `delivered` es el estado interno de la fila; **no** significa que un aviso haya llegado a una autoridad (ver `limites-honestos.md`: el ENO no sale del sistema).
-> - **D → vigente.** Las seis cuentas demo (`govt`, `govt-local`, `owner`, `lilian`, `orgadmin`, `admin` @dim.test) validan `Test1234!` y ninguna está desactivada.
+> - **D → vigente.** Las seis cuentas demo (`govt`, `govt-local`, `owner`, `lilian`, `orgadmin`, `admin` @dim.test) validan `SHARED_PASSWORD` y ninguna está desactivada.
 
 ### Cumplimiento: casos y reglas preparados (2026-09-14)
 
@@ -355,7 +356,7 @@ bajando a Barracas, las tres de prueba) y la tarjeta de Rocco con `owner@dim.tes
 | 🔴 A | **Qué jurisdicción ve `govt@dim.test` hoy en ensayo.** El código dice Ushuaia + El Calafate; dos documentos dicen CABA. | Entrá a `/gob` con esa cuenta el lunes. Si no es la que querés, usá `govt-local@dim.test`. |
 | 🔴 B | **Si la app de celular abre y tiene sesión en tu teléfono.** La pantalla existe; el estado del teléfono no se lee desde el repositorio, y una versión anterior publicada no podía iniciar sesión. | Abrila el lunes con `owner@dim.test`. Si no arranca, Bloque B va por la web. |
 | 🔴 C | **Si `/gob/outbox?preset=eno` tiene alguna fila en ensayo.** No hay ningún sembrado que garantice un caso ENO vivo en la base remota. | Abrila el lunes. Si está vacía, el Bloque D se cuenta con la lámina. |
-| 🔴 D | **Si la contraseña `Test1234!` sigue vigente en ensayo.** Es una constante del script de sembrado (`scripts/seed-test-users.ts:161`) y el script la vuelve a imponer en cada corrida, pero **nadie puede afirmar desde el repositorio cuándo corrió por última vez contra la base remota**. | Iniciá sesión el lunes. Si falla, hay que volver a correr el sembrado contra ensayo, y eso es trabajo de Ignacio, no de un agente. |
+| 🔴 D | **Si la contraseña `SHARED_PASSWORD` sigue vigente en ensayo.** Es una constante del script de sembrado (`scripts/seed-test-users.ts:161`) y el script la vuelve a imponer en cada corrida, pero **nadie puede afirmar desde el repositorio cuándo corrió por última vez contra la base remota**. | Iniciá sesión el lunes. Si falla, hay que volver a correr el sembrado contra ensayo, y eso es trabajo de Ignacio, no de un agente. |
 
 Hay además una cosa que **sí** se sabe y conviene tener en la cabeza: el trabajo
 nocturno de pruebas de navegador está en rojo, y la causa medida es que **el refugio

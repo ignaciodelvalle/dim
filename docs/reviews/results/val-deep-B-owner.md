@@ -3,7 +3,7 @@
 **Agente:** Cursor (Playwright + browser público + code trace)  
 **Fecha:** 2026-07-06  
 **Entorno:** `http://localhost:3000` — seed local **sin re-seed post-fixes** (commits seed en branch, orquestador pendiente)  
-**Cuenta:** `owner@dim.test` / `Test1234!` + superficies públicas anónimas
+**Cuenta:** `owner@dim.test` / `SHARED_PASSWORD` + superficies públicas anónimas
 
 **Criterio:** no validar que la credencial monta — validar que un dueño **llega al valor** (libreta útil, compartir al vet, recordatorios, pérdida reversible, trámites). Pregunta rectora: *¿un dueño nuevo, solo, entiende para qué le sirve y vuelve?*
 

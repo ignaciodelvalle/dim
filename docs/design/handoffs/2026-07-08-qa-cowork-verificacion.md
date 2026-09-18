@@ -1,7 +1,7 @@
 # QA Cowork — VERIFICACIÓN DE CIERRE — los remates + los features nuevos
 
 **URL:** https://dim-staging-el6eq8nyg-ignacio-dim.vercel.app
-**Cuentas (todas `Test1234!`):** owner@ · owner2@ · govt@ (CABA ciudad-entera) · govt-local@ (una localidad) · admin@ · orgadmin@ (Refugio Test) · alejo@ (4 orgs) · lilian@ (vet, Clínica Recoleta) · noeli@ (foster)
+**Cuentas (todas `SHARED_PASSWORD`):** owner@ · owner2@ · govt@ (CABA ciudad-entera) · govt-local@ (una localidad) · admin@ · orgadmin@ (Refugio Test) · alejo@ (4 orgs) · lilian@ (vet, Clínica Recoleta) · noeli@ (foster)
 **Método:** click-through real, sin atajos de API.
 
 > **Esto NO es otra corrida histórica.** Es verificación DIRIGIDA: confirmar que los 6 blockers del histórico ahora CIERRAN, y que los 4 features nuevos funcionan. Si algo de esto falla, es regresión de un fix de HOY — reportá el token/código exacto.

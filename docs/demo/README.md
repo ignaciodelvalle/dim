@@ -38,10 +38,13 @@ o `1` (falta algo). Es el gate antes de filmar.
 
 ## Credenciales
 
+La contraseña es la constante `SHARED_PASSWORD` de `scripts/seed-test-users.ts`; no se copia en
+los documentos (`pnpm lint:secrets` lo impide).
+
 | Cuenta | Password | Rol | Portal | Localidad focal |
 |--------|----------|-----|--------|-----------------|
-| `admin@dim.test` | `Test1234!` | admin | `/admin` | universal |
-| `govt@dim.test` | `Test1234!` | govt | `/gob` | **CABA** |
+| `admin@dim.test` | `SHARED_PASSWORD` | admin | `/admin` | universal |
+| `govt@dim.test` | `SHARED_PASSWORD` | govt | `/gob` | **CABA** |
 
 Ambas cuentas comparten la localidad focal **CABA**: ahí disparan los outliers, la alerta que cruza
 el umbral, y el handoff "Contactar autoridad local" desde `/admin/alertas` resuelve al govt real.

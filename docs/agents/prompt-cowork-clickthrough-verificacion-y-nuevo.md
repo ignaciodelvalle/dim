@@ -71,7 +71,7 @@ dueño, refugio, veterinario matriculado, gobierno (acotado por jurisdicción) y
 admin. Los eventos son append-only. UI en español rioplatense.
 
 **Cuentas:** owner@, noeli@, graciela@, alejo@, lilian@, lucas@, admin@dim.test —
-password `Test1234!`. Roles descubiertos en la corrida anterior: **alejo@** es
+password `SHARED_PASSWORD`. Roles descubiertos en la corrida anterior: **alejo@** es
 admin de 4 organizaciones · **lilian@** es veterinaria de planta · **lucas@** es
 gobierno con 5 localidades de CABA · **graciela@** y **noeli@** son ciudadanas.
 

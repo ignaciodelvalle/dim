@@ -1,7 +1,7 @@
 # Brief — pulido UI/UX del portal admin (Cowork + Cursor, en paralelo)
 
 **Entornos:** Cowork → `http://localhost:3000` · Cursor → `http://localhost:3001` (mismo build, base compartida — eviten mutar las MISMAS filas a la vez).
-**Cuenta:** `admin@dim.test` / `Test1234!` (alcance universal).
+**Cuenta:** `admin@dim.test` / `SHARED_PASSWORD` (alcance universal).
 **Objetivo:** pulir UI/UX del portal admin. NO buscar bugs de datos — buscar fricción, inconsistencia visual, copy confuso, y momentos donde el operador duda. Anotar pantalla + qué esperabas + qué viste.
 
 ## Recorrido sugerido (el operador que llega a la mañana)

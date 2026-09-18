@@ -28,7 +28,7 @@ Regression-proof the full owner cycle: affirmative-disclosure mark-lost wizard �
 
 | Item | Source |
 |---|---|
-| **Account** | `owner@dim.test` / `Test1234!` (`e2e/demo/_helpers.ts:8-14`, `scripts/seed-test-users.ts:131-132`) |
+| **Account** | `owner@dim.test` / `SHARED_PASSWORD` (`e2e/demo/_helpers.ts:8-14`, `scripts/seed-test-users.ts:131-132`) |
 | **Pet** | **Dedicated fixture pet** — do **not** use curated demo pets (Firulais/Michi). Create via owner UI (`e2e/create-pet.spec.ts` pattern) or `e2e/fixtures/crisis-pets.ts` with: `status='active'`, **no microchip** (forces 3-step wizard), unique name `CrisisLost-${runId}`. |
 | **Owner phone** | Seed sets `profiles.phone = '+54 9 11 5555-1001'` for owner (`scripts/seed-test-users.ts:309-312`) — needed if testing phone disclosure. |
 | **Optional photo** | Not required for this flow (photo overlay is flow 2). |
@@ -143,7 +143,7 @@ Prove admin logout works (`app/admin/layout.tsx:88-97`) and deactivated institut
 
 | Item | Source |
 |---|---|
-| **Active admin** | `admin@dim.test` / `Test1234!` (`seed-test-users.ts:131`, `_helpers.ts:13`) |
+| **Active admin** | `admin@dim.test` / `SHARED_PASSWORD` (`seed-test-users.ts:131`, `_helpers.ts:13`) |
 | **Deactivated institutional** | **New fixture user** — do not deactivate `admin@dim.test`. Pattern from `__tests__/access-control-deactivated-proposals.test.ts:27-97`: e.g. `e2e-deactivated-admin@dim.test.local`, `role=admin`, `account_type=institutional`, `deactivated_at=NOW()`. Create in `beforeAll`, delete in `afterAll`. |
 
 ### Steps — 3A: Active admin logout
@@ -207,7 +207,7 @@ Verify `/org/[orgToken]/intake` creates pet + `shelter_custody` ownership + `pet
 
 | Item | Source |
 |---|---|
-| **Account** | `orgadmin@dim.test` / `Test1234!` (`_helpers.ts:10-11`) |
+| **Account** | `orgadmin@dim.test` / `SHARED_PASSWORD` (`_helpers.ts:10-11`) |
 | **Org token** | Runtime via `resolveOrgToken(page, /refugio/i)` (`_helpers.ts:175-191`) — "Refugio Test" from seed (`seed-test-users.ts:396-422`) |
 | **Pet name** | Unique: `IntakeE2E-${runId}` |
 

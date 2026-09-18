@@ -46,11 +46,11 @@ coincide, **PARÁ y avisá**. Releelo al cerrar cada objetivo.
 
 | Rol | Cuenta | Password |
 |---|---|---|
-| Dueño / titular | `owner@dim.test` | `Test1234!` |
-| Segunda persona (será cuidadora) | `adoptante@dim.test` | `Test1234!` |
-| Organización | `alejo@dim.test` | `Test1234!` |
-| Gobierno CABA | `lucas@dim.test` | `Test1234!` |
-| Veterinaria con matrícula en trámite (O10) | `carla@dim.test` | `Test1234!` |
+| Dueño / titular | `owner@dim.test` | `SHARED_PASSWORD` |
+| Segunda persona (será cuidadora) | `adoptante@dim.test` | `SHARED_PASSWORD` |
+| Organización | `alejo@dim.test` | `SHARED_PASSWORD` |
+| Gobierno CABA | `lucas@dim.test` | `SHARED_PASSWORD` |
+| Veterinaria con matrícula en trámite (O10) | `carla@dim.test` | `SHARED_PASSWORD` |
 
 Si una sesión no arranca, decilo y seguí con lo que puedas. No inventes
 cuentas ni cambies contraseñas.

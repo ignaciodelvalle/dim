@@ -36,7 +36,7 @@
 - **Orden sagrado**: matar servidor → `pnpm build` → `qa-up` → guard verde → recién ahí medir.
 - DB scripts: `node --conditions=react-server --import tsx scripts/<x>.ts`.
 - cursor-agent: `C:\Users\ignac\AppData\Local\cursor-agent\cursor-agent.cmd -p --output-format text`.
-- Cuentas semilla: `scripts/seed-test-users.ts` — password compartida `Test1234!`.
+- Cuentas semilla: `scripts/seed-test-users.ts` — password compartida `SHARED_PASSWORD`.
   `govt@dim.test` (operador), `alejo@dim.test` (**0 mascotas propias, pero 4
   membresías de organización** → aterriza en la ruta de org, NO en el empty
   state), `owner@dim.test` (2).

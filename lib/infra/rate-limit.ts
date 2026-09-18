@@ -337,12 +337,58 @@ export class RateLimitError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------------
+// rateLimitKeySegment — every piece of a bucket key has a fixed maximum size.
+//
+// THE HOLE (T2-S5, 2026-09-18). Bucket keys were `${endpoint}:${identifier}`
+// verbatim, and both halves can carry attacker-chosen text: `callerSubject`
+// returns an unparseable x-real-ip / x-forwarded-for segment exactly as it
+// arrived (by design — see above), and several endpoints embed a public token
+// taken from the URL (`dispute_tip:${publicToken}`). So one request could
+// persist a header-sized primary key into rate_limit_buckets — thousands of
+// bytes per row, one row per window per request, in the fastest-filling table
+// in the schema — and echo it into the RateLimitError message and the logs.
+//
+// THE FIX. A segment that is already short and made only of the characters a
+// real identifier uses (an IPv4, an IPv6 /64 prefix, a uuid, a public token, a
+// hashed email, a constant endpoint name) is kept verbatim — so every existing
+// key, and every test and cleanup that matches keys by prefix, is unchanged.
+// Anything else (too long, or carrying any other character) is replaced by
+// `#` + 160 bits of SHA-256 over its NFC-normalised, trimmed form. `#` is
+// outside the verbatim alphabet, so a raw segment can never spell a hashed one
+// and the two forms cannot collide; 160 bits is the same width
+// `emailRateLimitKey` already relies on.
+//
+// Normalising before hashing matters: without it, the same text in composed
+// and decomposed Unicode, or with a trailing space, would buy a fresh bucket.
+// ---------------------------------------------------------------------------
+
+/** Longest segment kept verbatim. A uuid is 36; an IPv6 /64 prefix at most 23. */
+export const RATE_LIMIT_SEGMENT_MAX = 64;
+
+const RATE_LIMIT_VERBATIM_SEGMENT = /^[A-Za-z0-9._:/@-]+$/;
+
+/**
+ * The bounded form of one bucket-key segment: verbatim when short and plain,
+ * otherwise `#` + 40 hex chars of SHA-256. Exported for its unit test.
+ */
+export function rateLimitKeySegment(value: string): string {
+  const normalized = value.normalize("NFC").trim();
+  if (normalized.length <= RATE_LIMIT_SEGMENT_MAX && RATE_LIMIT_VERBATIM_SEGMENT.test(normalized)) {
+    return normalized;
+  }
+  return `#${createHash("sha256").update(normalized).digest("hex").slice(0, 40)}`;
+}
+
 export async function enforceRateLimit(
-  endpoint: string,
-  identifier: string,
+  rawEndpoint: string,
+  rawIdentifier: string,
   config: RateLimitConfig,
 ): Promise<void> {
   const now = Date.now();
+  // Bounded before any key is built — see rateLimitKeySegment.
+  const endpoint = rateLimitKeySegment(rawEndpoint);
+  const identifier = rateLimitKeySegment(rawIdentifier);
 
   if (config.maxPerMinute !== undefined) {
     const windowStart = Math.floor(now / 60_000) * 60_000;

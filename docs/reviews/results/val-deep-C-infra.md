@@ -3,7 +3,7 @@
 **Agente:** Cursor (Playwright headless + probes dirigidos)  
 **Fecha:** 2026-07-06 (sesión PM)  
 **Entorno:** `http://localhost:3000` — `pnpm start` tras `pnpm build` (HEAD `7d26992c`)  
-**Cuentas:** `orgadmin@dim.test`, `alejo@dim.test`, `owner2@dim.test`, `owner@dim.test`, `govt@dim.test` / `Test1234!`
+**Cuentas:** `orgadmin@dim.test`, `alejo@dim.test`, `owner2@dim.test`, `owner@dim.test`, `govt@dim.test` / `SHARED_PASSWORD`
 
 **Criterio:** refugio operable (intake/tránsitos/adopciones + bulk Aprobar con confirmación); RLS cross-tenant falla-cerrado (**cualquier fuga = BLOCKER**); k-anon en Panorama; mobile 390px con mapa.
 

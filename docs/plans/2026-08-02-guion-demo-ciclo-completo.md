@@ -5,7 +5,7 @@
 > plan B. Validado contra código y seeds el 2026-08-02 (dos exploraciones
 > read-only). Duración estimada: 15-18 minutos.
 
-## Reparto (todos con `Test1234!` — perfiles de navegador PRE-LOGUEADOS)
+## Reparto (todos con `SHARED_PASSWORD` — perfiles de navegador PRE-LOGUEADOS)
 
 | Perfil | Cuenta | Rol en el guion |
 |---|---|---|

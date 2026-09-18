@@ -1,7 +1,7 @@
 # QA Cursor — PROFUNDIDAD (mientras Cowork corre) — lectura, PII, a11y, mobile
 
 **URL:** https://dim-staging-el6eq8nyg-ignacio-dim.vercel.app (la misma de tu corrida anterior)
-**Cuentas (todas `Test1234!`):** govt@ (CABA ciudad-entera) · owner@ · anon (sin login para lo público)
+**Cuentas (todas `SHARED_PASSWORD`):** govt@ (CABA ciudad-entera) · owner@ · anon (sin login para lo público)
 **Regla anti-colisión (importante):** Cowork está corriendo AHORA los flujos de MUTACIÓN pesada (denuncias, matrícula, org→org, ARCO, mordeduras) en esta misma URL. **NO toques nada que mute** — tu lane es LECTURA pura + adversarial de privacidad + accesibilidad + mobile.
 **Y NO re-verifiques /gob/panorama** — sus 3 hallazgos (intermitencia, Actualizar, toggle) ya están arreglados en la branch, pendientes de deploy; verlos ahora mostraría el estado viejo. Enfocate en lo de abajo, que es todo NUEVO respecto de tu pack anterior.
 

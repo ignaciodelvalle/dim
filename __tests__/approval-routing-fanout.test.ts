@@ -47,7 +47,21 @@ const LOCALITY_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa02";
 // it satisfies every predicate the fallback used to apply. See defect 3 below.
 const SYSTEM_ADMIN_ID = "d1a90000-0000-4000-8000-00000000fa03";
 
-const FIXTURE_IDS = [WHOLE_PROVINCE_GOVT_ID, LOCALITY_GOVT_ID, SYSTEM_ADMIN_ID];
+// T2-S5: an operator whose PROFILE is deactivated while one of her assignment
+// rows is still open, and a service account that holds an assignment.
+const DEACTIVATED_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa04";
+const SYSTEM_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa05";
+// A locality no other fixture in this file covers, so the only candidates the
+// resolver can find there are the two above.
+const HOLDER_LOCALITY = "Tolhuin";
+
+const FIXTURE_IDS = [
+  WHOLE_PROVINCE_GOVT_ID,
+  LOCALITY_GOVT_ID,
+  SYSTEM_ADMIN_ID,
+  DEACTIVATED_GOVT_ID,
+  SYSTEM_GOVT_ID,
+];
 const TRACE_ROUTE = "test_empty_fanout";
 
 /**
@@ -112,6 +126,19 @@ beforeAll(async () => {
       accountType: "institutional",
       isSystem: true,
     },
+    {
+      id: DEACTIVATED_GOVT_ID,
+      displayName: "routing-fixture-deactivated-govt",
+      role: "govt",
+      accountType: "institutional",
+    },
+    {
+      id: SYSTEM_GOVT_ID,
+      displayName: "routing-fixture-system-govt",
+      role: "govt",
+      accountType: "institutional",
+      isSystem: true,
+    },
   ]);
 });
 
@@ -173,6 +200,65 @@ describe("findAuthoritiesForJurisdiction — whole-province subsumption (writer 
     });
 
     expect(recipients).not.toContain(WHOLE_PROVINCE_GOVT_ID);
+  });
+});
+
+describe("findAuthoritiesForJurisdiction — the holder must still be reachable (T2-S5)", () => {
+  // The resolver used to read govt_assignments alone. A deactivated operator
+  // with one assignment left open was paged forever — and, because she made the
+  // govt list non-empty, the admin fallback for "nobody covers this" never
+  // fired. Not every deactivation path revokes assignments
+  // (reset-institutional-credentials does not), so the profile has to decide.
+  it("returns an ACTIVE operator holding an open assignment", async () => {
+    await db.insert(govtAssignments).values({
+      userId: DEACTIVATED_GOVT_ID,
+      jurisdictionProvince: PROVINCE,
+      jurisdictionLocality: HOLDER_LOCALITY,
+    });
+
+    const recipients = await findAuthoritiesForJurisdiction({
+      province: PROVINCE,
+      locality: HOLDER_LOCALITY,
+    });
+
+    // The positive control: without it, the negative case below would pass
+    // against a resolver that returns nobody for this locality at all.
+    expect(recipients).toEqual([DEACTIVATED_GOVT_ID]);
+  });
+
+  it("drops a DEACTIVATED operator whose assignment is still open, and falls back to admins", async () => {
+    await db
+      .update(profiles)
+      .set({ deactivatedAt: new Date() })
+      .where(eq(profiles.id, DEACTIVATED_GOVT_ID));
+
+    const recipients = await findAuthoritiesForJurisdiction({
+      province: PROVINCE,
+      locality: HOLDER_LOCALITY,
+    });
+
+    expect(recipients).not.toContain(DEACTIVATED_GOVT_ID);
+    // The half that matters most: with her gone nobody covers Tolhuin, so the
+    // fallback must reach the active human admins instead of nobody.
+    const admins = await activeInstitutionalAdminIds();
+    expect(admins.length).toBeGreaterThan(0);
+    expect([...recipients].sort()).toEqual([...admins].sort());
+  });
+
+  it("drops a SERVICE ACCOUNT that holds an open assignment", async () => {
+    await db.insert(govtAssignments).values({
+      userId: SYSTEM_GOVT_ID,
+      jurisdictionProvince: PROVINCE,
+      jurisdictionLocality: HOLDER_LOCALITY,
+    });
+
+    const recipients = await findAuthoritiesForJurisdiction({
+      province: PROVINCE,
+      locality: HOLDER_LOCALITY,
+    });
+
+    expect(recipients).not.toContain(SYSTEM_GOVT_ID);
+    expect(recipients).not.toContain(DEACTIVATED_GOVT_ID);
   });
 });
 

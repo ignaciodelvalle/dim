@@ -1,7 +1,7 @@
 # Génesis — cold-start desde vacío
 
 **Fecha:** 2026-07-07  
-**Entorno:** `http://localhost:3000` (prod local) — solo `admin@dim.test` / `Test1234!` al inicio  
+**Entorno:** `http://localhost:3000` (prod local) — solo `admin@dim.test` / `SHARED_PASSWORD` al inicio  
 **Run PASS:** suffix `mra4g2uz` · harness `pnpm exec tsx scripts/cursor-genesis.ts`  
 **Handoff:** `docs/design/handoffs/2026-07-05-uxgate-genesis.md`
 
@@ -30,7 +30,7 @@ Ledger append-only: `docs/reviews/results/genesis-ledger.md`
 | Rescue + adopción | **DIM-ZRR6-U3J4** (Morena) | Intake → elegibilidad → publicar → postular → aprobar → finalizar |
 | Adoptante | `adop-gen-mra4g2uz@dim.test` | Postulación 5 pasos |
 
-Contraseña de todas las cuentas creadas: `Test1234!`
+Contraseña de todas las cuentas creadas: `SHARED_PASSWORD`
 
 ---
 

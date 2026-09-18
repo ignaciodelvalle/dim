@@ -6,7 +6,7 @@ necesitás lograr (no cómo), con qué datos arrancás, y las 4 lentes de evalua
 **¿funciona? · ¿resuelve el problema? · ¿se ve bien? · ¿la experiencia genera confianza?**
 
 **Entorno** (precalentado y validado): http://localhost:3000 · build `1f6b9abe` · todas las cuentas
-`Test1234!`. El entorno está fresco y estable — si algo falla al navegar, es un hallazgo, no ruido.
+`SHARED_PASSWORD`. El entorno está fresco y estable — si algo falla al navegar, es un hallazgo, no ruido.
 Rate-limit de `/login` se esquiva rotando `x-real-ip` si scripteás.
 
 **Regla de oro del red team**: buscá dónde el producto te MIENTE, te FRENA, o te hace DUDAR. Un

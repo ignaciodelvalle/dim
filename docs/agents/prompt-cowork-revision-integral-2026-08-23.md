@@ -346,7 +346,7 @@ Los dos textos que vas a ver, y qué significa cada uno:
 | *"Correo o contraseña incorrectos."* | Llegó al proveedor y rebotó | Revisá el campo de email (autofill, ver abajo). **Un** reintento, no más |
 | *"Demasiados intentos. Esperá un momento y volvé a probar."* | Se acabó el presupuesto | **PARÁ con esa cuenta.** Esperá a la hora siguiente o seguí con otra. No es hallazgo |
 
-La contraseña compartida de las cuentas sembradas es `Test1234!`.
+La contraseña compartida de las cuentas sembradas es `SHARED_PASSWORD`.
 
 #### La trampa del autofill de Chrome
 
@@ -1676,7 +1676,7 @@ Ignacio, y también está fuera del alcance de Cowork (§M).
 
 **4. Las cuentas y su contraseña.** El modo de sesión de esta corrida es **login
 manual, uno por cuenta** (§2): no hace falta acuñar nada, pero sí que las nueve
-cuentas de §3 existan en staging con la contraseña compartida `Test1234!`. Si
+cuentas de §3 existan en staging con la contraseña compartida `SHARED_PASSWORD`. Si
 además querés darle el modo de cookies pre-acuñadas a una herramienta que sí
 puede setearlas, el comando es:
 

@@ -14,7 +14,7 @@ si un funcionario tuviera que firmar con estos números.
 
 ── ENTRAR ──
 URL: https://dim-staging.vercel.app  ·  Login: /login
-Usuario: admin@dim.test  ·  Clave: Test1234!
+Usuario: admin@dim.test  ·  Clave: SHARED_PASSWORD
 Panorama: menú lateral → sección SITUACIÓN → Panorama
 
 Es un entorno de STAGING, no una máquina local. Si algo no carga, esperá y

@@ -1,7 +1,7 @@
 # QA Cursor #2 — Perfiles nunca validados (rápido, sin colisión con Cowork)
 
 **URL (build NUEVO con los fixes de esta noche):** https://dim-staging-2ojp19znv-ignacio-dim.vercel.app
-**Clave de todas:** `Test1234!`
+**Clave de todas:** `SHARED_PASSWORD`
 **Regla anti-colisión:** Cowork usa owner@/owner2@/orgadmin@/lilian@/govt@/admin@ en OTRA URL — vos usás OTRAS cuentas y esta URL. No toques adopciones/transferencias/denuncias existentes (mirá, no mutes — salvo lo explícitamente pedido).
 **Aviso de contexto:** las capas de EVENTOS del panorama (perdidas/zoonosis) pueden verse flacas en este build — esperado hasta el re-seed de mañana (los loaders ahora leen shapes reales). NO reportar como falla. Lo que importa acá es SCOPE y ROLES, no riqueza de datos.
 

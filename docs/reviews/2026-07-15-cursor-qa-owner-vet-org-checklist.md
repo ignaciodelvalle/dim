@@ -2,7 +2,7 @@
 
 **Fecha:** 15/7/2026 · **Entorno:** `http://localhost:3000` (prod-style local)
 **Scope:** solo dueño / veterinario-clínica / organización-refugio. **Admin/govt fuera** (ya en Claude Code vía ronda 4).
-**Cuentas:** `owner@dim.test`, `alejo@dim.test` (Clínica Recoleta `DIM-R5GX-838G`), `orgadmin@dim.test` (Refugio Test `DIM-GA6Y-7W54`). Password demo: `Test1234!`.
+**Cuentas:** `owner@dim.test`, `alejo@dim.test` (Clínica Recoleta `DIM-R5GX-838G`), `orgadmin@dim.test` (Refugio Test `DIM-GA6Y-7W54`). Password demo: `SHARED_PASSWORD`.
 **Tester:** Cursor adversarial review (Chrome IDE browser). Soft-nav flaky → preferir hard URL.
 
 **Artefactos de prueba creados:**

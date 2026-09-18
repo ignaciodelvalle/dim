@@ -3,7 +3,7 @@
 **Agente:** Cursor (Playwright + screenshots)  
 **Fecha:** 2026-07-07 (re-validación post-fixes)  
 **Entorno:** `http://localhost:3000` — build fresco, seed limpio  
-**Cuenta:** `admin@dim.test` / `Test1234!`
+**Cuenta:** `admin@dim.test` / `SHARED_PASSWORD`
 
 Screenshots: `docs/reviews/results/val-3-admin-screenshots/`
 

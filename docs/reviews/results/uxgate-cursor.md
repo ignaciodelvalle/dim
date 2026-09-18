@@ -3,7 +3,7 @@
 **Agente:** Cursor (OPERADOR)  
 **Fecha:** 2026-07-05  
 **Entorno:** `http://localhost:3000` (build de producción local, seed demo)  
-**Cuentas:** `alejo@dim.test`, `orgadmin@dim.test` (parcial vía alejo en Patitas), `govt@dim.test`, `admin@dim.test` — contraseña `Test1234!`  
+**Cuentas:** `alejo@dim.test`, `orgadmin@dim.test` (parcial vía alejo en Patitas), `govt@dim.test`, `admin@dim.test` — contraseña `SHARED_PASSWORD`  
 **Alcance:** W5–W15 + consolas gob/admin (Cohort B del runbook)
 
 Screenshots: `docs/reviews/results/uxgate-cursor-screenshots/` (capturados en sesión Chrome MCP).

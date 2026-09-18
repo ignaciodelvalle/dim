@@ -167,7 +167,7 @@ El conteo de archivos importa tanto como el de tests: el runner arreglado el 09/
 
 **Árbol limpio**, sin archivos sueltos. **19 commits sin pushear** — el push quedó bloqueado por el clasificador de permisos, hay que correrlo a mano.
 
-**Staging** (deploy anterior, sin los 19 commits): raíz, credencial de Pampa, `/perdidas` y `/adoptar` en 200; los chunks de la home resuelven 200 (no es un build podrido); **1752 turnos reservables futuros**. El elenco de siete cuentas verificado: existen, confirmadas, sin bloqueos, `Test1234!` entra en todas.
+**Staging** (deploy anterior, sin los 19 commits): raíz, credencial de Pampa, `/perdidas` y `/adoptar` en 200; los chunks de la home resuelven 200 (no es un build podrido); **1752 turnos reservables futuros**. El elenco de siete cuentas verificado: existen, confirmadas, sin bloqueos, `SHARED_PASSWORD` entra en todas.
 
 **Lo que falta para que staging refleje esta noche**: `git push` y el deploy. Ojo con `deploy:staging` — ahora corre `pnpm verify` entero (antes corría 1 de 49 fences), así que tarda más y es a propósito.
 

@@ -2,7 +2,7 @@
 
 **Agente:** Cursor  
 **Entorno:** `http://localhost:3000` (build producción)  
-**Cuentas:** `owner@dim.test`, `owner2@dim.test`, `govt@dim.test`, `admin@dim.test`, `orgadmin@dim.test`, `alejo@dim.test` — contraseña `Test1234!`  
+**Cuentas:** `owner@dim.test`, `owner2@dim.test`, `govt@dim.test`, `admin@dim.test`, `orgadmin@dim.test`, `alejo@dim.test` — contraseña `SHARED_PASSWORD`  
 **Screenshots:** `docs/reviews/results/final-seams-screenshots/`  
 **Automatización auxiliar:** `e2e/final-seams.spec.ts` + `playwright.localhost.config.ts`
 

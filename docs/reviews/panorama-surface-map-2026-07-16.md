@@ -1,6 +1,6 @@
 # Panorama — mapa de superficie para recorrer y probar
 
-Guía completa del Centro de Situación (panorama) para una pasada de QA. Entorno: `http://localhost:3001` (Cursor) — mismo build que :3000. Cuentas: `admin@dim.test` (universal) y `govt@dim.test` (scope: Ushuaia, El Calafate, Palermo), `govt-local@dim.test` (solo Palermo). Password `Test1234!`.
+Guía completa del Centro de Situación (panorama) para una pasada de QA. Entorno: `http://localhost:3001` (Cursor) — mismo build que :3000. Cuentas: `admin@dim.test` (universal) y `govt@dim.test` (scope: Ushuaia, El Calafate, Palermo), `govt-local@dim.test` (solo Palermo). Password `SHARED_PASSWORD`.
 
 ## Qué es
 Un mapa MapLibre de Argentina + chrome flotante + dock inferior. Una MISMA consola sirve dos portales:

@@ -313,7 +313,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=…
 Babel inlines these at bundle time, so in a dev build restarting Metro is enough;
 the APK does not need rebuilding.
 
-**Accounts.** All fifteen `@dim.test` accounts share `Test1234!`. The ones a
+**Accounts.** All fifteen `@dim.test` accounts share `SHARED_PASSWORD`. The ones a
 walkthrough needs: `ignacio@dim.test` (owner, 17 pets), `lilian@dim.test` (vet,
 matrícula V-99001-CABA verified, lands on `/org/DIM-S6XT-8BX7`),
 `lucas@dim.test` (CABA government), `gov-pba@dim.test` (four PBA partidos, the

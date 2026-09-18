@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-07-06  
 **Servidor:** `http://localhost:3000` (build)  
-**Contraseña:** `Test1234!` en todas las cuentas  
+**Contraseña:** `SHARED_PASSWORD` en todas las cuentas  
 **Nota seed:** el handoff cita clínica `DIM-UBHY-TCH5`; en el seed vivo de esta sesión la Clínica Recoleta de alejo@ resolvió a **`DIM-7QK3-FB8W`**. `DIM-UBHY-TCH5` → 404.
 
 ---

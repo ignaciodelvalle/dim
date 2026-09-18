@@ -8,7 +8,7 @@
 > estos son NUEVOS ángulos. Elegí el bloque por rol según qué quieras estresar.
 
 ## BLOQUE A — Funcionario, decisiones más finas (panorama, admin/govt)
-Cuenta: `admin@dim.test` (universal) o `lucas@dim.test` (5 jurisdicciones — mejor para probar el fence). `Test1234!`.
+Cuenta: `admin@dim.test` (universal) o `lucas@dim.test` (5 jurisdicciones — mejor para probar el fence). `SHARED_PASSWORD`.
 
 - **A1 · Comparar dos jurisdicciones:** tu ministro quiere saber si la cobertura antirrábica de
   Córdoba mejoró más o menos que la de Santa Fe en el último año. Contá cómo lo averiguás y qué
@@ -24,7 +24,7 @@ Cuenta: `admin@dim.test` (universal) o `lucas@dim.test` (5 jurisdicciones — me
   vivo — debería suprimir, no exponer)*
 
 ## BLOQUE B — Dueño de mascota (owner, mobile-first)
-Cuenta: `owner@dim.test` / `Test1234!`. **Probá en viewport de celular (390px) además de desktop.**
+Cuenta: `owner@dim.test` / `SHARED_PASSWORD`. **Probá en viewport de celular (390px) además de desktop.**
 
 - **B1 · Recién llegado:** entrás por primera vez, no cargaste ninguna mascota. ¿Entendés qué
   tenés que hacer? ¿La pantalla te guía o te deja perdido?
@@ -36,7 +36,7 @@ Cuenta: `owner@dim.test` / `Test1234!`. **Probá en viewport de celular (390px) 
   enterás desde el inicio o tenés que ir a buscarla?
 
 ## BLOQUE C — Veterinario / clínica (vet)
-Cuenta: seed de vet (`alejo@dim.test` admin de varias orgs, o el que indique el PO). `Test1234!`.
+Cuenta: seed de vet (`alejo@dim.test` admin de varias orgs, o el que indique el PO). `SHARED_PASSWORD`.
 
 - **C1 · Recién aprobado:** acabás de obtener el rol de veterinario. ¿Sabés cuál es tu próximo
   paso para empezar a trabajar? ¿La pantalla te lleva o te deja adivinando?
@@ -46,7 +46,7 @@ Cuenta: seed de vet (`alejo@dim.test` admin de varias orgs, o el que indique el 
   organización estás y qué rol tenés? Anotá cualquier momento de duda.
 
 ## BLOQUE D — Organización / refugio (org-admin)
-Cuenta: `orgadmin@dim.test` (shelter) o `alejo@dim.test` (admin de shelter+clinic+rescue+autoridad). `Test1234!`.
+Cuenta: `orgadmin@dim.test` (shelter) o `alejo@dim.test` (admin de shelter+clinic+rescue+autoridad). `SHARED_PASSWORD`.
 
 - **D1 · Mi trabajo pendiente:** entrás como responsable de un refugio. ¿La pantalla te dice qué
   tenés pendiente HOY sin que tengas que abrir cada sección? Contá qué colas ves y si los números

@@ -28,7 +28,7 @@
 - [ ] Validá la versión desplegada: en el HTML, `<meta name="mimar-version">` debe decir
       el commit vigente.
 
-### Reparto (todos `Test1234!`)
+### Reparto (todos `SHARED_PASSWORD`)
 
 | Perfil | Cuenta | Rol |
 |---|---|---|

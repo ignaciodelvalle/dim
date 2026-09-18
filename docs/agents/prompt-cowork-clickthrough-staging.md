@@ -38,7 +38,7 @@ un evento nuevo. UI en español rioplatense.
 **Tu guion** está en `docs/agents/master-test-ciudadano-multiagente.md`. Seguilo.
 
 **Cuentas:** owner@, noeli@, graciela@, alejo@, lilian@, lucas@, admin@dim.test —
-password `Test1234!`.
+password `SHARED_PASSWORD`.
 
 **Reglas de la casa:**
 

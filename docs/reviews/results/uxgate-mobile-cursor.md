@@ -4,7 +4,7 @@
 **Fecha:** 2026-07-06  
 **Entorno:** `http://localhost:3000` (build producción local, seed demo)  
 **Viewport:** 390×844 (iPhone-ish, `Emulation.setDeviceMetricsOverride`)  
-**Cuentas:** `govt@dim.test`, `orgadmin@dim.test` (Refugio Test · `DIM-HSPR-M285`), `admin@dim.test` — contraseña `Test1234!`  
+**Cuentas:** `govt@dim.test`, `orgadmin@dim.test` (Refugio Test · `DIM-HSPR-M285`), `admin@dim.test` — contraseña `SHARED_PASSWORD`  
 **Alcance:** Panel gob, Panorama (mapa/capas/leyenda), tablas densas gob (casos/cola), `/org/…/mascotas`, dashboard admin.
 
 Screenshots: `docs/reviews/results/uxgate-mobile-cursor-screenshots/` (`m01`–`m08`; ver nota m06 abajo).

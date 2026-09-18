@@ -1,6 +1,6 @@
 # Brief Cursor — panorama, pasada puntual de cobertura
 
-**Entorno:** `http://localhost:3001` · cuentas `admin@dim.test`, `govt@dim.test` (Ushuaia/El Calafate/Palermo), `govt-local@dim.test` (SOLO Palermo). Password `Test1234!`.
+**Entorno:** `http://localhost:3001` · cuentas `admin@dim.test`, `govt@dim.test` (Ushuaia/El Calafate/Palermo), `govt-local@dim.test` (SOLO Palermo). Password `SHARED_PASSWORD`.
 **Contexto:** la pasada anterior (`2026-07-16-cursor-panorama-surface-qa.md`) cubrió lo grueso; esto cierra SOLO lo que quedó sin ejercitar. No re-recorras todo — enfocate en estos 4 bloques.
 
 ## 1. Click en unidad → drawer de detalle (end-to-end)

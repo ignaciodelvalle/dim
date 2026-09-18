@@ -1,6 +1,6 @@
 # Ronda 6 (Cursor) — "El otro lado del mostrador" · sin recorrido pautado
 
-> **Entorno:** `http://localhost:3001` · **Contraseña única:** `Test1234!`
+> **Entorno:** `http://localhost:3001` · **Contraseña única:** `SHARED_PASSWORD`
 >
 > **Ojo:** hay otro tester trabajando en `:3000` sobre las colas de admin, con la MISMA base.
 > No entres a `/admin` ni resuelvas colas de operador — no es tu papel en esta ronda y le pisás

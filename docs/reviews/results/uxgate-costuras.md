@@ -2,7 +2,7 @@
 
 **Agente:** Cursor  
 **Entorno:** `http://localhost:3000` (build producción vía `scripts/qa-up.ps1`; Playwright auxiliar en `:3333` para flujos largos)  
-**Cuentas:** `owner@dim.test`, `owner2@dim.test`, `govt@dim.test`, `admin@dim.test`, `orgadmin@dim.test`, `alejo@dim.test` — contraseña `Test1234!`  
+**Cuentas:** `owner@dim.test`, `owner2@dim.test`, `govt@dim.test`, `admin@dim.test`, `orgadmin@dim.test`, `alejo@dim.test` — contraseña `SHARED_PASSWORD`  
 **Screenshots:** `docs/reviews/results/uxgate-costuras-screenshots/`  
 **Side-effects (reversibles):** Pipa (`DIM-DEMO-0010`) marcada perdida → encontrada; denuncia anónima `DEN-RK7T-94YM` creada (moderación pendiente si no se completó manualmente).
 

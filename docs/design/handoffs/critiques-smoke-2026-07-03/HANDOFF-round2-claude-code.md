@@ -46,7 +46,7 @@ Native HTML5 `required` surfaces "Please fill out this field." (e.g. new-pet for
 - New-pet form doesn't capture `acquisition_method` (AGENTS says `pet_registered` tracks it for EAH analytics) — confirm where it's captured, else `/gob/analytics` acquisition mix is seed-only.
 
 ## Repro setup
-- Accounts (pw `Test1234!`): `owner@`, `alejo@` (admin of all 4 orgs), `admin@`, `govt@`, `lilian@`.
+- Accounts (pw `SHARED_PASSWORD`): `owner@`, `alejo@` (admin of all 4 orgs), `admin@`, `govt@`, `lilian@`.
 - Org tokens: Refugio `DIM-TC7Z-APW6` · Clínica `DIM-6TZM-DUJZ` · Rescate `DIM-KN7W-JTB8` · Autoridad `DIM-PWZR-B75C`.
 - Test artifacts: pet `DIM-BAFX-B7VF` (owner@, open bite case `CAS-3KRJ-433G`), denuncia `DEN-TF4N-4PJW`.
 

@@ -1,7 +1,7 @@
 # QA Cursor — VERIFICACIÓN DE CIERRE — lectura, scope, visual, tipeo
 
 **URL:** https://dim-staging-el6eq8nyg-ignacio-dim.vercel.app
-**Cuentas (todas `Test1234!`):** govt-local@ (una localidad) · alejo@ (4 orgs) · noeli@ (foster) · owner@. Para signup usá un gmail+alias nuevo.
+**Cuentas (todas `SHARED_PASSWORD`):** govt-local@ (una localidad) · alejo@ (4 orgs) · noeli@ (foster) · owner@. Para signup usá un gmail+alias nuevo.
 **Regla anti-colisión:** Cowork corre los flujos de MUTACIÓN pesada (denuncias, matrícula, org→org, ARCO) en la MISMA URL. Vos NO toques esos — tu lane es LECTURA, SCOPE, VISUAL, y creación liviana de cuenta. Mirá, no mutes los casos de Cowork.
 
 > Verificación dirigida a lo que cambió HOY. Foco: que el login/signup NO coman teclas, que la procedencia/denominadores se VEAN bien, que el scope de roles aguante, y los nits es-AR.

@@ -206,7 +206,7 @@ The third must come back empty. `invalid JWT` means the two origins disagree
 (step 3, rule 2); `ECONNREFUSED` means `:3000` or the Supabase stack is down, or
 you wrote `localhost` where the AVD needs `10.0.2.2`.
 
-Sign in as **`ignacio@dim.test` / `Test1234!`** — owner, 17 pets. Every
+Sign in as **`ignacio@dim.test` / `SHARED_PASSWORD`** — owner, 17 pets. Every
 `@dim.test` account shares that password.
 
 To drive the UI from the shell: `adb shell uiautomator dump`, pull the XML, read

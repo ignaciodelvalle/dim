@@ -3,7 +3,7 @@
 **Agente:** Cursor (OPERADOR)  
 **Fecha:** 2026-07-06  
 **Entorno:** `http://localhost:3000` (build producción local)  
-**Cuentas usadas:** `admin@dim.test`, `govt@dim.test`, `orgadmin@dim.test` — contraseña `Test1234!`  
+**Cuentas usadas:** `admin@dim.test`, `govt@dim.test`, `orgadmin@dim.test` — contraseña `SHARED_PASSWORD`  
 **Alcance operador:** actos 1 · 3-verify · 4-approve · 5 · 7 (relay con `genesis-ledger.md`)  
 **Side-effects:** un `proposeOrgVerification` sobre seed "Refugio Pendiente Verificación" (approval_request). Sin approve/reject, sin crear govt, sin cambiar reglas, sin grants.
 
