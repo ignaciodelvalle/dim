@@ -174,10 +174,10 @@ vi.mock("@/lib/infra/welfare-moderation", () => ({
 }));
 
 vi.mock("@/lib/infra/welfare-uploads", () => ({
-  // The action runs the storage-free evidence checks before inserting; this
-  // file has no evidence, so they pass.
-  checkWelfareEvidence: vi.fn(async () => null),
-  uploadWelfareEvidence: vi.fn(),
+  // The action runs the full pre-insert gate (Fix A) before inserting; this
+  // file has no evidence, so it passes with nothing prepared.
+  prepareWelfareEvidence: vi.fn(async () => ({ error: null, prepared: [] })),
+  uploadPreparedWelfareEvidence: vi.fn(),
 }));
 
 vi.mock("@/src/modules/welfare/domain/reference-code", () => ({
