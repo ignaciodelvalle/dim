@@ -44,6 +44,7 @@ import { createInstitutionalAccountForAuthority } from "@/src/modules/organizati
 import { deactivateAdminForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-admin";
 import { deactivateGovtForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-govt";
 import { resetInstitutionalCredentialsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-institutional-credentials";
+import { revokeAllSessionsOf } from "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
 import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
@@ -1215,6 +1216,17 @@ const RESET_REASON = "Operador comprometio sus credenciales — rotacion prevent
 
 describe("resetInstitutionalCredentialsForAuthority — happy path: active govt", () => {
   it("generates magic link, inserts audit_log and notification, returns magicLink", async () => {
+    // A live session of the target BEFORE the reset — the one a compromised
+    // account would be holding (security review, item 3).
+    const live = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: RESET_GOVT_EMAIL, password: "Fase5Create_2026!" });
+    if (live.error || !live.data.session) throw new Error(`sign-in: ${live.error?.message}`);
+    const oldAccess = live.data.session.access_token;
+    const oldRefresh = live.data.session.refresh_token;
+    const probe = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    expect((await probe.auth.getUser(oldAccess)).data.user?.id).toBe(resetGovtId);
+
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetGovtId,
       reason: RESET_REASON,
@@ -1248,10 +1260,35 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
     expect(logRow).toBeDefined();
     const payload = logRow.payload as Record<string, unknown>;
     expect(payload.method).toBe("magic_link");
-    expect(typeof payload.magic_link).toBe("string");
-    expect((payload.magic_link as string).length).toBeGreaterThan(0);
+    // The link is a live credential: never in the audit row (item 3). The
+    // method and the moment are.
+    expect(payload).not.toHaveProperty("magic_link");
+    expect(JSON.stringify(payload)).not.toContain(result.magicLink);
+    expect(Number.isNaN(Date.parse(String(payload.link_issued_at)))).toBe(false);
+    expect(payload.sessions_revoked).toBe(true);
     // C4: the reset reason is recorded in the audit payload.
     expect(payload.reason).toBe(RESET_REASON);
+
+    // The session that existed before the reset is dead — access and refresh.
+    const afterAccess = await probe.auth.getUser(oldAccess);
+    expect(afterAccess.data.user).toBeNull();
+    expect(afterAccess.error).not.toBeNull();
+    const afterRefresh = await probe.auth.refreshSession({ refresh_token: oldRefresh });
+    expect(afterRefresh.data.session).toBeNull();
+    expect(afterRefresh.error).not.toBeNull();
+
+    // And the old password no longer signs in: whoever held it cannot come
+    // back and choose the new password at /primer-acceso themselves.
+    const again = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: RESET_GOVT_EMAIL, password: "Fase5Create_2026!" });
+    expect(again.data.session).toBeNull();
+    expect(again.error).not.toBeNull();
+
+    // The link issued AFTER the revocation still works (it was not the one the
+    // revocation spent) and lands on the first-access step.
+    const opened = await sessionFromActionLink(result.magicLink);
+    expect(opened.hasSession).toBe(true);
 
     // Verify notification
     const [notif] = await db
@@ -1267,6 +1304,42 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
       .limit(1);
     expect(notif).toBeDefined();
   });
+});
+
+// The revocation on its own, with NO password change around it. Measured on
+// local GoTrue: an admin password update already ends every session of the
+// user, so the reset test above cannot tell whether revokeAllSessionsOf did
+// anything. This one can.
+describe("revokeAllSessionsOf — ends every session without touching the password", () => {
+  const REVOKE_EMAIL = "fase5-revoke-sessions@dim-test.local";
+
+  it("kills two live sessions (access and refresh), and the password still signs in", async () => {
+    await deleteTestUser(REVOKE_EMAIL);
+    createdNewUserEmails.push(REVOKE_EMAIL);
+    await createUserOrThrow(REVOKE_EMAIL);
+    const signIn = () =>
+      createClient(SUPABASE_URL, ANON_KEY, {
+        auth: { persistSession: false },
+      }).auth.signInWithPassword({
+        email: REVOKE_EMAIL,
+        password: "Fase5Create_2026!",
+      });
+    const first = await signIn();
+    const second = await signIn();
+    if (!first.data.session || !second.data.session) throw new Error("sign-in failed");
+    const probe = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    expect((await probe.auth.getUser(first.data.session.access_token)).data.user).not.toBeNull();
+
+    expect(await revokeAllSessionsOf(adminSdk, REVOKE_EMAIL)).toEqual({ ok: true });
+
+    for (const session of [first.data.session, second.data.session]) {
+      expect((await probe.auth.getUser(session.access_token)).data.user).toBeNull();
+      const refreshed = await probe.auth.refreshSession({ refresh_token: session.refresh_token });
+      expect(refreshed.data.session).toBeNull();
+    }
+    // Sessions, not credentials: the password is untouched.
+    expect((await signIn()).data.session).not.toBeNull();
+  }, 30_000);
 });
 
 describe("resetInstitutionalCredentialsForAuthority — happy path: active admin target", () => {

@@ -1,15 +1,20 @@
 // Use-case: resetInstitutionalCredentialsForAuthority
 //
-// Generates a magic link for an active institutional account:
+// Resets an active institutional account's credentials:
 //   1. Capability check (admin only)
 //   2. Load + validate target (institutional, not deactivated)
 //   3. Fetch target email from auth.users via admin SDK
-//   4. auth.admin.generateLink (type: magiclink)
-//   5. INSERT audit_log action='operator_credentials_reset'
-//   6. INSERT notification to target (single insert — best-effort, try/catch)
+//   4. Re-arm the first-access flag AND replace the password with a random one
+//   5. Revoke EVERY live session of the target (./revoke-target-sessions.ts)
+//   6. auth.admin.generateLink (type: magiclink) — only after 4 and 5 succeeded
+//   7. INSERT audit_log action='operator_credentials_reset' — method and
+//      time, NEVER the link
+//   8. INSERT notification to target (single insert — best-effort, try/catch)
 //
 // ARCH-P: the notification insert is wrapped in try/catch so a failure
 // does not propagate to the caller (single-insert hardening pattern).
+
+import { randomBytes } from "node:crypto";
 
 import { eq } from "drizzle-orm";
 
@@ -24,6 +29,7 @@ import {
 } from "@/src/modules/auth/domain/first-access";
 
 import { loadActorProfile } from "./helpers";
+import { revokeAllSessionsOf } from "./revoke-target-sessions";
 import type { ResetCredentialsResult } from "./types";
 
 export async function resetInstitutionalCredentialsForAuthority(
@@ -31,7 +37,8 @@ export async function resetInstitutionalCredentialsForAuthority(
   input: { targetUserId: string; reason: string },
 ): Promise<ResetCredentialsResult> {
   // 0. Validate reason (mirror the deactivation MOTIVO_MIN — resetting credentials
-  // logs out the live operator, so it carries the same friction as a deactivation).
+  // ends every live session of the operator and voids their password, so it
+  // carries the same friction as a deactivation).
   const reasonTrimmed = (input.reason ?? "").trim();
   if (reasonTrimmed.length < MOTIVO_MIN) {
     return { error: `REASON_TOO_SHORT: el motivo requiere al menos ${MOTIVO_MIN} caracteres.` };
@@ -68,16 +75,35 @@ export async function resetInstitutionalCredentialsForAuthority(
   }
   const targetEmail = authUserData.user.email;
 
-  // 4. Generate magic link. It lands on FIRST_ACCESS_PATH (pilot T1-P3), the
-  // one page that turns the link into a session — the site root, where it
-  // used to land, never read it. A reset also re-arms the first-access flag:
-  // "credenciales restablecidas" means the operator chooses a new password
-  // before anything else, exactly like a new account.
+  // 4. Re-arm the first-access flag: "credenciales restablecidas" means the
+  // operator chooses a new password before anything else, exactly like a new
+  // account. In the SAME call the old password is replaced by a random one
+  // nobody holds. A reset is what an admin does when the account may be
+  // compromised; without this, whoever holds the old password signs straight
+  // back in after step 5, and — the flag being armed — is walked to
+  // /primer-acceso to choose the new password themselves.
   const { error: flagErr } = await supabase.auth.admin.updateUserById(input.targetUserId, {
     app_metadata: pendingPasswordSetupMetadata(),
+    password: randomBytes(32).toString("base64url"),
   });
   if (flagErr) return { error: `AUTH_UPDATE_FAILED: ${flagErr.message}` };
 
+  // 5. End every live session BEFORE a new link exists. A session that
+  // survived a reset would be one the flag now pins to /primer-acceso, where
+  // it could set the password the reset was meant to take away from it. Fails
+  // closed: no link is issued on top of a session we could not end.
+  //
+  // Measured on local GoTrue (2026-09-18): the password update in step 4
+  // ALREADY ends every session of the user. This call is kept anyway, on
+  // purpose: that is a side effect of a password write that nothing
+  // documents, and a reset must not depend on it staying true in the hosted
+  // GoTrue version. This is the explicit revocation; step 4 is the bonus.
+  const revoked = await revokeAllSessionsOf(supabase, targetEmail);
+  if ("error" in revoked) return { error: revoked.error };
+
+  // 6. Generate the magic link. It lands on FIRST_ACCESS_PATH (pilot T1-P3),
+  // the one page that turns the link into a session. Generated after step 5,
+  // so it also overwrites the one-time token that step spent.
   const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email: targetEmail,
@@ -90,19 +116,24 @@ export async function resetInstitutionalCredentialsForAuthority(
 
   const magicLink = linkData.properties.action_link;
 
-  // 5. INSERT audit_log (single insert — no transaction needed)
+  // 7. INSERT audit_log (single insert — no transaction needed). The method
+  // and the moment, NEVER the link: it is a live credential for the account,
+  // and audit_log is read by every admin (and kept for years). Rows written
+  // before this change still carry one; lib/ui/audit-entry-view.ts keeps it
+  // off every screen.
   await db.insert(auditLog).values({
     actorUserId,
     action: "operator_credentials_reset",
     targetUserId: input.targetUserId,
     payload: {
       method: "magic_link",
-      magic_link: magicLink,
+      link_issued_at: new Date().toISOString(),
+      sessions_revoked: true,
       reason: reasonTrimmed,
     },
   });
 
-  // 6. INSERT notification to target — best-effort, must not undo the credential reset.
+  // 8. INSERT notification to target — best-effort, must not undo the credential reset.
   try {
     await db.insert(notifications).values({
       userId: input.targetUserId,
