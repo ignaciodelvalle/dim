@@ -12,8 +12,11 @@
 //   8. Recipient erased (profile deleted_at set) → not replayed, redacted (A06-G2)
 //   9. Every resolve drops the payload (A06-G1) and error_message (HIGH-1)
 //  10. A row resolved between scan and lock is not replayed (LOW-1)
+//  11. The push leg runs after the replay transaction commits, not inside it,
+//      and only for a row that actually landed as new (LOW-A)
 //
-// Mocks @/db (cronRuns, notificationDeadLetter, profiles, db) + @/lib/infra/notification-service.
+// Mocks @/db (cronRuns, notificationDeadLetter, profiles, db) +
+// @/lib/infra/notification-service + @/lib/infra/web-push.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +34,7 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     vi.restoreAllMocks();
     vi.doUnmock("@/db");
     vi.doUnmock("@/lib/infra/notification-service");
+    vi.doUnmock("@/lib/infra/web-push");
   });
 
   type Row = { id: string; payload: unknown };
@@ -139,7 +143,19 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
       createNotification: createMock,
     }));
 
-    return { createMock, updateSetMock, transactionMock, lockDeadLetterMock, profileLockMock };
+    const pushMock = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("@/lib/infra/web-push", () => ({
+      sendPushForNotifications: pushMock,
+    }));
+
+    return {
+      createMock,
+      updateSetMock,
+      transactionMock,
+      lockDeadLetterMock,
+      profileLockMock,
+      pushMock,
+    };
   }
 
   const validPayload = {
@@ -183,6 +199,56 @@ describe("GET /api/cron/drain-notification-dead-letter", () => {
     const body = await res.json();
     expect(body).toMatchObject({ ok: true, scanned: 1, resolved: 1, stillFailing: 0 });
     expect(createMock).toHaveBeenCalledOnce();
+    // LOW-A: the push leg must never run inside the replay transaction — the
+    // in-tx call always suppresses it.
+    expect(createMock.mock.calls[0][0]).toMatchObject({ suppressPush: true });
+  });
+
+  // LOW-A: a stalled push has no timeout and must not hold the profile's FOR
+  // SHARE lock, which a waiting art. 16 erasure blocks on. The push leg runs
+  // only after the replay transaction has committed.
+  it("sends the push after the replay transaction commits, not inside it", async () => {
+    const { pushMock, transactionMock } = mockDeps(
+      [{ id: "dl-11", payload: validPayload }],
+      [{ status: "inserted" }],
+    );
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    expect(res.status).toBe(200);
+
+    expect(pushMock).toHaveBeenCalledOnce();
+    expect(pushMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        userId: validPayload.userId,
+        dedupeKey: validPayload.dedupeKey,
+        title: validPayload.title,
+      }),
+    ]);
+    // Ordering: transaction settles before the push fires.
+    expect(transactionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      pushMock.mock.invocationCallOrder[0],
+    );
+  });
+
+  it.each([["duplicate" as const], ["dead_lettered" as const]])(
+    "does not push a row that replayed as %s",
+    async (status) => {
+      const { pushMock } = mockDeps([{ id: "dl-12", payload: validPayload }], [{ status }]);
+      const res = await callRoute({ "x-cron-secret": "test-secret" });
+      expect([200, 500]).toContain(res.status);
+      expect(pushMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not push an erased recipient's row", async () => {
+    const { pushMock } = mockDeps(
+      [{ id: "dl-13", payload: { ...validPayload, userId: "erased-user" } }],
+      [],
+      false,
+      ["erased-user"],
+    );
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    expect(res.status).toBe(200);
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("resolves a duplicate (idempotent) row", async () => {

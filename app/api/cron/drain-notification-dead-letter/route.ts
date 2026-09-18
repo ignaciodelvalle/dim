@@ -41,8 +41,12 @@
 //     `deleted_at`; one that comes second waits for our commit, and by then the
 //     replayed notification is committed and its own scrub sees it. A row that
 //     a concurrent run already resolved (or the erasure redacted) is skipped.
-//     The lock is held across the replay's push leg, so an erasure can wait for
-//     one push round-trip — bounded, and the price of not re-creating data.
+//     The push leg is NOT held under this lock (LOW-A, 2026-09): it has no
+//     timeout, so a stalled push would otherwise block a waiting erasure past
+//     PostgREST's statement_timeout. The replay commits the in-app row with
+//     `suppressPush: true` and sends the push only after commit, when the
+//     lock is already released — a push racing a same-tick erasure finds no
+//     push_subscriptions row left, since the erasure's own scrub already ran.
 //   - EVERY resolve redacts the payload to `{}` (A06-G1). The payload is the
 //     full notification — title, body, a finder's phone — and once the row is
 //     resolved it is a second copy with no purpose. error_message goes too
