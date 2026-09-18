@@ -90,4 +90,19 @@ describe("stored bytes carry no EXIF (and so no GPS)", () => {
     expect(meta.exif).toBeUndefined();
     expect(meta).toMatchObject({ format: "jpeg", width: 16, height: 12 });
   });
+
+  it("uploadAttachmentIfPresent with NO option — the ordinary event/medical/Atender path (D4)", async () => {
+    // The ~20 call sites that never opted in stored this GPS block until
+    // 2026-09-18. The strip is the default now.
+    uploadMock.mockClear();
+    const file = new File([new Uint8Array(jpegWithGps)], "vacuna.jpg", { type: "image/jpeg" });
+    const client = { storage: { from: () => ({ upload: uploadMock }) } };
+
+    const result = await uploadAttachmentIfPresent(client, file, "event-attachments");
+
+    expect(result.error).toBeNull();
+    const meta = await sharp(await storedBody()).metadata();
+    expect(meta.exif).toBeUndefined();
+    expect(meta).toMatchObject({ format: "jpeg", width: 16, height: 12 });
+  });
 });

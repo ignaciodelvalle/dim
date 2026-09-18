@@ -2,7 +2,8 @@
 //
 // Tests verify:
 //   1. stripMetadata:true routes through sharp and uploads a processed Buffer.
-//   2. stripMetadata false/absent uploads the original File (back-compat).
+//   2. NO option is re-encoded too: the strip is the default (D4, 2026-09-18),
+//      and a sharp failure on that path refuses as well.
 //   3. Non-image file → validation error regardless of stripMetadata.
 //   4. sharp throwing → the upload is REFUSED (D4, fail closed): the original,
 //      GPS-bearing bytes are never stored as a fallback.
@@ -101,7 +102,10 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
     expect(result.size).toBe(Buffer.from("processed-bytes").length);
   });
 
-  it("stripMetadata:false uploads the original File unchanged (back-compat)", async () => {
+  it("NO options → re-encoded all the same: the strip is the DEFAULT (D4, 2026-09-18)", async () => {
+    // Until 2026-09-18 this uploaded the original File, and ~20 attachment call
+    // sites (event, medical, adoption, Atender) stored a phone photo's EXIF, GPS
+    // included, on the ordinary path. `stripMetadata: false` no longer compiles.
     vi.resetModules();
     const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
     const supabase = makeSupabaseClient();
@@ -111,22 +115,19 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
       supabase as Parameters<typeof uploadAttachmentIfPresent>[0],
       file,
       "event-attachments",
-      {
-        stripMetadata: false,
-      },
     );
 
     expect(result.error).toBeNull();
-    expect(result.uploadedPath).toBeTruthy();
-    // sharp should NOT have been called.
-    expect(mockSharpInstance).not.toHaveBeenCalled();
-    // The upload call should have received the original File object.
+    expect(mockSharpInstance).toHaveBeenCalledOnce();
     const [, uploadedBody] = supabase.uploadMock.mock.calls[0] as unknown as [string, unknown];
-    expect(uploadedBody).toBe(file);
+    expect(uploadedBody).not.toBe(file);
+    expect(uploadedBody).toEqual(Buffer.from("processed-bytes"));
+    expect(result.size).toBe(Buffer.from("processed-bytes").length);
   });
 
-  it("no options → uploads the original File unchanged (back-compat)", async () => {
+  it("NO options + sharp throws → REFUSED with the D4 message, nothing uploaded", async () => {
     vi.resetModules();
+    mockToBuffer.mockRejectedValueOnce(new Error("Input buffer contains unsupported image format"));
     const { uploadAttachmentIfPresent } = await import("@/lib/infra/uploads");
     const supabase = makeSupabaseClient();
     const file = makeFile("fake-image-data", "photo.jpg", "image/jpeg");
@@ -137,10 +138,14 @@ describe("uploadAttachmentIfPresent — stripMetadata option", () => {
       "event-attachments",
     );
 
-    expect(result.error).toBeNull();
-    expect(mockSharpInstance).not.toHaveBeenCalled();
-    const [, uploadedBody] = supabase.uploadMock.mock.calls[0] as unknown as [string, unknown];
-    expect(uploadedBody).toBe(file);
+    expect(result).toEqual({
+      uploadedPath: null,
+      mimeType: null,
+      size: null,
+      error:
+        "No pudimos quitarle a la foto los datos que guarda la cámara, como el lugar donde se sacó, así que no guardamos nada. Probá de nuevo con una captura de pantalla de la foto.",
+    });
+    expect(supabase.uploadMock).not.toHaveBeenCalled();
   });
 
   it("non-image file → returns validation error regardless of stripMetadata", async () => {
