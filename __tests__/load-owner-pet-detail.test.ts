@@ -523,9 +523,11 @@ describe("loadOwnerPetDetail — the jurisdiction's rule fields reach the compli
     return detail.compliance.cards.find((c) => c.key === "rabies")?.state;
   };
 
-  it("frequency_months from the pet's jurisdiction dates the dose: 24 → Vigente, 12 → Vencida", async () => {
-    expect(await rabiesState(24)).toBe("Vigente");
-    expect(await rabiesState(12)).toBe("Vencida");
+  it("frequency_months from the pet's jurisdiction dates the dose as a SUGGESTION: 24 → upcoming, 12 → lapsed", async () => {
+    // The date is computed from the configured cadence, not signed, so it reads
+    // "Refuerzo sugerido", never "Vigente"/"Vencida" (pet-compliance dueSource).
+    expect(await rabiesState(24)).toBe("Refuerzo sugerido");
+    expect(await rabiesState(12)).toBe("Refuerzo sugerido vencido");
   });
 
   it("mandatory_from_months and the pet's date of birth reach the sterilization card", async () => {
