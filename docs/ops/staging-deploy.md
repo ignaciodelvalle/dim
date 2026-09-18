@@ -22,10 +22,17 @@ $env:DATABASE_URL = "postgresql://postgres.<project-ref>:<DB_PASSWORD>@aws-1-sa-
 pnpm deploy:staging
 ```
 
-`deploy:staging` = `tsx scripts/migrate.ts && npx vercel --prod --archive=tgz`.
-The `&&` is the gate: `vercel` only runs if `migrate` exits 0. `migrate` is a
-forward-only no-op when the DB is already up to date, so it is safe to run on
-every deploy, including code-only changes.
+`deploy:staging` = `pnpm verify && pnpm test:verified && tsx scripts/migrate.ts && npx vercel --prod --archive=tgz`.
+Each `&&` is a gate: the migration only runs after the whole Definition of Done
+(`verify` AND `test:verified`) is green, and `vercel` only runs if `migrate`
+exits 0. `migrate` is a forward-only no-op when the DB is already up to date,
+so it is safe to run on every deploy, including code-only changes.
+
+> **`--archive=tgz` uploads the working tree, not a git ref** (finding C06-1,
+> 2026-09-02). Treat this command as the hotfix / migration shape: the normal
+> path for code is a push to `main`, which Vercel deploys from the pushed commit.
+> Until 2026-09-18 the chain ran `verify` only, so the web vitest suite never
+> gated a manual deploy; `test:verified` was added that day (pilot contract T0-5).
 
 > Run it from the staging working tree (`chore/hobby-preview` — `develop` + the
 > Hobby cron config). The Vercel project (`dim-staging`) **is git-connected** —
