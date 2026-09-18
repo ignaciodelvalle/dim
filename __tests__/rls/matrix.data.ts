@@ -22,7 +22,10 @@
 //   - `anon`        — no signed-in session. The public surface.
 //   - `owner`       — `owner@dim.test` (the seed's pet owner).
 //   - `other_user`  — `vet@dim.test` (a different signed-in account that
-//                     does NOT own the fixture pet).
+//                     does NOT own the fixture pet). NOT an unrelated account:
+//                     the seed makes it a member of "Refugio Test", so it
+//                     legitimately reads cases that org opened (see the
+//                     `cases` cell and the org-member block in matrix.test.ts).
 //   - `admin`       — `admin@dim.test` (universal-scope role).
 //
 // **Fixture resource (the target of every cross-role probe):**
@@ -241,16 +244,17 @@ export const RLS_MATRIX: RlsMatrix = {
     },
     owner: {
       // Owner CAN read cases for own pets (except welfare_denuncia, which
-      // hides from the subject). At least one open case exists in the
-      // seed (e.g. rabies observation on a bite-incident demo pet), so
-      // a non-empty owner read confirms the policy matches.
+      // hides from the subject). Every `cases` cell probes the harness's own
+      // bite_incident fixture on the owner's pet, by id.
       select: allow("subject-pet owner sees own cases via can_read_case"),
       insert: deny("cases are opened via server actions, not PostgREST"),
       update: deny("case mutations go through server actions"),
       delete: deny("cases are not deleted"),
     },
     other_user: {
-      select: deny("non-owner without org membership cannot read cases"),
+      select: deny(
+        "a bite_incident case on another owner's pet has no party but the owner, govt in scope and admin — the vet's Refugio Test membership reaches only adoption_listing/foster_placement cases that org opened",
+      ),
       insert: deny("non-owner cannot open cases"),
       update: deny("non-owner cannot mutate"),
       delete: deny("non-owner cannot delete"),

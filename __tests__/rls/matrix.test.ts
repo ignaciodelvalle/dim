@@ -29,13 +29,14 @@
 // `beforeAll` with the cause in the message.
 
 import { type SupabaseClient, createClient } from "@supabase/supabase-js";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   cases,
   db,
   eventNotificationOutbox,
+  organizationMemberships,
   ownerships,
   petAchievementViews,
   petEvents,
@@ -116,6 +117,16 @@ const contexts = new Map<RlsRole, RoleContext>();
 let ownerPetId: string | null = null;
 let setupError: string | null = null;
 let fixtureCaseId: string | null = null;
+// Closed adoption_listing case on the owner's pet, opened by the organization
+// `other_user` (vet@dim.test) is a SEEDED member of ("Refugio Test", via
+// scripts/seed-test-users.ts attachVetToOrg). It is exactly the row the
+// shelter-custody e2e walks (e2e/_shelter-custody.ts) leave behind on every
+// run, and can_read_case's org-member branch (migration 0034) legitimately
+// shows it to the vet. The generic `cases` probe used to ask for "any case on
+// the owner's pet", so that residue flipped `other_user.cases.select` to allow
+// on 2026-09-18. The probe now targets the bite_incident fixture by id, and
+// this row pins the legitimate grant in its own block below.
+let fixtureOrgListingCaseId: string | null = null;
 let fixtureAchievementViewId: string | null = null;
 // Fixture event_notification_outbox row — anchors the 16 deny cells so they
 // measure a policy rather than an empty table. See the insert in beforeAll.
@@ -241,6 +252,46 @@ async function provisionOutboxFixture(petId: string | null): Promise<string | nu
     })
     .returning({ id: eventNotificationOutbox.id });
   return outboxRow?.id ?? null;
+}
+
+/**
+ * Provision the closed adoption_listing case described at
+ * `fixtureOrgListingCaseId`: opened by the organization `other_user` belongs
+ * to, on the owner's pet. Returns a setup error, or null on success.
+ */
+async function provisionOrgListingFixture(petId: string | null): Promise<string | null> {
+  if (!petId) return null;
+  const vetUserId = contexts.get("other_user")?.userId ?? null;
+  const [membership] = vetUserId
+    ? await db
+        .select({ organizationId: organizationMemberships.organizationId })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.userId, vetUserId),
+            isNull(organizationMemberships.leftAt),
+          ),
+        )
+        .limit(1)
+    : [];
+  if (!membership) {
+    return `${ROLE_USERS.other_user.email} has no active organization membership — scripts/seed-test-users.ts attaches it to "Refugio Test". Re-run \`pnpm seed:test\`.`;
+  }
+  const [listingRow] = await db
+    .insert(cases)
+    .values({
+      publicCode: await generateUniqueCasePublicCode(),
+      caseKind: "adoption_listing",
+      status: "closed",
+      closedAt: new Date(),
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedByOrganizationId: membership.organizationId,
+      openedReason: "rls-matrix fixture: org-member branch of can_read_case",
+    })
+    .returning({ id: cases.id });
+  fixtureOrgListingCaseId = listingRow.id;
+  return null;
 }
 
 async function provisionTransferFixture(): Promise<string | null> {
@@ -405,6 +456,12 @@ async function runSetup(): Promise<void> {
       })
       .returning({ id: cases.id });
     fixtureCaseId = row.id;
+  }
+
+  const listingError = await provisionOrgListingFixture(ownerPetId);
+  if (listingError) {
+    setupError = listingError;
+    return;
   }
 
   // Fixture pet_achievement_views row — needed so the SELECT probe can
@@ -592,6 +649,12 @@ afterAll(async () => {
       .where(eq(cases.id, fixtureCaseId))
       .catch(() => {});
   }
+  if (fixtureOrgListingCaseId) {
+    await db
+      .delete(cases)
+      .where(eq(cases.id, fixtureOrgListingCaseId))
+      .catch(() => {});
+  }
   if (fixtureTransferId) {
     await db
       .delete(petTransfers)
@@ -742,8 +805,12 @@ async function probeSelect(
       .limit(1);
   } else if (ctx.ownerPetId && ["ownerships", "pet_identifications"].includes(table)) {
     query = client.from(table).select("*").eq("pet_id", ctx.ownerPetId).limit(1);
-  } else if (ctx.ownerPetId && table === "cases") {
-    query = client.from(table).select("*").eq("primary_pet_id", ctx.ownerPetId).limit(1);
+  } else if (table === "cases" && fixtureCaseId) {
+    // The bite_incident fixture BY ID, not "any case on the owner's pet": other
+    // cases on that pet are legitimately readable by other parties (see
+    // fixtureOrgListingCaseId), so a pet-wide probe measured the residue, not
+    // the cell.
+    query = client.from(table).select("*").eq("id", fixtureCaseId).limit(1);
   } else if (ctx.ownerUserId && table === "notifications") {
     query = client.from(table).select("*").eq("user_id", ctx.ownerUserId).limit(1);
   } else if (ctx.ownerUserId && table === "profiles" && role === "owner") {
@@ -896,5 +963,43 @@ describe("pet_events welfare-bridge event (migration 0115 — REQ-1.2/1.3)", () 
       data?.length ?? 0,
       "the rewritten ownership branch must be a no-op for events with no case_id — owner should still read their own normal events",
     ).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cases — the org-member branch of can_read_case (migration 0034).
+//
+// `other_user` is vet@dim.test, and vet@dim.test is not an unrelated account:
+// the seed makes it a member of "Refugio Test". can_read_case lets a member of
+// the organization that opened an adoption_listing (or foster_placement) case
+// read that case, whoever owns the pet — 0034's header lists "org member"
+// among the per-kind parties. So the vet reading a listing its refugio opened
+// on the owner's pet is the policy working, and the generic cell
+// `other_user.cases.select = deny` is about the bite_incident fixture only.
+// Both halves are pinned here so neither can drift into the other again.
+// ---------------------------------------------------------------------------
+describe("cases org-member branch (can_read_case, migration 0034)", () => {
+  async function vetReads(caseId: string | null, label: string): Promise<number> {
+    if (setupError) throw new Error(setupFailureMessage(setupError));
+    if (!caseId) throw new Error(`${label} fixture was not created despite a clean setup`);
+    const ctx = contexts.get("other_user");
+    if (!ctx) throw new Error("No client for role other_user");
+    const { data, error } = await ctx.client.from("cases").select("id").eq("id", caseId);
+    assertCredentialReachedRls(error, "cases", "other_user");
+    return data?.length ?? 0;
+  }
+
+  it("a member of the opening organization reads its adoption_listing case on someone else's pet = allow", async () => {
+    expect(
+      await vetReads(fixtureOrgListingCaseId, "org listing case"),
+      "can_read_case's adoption_listing branch must admit an active member of opened_by_organization_id",
+    ).toBe(1);
+  });
+
+  it("the same member does NOT read a bite_incident case on that pet = deny", async () => {
+    expect(
+      await vetReads(fixtureCaseId, "bite_incident case"),
+      "an organization membership must not reach a case kind whose only parties are the pet owner, govt in scope and admin",
+    ).toBe(0);
   });
 });
