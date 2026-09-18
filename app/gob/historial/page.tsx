@@ -81,7 +81,7 @@ const GOB_HISTORIAL_PAGE_LIMIT = 100;
 type GobHistorialQuery = {
   isAdmin: boolean;
   jurisdictions: Awaited<ReturnType<typeof requireGobReadAccessOrRedirect>>["jurisdictions"];
-  actionFilters: string[];
+  actionFilters: ReturnType<typeof parseAuditActions>;
   actorFilter: string | null;
   fromDate: Date;
   toDate: Date;

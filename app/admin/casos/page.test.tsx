@@ -15,6 +15,9 @@ import { vi } from "vitest";
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
+  // loadWithTimeout re-throws Next's control flow through this; a plain error
+  // is not control flow, so a no-op is the faithful stand-in.
+  unstable_rethrow: vi.fn(),
 }));
 
 vi.mock("@/lib/infra/auth-guards", () => ({

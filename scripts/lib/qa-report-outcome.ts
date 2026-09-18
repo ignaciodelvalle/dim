@@ -62,7 +62,10 @@ export function outcomeSummaryMarkdown(title: string, outcome: QaRunOutcome): st
  * wrote. Never throws: failing to decorate the summary must not turn a
  * report-only run red.
  */
-export function appendJobSummary(markdown: string, env = process.env): boolean {
+export function appendJobSummary(
+  markdown: string,
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): boolean {
   const target = env.GITHUB_STEP_SUMMARY;
   if (!target) return false;
   try {
