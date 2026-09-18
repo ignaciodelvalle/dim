@@ -87,6 +87,8 @@
 //   run was skipped.
 // Exits 1 listing each violation.
 
+import { readFileSync } from "node:fs";
+
 import postgres from "postgres";
 
 import {
@@ -237,6 +239,138 @@ export const KNOWN_GAP: Record<string, string> = {
 };
 
 type Violation = { kind: string; message: string };
+
+// ---------------------------------------------------------------------------
+// STORAGE BUCKETS — the half of the subject's data SQL cannot reach
+// ---------------------------------------------------------------------------
+//
+// Every list above is about TABLES, and both RPCs are SQL, which has no
+// object-store access. So a photo, a PDF or a scanned document is invisible to
+// all four lists: a bucket can hold a person's face or a finder's complaint and
+// no check here would say so (A07-3). The inventory below is the same idea
+// applied to `storage.buckets`: every live bucket is classified into exactly one
+// of three lists, and the ERASED list is verified both ways — not against a
+// function body but against the TypeScript that actually deletes objects,
+// `erase-subject-data.ts`, because that is where an art. 16 erasure touches
+// Storage.
+//
+// There is no RETENTION list, on purpose. Keeping a person's file past their
+// supresión needs a documented retention decision (Ley 25.326 art. 16 inc. 5),
+// and none has been signed for any bucket — see
+// docs/architecture/retention-policy-pending-decision.md. The evidence buckets
+// that LOOK like retention (revocations, welfare-evidence) are therefore
+// declared as gaps, with the retention argument written beside them, until the
+// PO and legal sign one. Claiming retention without the decision would be the
+// false statement this file exists to prevent.
+//
+// A declared bucket that is absent from the live catalogue is NOT a violation,
+// unlike a stale table: several buckets are created by owner ops or at runtime
+// (the export buckets, seed-photos), so an environment legitimately lacks them.
+
+/** Where the erasure reaches Storage. */
+export const ERASURE_STORAGE_SOURCE =
+  "src/modules/auth/application/subject-rights/erase-subject-data.ts";
+
+/** Buckets `erase-subject-data.ts` deletes the subject's objects from. */
+export const BUCKETS_ERASED: readonly string[] = [
+  // purgeSubjectAvatars — the whole `{userId}/` prefix, every avatar ever set.
+  "avatars",
+  // purgeOwnedPetAttachments — every attachments row with an event_id.
+  "event-attachments",
+  // purgeOwnedPetAttachments — every attachments row without one.
+  "pet-photos",
+  // purgeOwnedPetAttachments — the `{petId}/` prefix, confirmed or not.
+  "uploads-staging",
+];
+
+/** Buckets holding no personal data of a natural person. */
+export const BUCKETS_EXEMPT: Record<string, string> = {
+  "analytics-exports":
+    "Govt dashboard CSVs. Every row passes through anonymizeRows' per-slice schemas (lib/analytics/govt-exports.ts) before upload, so no row names a person.",
+  "org-logos":
+    "An organization's public logo — a legal entity's mark. Created and bounded by 0227; no writer exists yet.",
+  "seed-photos": "Demo pet photos scripts/seed-demo.ts uploads at runtime. No person.",
+};
+
+/**
+ * Buckets that DO hold subject data the erasure does not reach. A debt register,
+ * like KNOWN_GAP — every entry says what is in there.
+ */
+export const BUCKETS_KNOWN_GAP: Record<string, string> = {
+  "ppp-exports":
+    "Pet-passport PDFs naming a pet and its owner. The audit payload records petId, never the path, so no erasure could find them.",
+  revocations:
+    "Disciplinary evidence about a named admin/govt operator, under {targetId}/. Accountability-trail shaped — the audit_log argument for keeping it is real — but no retention decision is documented, so it is a gap, not a retention.",
+  "travel-exports":
+    "Travel-document PDFs naming a pet and its owner. Like ppp-exports, no path is recorded anywhere.",
+  "welfare-evidence":
+    "Photos a reporter attached to a cruelty complaint (welfare_report_attachments, itself KNOWN_GAP). Legal-hold shaped, with no retention decision documented, so the erasure leaves them and this says so.",
+  "welfare-exports":
+    "MPF export PDFs of welfare reports. The path lives only in an append-only audit payload.",
+};
+
+/**
+ * The bucket names a source passes to `.from("…")`. Only a STRING literal
+ * matches — a Drizzle `.from(ownerships)` takes an identifier — so in the
+ * erasure module this is exactly the set of Storage buckets it touches.
+ */
+export function bucketsNamedIn(source: string): Set<string> {
+  return new Set([...source.matchAll(/\.from\(\s*["']([a-z0-9-]+)["']\s*\)/g)].map((m) => m[1]));
+}
+
+/**
+ * The bucket inventory: every live bucket classified exactly once, the three
+ * lists disjoint, and BUCKETS_ERASED equal to what the erasure source names.
+ */
+export function evaluateBuckets(
+  liveBuckets: readonly string[],
+  erasureSource: string,
+): Violation[] {
+  const violations: Violation[] = [];
+  const lists = [
+    ["BUCKETS_ERASED", BUCKETS_ERASED],
+    ["BUCKETS_EXEMPT", Object.keys(BUCKETS_EXEMPT)],
+    ["BUCKETS_KNOWN_GAP", Object.keys(BUCKETS_KNOWN_GAP)],
+  ] as const;
+  const declared = new Map<string, string[]>();
+  for (const [name, buckets] of lists) {
+    for (const b of buckets) declared.set(b, [...(declared.get(b) ?? []), name]);
+  }
+  for (const [b, where] of declared) {
+    if (where.length > 1) {
+      violations.push({
+        kind: "bucket_double_classified",
+        message: `✗ bucket ${b} — declared in ${where.join(" and ")}. Pick one.`,
+      });
+    }
+  }
+  for (const b of liveBuckets) {
+    if (!declared.has(b)) {
+      violations.push({
+        kind: "bucket_unclassified",
+        message: `✗ bucket ${b} — in NO list. A new Storage bucket must be declared in scripts/check-subject-rights-coverage.ts: reach it from ${ERASURE_STORAGE_SOURCE} and list it in BUCKETS_ERASED, or classify it as BUCKETS_EXEMPT / BUCKETS_KNOWN_GAP with a written reason.`,
+      });
+    }
+  }
+  const named = bucketsNamedIn(erasureSource);
+  for (const b of BUCKETS_ERASED) {
+    if (!named.has(b)) {
+      violations.push({
+        kind: "bucket_not_erased",
+        message: `✗ bucket ${b} — declared BUCKETS_ERASED but ${ERASURE_STORAGE_SOURCE} never calls .from("${b}"). The sweep was removed, or the list is wrong.`,
+      });
+    }
+  }
+  for (const b of named) {
+    if (!BUCKETS_ERASED.includes(b)) {
+      violations.push({
+        kind: "bucket_erased_but_undeclared",
+        message: `✗ bucket ${b} — ${ERASURE_STORAGE_SOURCE} deletes from it but it is not in BUCKETS_ERASED. Move it there.`,
+      });
+    }
+  }
+  return violations;
+}
 
 type FunctionDefRow = { proname: string; def: string };
 type TableRow = { tablename: string };
@@ -392,7 +526,7 @@ export function evaluate(
 async function fetchCatalog(
   rawUrl: string,
   target: DbTarget,
-): Promise<{ tables: string[]; exportDef: string; eraseDef: string } | null> {
+): Promise<{ tables: string[]; buckets: string[]; exportDef: string; eraseDef: string } | null> {
   const sql = postgres(rawUrl, { max: 1, connect_timeout: 5 });
   try {
     const tableRows = (await sql`
@@ -405,6 +539,9 @@ async function fetchCatalog(
        WHERE n.nspname = 'public'
          AND p.proname IN ('export_subject_data', 'erase_subject_data')
     `) as unknown as FunctionDefRow[];
+    const bucketRows = (await sql`
+      SELECT id FROM storage.buckets ORDER BY id
+    `) as unknown as Array<{ id: string }>;
 
     const exportDef = defRows.find((r) => r.proname === "export_subject_data")?.def;
     const eraseDef = defRows.find((r) => r.proname === "erase_subject_data")?.def;
@@ -422,7 +559,12 @@ async function fetchCatalog(
       );
       process.exit(1);
     }
-    return { tables: tableRows.map((r) => r.tablename), exportDef, eraseDef };
+    return {
+      tables: tableRows.map((r) => r.tablename),
+      buckets: bucketRows.map((r) => r.id),
+      exportDef,
+      eraseDef,
+    };
   } catch (err) {
     reportDbSkip({
       fence: "check-subject-rights-coverage",
@@ -465,7 +607,15 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   const remoteNote = target.isLocal ? "" : " [REMOTE — --allow-remote]";
   const dbLine = `  Database: ${target.label} (from ${origin})${remoteNote}`;
 
-  const { violations, gapCount } = evaluate(fetched.tables, fetched.exportDef, fetched.eraseDef);
+  const { violations: tableViolations, gapCount } = evaluate(
+    fetched.tables,
+    fetched.exportDef,
+    fetched.eraseDef,
+  );
+  const violations = [
+    ...tableViolations,
+    ...evaluateBuckets(fetched.buckets, readFileSync(ERASURE_STORAGE_SOURCE, "utf8")),
+  ];
 
   if (violations.length > 0) {
     for (const v of violations) console.error(v.message);
@@ -490,6 +640,10 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   );
   console.log(
     `  Open art. 14 / art. 16 debt (${gapCount} tables): ${Object.keys(KNOWN_GAP).join(", ")}.`,
+  );
+  console.log(
+    `  Storage: ${fetched.buckets.length} live bucket(s) classified; erased from ${BUCKETS_ERASED.join(", ")}; ` +
+      `open debt (${Object.keys(BUCKETS_KNOWN_GAP).length} buckets): ${Object.keys(BUCKETS_KNOWN_GAP).join(", ")}.`,
   );
   console.log(dbLine);
 }

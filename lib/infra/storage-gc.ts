@@ -73,9 +73,9 @@
 //     age-plus-anti-join collector indistinguishable from `remove everything`.
 //     Out of scope, emphatically.
 //   analytics-exports, seed-photos, org-logos — a gov dashboard export bucket, a
-//     demo bucket `scripts/seed-demo.ts` creates at runtime, and a bucket no
-//     migration creates at all. None is production credential data and none is
-//     referenced by a column with a writer.
+//     demo bucket `scripts/seed-demo.ts` creates at runtime, and a bucket that
+//     migration 0227 creates (bounded, no writer yet). None is production
+//     credential data and none is referenced by a column with a writer.
 //
 // ALREADY-EXISTING PARTIAL COVERAGE, so this is not confused for the first
 // deletion path: `erase-subject-data.ts` sweeps the whole `{petId}/` prefix of
@@ -263,7 +263,7 @@ type OrphanRow = { name: string };
  *
  *   · `organizations.logo_storage_path` has NO WRITER ANYWHERE. Its three
  *     readers all hand it to `orgLogoUrl()`, which builds a URL against a bucket
- *     called `org-logos` that no `db/**.sql` creates. Joining a dead column
+ *     called `org-logos` that only 0227 creates, empty. Joining a dead column
  *     against a different bucket's key space would be noise dressed as a guard.
  *   · `profiles.avatar_url` held a full URL rather than a path, so the join
  *     would have been an unindexable substring match — and it cannot collide
