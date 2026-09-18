@@ -3,6 +3,7 @@
 // Live integration against the local Postgres stack. Covers:
 //   - WRITER dedup: no second OPEN firing while one is open; reopens when closed.
 //   - WRITER per-metric: each of the 6 metrics opens a firing when breaching.
+//   - FLEET SWEEP: only live admin owners are evaluated (A10-G3).
 //   - TRIAGE actions: acknowledge / open-investigation guard / contact / resolve /
 //     dismiss, including invalid-transition rejection.
 //
@@ -53,7 +54,10 @@ import {
   resolveFiringAction,
 } from "@/app/actions/alert-firings";
 import { alertFirings, alertSubscriptions, db, notifications, profiles } from "@/db";
-import { recordFiringsForUser } from "@/src/modules/alerts/application/firings/record-firings";
+import {
+  evaluateAndRecordFiringsForAllAdmins,
+  recordFiringsForUser,
+} from "@/src/modules/alerts/application/firings/record-firings";
 import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 // ---------------------------------------------------------------------------
@@ -270,6 +274,81 @@ describe("recordFiringsForUser — per-metric firing", () => {
       expect(row.metricKey).toBe(metric);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// FLEET SWEEP — only live admin owners are evaluated (A10-G3)
+// ---------------------------------------------------------------------------
+
+describe("evaluateAndRecordFiringsForAllAdmins — live admin owners only", () => {
+  const GONE = {
+    deactivated: "alert-sweep-deactivated@dim-test.local",
+    erased: "alert-sweep-erased@dim-test.local",
+    govt: "alert-sweep-govt@dim-test.local",
+  } as const;
+  const goneIds: Record<keyof typeof GONE, string> = { deactivated: "", erased: "", govt: "" };
+
+  async function subscriptionFor(ownerId: string): Promise<void> {
+    const [row] = await db
+      .insert(alertSubscriptions)
+      .values({
+        actorUserId: ownerId,
+        metricKey: "active_zoonosis",
+        direction: "above",
+        threshold: "10",
+        isActive: true,
+      })
+      .returning({ id: alertSubscriptions.id });
+    subscriptionIds.push(row.id);
+  }
+
+  beforeAll(async () => {
+    for (const key of Object.keys(GONE) as (keyof typeof GONE)[]) {
+      const r = await createFreshTestUser(adminSdk, {
+        email: GONE[key],
+        password: "AlertSweep_2026!",
+        email_confirm: true,
+      });
+      if (r.error || !r.data.user) throw new Error(`createUser(${GONE[key]}): ${r.error?.message}`);
+      goneIds[key] = r.data.user.id;
+    }
+    await db
+      .update(profiles)
+      .set({ role: "admin", accountType: "institutional", deactivatedAt: new Date() })
+      .where(eq(profiles.id, goneIds.deactivated));
+    await db
+      .update(profiles)
+      .set({ role: "admin", accountType: "institutional", deletedAt: new Date() })
+      .where(eq(profiles.id, goneIds.erased));
+    await db
+      .update(profiles)
+      .set({ role: "govt", accountType: "institutional" })
+      .where(eq(profiles.id, goneIds.govt));
+    for (const id of [adminUserId, goneIds.deactivated, goneIds.erased, goneIds.govt]) {
+      await subscriptionFor(id);
+    }
+  });
+
+  afterAll(async () => {
+    for (const id of Object.values(goneIds)) {
+      if (!id) continue;
+      await db.delete(alertSubscriptions).where(eq(alertSubscriptions.actorUserId, id));
+      await db.delete(profiles).where(eq(profiles.id, id));
+      await adminSdk.auth.admin.deleteUser(id);
+    }
+  });
+
+  it("evaluates the live admin and skips the deactivated, the erased and the non-admin owner", async () => {
+    evaluateAlertSubscriptionsMock.mockResolvedValue([]);
+
+    await evaluateAndRecordFiringsForAllAdmins({ maxDurationMs: 60_000 });
+
+    const evaluated = new Set(evaluateAlertSubscriptionsMock.mock.calls.map((c) => c[0]));
+    expect(evaluated.has(adminUserId)).toBe(true);
+    expect(evaluated.has(goneIds.deactivated)).toBe(false);
+    expect(evaluated.has(goneIds.erased)).toBe(false);
+    expect(evaluated.has(goneIds.govt)).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

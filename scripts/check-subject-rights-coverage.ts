@@ -210,7 +210,8 @@ export const EXEMPT: Record<string, string> = {
  */
 export const KNOWN_GAP: Record<string, string> = {
   alert_firings: "Free-text `notes` written by a govt operator while working an alert.",
-  alert_subscriptions: "The subject's own alert `label` and thresholds (actor_user_id).",
+  alert_subscriptions:
+    "The subject's own alert `label` and thresholds (actor_user_id). Processing stops at erasure/deactivation — the fleet sweep (record-firings.ts) evaluates only live admin owners — but the rows themselves are not erased.",
   appointments: "owner_user_id plus `notes_from_owner`, `notes_from_org`, `cancellation_reason`.",
   approval_requests:
     "applicant_user_id / target_user_id, a free-form `payload` jsonb and `decision_notes`.",

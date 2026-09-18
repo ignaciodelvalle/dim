@@ -3,9 +3,9 @@
 // @no-auth-required: these run only from the CRON_SECRET-gated
 // /api/cron/evaluate-alerts route. Not user-facing actions.
 
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 
-import { ALERT_FIRING_OPEN_STATUSES, alertFirings, alertSubscriptions, db } from "@/db";
+import { ALERT_FIRING_OPEN_STATUSES, alertFirings, alertSubscriptions, db, profiles } from "@/db";
 import { type CronBudgetHeaders, effectiveDeadlineMs } from "@/lib/infra/cron-dispatcher";
 import { evaluateAlertSubscriptions } from "@/lib/metrics/alert-evaluation";
 import { shouldOpenFiring } from "@/lib/metrics/alert-firing";
@@ -61,7 +61,8 @@ export async function recordFiringsForUser(userId: string): Promise<RecordFiring
 const ALL_ADMINS_MAX_DURATION_MS = 45_000;
 
 /**
- * Evaluate EVERY active subscription across all admin owners and open firings.
+ * Evaluate EVERY active subscription across all LIVE admin owners and open
+ * firings.
  * Used by the daily cron so evaluation does not depend on an admin opening
  * /admin/programa. Subscriptions are owned per-actor, so we evaluate per owner.
  *
@@ -95,16 +96,30 @@ export async function evaluateAndRecordFiringsForAllAdmins(opts?: {
   // Distinct owners of at least one ACTIVE subscription = the set to evaluate,
   // ordered by id so the keyset resume cursor is stable across runs. Resume
   // strictly AFTER the previous run's last owner.
+  //
+  // LIVE ADMIN OWNERS ONLY (A10-G3). Each owner is evaluated under a universal
+  // { role: "admin" } scope, so the sweep must admit exactly who
+  // requireAdminOrRedirect admits: role admin, institutional, not deactivated,
+  // not erased. Neither erasure (a soft delete of profiles) nor deactivation
+  // touches alert_subscriptions, so without this join a gone admin's standing
+  // rules kept firing into the triage inbox. The rows themselves remain — see
+  // the alert_subscriptions KNOWN_GAP entry in check-subject-rights-coverage.ts.
+  const liveAdminOwner = and(
+    eq(profiles.role, "admin"),
+    eq(profiles.accountType, "institutional"),
+    isNull(profiles.deactivatedAt),
+    isNull(profiles.deletedAt),
+  );
   const owners = await db
     .selectDistinct({ actorUserId: alertSubscriptions.actorUserId })
     .from(alertSubscriptions)
+    .innerJoin(profiles, eq(profiles.id, alertSubscriptions.actorUserId))
     .where(
-      afterUserId
-        ? and(
-            eq(alertSubscriptions.isActive, true),
-            gt(alertSubscriptions.actorUserId, afterUserId),
-          )
-        : eq(alertSubscriptions.isActive, true),
+      and(
+        eq(alertSubscriptions.isActive, true),
+        liveAdminOwner,
+        afterUserId ? gt(alertSubscriptions.actorUserId, afterUserId) : undefined,
+      ),
     )
     .orderBy(asc(alertSubscriptions.actorUserId));
 
