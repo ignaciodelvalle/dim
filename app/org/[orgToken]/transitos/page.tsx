@@ -1,20 +1,24 @@
 // Org transits hub — two tabs driven by ?tab= search param:
-//   activos (default): active foster rows (endedAt IS NULL) for this org's pets.
-//   historial:         ended foster rows (endedAt IS NOT NULL) ordered desc.
+//   activos (default): live foster rows on pets this org holds now.
+//   historial:         ended foster rows this org placed, newest ending first.
+//
+// Both come from `listOrgFosters`, which owns the binding to the viewing org
+// (finding A10-1: historial used to list fosters of pets the org had handed
+// to someone else). Do not add a query here that reads `ownerships` again.
 
-import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
-import { db, fosterProposals, organizationMemberships, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDate, formatDateShort, pluralizeEs, speciesLabel } from "@/lib/utils/format";
+import {
+  type OrgFosterKind as FosterKind,
+  type OrgFosterTab as TabKey,
+  listOrgFosters,
+} from "@/src/modules/foster/infrastructure/org-foster-listing";
 
 import { EndFosterButton } from "./EndFosterButton";
-
-type FosterKind = "pool" | "member" | "vecino";
-type TabKey = "activos" | "historial";
 
 const KIND_PILL_TONE: Record<FosterKind, "ok" | "open" | "neutral"> = {
   pool: "ok",
@@ -41,90 +45,7 @@ export default async function OrgTransitosPage({
 
   const { organization } = await requireOrgAccessByToken(orgToken);
 
-  // Pets in range for this org. Historial needs every pet the org EVER held
-  // (active + ended custody) so it can reach transferred-out pets. Activos must
-  // only consider pets the org CURRENTLY holds (active custody ownership):
-  // otherwise a pet the org already transferred out stays in petIds, and a
-  // foster row still open under its NEW holder would surface on this org's
-  // active tab — a cross-tenant leak (review 24). The endedAt filter is applied
-  // only for the activos tab.
-  const orgPets = await db
-    .select({ id: pets.id, publicToken: pets.publicToken, name: pets.name, species: pets.species })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(
-        eq(ownerships.ownerOrganizationId, organization.id),
-        // Art. 16: erasure soft-deletes the pet but not the ownership rows.
-        isNull(pets.deletedAt),
-        ...(activeTab === "activos" ? [isNull(ownerships.endedAt)] : []),
-      ),
-    );
-
-  const petIds = [...new Set(orgPets.map((p) => p.id))];
-  const petMap = new Map(orgPets.map((p) => [p.id, p]));
-
-  // Fosters: active vs ended depending on tab.
-  const fosters =
-    petIds.length === 0
-      ? []
-      : activeTab === "activos"
-        ? await db
-            .select({ ownership: ownerships, foster: profiles })
-            .from(ownerships)
-            .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-            .where(
-              and(
-                inArray(ownerships.petId, petIds),
-                eq(ownerships.role, "foster"),
-                isNull(ownerships.endedAt),
-              ),
-            )
-        : await db
-            .select({ ownership: ownerships, foster: profiles })
-            .from(ownerships)
-            .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-            .where(
-              and(
-                inArray(ownerships.petId, petIds),
-                eq(ownerships.role, "foster"),
-                isNotNull(ownerships.endedAt),
-              ),
-            )
-            .orderBy(desc(ownerships.endedAt))
-            .limit(200);
-
-  // Classify source (pool / member / vecino) — only needed for activos display.
-  const fosterOwnershipIds = fosters.map((f) => f.ownership.id);
-  const pooled =
-    activeTab === "activos" && fosterOwnershipIds.length
-      ? await db
-          .select({ resolvedOwnershipId: fosterProposals.resolvedOwnershipId })
-          .from(fosterProposals)
-          .where(
-            and(
-              inArray(fosterProposals.resolvedOwnershipId, fosterOwnershipIds),
-              eq(fosterProposals.status, "accepted"),
-            ),
-          )
-      : [];
-  const pooledSet = new Set(pooled.map((p) => p.resolvedOwnershipId).filter(Boolean) as string[]);
-
-  const fosterUserIds = fosters.map((f) => f.foster.id);
-  const memberships =
-    activeTab === "activos" && fosterUserIds.length
-      ? await db
-          .select({ userId: organizationMemberships.userId })
-          .from(organizationMemberships)
-          .where(
-            and(
-              inArray(organizationMemberships.userId, fosterUserIds),
-              eq(organizationMemberships.organizationId, organization.id),
-              isNull(organizationMemberships.leftAt),
-            ),
-          )
-      : [];
-  const memberSet = new Set(memberships.map((m) => m.userId));
+  const fosters = await listOrgFosters(organization.id, activeTab);
 
   return (
     <div className="space-y-6">
@@ -180,22 +101,17 @@ export default async function OrgTransitosPage({
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
-              {fosters.map(({ ownership, foster }) => {
-                const pet = petMap.get(ownership.petId);
-                if (!pet) return null;
-                const kind: FosterKind = pooledSet.has(ownership.id)
-                  ? "pool"
-                  : memberSet.has(foster.id)
-                    ? "member"
-                    : "vecino";
+              {fosters.map((ownership) => {
+                const { pet } = ownership;
+                const kind: FosterKind = ownership.kind ?? "vecino";
                 return (
-                  <li key={ownership.id} className="px-4 py-3 space-y-2">
+                  <li key={ownership.ownershipId} className="px-4 py-3 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 min-w-0">
                         <p className="text-md font-medium text-ln-op-ink">
                           {pet.name}{" "}
                           <span className="text-ln-op-mute font-normal">
-                            → {foster.displayName}
+                            → {ownership.fosterDisplayName}
                           </span>
                         </p>
                         <p className="text-sm text-ln-op-mute">
@@ -225,17 +141,16 @@ export default async function OrgTransitosPage({
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
-              {fosters.map(({ ownership, foster }) => {
-                const pet = petMap.get(ownership.petId);
-                if (!pet) return null;
+              {fosters.map((ownership) => {
+                const { pet } = ownership;
                 return (
-                  <li key={ownership.id} className="px-4 py-3">
+                  <li key={ownership.ownershipId} className="px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-0.5 min-w-0">
                         <p className="text-md font-medium text-ln-op-ink">
                           {pet.name}{" "}
                           <span className="text-ln-op-mute font-normal">
-                            → {foster.displayName}
+                            → {ownership.fosterDisplayName}
                           </span>
                         </p>
                         <p className="text-sm text-ln-op-mute">
