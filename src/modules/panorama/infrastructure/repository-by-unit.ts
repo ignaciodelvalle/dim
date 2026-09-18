@@ -545,8 +545,7 @@ export async function loadDenunciasByUnit(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${welfareReports.jurisdictionProvince}`,
-    sql`${welfareReports.jurisdictionLocality}`,
+    "welfareReports",
     adminProvince,
     adminLocality,
   );

@@ -124,6 +124,7 @@ export async function ServiciosScreen({
   // the DB level (AGENTS.md). Admin = universal (no scope clause); govt = OR of
   // (province,locality) pairs pushed into the WHERE.
   const baseCondition = eq(serviceOfferings.status, statusFilter);
+  // synthetic: exempt — service_offerings carry no seed marker (T1-P1 report).
   const scopeFilter: SQL | undefined =
     profile.role === "admin"
       ? undefined

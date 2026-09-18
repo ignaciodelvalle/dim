@@ -8,7 +8,7 @@
 
 import { type SQL, and, sql } from "drizzle-orm";
 
-import { cases, petEvents } from "@/db";
+import { cases, organizations, petEvents, welfareReports } from "@/db";
 import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   type DashboardActor,
@@ -17,6 +17,7 @@ import {
   jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
+  withoutSyntheticRows,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { PROVINCE_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
@@ -124,24 +125,67 @@ export function petEventsScope(
   );
 }
 
+/** The tables that share the same (province name, locality name) jurisdiction
+ * columns, and that the panorama loaders scope directly. */
+export type JurisdictionColumnsTable = "welfareReports" | "cases" | "organizations";
+
+const JURISDICTION_COLUMNS = {
+  welfareReports: {
+    province: sql`${welfareReports.jurisdictionProvince}`,
+    locality: sql`${welfareReports.jurisdictionLocality}`,
+  },
+  cases: {
+    province: sql`${cases.jurisdictionProvince}`,
+    locality: sql`${cases.jurisdictionLocality}`,
+  },
+  organizations: {
+    province: sql`${organizations.jurisdictionProvince}`,
+    locality: sql`${organizations.jurisdictionLocality}`,
+  },
+} as const;
+
 /** welfare_reports / cases / organizations share the same (province name, locality
- * name) jurisdiction columns. Build an OR of pair-matches against the given
- * province/locality columns.
+ * name) jurisdiction columns. Build an OR of pair-matches against the named
+ * table's province/locality columns.
  *
  * - admin, no province → null (no restriction)
  * - admin + province   → province (and optionally locality) predicate
  * - govt, no assignments → false (match nothing)
  * - govt, with assignments → OR of (province=X AND locality=Y) pairs
  *
- * SECURITY: the admin province branch fires ONLY when actor.role === "admin".
+ * The TABLE is named, not its two columns, because the clause also carries the
+ * synthetic-row exclusion (T1-P1, lib/metrics/scope.ts) and that exclusion is
+ * table-specific: a seed-tagged welfare report, a case over a seed-tagged pet
+ * or report. Organizations carry no seed marker, so they pass through
+ * unchanged — the seeded refugios/clínicas are a known, reported gap.
+ *
+ * SECURITY: the admin province branch fires ONLY for a national-read role.
  * Govt users must NOT pass adminProvince — their scope is enforced by
  * the jurisdictions pairs (same invariant as buildMaltratoListConditions).
  */
 export function jurisdictionColumnsScope(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  provinceCol: SQL | ReturnType<typeof sql.raw>,
-  localityCol: SQL | ReturnType<typeof sql.raw>,
+  table: JurisdictionColumnsTable,
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
+  const clause = jurisdictionColumnsOnly(
+    actor,
+    jurisdictions,
+    JURISDICTION_COLUMNS[table].province,
+    JURISDICTION_COLUMNS[table].locality,
+    adminProvince,
+    adminLocality,
+  );
+  return table === "organizations" ? clause : withoutSyntheticRows(actor.role, table, clause);
+}
+
+function jurisdictionColumnsOnly(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  provinceCol: SQL,
+  localityCol: SQL,
   adminProvince?: string,
   adminLocality?: string,
 ): SQL | null {
@@ -155,6 +199,7 @@ export function jurisdictionColumnsScope(
     }
     return sql`${provinceCol} = ${adminProvince}`;
   }
+  // synthetic: covered — jurisdictionColumnsScope wraps this with withoutSyntheticRows.
   return (
     jurisdictionPairClause(jurisdictions, sql`${provinceCol}`, sql`${localityCol}`) ?? sql`false`
   );

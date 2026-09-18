@@ -306,12 +306,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         break;
       }
       case "denuncias": {
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${welfareReports.jurisdictionProvince}`,
-          sql`${welfareReports.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "welfareReports");
         const conditions: SQL[] = [
           gte(welfareReports.createdAt, since),
           lte(welfareReports.createdAt, until),
@@ -348,12 +343,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         break;
       }
       case "decomisos": {
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${cases.jurisdictionProvince}`,
-          sql`${cases.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "cases");
         const conditions: SQL[] = [
           // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),
@@ -575,12 +565,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
 
       case "denuncias": {
         // COARSE: never exact coordinates — only kind/severity/jurisdiction.
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${welfareReports.jurisdictionProvince}`,
-          sql`${welfareReports.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "welfareReports");
         const conditions: SQL[] = [
           gte(welfareReports.createdAt, since),
           lte(welfareReports.createdAt, until),
@@ -637,12 +622,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "decomisos": {
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${cases.jurisdictionProvince}`,
-          sql`${cases.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "cases");
         const conditions: SQL[] = [
           // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),
@@ -868,12 +848,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "denuncias": {
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${welfareReports.jurisdictionProvince}`,
-          sql`${welfareReports.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "welfareReports");
         const conditions: SQL[] = [
           gte(welfareReports.createdAt, since),
           lte(welfareReports.createdAt, until),
@@ -912,12 +887,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "decomisos": {
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${cases.jurisdictionProvince}`,
-          sql`${cases.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "cases");
         const conditions: SQL[] = [
           // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),
@@ -1135,12 +1105,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "denuncias": {
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${welfareReports.jurisdictionProvince}`,
-          sql`${welfareReports.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "welfareReports");
         const conditions: SQL[] = [
           gte(welfareReports.createdAt, since),
           lte(welfareReports.createdAt, until),
@@ -1178,12 +1143,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "decomisos": {
-        const scope = jurisdictionColumnsScope(
-          actor,
-          jurisdictions,
-          sql`${cases.jurisdictionProvince}`,
-          sql`${cases.jurisdictionLocality}`,
-        );
+        const scope = jurisdictionColumnsScope(actor, jurisdictions, "cases");
         const conditions: SQL[] = [
           // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),

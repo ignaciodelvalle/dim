@@ -239,8 +239,7 @@ export async function loadScopeDailyCounts(params: {
       const scope = jurisdictionColumnsScope(
         actor,
         jurisdictions,
-        sql`${welfareReports.jurisdictionProvince}`,
-        sql`${welfareReports.jurisdictionLocality}`,
+        "welfareReports",
         adminProvince,
         adminLocality,
       );

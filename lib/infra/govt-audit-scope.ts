@@ -33,6 +33,7 @@ export async function fetchJurisdictionActorIds(
 ): Promise<string[]> {
   if (jurisdictions.length === 0) return [];
 
+  // synthetic: exempt — govt_assignments are operator accounts, not seed data.
   const pairsClause = jurisdictionPairClause(
     jurisdictions,
     sql`${govtAssignments.jurisdictionProvince}`,

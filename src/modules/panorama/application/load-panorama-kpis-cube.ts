@@ -29,6 +29,7 @@
 
 import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import { seesSyntheticRows } from "@/lib/metrics/scope";
 
 import { readKpiCubeMeta, readKpiCubeRows } from "@/src/modules/panorama/infrastructure/repository";
 
@@ -86,6 +87,9 @@ export async function loadPanoramaKpisFromCube(
   // --- eligibility (cheap checks first, no DB) ---
   if (!cubeReadsEnabled()) return null;
   if (!hasNationalReadScope(params.actor.role)) return null;
+  // T1-P1: built as ADMIN, so it counts the synthetic seed — admin-only (see
+  // resolveCubeFreshness in load-layer-features-cube.ts).
+  if (!seesSyntheticRows(params.actor.role)) return null;
   if (params.adminProvince || params.adminLocality) return null;
   if (params.asOf) return null;
   // Admin national is the empty jurisdiction set; anything else is not stored.

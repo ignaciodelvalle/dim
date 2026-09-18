@@ -31,6 +31,7 @@ import { sql } from "drizzle-orm";
 import { auditLog, db } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import type { ProjectionContext } from "@/lib/metrics";
+import { seesSyntheticRows } from "@/lib/metrics/scope";
 
 // ---------------------------------------------------------------------------
 // PII audit log helper
@@ -127,6 +128,17 @@ function overdueVaccineCutoff(): Date {
  * Postgres rejects when the table appears under a different alias.
  */
 function rawPetsScopeClause(ctx: ProjectionContext): ReturnType<typeof sql> | null | false {
+  const jurisdiction = rawPetsJurisdictionClause(ctx);
+  if (jurisdiction === false) return false;
+  // T1-P1: synthetic (seed-tagged) pets are never an outreach target for a
+  // non-admin reader — the raw-SQL twin of syntheticRowExclusion.pets()
+  // (lib/metrics/scope.ts), spelled against the `p` alias.
+  if (seesSyntheticRows(ctx.actor.role)) return jurisdiction;
+  const synthetic = sql`p.seed_tag IS NULL`;
+  return jurisdiction ? sql`(${jurisdiction}) AND ${synthetic}` : synthetic;
+}
+
+function rawPetsJurisdictionClause(ctx: ProjectionContext): ReturnType<typeof sql> | null | false {
   if (ctx.scope.kind === "global") return null;
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return false;

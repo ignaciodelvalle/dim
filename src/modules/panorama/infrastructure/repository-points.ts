@@ -135,8 +135,7 @@ export async function loadDenunciaCentroids(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${welfareReports.jurisdictionProvince}`,
-    sql`${welfareReports.jurisdictionLocality}`,
+    "welfareReports",
     adminProvince,
     adminLocality,
   );
@@ -261,8 +260,7 @@ export async function loadShelters(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${organizations.jurisdictionProvince}`,
-    sql`${organizations.jurisdictionLocality}`,
+    "organizations",
     adminProvince,
     adminLocality,
   );
@@ -318,8 +316,7 @@ export async function loadClinics(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${organizations.jurisdictionProvince}`,
-    sql`${organizations.jurisdictionLocality}`,
+    "organizations",
     adminProvince,
     adminLocality,
   );
@@ -378,8 +375,7 @@ export async function loadDecomisos(
   const scope = jurisdictionColumnsScope(
     actor,
     jurisdictions,
-    sql`${cases.jurisdictionProvince}`,
-    sql`${cases.jurisdictionLocality}`,
+    "cases",
     adminProvince,
     adminLocality,
   );

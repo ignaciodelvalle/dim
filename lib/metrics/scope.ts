@@ -8,9 +8,16 @@
 // Import note: this file uses @/db (Drizzle) — it lives in infrastructure,
 // not domain/. This is Pattern-B territory (aggregate reads, not pure rules).
 
-import { type SQL, and, eq, sql } from "drizzle-orm";
+import { type AnyColumn, type SQL, and, eq, sql } from "drizzle-orm";
 
-import { petEvents, pets } from "@/db";
+import {
+  cases,
+  custodyDisputes,
+  eventNotificationOutbox,
+  petEvents,
+  pets,
+  welfareReports,
+} from "@/db";
 import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
 
 import type { DashboardJurisdiction } from "./context";
@@ -75,6 +82,96 @@ export function jurisdictionPairClause(
   return sql`(${sql.join(pairs, sql` OR `)})`;
 }
 
+// ---------------------------------------------------------------------------
+// Synthetic rows (PO D3, 2026-09-18 — pilot item T1-P1)
+//
+// The pilot runs in the one environment that also holds the national,
+// population-weighted demo seed: ~41k pets stamped `pets.seed_tag`
+// (migration 0160) and their welfare reports stamped
+// `welfare_reports.seed_tag` (migration 0155). Every municipality has
+// synthetic animals, cases and reports inside its own scope. A municipal
+// operator must never see one of them as if it were a citizen's.
+//
+// THE RULE: only `admin` sees synthetic rows (demos keep working). `govt`
+// AND `national` do not — national is a read scope over REAL data too; its
+// universality is geographic, not a licence to count fixtures.
+//
+// WHERE IT LIVES: inside the scope clauses themselves. Every table-aware
+// scope helper (`petsScopeClause`, `petEventsScopeClause`, the dashboards
+// `_scope.ts` family, the panorama `repository-scope.ts` family, the
+// operator list queries) ANDs the matching exclusion below, so a fetcher that
+// scopes correctly is also synthetic-clean without knowing it. A fetcher that
+// hand-rolls `jurisdictionPairClause` (the raw, table-blind primitive) must
+// apply one of these itself — `__tests__/gob-synthetic-exclusion-fence.test.ts`
+// enumerates those call sites and fails on a new one that does not.
+//
+// A suppressed cell is still a suppressed cell: the exclusion sits in WHERE,
+// BEFORE every count, so k-anonymity runs on the real population and a cell
+// that falls under k after the exclusion is suppressed exactly like any other.
+// ---------------------------------------------------------------------------
+
+/** Does this read role see synthetic (seed-tagged) rows? Admin only. */
+export function seesSyntheticRows(role: string): boolean {
+  return role === "admin";
+}
+
+/** A column (or SQL expression) that holds a pets.id. */
+type PetIdOperand = AnyColumn | SQL;
+
+/**
+ * The exclusion predicates, one per table a /gob read path scopes. Each is a
+ * self-contained boolean (parenthesised) that references ONLY its own table's
+ * columns plus aliased subqueries, so it composes with any `and(...)` whose
+ * FROM already carries that table. Callers normally reach these through
+ * `withoutSyntheticRows`, never directly.
+ */
+export const syntheticRowExclusion = {
+  /** `pets` is in FROM. */
+  pets: (): SQL => sql`(${pets.seedTag} IS NULL)`,
+  /**
+   * Any row that points at a pet by id (pet_events.pet_id,
+   * custody_disputes.pet_id, cases.primary_pet_id…). A NULL id is NOT
+   * synthetic — a location-subject case has no pet, and it stays visible.
+   */
+  petId: (petIdCol: PetIdOperand): SQL =>
+    sql`NOT EXISTS (SELECT 1 FROM pets synth_p WHERE synth_p.id = ${petIdCol} AND synth_p.seed_tag IS NOT NULL)`,
+  /** `pet_events` is in FROM. */
+  petEvents: (): SQL => syntheticRowExclusion.petId(petEvents.petId),
+  /** `welfare_reports` is in FROM. */
+  welfareReports: (): SQL => sql`(${welfareReports.seedTag} IS NULL)`,
+  /**
+   * `cases` is in FROM. A case is synthetic when its primary pet is, OR when a
+   * seed-tagged welfare report opened it (welfare_reports.case_id). A
+   * location-subject case with neither link carries no marker at all — see
+   * the known gap in the T1-P1 report (seeded historic decomisos/disputes).
+   */
+  cases: (): SQL =>
+    sql`(${syntheticRowExclusion.petId(cases.primaryPetId)} AND NOT EXISTS (SELECT 1 FROM welfare_reports synth_w WHERE synth_w.case_id = ${cases.id} AND synth_w.seed_tag IS NOT NULL))`,
+  /** `custody_disputes` is in FROM — a dispute over a synthetic pet. */
+  custodyDisputes: (): SQL => syntheticRowExclusion.petId(custodyDisputes.petId),
+  /** `event_notification_outbox` is in FROM (ENO / webhook queue). */
+  outbox: (): SQL =>
+    sql`NOT EXISTS (SELECT 1 FROM pet_events synth_e JOIN pets synth_p ON synth_p.id = synth_e.pet_id WHERE synth_e.id = ${eventNotificationOutbox.sourceEventId} AND synth_p.seed_tag IS NOT NULL)`,
+} as const;
+
+export type SyntheticRowTable = keyof Omit<typeof syntheticRowExclusion, "petId">;
+
+/**
+ * AND the synthetic exclusion for `table` onto an existing scope clause, for a
+ * viewer of `role`. Admin → the clause unchanged (including `null`, "no
+ * restriction"). Anyone else → the clause AND the exclusion; a `null` clause
+ * (national, undrilled) becomes the exclusion alone.
+ */
+export function withoutSyntheticRows(
+  role: string,
+  table: SyntheticRowTable,
+  clause: SQL | null | undefined,
+): SQL | null {
+  if (seesSyntheticRows(role)) return clause ?? null;
+  const exclusion = syntheticRowExclusion[table]();
+  return clause ? sql`(${clause} AND ${exclusion})` : exclusion;
+}
+
 /**
  * Returns a Drizzle SQL clause that restricts a `pets`-based query to the
  * viewer's jurisdiction scope.
@@ -92,6 +189,11 @@ export function jurisdictionPairClause(
  * effect on their clause.
  */
 export function petsScopeClause(ctx: ProjectionContext) {
+  return withoutSyntheticRows(ctx.actor.role, "pets", petsJurisdictionClause(ctx));
+}
+
+/** The jurisdiction half of `petsScopeClause`, without the synthetic exclusion. */
+function petsJurisdictionClause(ctx: ProjectionContext) {
   if (ctx.scope.kind === "global") {
     // Admin province drill-down: narrow from universal to the selected province.
     // Govt users must NOT pass these fields — their scope is enforced by
@@ -107,6 +209,7 @@ export function petsScopeClause(ctx: ProjectionContext) {
   }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
+  // synthetic: covered — petsScopeClause wraps this with withoutSyntheticRows.
   return jurisdictionPairClause(
     jurisdictions,
     sql`${pets.jurisdictionProvince}`,
@@ -164,6 +267,11 @@ export function isOwnJurisdictionProvince(ctx: ScopedForDisclosure, province: st
  * when scope.kind === "global".
  */
 export function petEventsScopeClause(ctx: ProjectionContext) {
+  return withoutSyntheticRows(ctx.actor.role, "petEvents", petEventsJurisdictionClause(ctx));
+}
+
+/** The jurisdiction half of `petEventsScopeClause`, without the synthetic exclusion. */
+function petEventsJurisdictionClause(ctx: ProjectionContext) {
   if (ctx.scope.kind === "global") {
     if (!ctx.adminProvince) return null;
     if (ctx.adminLocality) {
@@ -176,6 +284,7 @@ export function petEventsScopeClause(ctx: ProjectionContext) {
   }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
+  // synthetic: covered — petEventsScopeClause wraps this with withoutSyntheticRows.
   return jurisdictionPairClause(
     jurisdictions,
     sql`(${petEvents.payload}->>'pet_jurisdiction_province')`,
