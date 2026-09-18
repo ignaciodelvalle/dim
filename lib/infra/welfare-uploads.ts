@@ -25,7 +25,7 @@ import {
   isHeifContainer,
   metadataStripRefusalMessage,
 } from "@/lib/media/heic";
-import { reencodeRaster } from "@/lib/media/validate";
+import { detectRasterMime, reencodeRaster } from "@/lib/media/validate";
 
 const BUCKET = "welfare-evidence";
 const MAX_FILES = 5;
@@ -111,14 +111,86 @@ export async function removeWelfareEvidence(storagePaths: string[]): Promise<voi
   }
 }
 
+/** Only the count check — needs the whole list, not one file at a time. */
+function checkFileCount(real: File[]): string | null {
+  if (real.length > MAX_FILES) return `No podés adjuntar más de ${MAX_FILES} archivos.`;
+  return null;
+}
+
+/**
+ * The per-file checks that need no storage and no sharp: HEIC/HEIF, declared
+ * type, size. Shared by `checkWelfareEvidence` and `prepareWelfareEvidence` so
+ * the two never drift.
+ *
+ * HEIC is recognised by its declared type or extension AND by the bytes: a
+ * picker can hand over an iPhone photo labelled `image/jpeg` or with no type at
+ * all, and the first bytes are the only thing the client does not choose.
+ */
+async function cheapFileCheck(f: File): Promise<string | null> {
+  const head = new Uint8Array(await f.slice(0, HEIF_SNIFF_BYTES).arrayBuffer());
+  if (isDeclaredHeic(f) || isHeifContainer(head)) return heicRefusalMessage(f.name || null);
+  if (!ALLOWED_MIME.has(f.type)) {
+    return `Tipo de archivo no soportado: ${f.type || "desconocido"}. Solo imágenes y videos.`;
+  }
+  if (f.size > MAX_FILE_BYTES) return `Archivo "${f.name}" supera el límite de 25 MB.`;
+  return null;
+}
+
+type StripResult =
+  | { ok: true; uploadBody: File | Buffer; storedSize: number; mimeType: string }
+  | { ok: false; error: string };
+
+/**
+ * Decide whether `f` gets its metadata stripped, and do it if so.
+ *
+ * FIX B (2026-09-18 security review): the decision used to be
+ * `STRIP_EXIF_MIME.has(f.type)` — the client-DECLARED type. A camera JPEG
+ * declared `image/gif` or `video/mp4` passes `ALLOWED_MIME` and used to be
+ * stored raw, GPS included. Now the BYTES decide first: `detectRasterMime`
+ * sniffs the real magic number, and any file that sniffs as JPEG/PNG/WebP is
+ * stripped and stored under the SNIFFED mime — whatever was declared. Genuine
+ * GIFs and videos (which don't sniff as a raster type here) are left alone,
+ * same as before.
+ *
+ * The declared-type check stays as a fallback OR so a file that DECLARES a
+ * strippable type but fails to sniff as one (corrupt bytes, truncated upload)
+ * still goes through sharp and hits the fail-closed refusal below, instead of
+ * silently skipping the strip because the magic number didn't parse.
+ *
+ * FAILS CLOSED (D4). This used to fall back to the ORIGINAL bytes when sharp
+ * threw, on the reasoning "we'd rather store metadata than fail the whole
+ * denuncia" — which stored exactly the position the strip exists to drop, for
+ * exactly the files sharp could not read. Now the submission is refused and
+ * the caller is expected to remove anything already stored, the same shape as
+ * `claimStagedEventAttachment` (lib/infra/staged-event-attachment.ts).
+ */
+async function stripIfRaster(f: File): Promise<StripResult> {
+  const head = new Uint8Array(await f.slice(0, HEIF_SNIFF_BYTES).arrayBuffer());
+  const sniffed = detectRasterMime(head);
+  const shouldStrip = STRIP_EXIF_MIME.has(f.type) || sniffed !== null;
+  const mimeType = sniffed ?? f.type;
+
+  if (!shouldStrip) {
+    return { ok: true, uploadBody: f, storedSize: f.size, mimeType };
+  }
+  try {
+    const processed = await reencodeRaster(Buffer.from(await f.arrayBuffer()));
+    return { ok: true, uploadBody: processed, storedSize: processed.length, mimeType };
+  } catch (err) {
+    console.warn("[welfare-uploads] EXIF strip failed, refusing rather than storing raw:", {
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: metadataStripRefusalMessage(f.name || null) };
+  }
+}
+
 /**
  * The checks that need no storage: count, HEIC/HEIF, type, size. Returns the
  * es-AR refusal, or null when the set may be uploaded.
  *
- * Exported so a caller that writes a row BEFORE uploading (the denuncia
- * actions insert the report first, by design) can refuse up front instead of
- * leaving a report behind with no evidence. `uploadWelfareEvidence` runs it
- * again, so a caller that skips it is still refused — just later.
+ * Does NOT run the EXIF strip — see `prepareWelfareEvidence` for the full
+ * pre-insert gate the denuncia actions use. This narrower function is kept
+ * for callers that only need the cheap shape checks.
  *
  * HEIC is recognised by its declared type or extension AND by the bytes: a
  * picker can hand over an iPhone photo labelled `image/jpeg` or with no type at
@@ -126,26 +198,75 @@ export async function removeWelfareEvidence(storagePaths: string[]): Promise<voi
  */
 export async function checkWelfareEvidence(files: File[]): Promise<string | null> {
   const real = files.filter((f) => f && f.size > 0);
-  if (real.length > MAX_FILES) return `No podés adjuntar más de ${MAX_FILES} archivos.`;
+  const countError = checkFileCount(real);
+  if (countError) return countError;
   for (const f of real) {
-    const head = new Uint8Array(await f.slice(0, HEIF_SNIFF_BYTES).arrayBuffer());
-    if (isDeclaredHeic(f) || isHeifContainer(head)) return heicRefusalMessage(f.name || null);
-    if (!ALLOWED_MIME.has(f.type)) {
-      return `Tipo de archivo no soportado: ${f.type || "desconocido"}. Solo imágenes y videos.`;
-    }
-    if (f.size > MAX_FILE_BYTES) return `Archivo "${f.name}" supera el límite de 25 MB.`;
+    const err = await cheapFileCheck(f);
+    if (err) return err;
   }
   return null;
 }
 
-export async function uploadWelfareEvidence(
-  reportId: string,
-  files: File[],
-): Promise<WelfareUploadResult> {
+export type PreparedWelfareFile = {
+  file: File;
+  uploadBody: File | Buffer;
+  storedSize: number;
+  mimeType: string;
+};
+
+export type PrepareWelfareEvidenceResult = {
+  error: string | null;
+  prepared: PreparedWelfareFile[];
+};
+
+/**
+ * The FULL pre-insert gate (Fix A, 2026-09-18 security review): count, HEIC,
+ * type, size, AND the EXIF strip.
+ *
+ * Before this existed, only the storage-free checks ran before a caller that
+ * inserts a row before uploading (the denuncia create actions, by design)
+ * could refuse up front — the strip's fail-closed refusal only happened
+ * INSIDE the old upload step, which necessarily ran AFTER that insert. A
+ * corrupt JPEG (or any file sharp could not decode) then left a report row
+ * with no evidence behind, worse on every retry. This runs the strip here
+ * instead and hands the already-processed bodies forward, so the caller only
+ * inserts once every file is already known-clean — see
+ * `uploadPreparedWelfareEvidence`, which does no re-checking and no
+ * re-stripping.
+ */
+export async function prepareWelfareEvidence(files: File[]): Promise<PrepareWelfareEvidenceResult> {
   const real = files.filter((f) => f && f.size > 0);
-  if (real.length === 0) return { error: null, uploaded: [], uploadedPaths: [] };
-  const refusal = await checkWelfareEvidence(real);
-  if (refusal) return { error: refusal, uploaded: [], uploadedPaths: [] };
+  const countError = checkFileCount(real);
+  if (countError) return { error: countError, prepared: [] };
+
+  const prepared: PreparedWelfareFile[] = [];
+  for (const f of real) {
+    const cheapError = await cheapFileCheck(f);
+    if (cheapError) return { error: cheapError, prepared: [] };
+
+    const stripped = await stripIfRaster(f);
+    if (!stripped.ok) return { error: stripped.error, prepared: [] };
+    prepared.push({
+      file: f,
+      uploadBody: stripped.uploadBody,
+      storedSize: stripped.storedSize,
+      mimeType: stripped.mimeType,
+    });
+  }
+  return { error: null, prepared };
+}
+
+/**
+ * Upload already-`prepareWelfareEvidence`d files. Pure storage I/O: no
+ * checks, no stripping — everything that can refuse the submission already
+ * ran before the caller inserted its row. Rolls itself back on a partial
+ * storage failure, same as `uploadWelfareEvidence`.
+ */
+export async function uploadPreparedWelfareEvidence(
+  reportId: string,
+  prepared: PreparedWelfareFile[],
+): Promise<WelfareUploadResult> {
+  if (prepared.length === 0) return { error: null, uploaded: [], uploadedPaths: [] };
 
   const uploaded: WelfareUploadResult["uploaded"] = [];
   const uploadedPaths: string[] = [];
@@ -165,63 +286,55 @@ export async function uploadWelfareEvidence(
     };
   }
 
-  for (const f of real) {
-    const ext = inferExtension(f.name, f.type);
+  for (const p of prepared) {
+    const ext = inferExtension(p.file.name, p.mimeType);
     const attachmentId = crypto.randomUUID();
     const path = `${reportId}/${attachmentId}${ext}`;
 
-    // Strip EXIF (including GPS) from raster images before storage so an
-    // anonymous reporter's home location can't be inferred from photo metadata.
-    //
-    // FAILS CLOSED (D4). This used to fall back to the ORIGINAL bytes when sharp
-    // threw, on the reasoning "we'd rather store metadata than fail the whole
-    // denuncia" — which stored exactly the position the strip exists to drop,
-    // for exactly the files sharp could not read. Now the submission is refused
-    // and everything this call already stored is removed, the same shape as
-    // `claimStagedEventAttachment` (lib/infra/staged-event-attachment.ts).
-    let uploadBody: File | Buffer = f;
-    let storedSize = f.size;
-    if (STRIP_EXIF_MIME.has(f.type)) {
-      try {
-        const processed = await reencodeRaster(Buffer.from(await f.arrayBuffer()));
-        uploadBody = processed;
-        storedSize = processed.length;
-      } catch (err) {
-        console.warn("[welfare-uploads] EXIF strip failed, refusing rather than storing raw:", {
-          message: err instanceof Error ? err.message : String(err),
-        });
-        await removeWelfareEvidence(uploadedPaths);
-        return {
-          error: metadataStripRefusalMessage(f.name || null),
-          uploaded: [],
-          uploadedPaths: [],
-        };
-      }
-    }
-
-    const { error } = await bucket.upload(path, uploadBody, {
-      contentType: f.type,
+    const { error } = await bucket.upload(path, p.uploadBody, {
+      contentType: p.mimeType,
       upsert: false,
     });
     if (error) {
       // Roll back what we already uploaded.
       await removeWelfareEvidence(uploadedPaths);
       return {
-        error: `No se pudo subir "${f.name}": ${error.message}`,
+        error: `No se pudo subir "${p.file.name}": ${error.message}`,
         uploaded: [],
         uploadedPaths: [],
       };
     }
     uploaded.push({
       storagePath: path,
-      mimeType: f.type,
-      fileSize: storedSize,
-      originalFilename: f.name || null,
+      mimeType: p.mimeType,
+      fileSize: p.storedSize,
+      originalFilename: p.file.name || null,
     });
     uploadedPaths.push(path);
   }
 
   return { error: null, uploaded, uploadedPaths };
+}
+
+/**
+ * Validate, strip, and upload in one call — for a caller that uploads BEFORE
+ * any row exists (so an early refusal leaves nothing behind either way).
+ * `submit-claim-dispute.ts` is the one remaining caller shaped like that; the
+ * denuncia create actions use `prepareWelfareEvidence` +
+ * `uploadPreparedWelfareEvidence` directly instead, because THEY insert a row
+ * first and need the gate to run before that insert, not around this call.
+ */
+export async function uploadWelfareEvidence(
+  reportId: string,
+  files: File[],
+): Promise<WelfareUploadResult> {
+  const real = files.filter((f) => f && f.size > 0);
+  if (real.length === 0) return { error: null, uploaded: [], uploadedPaths: [] };
+
+  const prep = await prepareWelfareEvidence(real);
+  if (prep.error) return { error: prep.error, uploaded: [], uploadedPaths: [] };
+
+  return uploadPreparedWelfareEvidence(reportId, prep.prepared);
 }
 
 function inferExtension(filename: string, mime: string): string {

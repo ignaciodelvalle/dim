@@ -54,9 +54,9 @@ import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-lim
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
 import {
-  checkWelfareEvidence,
+  prepareWelfareEvidence,
   removeWelfareEvidence,
-  uploadWelfareEvidence,
+  uploadPreparedWelfareEvidence,
 } from "@/lib/infra/welfare-uploads";
 import { parseDateInput } from "@/lib/utils/format";
 import { canReceiveDerivedWelfare } from "@/src/modules/welfare/domain/derivation-eligibility";
@@ -986,60 +986,23 @@ export async function createWelfareReportAction(
     .filter((e): e is File => e instanceof File)
     .filter((f) => f.size > 0);
 
-  // The storage-free evidence checks (count, type, size, HEIC — D4) run BEFORE
-  // the report row is inserted: a refusal from inside the upload below would
-  // leave that row behind with no evidence ("report row stays — parity").
-  const evidenceRefusal = await checkWelfareEvidence(files);
-  if (evidenceRefusal) return { error: evidenceRefusal };
+  // Full pre-insert gate (Fix A, 2026-09-18 security review): count, HEIC,
+  // type, size, AND the EXIF strip all run here, before the report row
+  // exists. Before this, only the storage-free checks ran up front; the
+  // strip's fail-closed refusal (a corrupt JPEG, or any file sharp cannot
+  // decode) happened INSIDE the old uploadWelfareEvidence call, which by
+  // construction ran AFTER the insert below — leaving an evidence-less
+  // report row behind, and another one on every retry. prepareWelfareEvidence
+  // does the real strip now and hands the already-processed bodies forward,
+  // so nothing is inserted unless every file is already known-clean.
+  let prepared: Awaited<ReturnType<typeof prepareWelfareEvidence>>["prepared"] = [];
+  if (files.length > 0) {
+    const prep = await prepareWelfareEvidence(files);
+    if (prep.error) return { error: prep.error };
+    prepared = prep.prepared;
+  }
 
-  let uploadResult: Awaited<ReturnType<typeof uploadWelfareEvidence>> | null = null;
-  // We need a temporary ID for the upload path — we'll use a pre-generated UUID.
-  // The report row is inserted first (outside tx), so we use insertedId from the use-case
-  // result. However, the original uploads AFTER the insert. We follow parity:
-  // upload after insert, before the attachment tx.
-  // The use-case handles this by receiving pre-uploaded attachment refs.
-  // We do a two-phase: (1) call use-case for insert only, (2) upload, (3) complete tx.
-  // Parity simplification: we call the use-case with uploadResult that may be null initially.
-  // Actually, looking at the original: insert report → upload → attachment tx.
-  // We follow same order but the use-case handles insert internally.
-  // The action calls uploadWelfareEvidence AFTER the use-case inserts the report row.
-  // But the use-case doesn't return the ID until it runs. This requires a split approach.
-  //
-  // Design choice: use-case accepts pre-resolved attachment refs. We pre-insert the report
-  // via repo directly here (same as original: insert outside tx, then upload, then tx).
-  // This matches the original exactly.
-
-  // Phase 1: call use-case (which inserts the report + runs the tx)
-  // But we need the reportId BEFORE uploading. The original inserts first, then uploads.
-  // We mirror this exactly by pre-inserting via repo, then uploading, then running the use-case's tx path.
-  // However, our use-case design does everything atomically. Let's adjust to match parity:
-  // The use-case's insertReportWithRetry runs FIRST (outside tx in our impl too), then we upload, then tx.
-  // This is exactly what the use-case does — insert first, return reportId, then tx.
-  // We can upload between insertReportWithRetry and the tx by splitting concerns.
-  //
-  // Practical solution: run the whole use-case with empty attachments to get insertedId,
-  // upload, then... that doesn't work since the tx already ran.
-  //
-  // Correct parity: upload happens in the ACTION (not use-case). The use-case receives
-  // the already-uploaded attachment rows. We need the reportId from insertReportWithRetry
-  // BEFORE the upload. The use-case does: insert → upload → tx. We match by:
-  // 1. Call use-case with files=[] (empty), get reportId from return value.
-  // 2. If files, upload using reportId.
-  // 3. If upload fails, return error (report row stays — parity).
-  // 4. But use-case already ran the tx...
-  //
-  // The cleanest parity approach: the use-case handles insert+tx atomically with pre-uploaded refs.
-  // The action does: (1) parse, (2) pre-upload (needs reportId — but we don't have it yet),
-  // OR: the action uses a pre-generated UUID and pre-uploads to that path.
-  // Original actually uploads AFTER insert (using insertedId).
-  //
-  // Resolution: follow the original EXACTLY. The action owns the two-phase flow:
-  // (1) insert via repo.insertReportWithRetry directly in the action,
-  // (2) upload using the returned ID,
-  // (3) pass uploadResult to a narrower use-case that only does the tx portion.
-  // This is the cleanest split and matches parity perfectly.
-  //
-  // For WU-3 we keep this in the action (not use-case) to match original exactly.
+  let uploadResult: Awaited<ReturnType<typeof uploadPreparedWelfareEvidence>> | null = null;
 
   // Insert the report row (outside tx — parity with original)
   const insertResult = await repo
@@ -1080,9 +1043,11 @@ export async function createWelfareReportAction(
 
   const { id: insertedId, referenceCode } = insertResult;
 
-  // Upload files (after insert, before tx — parity)
-  if (files.length > 0) {
-    uploadResult = await uploadWelfareEvidence(insertedId, files);
+  // Upload the already-stripped bodies (after insert, before tx — parity).
+  // prepareWelfareEvidence above already guaranteed these are clean; this
+  // step is pure storage I/O and rolls itself back on a partial failure.
+  if (prepared.length > 0) {
+    uploadResult = await uploadPreparedWelfareEvidence(insertedId, prepared);
     if (uploadResult.error) {
       return { error: uploadResult.error };
     }
@@ -1298,9 +1263,12 @@ export async function createOrgWelfareReportAction(
   if (files.length === 0) {
     return { error: "Una denuncia profesional requiere al menos un adjunto de evidencia." };
   }
-  // Before the insert, for the same reason as the citizen action above.
-  const evidenceRefusal = await checkWelfareEvidence(files);
-  if (evidenceRefusal) return { error: evidenceRefusal };
+  // Full pre-insert gate (Fix A, 2026-09-18 security review) — same reason as
+  // the citizen action above: the strip must fail BEFORE the row exists, not
+  // after, or a retry piles up evidence-less rows that each still trip the
+  // "at least one attachment" invariant checked above.
+  const prep = await prepareWelfareEvidence(files);
+  if (prep.error) return { error: prep.error };
 
   // Insert the report row (outside tx — parity with original createOrgWelfareReportAction)
   const insertResult = await repo
@@ -1340,8 +1308,8 @@ export async function createOrgWelfareReportAction(
 
   const { id: insertedId, referenceCode: orgReferenceCode } = insertResult;
 
-  // Upload evidence files
-  const uploadResult = await uploadWelfareEvidence(insertedId, files);
+  // Upload the already-stripped bodies.
+  const uploadResult = await uploadPreparedWelfareEvidence(insertedId, prep.prepared);
   if (uploadResult.error) return { error: uploadResult.error };
 
   // Resolve pet at the action level (org reporters are always "witnesses" — no ownership check)

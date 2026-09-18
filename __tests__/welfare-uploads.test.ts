@@ -11,7 +11,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   checkWelfareEvidence,
+  prepareWelfareEvidence,
   removeWelfareEvidence,
+  uploadPreparedWelfareEvidence,
   uploadWelfareEvidence,
 } from "@/lib/infra/welfare-uploads";
 
@@ -82,9 +84,26 @@ function uploadCall(n = 0): [string, unknown, unknown] {
   return uploadMock.mock.calls[n] as unknown as [string, unknown, unknown];
 }
 
+// Real magic numbers (FIX B fixtures) — enough leading bytes for
+// `detectRasterMime` to recognise the format regardless of what the file
+// DECLARES itself to be.
+const JPEG_MAGIC = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const WEBP_MAGIC = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+// Module-level reset: `beforeEach` inside one `describe` does NOT reach a
+// SIBLING `describe`'s tests, and this file has several. Without this, mock
+// call counts (sharp, storage.upload) leak across describe blocks.
+beforeEach(() => {
+  vi.clearAllMocks();
+  adminClientError = null;
+  uploadMock.mockImplementation(async () => ({ error: null }));
+  mockToBuffer.mockResolvedValue(Buffer.from("sharp-processed"));
+});
 
 describe("uploadWelfareEvidence", () => {
   beforeEach(() => {
@@ -256,7 +275,7 @@ describe("uploadWelfareEvidence", () => {
     expect(uploadMock).not.toHaveBeenCalled();
   });
 
-  it("a strip failure on a later file rolls back the files already stored", async () => {
+  it("a strip failure on a later file blocks the WHOLE set — nothing is ever stored (Fix A)", async () => {
     // First JPEG strips fine, the second one does not.
     mockToBuffer
       .mockResolvedValueOnce(Buffer.from("sharp-processed"))
@@ -270,12 +289,14 @@ describe("uploadWelfareEvidence", () => {
     expect(result.error).toContain('"bad.jpg"');
     expect(result.uploaded).toEqual([]);
     expect(result.uploadedPaths).toEqual([]);
-    // Only the first file was ever written, as its stripped body...
-    expect(uploadMock).toHaveBeenCalledOnce();
-    const [firstPath, firstBody] = uploadCall();
-    expect(firstBody).toEqual(Buffer.from("sharp-processed"));
-    // ...and exactly that path is removed again.
-    expect(removeMock).toHaveBeenCalledWith([firstPath]);
+    // Fix A (2026-09-18): uploadWelfareEvidence now runs prepareWelfareEvidence
+    // FIRST — every file's strip must succeed before ANY of them reaches
+    // storage. Before this, "ok.jpg" was uploaded and then rolled back once
+    // "bad.jpg" failed; now it is never uploaded in the first place, so there
+    // is nothing to roll back — no storage round trip for a set that was
+    // always going to be refused.
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(removeMock).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------
@@ -336,6 +357,114 @@ describe("uploadWelfareEvidence", () => {
 
     expect(result.error).toBeNull();
     expect(result.uploaded.map((u) => u.mimeType)).toEqual(["video/mp4", "video/quicktime"]);
+  });
+});
+
+describe("FIX B — the strip decision is byte-driven, not declared-type-driven", () => {
+  it("a real JPEG declared video/mp4 still gets stripped and stored as image/jpeg", async () => {
+    const disguised = makeBytesFile(JPEG_MAGIC, "clip.mp4", "video/mp4");
+    const result = await uploadWelfareEvidence("report-fixb-1", [disguised]);
+
+    expect(result.error).toBeNull();
+    expect(mockSharpFn).toHaveBeenCalledOnce();
+    expect(result.uploaded[0].mimeType).toBe("image/jpeg");
+    const uploadedBody = uploadCall()[1];
+    expect(Buffer.isBuffer(uploadedBody)).toBe(true);
+    // The storage object also carries the CORRECTED content-type, not the
+    // declared one — a caller downloading it must not be lied to either.
+    const opts = uploadCall()[2] as { contentType: string };
+    expect(opts.contentType).toBe("image/jpeg");
+  });
+
+  it("a real PNG declared image/gif still gets stripped and stored as image/png", async () => {
+    const disguised = makeBytesFile(PNG_MAGIC, "foto.gif", "image/gif");
+    const result = await uploadWelfareEvidence("report-fixb-2", [disguised]);
+
+    expect(result.error).toBeNull();
+    expect(mockSharpFn).toHaveBeenCalledOnce();
+    expect(result.uploaded[0].mimeType).toBe("image/png");
+  });
+
+  it("a real WEBP declared video/webm still gets stripped and stored as image/webp", async () => {
+    const disguised = makeBytesFile(WEBP_MAGIC, "clip.webm", "video/webm");
+    const result = await uploadWelfareEvidence("report-fixb-3", [disguised]);
+
+    expect(result.error).toBeNull();
+    expect(mockSharpFn).toHaveBeenCalledOnce();
+    expect(result.uploaded[0].mimeType).toBe("image/webp");
+  });
+
+  it("a genuine GIF (bytes don't sniff as raster) declared image/gif is NOT stripped", async () => {
+    const gif89a = new TextEncoder().encode("GIF89a");
+    const genuine = makeBytesFile(gif89a, "real.gif", "image/gif");
+    const result = await uploadWelfareEvidence("report-fixb-4", [genuine]);
+
+    expect(result.error).toBeNull();
+    expect(mockSharpFn).not.toHaveBeenCalled();
+    expect(result.uploaded[0].mimeType).toBe("image/gif");
+  });
+
+  it("a strip failure on a byte-sniffed (not declared) raster still fails closed", async () => {
+    mockToBuffer.mockRejectedValueOnce(new Error("sharp: unsupported format"));
+    const disguised = makeBytesFile(JPEG_MAGIC, "clip.mp4", "video/mp4");
+    const result = await uploadWelfareEvidence("report-fixb-5", [disguised]);
+
+    expect(result.error).toMatch(/no guardamos nada/);
+    expect(result.uploaded).toEqual([]);
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("prepareWelfareEvidence — the full pre-insert gate (Fix A)", () => {
+  it("does no storage I/O at all — bucket is never touched", async () => {
+    const file = makeFile("evidence.jpg", "image/jpeg", 2048);
+    const result = await prepareWelfareEvidence([file]);
+
+    expect(result.error).toBeNull();
+    expect(result.prepared).toHaveLength(1);
+    expect(result.prepared[0].mimeType).toBe("image/jpeg");
+    expect(Buffer.isBuffer(result.prepared[0].uploadBody)).toBe(true);
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("a strip failure refuses with no prepared files and no storage call", async () => {
+    mockToBuffer.mockRejectedValueOnce(new Error("sharp: unsupported format"));
+    const file = makeFile("corrupt.jpg", "image/jpeg", 512);
+    const result = await prepareWelfareEvidence([file]);
+
+    expect(result.error).toContain('"corrupt.jpg"');
+    expect(result.error).toMatch(/no guardamos nada/);
+    expect(result.prepared).toEqual([]);
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("a HEIC refusal happens before any strip attempt", async () => {
+    const heic = makeBytesFile(ftypHeader("heic", []), "IMG.HEIC", "image/heic");
+    const result = await prepareWelfareEvidence([heic]);
+
+    expect(result.error).toMatch(/formato HEIC/);
+    expect(result.prepared).toEqual([]);
+    expect(mockSharpFn).not.toHaveBeenCalled();
+  });
+
+  it("prepared bodies feed uploadPreparedWelfareEvidence WITHOUT re-stripping", async () => {
+    const file = makeFile("evidence.jpg", "image/jpeg", 2048);
+    const prep = await prepareWelfareEvidence([file]);
+    expect(prep.error).toBeNull();
+
+    mockSharpFn.mockClear();
+    mockToBuffer.mockClear();
+
+    const result = await uploadPreparedWelfareEvidence("report-prepared-1", prep.prepared);
+
+    expect(result.error).toBeNull();
+    expect(result.uploaded).toHaveLength(1);
+    // The strip already happened inside prepareWelfareEvidence — uploading the
+    // prepared body must not touch sharp a second time.
+    expect(mockSharpFn).not.toHaveBeenCalled();
+    expect(mockToBuffer).not.toHaveBeenCalled();
+    const uploadedBody = uploadCall()[1];
+    expect(Buffer.isBuffer(uploadedBody)).toBe(true);
   });
 });
 
