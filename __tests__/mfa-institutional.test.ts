@@ -9,7 +9,8 @@
 //      `mfa_factor_enrolled` audit row.
 //   3. reset-mfa-factors.ts — admin-assisted recovery (Supabase has no recovery
 //      codes): admin only, never on oneself, credentials reset FIRST (password,
-//      sessions, new link), then every factor removed, audited.
+//      sessions, new link), then the hook's lockout counters cleared, then
+//      every factor removed, audited.
 //
 // Section 5: the harness factor managers (scripts/lib/seed-mfa.ts,
 // _helpers/aal2-session.ts) refuse a Supabase that is not the local machine.
@@ -33,6 +34,7 @@ const h = vi.hoisted(() => ({
   adminDeleteFactor: vi.fn(),
   resetCredentials: vi.fn(),
   mailEnrolled: vi.fn(),
+  bucketDelete: vi.fn(),
   calls: [] as string[],
 }));
 
@@ -47,11 +49,17 @@ vi.mock("@/lib/infra/role-landing", () => ({
   safeReturnTo: (v: string | null | undefined) =>
     v?.startsWith("/") && !v.startsWith("//") ? v : null,
 }));
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return { ...actual, like: (column: unknown, pattern: string) => ({ like: [column, pattern] }) };
+});
 vi.mock("@/db", () => ({
   db: {
     select: () => ({ from: () => ({ where: () => ({ limit: async () => h.targetRows }) }) }),
+    delete: (table: unknown) => ({ where: (cond: unknown) => h.bucketDelete(table, cond) }),
   },
   profiles: { id: "id", accountType: "account_type" },
+  rateLimitBuckets: { bucketKey: "bucket_key" },
 }));
 vi.mock("@/src/modules/organizations/application/admin-institutional/helpers", () => ({
   loadActorProfile: h.loadActorProfile,
@@ -85,7 +93,10 @@ import {
   isFreshForEnrolment,
   mfaRequirement,
 } from "@/src/modules/auth/domain/mfa-policy";
-import { resetMfaFactorsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-mfa-factors";
+import {
+  mfaFailBucketPattern,
+  resetMfaFactorsForAuthority,
+} from "@/src/modules/organizations/application/admin-institutional/reset-mfa-factors";
 
 import { elevateToAal2 } from "./_helpers/aal2-session";
 
@@ -152,6 +163,20 @@ function cookieClient({
   return { client: client as never, mfa };
 }
 
+/** Minimal SQL LIKE matcher with Postgres's default escape character (backslash). */
+function likeMatches(pattern: string, value: string): boolean {
+  const escapeRe = (c: string) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let re = "^";
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i] ?? "";
+    if (c === "\\") re += escapeRe(pattern[++i] ?? "");
+    else if (c === "%") re += ".*";
+    else if (c === "_") re += ".";
+    else re += escapeRe(c);
+  }
+  return new RegExp(`${re}$`).test(value);
+}
+
 function form(fields: Record<string, string>): FormData {
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
@@ -182,6 +207,9 @@ beforeEach(() => {
     return { ok: true, magicLink: "https://example.test/link" };
   });
   h.mailEnrolled.mockResolvedValue(true);
+  h.bucketDelete.mockImplementation(async () => {
+    h.calls.push("buckets");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -517,7 +545,44 @@ describe("resetMfaFactorsForAuthority", () => {
       targetUserId: "op-1",
       reason: input.reason,
     });
-    expect(h.calls).toEqual(["credentials", "delete:f-ok", "delete:f-old"]);
+    expect(h.calls).toEqual(["credentials", "buckets", "delete:f-ok", "delete:f-old"]);
+  });
+
+  it("clears the target's mfa_verify_fail buckets once the sessions are revoked (MEDIUM-1)", async () => {
+    await resetMfaFactorsForAuthority("admin-1", input);
+    expect(h.bucketDelete).toHaveBeenCalledTimes(1);
+    expect(h.bucketDelete).toHaveBeenCalledWith(
+      { bucketKey: "bucket_key" },
+      { like: ["bucket_key", mfaFailBucketPattern("op-1")] },
+    );
+    expect(h.calls.indexOf("buckets")).toBeGreaterThan(h.calls.indexOf("credentials"));
+  });
+
+  it("clears no bucket when the credential reset fails", async () => {
+    h.resetCredentials.mockResolvedValue({ error: "No pudimos cerrar las sesiones abiertas" });
+    await resetMfaFactorsForAuthority("admin-1", input);
+    expect(h.bucketDelete).not.toHaveBeenCalled();
+  });
+
+  it("still removes the factors when the buckets cannot be cleared, and says the lockout stays", async () => {
+    h.bucketDelete.mockRejectedValue(new Error("db down"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await resetMfaFactorsForAuthority("admin-1", input);
+    spy.mockRestore();
+    expect(h.adminDeleteFactor).toHaveBeenCalledWith({ userId: "op-1", id: "f-ok" });
+    expect("error" in result && result.error).toMatch(/bloqueo por códigos incorrectos/);
+  });
+
+  it("the bucket pattern covers exactly this account's hour and day buckets", () => {
+    const id = "0b7c3e1a-1111-4222-8333-944455556666";
+    const pattern = mfaFailBucketPattern(id);
+    expect(likeMatches(pattern, `mfa_verify_fail:${id}:hour:1789000000000`)).toBe(true);
+    expect(likeMatches(pattern, `mfa_verify_fail:${id}:day:1788998400000`)).toBe(true);
+    expect(
+      likeMatches(pattern, "mfa_verify_fail:0b7c3e1a-1111-4222-8333-944455556667:hour:1"),
+    ).toBe(false);
+    expect(likeMatches(pattern, `mfaXverifyXfail:${id}:hour:1`)).toBe(false);
+    expect(likeMatches(pattern, `auth_mfa_code_user:${id}`)).toBe(false);
   });
 
   it("leaves every factor in place when the credential reset fails, and relays its error", async () => {

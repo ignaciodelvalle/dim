@@ -27,17 +27,25 @@
 // password plus this button would be a way past the second factor), and an
 // audit row naming the removed factor ids. Never a secret.
 //
-// ORDER. Credentials, then factors, then the audit row with what actually
-// happened. Credentials first because a failure there must leave the factor in
+// ORDER. Credentials, then the lockout counters, then factors, then the audit
+// row with what actually happened. Credentials first because a failure there must leave the factor in
 // place: a factor-less account with live sessions is the state this ordering
 // exists to never create. The steps cannot share a transaction (they are HTTP
 // calls). If a deletion fails halfway, the factors that WERE removed are still
 // audited and the admin is told; the credentials are already reset, which is
 // the safe side.
+//
+// THE LOCKOUT COUNTERS (review MEDIUM-1). The GoTrue MFA verification hook
+// (migrations 0232/0233) counts wrong codes per account in rate_limit_buckets
+// under `mfa_verify_fail:<user>:hour|day:<window>` and rejects every attempt
+// once the ceiling is hit. A reset that left them would hand back an account
+// that still cannot enrol until the window rolls over (up to a day). They are
+// cleared once the sessions are revoked — before that, a leftover session could
+// start spending the fresh budget.
 
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 
-import { db, profiles } from "@/db";
+import { db, profiles, rateLimitBuckets } from "@/db";
 import { canResetCredentials } from "@/lib/domain/institutional-scope";
 import { MOTIVO_MIN } from "@/lib/domain/revocation-validation";
 import { writeAuditLog } from "@/lib/infra/audit-log";
@@ -45,6 +53,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import { loadActorProfile } from "./helpers";
 import { resetInstitutionalCredentialsForAuthority } from "./reset-institutional-credentials";
+
+/**
+ * LIKE pattern for every MFA-hook failure bucket of one account. The literal
+ * underscores in the prefix are escaped so they match only themselves.
+ */
+export function mfaFailBucketPattern(userId: string): string {
+  return `mfa\\_verify\\_fail:${userId}:%`;
+}
 
 export type ResetMfaFactorsResult =
   | { error: string }
@@ -92,6 +108,17 @@ export async function resetMfaFactorsForAuthority(
   });
   if ("error" in credentials) return { error: credentials.error };
 
+  // Sessions are gone: lift the hook's lockout so the person can enrol again.
+  let bucketsCleared = true;
+  try {
+    await db
+      .delete(rateLimitBuckets)
+      .where(like(rateLimitBuckets.bucketKey, mfaFailBucketPattern(input.targetUserId)));
+  } catch (e) {
+    console.error("reset-mfa: could not clear the mfa_verify_fail buckets", e);
+    bucketsCleared = false;
+  }
+
   const removedIds: string[] = [];
   let failed = false;
   for (const factor of listed.factors) {
@@ -120,6 +147,12 @@ export async function resetMfaFactorsForAuthority(
     return {
       error:
         "No pudimos quitar todos los factores de la cuenta. Lo que se quitó quedó registrado; probá de nuevo.",
+    };
+  }
+  if (!bucketsCleared) {
+    return {
+      error:
+        "Quitamos los factores, pero no pudimos levantar el bloqueo por códigos incorrectos. Probá de nuevo en unos minutos.",
     };
   }
   return { ok: true, removed: removedIds.length, magicLink: credentials.magicLink };
