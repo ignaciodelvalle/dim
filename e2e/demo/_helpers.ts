@@ -466,6 +466,14 @@ export const MARK_FOUND_NOT_LOST_NOTICE = /no figura en modo perdido/i;
  * What is left, and untested: something between the committed rows and the
  * rendered page. Do not read the fix below as having closed it.
  *
+ * CLOSED 2026-09-18 — it was the ORDER, not the page. The render ran while the
+ * mark-found POST was still in flight: `ensurePetFound` waited for a button
+ * whose accessible name changes to "Guardando…" the moment it is clicked, so
+ * its "the write is done" wait resolved on the click. A render that read
+ * `pets.status` before the commit and the open case after it is exactly the
+ * stale page above, and the database read afterwards is exactly the clean
+ * state. `ensurePetFound` now waits for the action's own response.
+ *
  * So the loop below re-NAVIGATES rather than reloading, and checks the URL it
  * actually landed on instead of assuming. If it cannot get a clean profile in
  * three tries it throws with the URL in hand, because a cleanup that cannot
@@ -549,9 +557,12 @@ async function settleOnCleanProfile(page: Page, token: string): Promise<void> {
  * because the not-lost branch is a legitimate "nothing to click", not a
  * failure.
  *
- * WHAT THE CLICK IS FOLLOWED BY IS A DOM SIGNAL, never the post-action URL:
- * the commit control leaving the document holds whether `useActionRedirect`
- * navigates or drops (e2e/README.md, "Never wait on a post-action URL").
+ * WHAT THE CLICK IS FOLLOWED BY IS THE ACTION'S RESPONSE, never the
+ * post-action URL: the response exists whether `useActionRedirect` navigates or
+ * drops (e2e/README.md, "Never wait on a post-action URL"). It used to be a DOM
+ * signal — the commit button leaving the document — and that signal fired on
+ * the click, because the pending button renames itself; see the comment at the
+ * click.
  *
  * The goto → reload pair is the freshness idiom crisis-seams measured: the
  * found action fires its own client-side navigation on its own schedule, so
@@ -615,21 +626,44 @@ export async function ensurePetFound(page: Page, token: string): Promise<void> {
     })
     .toBeGreaterThan(0);
   if ((await confirm.count()) > 0) {
+    // THE ACTION'S OWN RESPONSE, NOT A DOM SIGNAL AND NOT THE POST-ACTION URL.
+    //
+    // This used to await `confirm` becoming hidden, reasoning that the commit
+    // control leaves the document once the write is done. It leaves much
+    // sooner: `MarkFoundConfirmation` relabels the button "Guardando…" the
+    // instant the form submits (`isPending`), so a locator keyed on the
+    // "Marcar como encontrada" NAME stops matching on the click itself and
+    // `toBeHidden` resolved while the POST was still in flight. The goto in
+    // `settleOnCleanProfile` then rendered the profile CONCURRENTLY with the
+    // write, and a render that read `pets.status` before the commit and the
+    // open-case lookup after it produced exactly the page this helper's
+    // "STILL OPEN" note describes and CI kept screenshotting (run 35362940004,
+    // pet DIM-4YQE-29KH): status "Perdido", no open episode, hence the
+    // "Búsqueda cerrada por inactividad" stale banner — while the database, read
+    // a moment later, said active/closed. Nothing between the rows and the page
+    // was lying; the page was a photograph taken mid-write.
+    //
+    // A server action answers only after it returns, and `setPetFoundAction`
+    // returns after its transaction committed, so the POST's response is the
+    // write's acknowledgement. Armed BEFORE the click so it cannot be missed.
+    // Keyed on the `Next-Action` header and this pet's path, so another action
+    // the page fires (a notification read, a dismissed tip) cannot stand in.
+    const actionPath = `/mis-mascotas/${token}`;
+    const committed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.request().headers()["next-action"] !== undefined &&
+        new URL(response.url()).pathname === actionPath,
+      { timeout: 20_000 },
+    );
     await confirm.click();
-    // A DOM SIGNAL, NOT THE POST-ACTION URL. `setPetFoundAction` returns
-    // `redirectTo` only after the write committed, but the client half of the
-    // N3 contract (useActionRedirect → window.location.assign) drops often
-    // enough to matter, which is why e2e/README.md forbids waiting on that URL
-    // by name. The commit control leaving the document is the signal that holds
-    // in BOTH outcomes: the sheet unmounts when the redirect fires, and when it
-    // drops the RSC re-render replaces the button with the not-lost notice.
-    // Something has to be awaited here regardless — navigating away while the
-    // action's POST is still in flight would abort the write this cleanup
-    // exists to commit. A miss is not fatal: the assertions below judge the
-    // state on a fresh document either way.
-    await expect(confirm)
-      .toBeHidden({ timeout: 20_000 })
-      .catch(() => {});
+    // The response HEADERS are enough, and waiting for the body is wrong: Next
+    // awaits the action (`executeActionAndPrepareForRender` in
+    // next/dist/server/app-render/action-handler.js) BEFORE it starts writing
+    // the RSC response, so a response that exists is a write that committed.
+    // The body is a stream the redirect then abandons — `response.finished()`
+    // was tried and hung until the test budget ran out, on every run.
+    await committed;
   }
   await settleOnCleanProfile(page, token);
   await expect(

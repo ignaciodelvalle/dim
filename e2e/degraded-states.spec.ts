@@ -143,7 +143,7 @@ test("a stalled loading boundary escalates at 8s and 20s, and Reintentar is a fu
 
   // ── Warm the loading boundary ────────────────────────────────────────────
   // Armed BEFORE the drawer opens: the auto prefetch fires as soon as the link
-  // is rendered and visible, and losing that race would leave the boundary
+  // is rendered INSIDE THE VIEWPORT (see the scroll below), and losing that race would leave the boundary
   // uncached (the router would then keep the OLD page and there would be
   // nothing to measure). `Next-Router-Prefetch: 1` is what separates it from
   // the navigation payload that follows.
@@ -172,6 +172,26 @@ test("a stalled loading boundary escalates at 8s and 20s, and Reintentar is a fu
     approvals,
     'the drawer must expose the "Aprobaciones" (/gob/cola) link — without a real soft navigation there is no separable loading boundary to stall',
   ).toBeVisible({ timeout: 20_000 });
+
+  // ── Bring the link into the VIEWPORT, which is what triggers the prefetch ─
+  // `toBeVisible` above is not "on screen": Playwright's visibility is a
+  // non-empty box with no `visibility:hidden`, and a link scrolled out of the
+  // drawer's `overflow-y-auto` list passes it. Next's auto prefetch fires from
+  // an IntersectionObserver, i.e. only once the <Link> actually intersects the
+  // viewport. "Aprobaciones" used to sit inside the first screen of the
+  // 390x844 drawer by luck of the nav's length. The last green CI run is
+  // 4459e670d; the first red one, 2540d9924, is the range that added the
+  // "Cola ENO" entry above it (a20a3c1f6) — the only nav change in that range —
+  // and from then on the prefetch never fired and the assertion below reported
+  // exactly that on every run. Reproduced locally before this scroll existed. An
+  // operator scrolls the drawer to the item before tapping it; so does this
+  // test, and then PROVES the link is on screen so the precondition cannot
+  // silently drift again.
+  await approvals.scrollIntoViewIfNeeded();
+  await expect(
+    approvals,
+    'the "Aprobaciones" link must be inside the viewport — Next only auto-prefetches a <Link> that intersects it',
+  ).toBeInViewport();
 
   expect(
     await prefetched,
