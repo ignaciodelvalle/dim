@@ -333,7 +333,7 @@ funciona si las dos láminas incómodas están donde se ven.
   - `docs/architecture/rls-coverage.md` — qué cubre y qué no cubre el cerrojo de base.
 - **Lo que NO se dice en esta lámina.**
   - **No se dice que el cerrojo de base sea universal.** Hay
-    <!-- fact:service_role_call_sites -->41<!-- /fact --> lugares donde el servidor
+    <!-- fact:service_role_call_sites -->44<!-- /fact --> lugares donde el servidor
     usa una llave que lo saltea, y es por diseño: el servidor ya resolvió el permiso.
     Decirlo en la misma lámina donde se muestra el cerrojo es lo que hace creíble al
     cerrojo.
@@ -424,7 +424,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->71<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1563<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1568<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
@@ -464,9 +464,9 @@ funciona si las dos láminas incómodas están donde se ven.
   - Tareas programadas declaradas en el proveedor:
     <!-- fact:vercel_crons_declared -->2<!-- /fact -->.
   - Trabajos diarios hacia los que reparte:
-    <!-- fact:cron_jobs -->24<!-- /fact -->.
+    <!-- fact:cron_jobs -->25<!-- /fact -->.
   - Puntos de entrada de la interfaz de programación:
-    <!-- fact:route_handlers -->89<!-- /fact -->.
+    <!-- fact:route_handlers -->91<!-- /fact -->.
 - **Respaldo.**
   - `vercel.json` — las tareas programadas declaradas.
   - `lib/infra/cron-dispatcher.ts` — el repartidor de tareas: cada trabajo corre aislado y el
@@ -507,9 +507,9 @@ funciona si las dos láminas incómodas están donde se ven.
   que falta está nombrado con su motivo, y la federación con Mi Argentina es la
   premisa del diseño, no una función entregada.
 - **Hechos.**
-  - Pantallas: <!-- fact:pages -->263<!-- /fact -->.
+  - Pantallas: <!-- fact:pages -->266<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->227<!-- /fact -->.
+    <!-- fact:migrations -->231<!-- /fact -->.
   - Tablas: <!-- fact:tables -->54<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que

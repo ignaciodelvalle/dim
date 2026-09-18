@@ -181,12 +181,12 @@ per route until a Hobby-plan limit refused the deploy.
 - `/api/cron/refresh-cube` at 03:00 — the panorama cube, with its own 300 s
   `maxDuration`.
 - `/api/cron/daily` at 04:00 — the **dispatcher**. It runs
-  <!-- fact:cron_jobs -->24<!-- /fact --> jobs in a fixed order taken from
+  <!-- fact:cron_jobs -->25<!-- /fact --> jobs in a fixed order taken from
   `DAILY_JOB_ORDER` (`lib/infra/cron-dispatcher.ts:473`), isolating each failure
   so one bad job never aborts the rest, and enforcing a wall-clock budget so the
   fan-out stays inside the function's 60 s hard kill.
 
-There are <!-- fact:cron_route_dirs -->26<!-- /fact --> directories under
+There are <!-- fact:cron_route_dirs -->27<!-- /fact --> directories under
 `app/api/cron`, i.e. more route handlers than dispatched jobs: `daily` is the
 dispatcher itself and `refresh-cube` has its own Vercel entry.
 `__tests__/cron-registry-parity.test.ts` keeps `DAILY_JOB_ORDER`,
@@ -255,8 +255,8 @@ in its **layout**, before any page body runs.
 (private, underscore-prefixed so the router ignores them) are directories under
 `app/` that are **not** routes.
 
-Across the whole tree: <!-- fact:pages -->263<!-- /fact --> `page.tsx` files,
-<!-- fact:route_handlers -->89<!-- /fact --> `route.ts` handlers, and only
+Across the whole tree: <!-- fact:pages -->266<!-- /fact --> `page.tsx` files,
+<!-- fact:route_handlers -->91<!-- /fact --> `route.ts` handlers, and only
 <!-- fact:layouts -->11<!-- /fact --> `layout.tsx` files. That ratio is the shape
 to notice — the gate is concentrated in the layouts, not spread across the
 hundreds of pages it protects.
@@ -309,7 +309,7 @@ Stated here so no diagram in the 2026-09 pack has to re-derive it.
 | Gate | Command | What it proves |
 |---|---|---|
 | `pnpm verify` | <!-- fact:verify_fences -->71<!-- /fact --> `lint:*` fences plus `verify:mobile` and `build` | Structure, conventions, authorization scoping, brand casing |
-| `pnpm test:verified` | `scripts/run-verified-suite.ts` over <!-- fact:vitest_files -->1563<!-- /fact --> vitest files | Behaviour, with a filesystem census that distrusts vitest's exit code in both directions |
+| `pnpm test:verified` | `scripts/run-verified-suite.ts` over <!-- fact:vitest_files -->1568<!-- /fact --> vitest files | Behaviour, with a filesystem census that distrusts vitest's exit code in both directions |
 | Playwright | `.github/workflows/e2e-nightly.yml`, <!-- fact:e2e_specs -->45<!-- /fact --> specs | Browser flows — **not** part of `pnpm verify`; the nightly job is currently red for a missing-secrets reason recorded in `docs/agents/open-work.md` |
 | Mobile Jest | `apps/mobile/jest.config.js`, <!-- fact:mobile_jest_files -->113<!-- /fact --> files | The phone's own logic, no native modules |
 | CI | <!-- fact:ci_workflows -->8<!-- /fact --> workflows under `.github/workflows` | `scripts/check-ci-lint-parity.ts` fails the build if a `verify` gate is missing from the workflow |

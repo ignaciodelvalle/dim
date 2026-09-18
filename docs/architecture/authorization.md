@@ -380,7 +380,7 @@ The full inventory is `docs/architecture/rls-coverage.md`. The short version:
   with `ENABLE ROW LEVEL SECURITY` across `db/migrations` and the `db/*.sql`
   snapshots. That is a count of declarations, not a live catalog reading — the
   live authority is `__tests__/rls` against `pg_class.relrowsecurity`.
-- <!-- fact:security_definer_functions -->8<!-- /fact --> functions are declared
+- <!-- fact:security_definer_functions -->10<!-- /fact --> functions are declared
   `SECURITY DEFINER`. Each one is a deliberate privilege escalation with its
   caller check inside its own body.
 - RLS governs the PostgREST surface only. It never affects the action edge,
@@ -411,7 +411,7 @@ time; do not hardcode one from a plan.
 
 ## Service-role call sites
 
-<!-- fact:service_role_call_sites -->41<!-- /fact --> call sites invoke the
+<!-- fact:service_role_call_sites -->44<!-- /fact --> call sites invoke the
 service-role client factory across `app/`, `src/`, `lib/` and `scripts/`.
 **Every one of them bypasses RLS by design.** The factory itself lives in
 `lib/supabase/admin.ts` and is excluded from the count.

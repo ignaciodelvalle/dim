@@ -224,7 +224,7 @@ nombre, y hay que nombrarlos igual en las cuatro láminas que los tocan.
 | PostgREST | Puerta pública de datos | La superficie que habla directo con la base. El celular **no** la usa | acuñada |
 | cliente PostgREST | Cliente que habla directo con la base | Quien entra por esa puerta. Lo único que lo frena es el cerrojo de base de datos | acuñada |
 | RLS (`db/rls.sql`) | Cerrojo de base de datos (fila por fila) | <!-- fact:rls_enabled_tables -->56<!-- /fact --> tablas lo declaran (`docs/architecture/rls-coverage.md`). **Fija la fila, no la columna** | acuñada |
-| `lib/supabase/admin.ts` | Llave de servicio (salta el cerrojo) | <!-- fact:service_role_call_sites -->41<!-- /fact --> lugares la usan **por diseño**. Va en la misma lámina que el cerrojo | acuñada |
+| `lib/supabase/admin.ts` | Llave de servicio (salta el cerrojo) | <!-- fact:service_role_call_sites -->44<!-- /fact --> lugares la usan **por diseño**. Va en la misma lámina que el cerrojo | acuñada |
 | `scripts/check-authz-guards.ts` | Control automático de cobertura de guardias | Falla la compilación si una ruta institucional pierde su guardia | acuñada |
 | `OPERATOR_SHIFT_MS` | Turno del operador | <!-- fact:operator_shift_hours -->8<!-- /fact --> horas antes de exigir reingreso | acuñada |
 | documento autodeclarado | Documento que declara la persona | **El documento es declarado, no validado contra ningún registro estatal** | acuñada |
@@ -279,7 +279,7 @@ reemplaza por gris, y **ninguna se ablanda con un "en desarrollo" simpático**.
 | dominio propio | Dominio propio (www.mimar.com.ar) | Alias de producción activo del mismo despliegue. **Ya no es un nodo rayado** | acuñada |
 | base de producción | Base de datos de producción (no existe hoy) | Hay una sola base viva, la de ensayo. Este sí es un nodo rayado | acuñada |
 | `scripts/migrate.ts` | Migraciones | Solo hacia adelante, nunca editadas. **Paso manual y aparte**: el despliegue automático no las aplica | acuñada |
-| `lib/infra/cron-dispatcher.ts` | Repartidor de tareas | La tarea diaria reparte <!-- fact:cron_jobs -->24<!-- /fact --> trabajos aislando la falla de cada uno | acuñada |
+| `lib/infra/cron-dispatcher.ts` | Repartidor de tareas | La tarea diaria reparte <!-- fact:cron_jobs -->25<!-- /fact --> trabajos aislando la falla de cada uno | acuñada |
 | `app/api/cron` | Tarea programada | El nombre genérico. Cada nodo le agrega cuál: "Tarea programada diaria", "Tarea programada: cubo de indicadores", "Tarea programada de reconciliación" | acuñada |
 | `app/api/cron/daily/route.ts` | Tarea programada diaria | Reparte el resto de los trabajos | acuñada |
 | `app/api/cron/refresh-cube/route.ts` | Tarea programada: cubo de indicadores | | acuñada |
