@@ -1,8 +1,8 @@
 // Integration tests for Fase 3 admin-initiated proposal actions.
 //
 // Each propose action creates an approval_request with initiated_by='authority'
-// and initiated_by_user_id=actor. Capability is enforced per type: vet +
-// org_verification are open to govt and admin.
+// and initiated_by_user_id=actor. Vet + org_verification are open to admin
+// anywhere and to govt ONLY inside its active govt_assignments (A10-2/A10-7).
 //
 // Migration 0015: role_upgrade_govt, role_upgrade_admin, govt_assignment_grant
 // were removed — institutional accounts are created directly by an admin, not
@@ -48,6 +48,39 @@ let targetUserId: string;
 let secondTargetId: string;
 let adminUserId: string;
 let govtUserId: string;
+const seededOrgIds: string[] = [];
+
+// A bare organizations row, bypassing createOrganizationForUser (which files
+// its own pending org_verification request and would mask the scope check).
+async function seedOrg(province: string, locality: string): Promise<string> {
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      publicToken: `P3-SCOPE-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      displayName: "Org Scope Fase3",
+      legalName: "Org Scope Fase3 S.A.",
+      orgType: "shelter",
+      email: "org-scope-fase3@dim-test.local",
+      jurisdictionProvince: province,
+      jurisdictionLocality: locality,
+      createdByUserId: secondTargetId,
+    })
+    .returning({ id: organizations.id });
+  seededOrgIds.push(org.id);
+  return org.id;
+}
+
+async function requestsFor(where: ReturnType<typeof eq>) {
+  return db
+    .select({
+      id: approvalRequests.id,
+      province: approvalRequests.jurisdictionProvince,
+      locality: approvalRequests.jurisdictionLocality,
+      initiatedByUserId: approvalRequests.initiatedByUserId,
+    })
+    .from(approvalRequests)
+    .where(where);
+}
 
 async function deleteTestUser(email: string) {
   const { data: list } = await admin.auth.admin.listUsers();
@@ -129,6 +162,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  for (const orgId of seededOrgIds) {
+    await db.delete(approvalRequests).where(eq(approvalRequests.targetOrganizationId, orgId));
+    await db.transaction(async (tx) => {
+      await setAuditMutationGucs(tx);
+      await tx.delete(auditLog).where(eq(auditLog.targetOrganizationId, orgId));
+    });
+    await db.delete(organizations).where(eq(organizations.id, orgId));
+  }
+  await db.delete(approvalRequests).where(eq(approvalRequests.initiatedByUserId, govtUserId));
   for (const email of [TARGET_EMAIL, SECOND_TARGET_EMAIL, ADMIN_EMAIL, GOVT_EMAIL]) {
     await deleteTestUser(email);
   }
@@ -141,7 +183,7 @@ describe("proposeVetUpgradeForUser", () => {
       matriculaNumber: "MN-P3-100",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Palermo-Fase3",
+      operationalLocality: "Palermo",
       especialidad: "Clínica",
     });
     expect("ok" in result && result.ok).toBe(true);
@@ -182,7 +224,7 @@ describe("proposeVetUpgradeForUser", () => {
       matriculaNumber: "MN-DUP",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
-      operationalLocality: "Palermo-Fase3",
+      operationalLocality: "Palermo",
     });
     expect("error" in result && result.error).toMatch(/pendiente/i);
   });
@@ -216,6 +258,92 @@ describe("proposeOrgVerificationForOrg", () => {
       organizationId: orgId,
     });
     expect("error" in result && result.error).toMatch(/pendiente/i);
+  });
+});
+
+// A10-2 / A10-7: a govt proposer acts only inside its own mandate. The
+// fixture govt starts with NO assignment, then gets exactly CABA/Almagro.
+describe("govt proposals are fenced to the proposer's jurisdiction", () => {
+  const vetInput = {
+    matriculaNumber: "MN-SCOPE-01",
+    matriculaJurisdiccion: "CABA",
+    especialidad: null,
+    anosExperiencia: null,
+  };
+
+  it("a govt with no active assignment cannot propose a vet upgrade anywhere", async () => {
+    const result = await proposeVetUpgradeForUser(govtUserId, {
+      targetUserId: secondTargetId,
+      ...vetInput,
+      operationalProvince: "CABA",
+      operationalLocality: "Almagro",
+    });
+    expect("error" in result && result.error).toBe(
+      "No podés proponer cambios fuera de tu jurisdicción.",
+    );
+    expect(await requestsFor(eq(approvalRequests.initiatedByUserId, govtUserId))).toHaveLength(0);
+  });
+
+  it("a govt assigned to CABA/Almagro cannot propose for CABA/Palermo", async () => {
+    await db.insert(govtAssignments).values({
+      userId: govtUserId,
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Almagro",
+      grantedByUserId: adminUserId,
+    });
+    const result = await proposeVetUpgradeForUser(govtUserId, {
+      targetUserId: secondTargetId,
+      ...vetInput,
+      operationalProvince: "CABA",
+      operationalLocality: "Palermo",
+    });
+    expect("error" in result && result.error).toBe(
+      "No podés proponer cambios fuera de tu jurisdicción.",
+    );
+    expect(await requestsFor(eq(approvalRequests.initiatedByUserId, govtUserId))).toHaveLength(0);
+  });
+
+  it("the same govt proposes inside its mandate, and the stored pair is canonical", async () => {
+    // The province arrives as its long alias; it must be stored as "CABA" so
+    // the govt queue and canDecideRequest see the request.
+    const result = await proposeVetUpgradeForUser(govtUserId, {
+      targetUserId: secondTargetId,
+      ...vetInput,
+      operationalProvince: "Ciudad Autónoma de Buenos Aires",
+      operationalLocality: "Almagro",
+    });
+    expect("ok" in result && result.ok).toBe(true);
+    const rows = await requestsFor(eq(approvalRequests.initiatedByUserId, govtUserId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].province).toBe("CABA");
+    expect(rows[0].locality).toBe("Almagro");
+  });
+
+  it("a govt cannot propose verification for an org outside its mandate", async () => {
+    const orgId = await seedOrg("Buenos Aires", "La Plata");
+    const result = await proposeOrgVerificationForOrg(govtUserId, { organizationId: orgId });
+    expect("error" in result && result.error).toBe(
+      "No podés proponer cambios fuera de tu jurisdicción.",
+    );
+    expect(await requestsFor(eq(approvalRequests.targetOrganizationId, orgId))).toHaveLength(0);
+  });
+
+  it("control: admin proposes verification for that same out-of-mandate org", async () => {
+    const orgId = seededOrgIds[seededOrgIds.length - 1];
+    const result = await proposeOrgVerificationForOrg(adminUserId, { organizationId: orgId });
+    expect("ok" in result && result.ok).toBe(true);
+    const rows = await requestsFor(eq(approvalRequests.targetOrganizationId, orgId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].initiatedByUserId).toBe(adminUserId);
+  });
+
+  it("a govt proposes verification for an org inside its mandate", async () => {
+    const orgId = await seedOrg("CABA", "Almagro");
+    const result = await proposeOrgVerificationForOrg(govtUserId, { organizationId: orgId });
+    expect("ok" in result && result.ok).toBe(true);
+    const rows = await requestsFor(eq(approvalRequests.targetOrganizationId, orgId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].initiatedByUserId).toBe(govtUserId);
   });
 });
 

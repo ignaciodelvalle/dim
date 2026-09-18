@@ -1,17 +1,18 @@
 // Shared helpers for admin-proposals use-cases.
 //
-// loadActorAuthority: shared by proposeVetUpgradeForUser and
-// proposeOrgVerificationForOrg.
+// loadActorAuthority + canProposeInJurisdiction: shared by
+// proposeVetUpgradeForUser and proposeOrgVerificationForOrg.
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
-import { db, profiles } from "@/db";
+import { db, govtAssignments, profiles } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 
 // ---------------------------------------------------------------------------
 // loadActorAuthority
 // ---------------------------------------------------------------------------
 
-type ActorAuthority = {
+export type ActorAuthority = {
   profile: { id: string; role: "admin" | "govt" };
   jurisdictions: { province: string; locality: string }[];
 };
@@ -45,11 +46,39 @@ export async function loadActorAuthority(
   if (profile.deactivatedAt !== null || profile.deletedAt !== null) {
     return { error: "La cuenta está desactivada." };
   }
-  return {
-    profile: { id: profile.id, role: profile.role },
-    jurisdictions: [],
-    // Govt's assignments aren't strictly needed for the propose path —
-    // capability is enforced per type below. We keep the shape uniform
-    // with admin-decisions.ts for symmetry.
-  };
+  // A govt proposer acts only inside its mandate (A10-2 / A10-7): load its
+  // ACTIVE assignments so each use-case can check the target jurisdiction with
+  // jurisdictionScopeContains. Mirrors admin-decisions/helpers.ts. Admin keeps
+  // an empty list — the use-cases never consult it for admin (national scope).
+  // A govt with no active assignment gets an empty list and is refused by the
+  // scope check (fail closed).
+  let jurisdictions: { province: string; locality: string }[] = [];
+  if (profile.role === "govt") {
+    jurisdictions = await db
+      .select({
+        province: govtAssignments.jurisdictionProvince,
+        locality: govtAssignments.jurisdictionLocality,
+      })
+      .from(govtAssignments)
+      .where(and(eq(govtAssignments.userId, profile.id), isNull(govtAssignments.revokedAt)));
+  }
+  return { profile: { id: profile.id, role: profile.role }, jurisdictions };
 }
+
+/**
+ * Can this authority propose a change for a subject in (province, locality)?
+ * Admin: always. Govt: only inside one of its active assignments
+ * (whole-province subsumption applies). Anything else: never.
+ */
+export function canProposeInJurisdiction(
+  auth: ActorAuthority,
+  province: string | null | undefined,
+  locality: string | null | undefined,
+): boolean {
+  if (auth.profile.role === "admin") return true;
+  if (auth.profile.role !== "govt") return false;
+  return jurisdictionScopeContains(auth.jurisdictions, province, locality);
+}
+
+export const OUT_OF_JURISDICTION_PROPOSAL_ERROR =
+  "No podés proponer cambios fuera de tu jurisdicción.";

@@ -1,6 +1,7 @@
 // Use-case: proposeOrgVerificationForOrg
 //
-// Validates actor authority, checks for pending duplicates, then inside a
+// Validates actor authority, requires the org inside a govt actor's mandate,
+// checks for pending duplicates, then inside a
 // db.transaction: inserts the approval_request and conditionally collects
 // a notification for the org's creator.
 //
@@ -16,7 +17,11 @@ import { validateApprovalPayload } from "@/lib/infra/approval-payloads";
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 
-import { loadActorAuthority } from "./helpers";
+import {
+  OUT_OF_JURISDICTION_PROPOSAL_ERROR,
+  canProposeInJurisdiction,
+  loadActorAuthority,
+} from "./helpers";
 import type { ProposalResult } from "./types";
 
 export async function proposeOrgVerificationForOrg(
@@ -25,8 +30,8 @@ export async function proposeOrgVerificationForOrg(
 ): Promise<ProposalResult> {
   const auth = await loadActorAuthority(actorUserId);
   if ("error" in auth) return { error: auth.error };
-  // Both admin and govt (in scope of org's locality) can propose. The
-  // canDecide guard kicks in at approval time; here we just allow either.
+  // Admin proposes for any org; a govt only for an org inside its own active
+  // assignments — checked below, once the org's jurisdiction is loaded (A10-7).
 
   const [org] = await db
     .select({
@@ -40,6 +45,11 @@ export async function proposeOrgVerificationForOrg(
     .where(eq(organizations.id, input.organizationId))
     .limit(1);
   if (!org) return { error: "Organización no encontrada." };
+  // Scope first, so an out-of-mandate govt learns nothing about the org's
+  // state. A govt facing an org with no jurisdiction fails closed here.
+  if (!canProposeInJurisdiction(auth, org.jurisdictionProvince, org.jurisdictionLocality)) {
+    return { error: OUT_OF_JURISDICTION_PROPOSAL_ERROR };
+  }
   if (org.verified) return { error: "Esta organización ya está verificada." };
   if (!org.jurisdictionProvince || !org.jurisdictionLocality) {
     return { error: "La organización no tiene jurisdicción registrada." };

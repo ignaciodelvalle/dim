@@ -1,6 +1,8 @@
 // Use-case: proposeVetUpgradeForUser
 //
-// Validates actor authority, checks for pending duplicates, then inside a
+// Validates actor authority, canonicalizes the operational jurisdiction and
+// requires it inside a govt actor's mandate, checks for pending duplicates,
+// then inside a
 // db.transaction: inserts the approval_request and collects the target
 // notification.
 //
@@ -12,11 +14,20 @@
 import { and, eq } from "drizzle-orm";
 
 import { approvalRequests, db, notifications, profiles } from "@/db";
+import {
+  CoordError,
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/domain/location-normalize";
 import { validateApprovalPayload } from "@/lib/infra/approval-payloads";
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 
-import { loadActorAuthority } from "./helpers";
+import {
+  OUT_OF_JURISDICTION_PROPOSAL_ERROR,
+  canProposeInJurisdiction,
+  loadActorAuthority,
+} from "./helpers";
 import type { ProposalResult } from "./types";
 
 async function hasPendingOfType(
@@ -51,7 +62,44 @@ export async function proposeVetUpgradeForUser(
 ): Promise<ProposalResult> {
   const auth = await loadActorAuthority(actorUserId);
   if ("error" in auth) return { error: auth.error };
-  // Both admin + govt can propose vet upgrades.
+
+  // Canonicalize the operational jurisdiction strictly against the INDEC
+  // catalog (same path as the self-service requestVetUpgradeForUser). The
+  // stored pair decides which govt queue sees the request and whether
+  // canDecideRequest admits a decider, so it must be the canonical spelling —
+  // and the scope check below compares canonical against canonical.
+  let opProvince: string;
+  let opLocality: string;
+  try {
+    const normalizedOp = await normalizeLocationForWrite(
+      {
+        province: input.operationalProvince,
+        provinceCode: null,
+        locality: input.operationalLocality,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "strict" },
+    );
+    if (!normalizedOp.province || !normalizedOp.locality) {
+      return { error: "La jurisdicción donde ejerce no es válida." };
+    }
+    opProvince = normalizedOp.province;
+    opLocality = normalizedOp.locality;
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError || err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+
+  // Admin proposes anywhere; a govt only inside its own active assignments
+  // (A10-2). Fail closed: a govt with no assignment proposes nowhere.
+  if (!canProposeInJurisdiction(auth, opProvince, opLocality)) {
+    return { error: OUT_OF_JURISDICTION_PROPOSAL_ERROR };
+  }
 
   const [target] = await db
     .select({ id: profiles.id, role: profiles.role })
@@ -97,8 +145,8 @@ export async function proposeVetUpgradeForUser(
       initiatedBy: "authority",
       initiatedByUserId: actorUserId,
       targetUserId: input.targetUserId,
-      jurisdictionProvince: input.operationalProvince.trim(),
-      jurisdictionLocality: input.operationalLocality.trim(),
+      jurisdictionProvince: opProvince,
+      jurisdictionLocality: opLocality,
       payload,
     });
     pendingNotifications.push({
