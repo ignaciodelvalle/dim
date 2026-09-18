@@ -1,7 +1,7 @@
 // Unit tests for lib/metrics/presentation-guards.ts — PURE, DB-free.
 //
 // Each describe block pins ONE red-team-verified dishonest-rendering class
-// (docs/reviews/results/2026-07-22-plan-maestro-integridad.md, C1) to the
+// (dim-interno:docs/reviews/results/2026-07-22-plan-maestro-integridad.md, C1) to the
 // guard function that fences it.
 
 import { describe, expect, it } from "vitest";

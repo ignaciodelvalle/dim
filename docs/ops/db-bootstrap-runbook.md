@@ -4,7 +4,7 @@ Operational reference for `pnpm db:bootstrap` — the script that brings a fresh
 Postgres instance to the full DIM schema + seed state.
 
 For standing up a **remote Supabase environment** (staging / prod) see
-[`remote-supabase-bootstrap-runbook.md`](./remote-supabase-bootstrap-runbook.md),
+`remote-supabase-bootstrap-runbook.md` (dim-interno: docs/ops/remote-supabase-bootstrap-runbook.md),
 which documents the gotchas specific to Supabase Cloud (pooler URL, local stack
 interference, psql path on Windows, etc.).
 
@@ -80,7 +80,7 @@ The importer is fully idempotent:
 
 **Do NOT run `pnpm db:bootstrap` against prod** — it is destructive. For a fresh
 remote environment follow
-[`remote-supabase-bootstrap-runbook.md`](./remote-supabase-bootstrap-runbook.md).
+`remote-supabase-bootstrap-runbook.md` (dim-interno: docs/ops/remote-supabase-bootstrap-runbook.md).
 
 To update the catalog on an existing remote environment (without touching schema):
 

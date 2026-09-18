@@ -153,7 +153,7 @@ export function jurisdictionRowLabel(view: {
 /**
  * The row's second line — what tapping it does, worded for the state it is in.
  *
- * IT STARTS WITH THE VERB THE TESTER GUIDE NAMES. `docs/mobile/guia-tester.md`
+ * IT STARTS WITH THE VERB THE TESTER GUIDE NAMES. `dim-interno:docs/mobile/guia-tester.md`
  * tells people to tap "Cambiar", and a caption reading "Tocá para modificar…"
  * would send them hunting for a control that is under their thumb. `ListRow` has
  * no trailing action slot, so the caption IS the affordance's name — which is why

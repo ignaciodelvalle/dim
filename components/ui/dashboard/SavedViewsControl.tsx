@@ -11,7 +11,7 @@
 // this directly via its `savedViewsKey` prop. One implementation, two skins
 // (via `triggerClassName`), so a fix/improvement here reaches both instead of
 // drifting into two parallel copies (the exact island-avoidance this
-// extraction was for — see docs/reviews/results/2026-07-19-plan-maestro-consistencia.md
+// extraction was for — see dim-interno:docs/reviews/results/2026-07-19-plan-maestro-consistencia.md
 // §"Fase C").
 //
 // Sits next to "Copiar vista" (OpFilterBar) / "Copiar vista" (Panorama) —

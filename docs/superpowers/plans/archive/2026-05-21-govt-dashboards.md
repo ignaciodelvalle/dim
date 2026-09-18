@@ -5,7 +5,7 @@
 > **Audiencia:** Claude Code (input directo)
 > **Estimación:** ~6–7 días (E0 incluido en este doc)
 > **Origen:** `docs/superpowers/plans/2026-05-21-consolidated-cc-plan.md` §Chunk E
-> **Design spec:** `docs/design/04-govt-dashboards.md`
+> **Design spec:** `dim-interno:docs/design/04-govt-dashboards.md`
 > **Decisiones cerradas:** `docs/superpowers/plans/2026-05-21-pending-decisions-resolved.md` §Chunk E + §CX-1
 
 ---
@@ -115,7 +115,7 @@ Chunk E construye los dashboards gubernamentales sobre el esqueleto existente de
 
 ## Pre-work (E0) — completado al escribir este doc
 
-- [x] Design spec (`docs/design/04-govt-dashboards.md`) leída y resumida.
+- [x] Design spec (`dim-interno:docs/design/04-govt-dashboards.md`) leída y resumida.
 - [x] Decisiones E-D1..E-D4 copiadas verbatim del owner.
 - [x] Primitivas PR #93 confirmadas disponibles (8 componentes en `components/poncho/`).
 - [x] Estado de /gob mapeado (6 rutas existentes analizadas).
@@ -530,11 +530,11 @@ Spec §B.7 menciona CSV / JSON / Parquet. **Decisión: v1 soporta CSV y JSON ún
 
 ## Referencias
 
-- `docs/design/04-govt-dashboards.md` — design spec completa (fuente de verdad).
+- `dim-interno:docs/design/04-govt-dashboards.md` — design spec completa (fuente de verdad).
 - `docs/superpowers/plans/2026-05-21-consolidated-cc-plan.md` — sequencing parent §Chunk E.
 - `docs/superpowers/plans/2026-05-21-pending-decisions-resolved.md` — decisiones cerradas §Chunk E + §CX-1.
 - PR #93 — `feat(poncho): design-system primitives (Chunk A.5)` — primitivas que E1 compone.
 - `lib/govt-dashboards.ts` — data layer existente a extender en E2–E5.
 - `db/schema.ts` — tablas `govt_assignments`, `cases`, `welfare_reports`, `pet_events`.
 - `app/gob/dashboard-v2/page.tsx` — preview parkeado; mantener intacto.
-- `docs/design/04-govt-dashboards.md` §D — tabla de capabilities y scope.
+- `dim-interno:docs/design/04-govt-dashboards.md` §D — tabla de capabilities y scope.

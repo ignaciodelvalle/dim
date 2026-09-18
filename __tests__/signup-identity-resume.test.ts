@@ -56,8 +56,8 @@ vi.mock("@/lib/infra/request-cache", () => ({
 
 import SignupPage from "@/app/(auth)/registro/page";
 
-const EMAIL = "ignaciodelvalle2014+cursor-owner2@gmail.com";
-const PROVISIONAL = "ignaciodelvalle2014+cursor-owner2";
+const EMAIL = "qa-maintainer+cursor-owner2@example.com";
+const PROVISIONAL = "qa-maintainer+cursor-owner2";
 const USER_ID = "user-0001";
 
 function anonymous() {

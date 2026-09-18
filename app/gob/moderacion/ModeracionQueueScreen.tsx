@@ -7,7 +7,7 @@
 // app/gob/moderacion/page.tsx) — this is a RELOCATION, not a redesign: same
 // searchParams contract, same auth guard, same query logic.
 //
-// Roadmap/spec: docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md
+// Roadmap/spec: dim-interno:docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md
 //
 // Shows the flagged anonymous denuncia queue FILTERED to the viewer's assigned
 // localities. Mirrors /admin/moderacion but scoped: it reuses the shared

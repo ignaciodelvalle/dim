@@ -418,7 +418,7 @@ export function buildOrgNavFlat(orgToken: string, opts: OrgNavOptions = {}): Nav
 // GOB_NAV_SECTIONS and kept for backward compatibility with existing tests.
 // ---------------------------------------------------------------------------
 
-// C6a nav regroup (2026-07-22, docs/reviews/results/2026-07-22-plan-maestro-integridad.md
+// C6a nav regroup (2026-07-22, dim-interno:docs/reviews/results/2026-07-22-plan-maestro-integridad.md
 // §C6): regroups the 26 EXISTING routes under the operator mental model
 // (BRIEFING → SITUACIÓN → PROGRAMA → INTERVENCIÓN → PROFUNDIDAD, plus the
 // cross-cutting BANDEJA OPERATIVA for queue-shaped work) instead of mirroring

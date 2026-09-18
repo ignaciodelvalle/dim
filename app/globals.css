@@ -242,7 +242,7 @@
        --motion-ambient    1500ms   1.5s, 1.6s, 1.8s        infinite loops only
 
      --motion-base is also the value the panorama v2C handoff specifies for
-     the dock (docs/design/handoffs/2026-07-11-panorama-v2C/README.md:157):
+     the dock (dim-interno:docs/design/handoffs/2026-07-11-panorama-v2C/README.md:157):
      code and design already agreed here before either was written down.
 
      NOT tokenized on purpose:
@@ -336,7 +336,7 @@
      #f3f0e7) and five stripe widths — Chip.tsx, RegRow.tsx, Sheet.tsx,
      adoptar/*, mis-mascotas. Named here so those can converge on one motif;
      the credential placeholder is the first user. Migrating the rest is a
-     separate cleanup, flagged in docs/reviews/results/2026-07-27-critique-craft.md. */
+     separate cleanup, flagged in dim-interno:docs/reviews/results/2026-07-27-critique-craft.md. */
   --pattern-no-photo-a: #e7e2d6;
   --pattern-no-photo-b: #f1eee5;
 
@@ -948,7 +948,7 @@ label:has(input.sr-only:focus-visible) {
 
 /* ---- Panorama dock: open/close transition (CSS-2, panorama audit 2026-08-04) */
 /* v2C handoff specifies "dock height .18s ease"
- * (docs/design/handoffs/2026-07-11-panorama-v2C/README.md:157) — the
+ * (dim-interno:docs/design/handoffs/2026-07-11-panorama-v2C/README.md:157) — the
  * operator's most-touched control was teleporting between its collapsed bar
  * and its expanded height with no transition. The COLLAPSED length lives
  * here as an explicit value (2.5rem `h-10` bar + its own 2px border) rather
@@ -1152,7 +1152,7 @@ body {
    -------------------------------------------------------------------------
    The owner pet-profile reads as ONE physical two-sided credential, not a
    stack of panels. This layer encodes the document language from the design
-   handoff (docs/design/handoffs/perfil-mascota-una-libreta) mapped 1:1 onto
+   handoff (dim-interno:docs/design/handoffs/perfil-mascota-una-libreta) mapped 1:1 onto
    LN tokens — with OUR deliberately-darkened accessible --color-ln-mute /
    --color-ln-faint / --color-ln-warn (the mockup's originals fail WCAG AA).
    Lives in globals.css (unlinted CSS) so the exact document metrics stay out

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// Hostile-reader suite — the C1 acceptance test (docs/reviews/results/
+// Hostile-reader suite — the C1 acceptance test (dim-interno:docs/reviews/results/
 // 2026-07-22-plan-maestro-integridad.md, §2 "C1 · Contrato de Métrica", test
 // de aceptación). The red-team review's "narrativas opuestas" table becomes
 // assertions here: for each metric this task touched, the tile the operator
@@ -410,7 +410,7 @@ describe("hostile reader — mortalidad: una muerte notificable nunca se enmasca
 });
 
 // ---------------------------------------------------------------------------
-// 10. C6b — THE BRIEFING never alerts from unmeasurable data (docs/reviews/
+// 10. C6b — THE BRIEFING never alerts from unmeasurable data (dim-interno:docs/reviews/
 // results/2026-07-22-plan-maestro-integridad.md §C6). A confident-sounding
 // "priority" surfaced from a 0/0 ratio or a handful of cases would be the
 // SAME dishonesty class C1 killed at the tile level, one layer up — the

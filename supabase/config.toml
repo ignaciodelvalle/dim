@@ -328,7 +328,7 @@ timebox = "720h"
 # Every MFA factor verification — through the app or straight to GoTrue — goes
 # through this function (migration 0232): a per-account ceiling on wrong codes
 # and a freshness rule for enrolling a new factor. Hosted Supabase offers this
-# hook on Teams / Enterprise only; see docs/pilotos/onboarding-municipio.md §3.1.
+# hook on Teams / Enterprise only; see dim-interno:docs/pilotos/onboarding-municipio.md §3.1.
 # Changing it needs a restart of the local stack.
 [auth.hook.mfa_verification_attempt]
 enabled = true

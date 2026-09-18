@@ -5,8 +5,8 @@
 > **Para Claude Code — single source of truth del orden.** Consolida **todo lo pendiente** después del cierre del
 > [`2026-06-22-MASTER-PLAN-cc.md`](../2026-06-22-MASTER-PLAN-cc.md) (que dejó AC/PERF/L/J/K/DEMO/AUTHZ mergeados y
 > `demo:verify` verde). La revisión en vivo posterior abrió **3 handoffs** + **3 fixes de cámara** (de la
-> revisión Cowork 2026-06-23, ver [`docs/demo/design-critique-recorrido-ejecutivo-2026-06-23.md`](../../demo/design-critique-recorrido-ejecutivo-2026-06-23.md)
-> y [`docs/demo/handoff-demo-blockers-cc.md`](../../demo/handoff-demo-blockers-cc.md)). Este doc **ordena y dedup**; el
+> revisión Cowork 2026-06-23, ver [`dim-interno:docs/demo/design-critique-recorrido-ejecutivo-2026-06-23.md`](../../demo/design-critique-recorrido-ejecutivo-2026-06-23.md)
+> y [`dim-interno:docs/demo/handoff-demo-blockers-cc.md`](../../demo/handoff-demo-blockers-cc.md)). Este doc **ordena y dedup**; el
 > detalle file-level vive en los planes linkeados — abrir cada uno antes de ejecutar su ola.
 >
 > **Misión:** dejar el recorrido ejecutivo (`/admin` + salto a `/gob`) **grabable de punta a punta, terminado y con

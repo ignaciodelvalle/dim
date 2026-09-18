@@ -133,7 +133,7 @@ export const CSS_CATEGORY_HINTS: Record<CssCategory, [string, string]> = {
   ],
   duration: [
     "raw transition/animation duration",
-    "use a --motion-* token (--motion-fast/base/slow/deliberate/ambient), declared in the @theme block of app/globals.css — the motion audit (docs/reviews/2026-08-04-motion-audit.md §3.3) found 18 distinct durations and 0 tokens, and the scale exists so a 19th cannot be added by accident",
+    "use a --motion-* token (--motion-fast/base/slow/deliberate/ambient), declared in the @theme block of app/globals.css — the motion audit (dim-interno:docs/reviews/2026-08-04-motion-audit.md §3.3) found 18 distinct durations and 0 tokens, and the scale exists so a 19th cannot be added by accident",
   ],
 };
 

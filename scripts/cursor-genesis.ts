@@ -21,9 +21,9 @@ const ADOPTER_DNI = String(40_000_000 + (Number.parseInt(SUFFIX, 36) % 59_999_99
   8,
   "0",
 );
-const SHOT = path.join("docs", "reviews", "results", "genesis-screenshots");
-const LEDGER = path.join("docs", "reviews", "results", "genesis-ledger.md");
-const REPORT = path.join("docs", "reviews", "results", "genesis.md");
+const SHOT = path.join("tmp", "qa", "genesis-screenshots");
+const LEDGER = path.join("tmp", "qa", "genesis-ledger.md");
+const REPORT = path.join("tmp", "qa", "genesis.md");
 
 const EMAILS = {
   govt: `govt-gen-${SUFFIX}@dim.test`,
@@ -573,7 +573,7 @@ function writeReport() {
 | Vet / clínica | ${world.vetEmail ?? "—"} / ${world.clinicToken ?? "—"} |
 | Rescue adoptada | ${world.rescueToken ?? "—"} |
 
-Ledger completo: \`docs/reviews/results/genesis-ledger.md\`
+Ledger completo: \`tmp/qa/genesis-ledger.md\`
 
 ## Rubric por acto
 
@@ -583,7 +583,7 @@ ${rubrics.map((r) => `| ${r.act} | ${r.ok ? "✅" : "❌"} | ${r.sufficiency} | 
 
 ## Screenshots
 
-\`docs/reviews/results/genesis-screenshots/\`
+\`tmp/qa/genesis-screenshots/\`
 
 ## Hallazgo producto (signup paso 2)
 

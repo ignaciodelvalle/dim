@@ -1,6 +1,6 @@
 // Integration tests — migration 0222: the subject-rights RPCs cover push_targets.
 //
-// This is §7 item 5 of docs/handoff/push-notifications.md, and its one-line
+// This is §7 item 5 of dim-interno:docs/handoff/push-notifications.md, and its one-line
 // justification there is the right one: "This is a legal obligation, not a
 // nicety."
 //

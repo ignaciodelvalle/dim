@@ -4,7 +4,7 @@ Why these files exist: `next/font/google` fetches from `fonts.gstatic.com` **at
 build time**, so any build/CI/Vercel deploy is a network dependency on Google.
 Observed live 2026-08-10 22:04 UTC: the CI "Lint, typecheck, build" job failed
 whole with `Failed to fetch 'Encode Sans' from Google Fonts`, unrelated to the
-commit under test (`docs/plans/PENDIENTES.md` L-21). Vendoring the `.woff2`
+commit under test (`dim-interno:docs/plans/PENDIENTES.md` L-21). Vendoring the `.woff2`
 files and loading them with `next/font/local` removes that dependency: Next
 still self-hosts and serves from `/_next/static/media` at runtime, exactly as
 before — only the build-time fetch is gone.

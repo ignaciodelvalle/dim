@@ -250,17 +250,15 @@ if (process.env.NODE_ENV === "development") globalForDb.__dimPgAnalyticsClient =
 // the degraded state and the 15s backstop never fires. The fallback MUST keep
 // working for local dev, so we do NOT throw — we warn once at module load so a
 // misconfigured production deploy is impossible to miss in the logs.
-// Fix: set ANALYTICS_DATABASE_URL to the SESSION pooler (5432) string — see
-// docs/design/handoffs/2026-07-07-deploy-checklist.md §4 (Vercel env vars) and
-// the DUAL-POOL SPLIT note.
+// Fix: set ANALYTICS_DATABASE_URL to the SESSION pooler (5432) string (the
+// dual-pool split; deploy checklist in the internal ops docs).
 if (process.env.NODE_ENV === "production" && !process.env.ANALYTICS_DATABASE_URL) {
   console.warn(
     "[db] ANALYTICS_DATABASE_URL is UNSET in production — heavy analytics are " +
       "falling back to the DATABASE_URL transaction pooler (6543), which ignores " +
       "the 15s statement_timeout backstop and shows a measured >180s pathology " +
       "for the panorama fan-out (admin KPIs will render the degraded state). " +
-      "Set it to the SESSION pooler (5432) string — see " +
-      "docs/design/handoffs/2026-07-07-deploy-checklist.md §4 (dual-pool split).",
+      "Set it to the SESSION pooler (5432) string (dual-pool split).",
   );
 }
 

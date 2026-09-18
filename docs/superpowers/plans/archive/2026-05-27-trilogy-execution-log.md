@@ -20,7 +20,7 @@ Before opening branches the codebase was scoped against the 8 handoff PRs. Findi
 | PR-004 chip publicToken null guard | `pets.publicToken` is `.notNull()` at `db/schema.ts:407` — the scenario "data corrupta pre-token-rotation" is unreachable | **No-op** — plan's premise didn't match the schema |
 | PR-005 EventCatcher sanitization | Matcher uses **hardcoded** RegExp; user input is the target, never inserted into the pattern. The handoff's regex-injection vector is false | **Opened #236** (rescoped) — added `CAPTURE_INPUT_MAX_LENGTH = 500` truncation + adversarial tests (10kb, regex metacharacters, emoji) |
 | PR-006 spec-later tracker | Doc absent; 4 markers found in `app/(app)/mis-mascotas/[publicToken]/page.tsx` | **This PR** — `docs/superpowers/plans/2026-05-27-spec-later-tracker.md` + relinked the markers |
-| PR-007 archive superseded specs | `docs/superpowers/specs/2026-05-18-maltreatment-reporting-design.md` and `docs/design/05-pro-portal.md` still in original locations | **Next PR** — move both to `docs/archive/` + update `AGENTS.md` |
+| PR-007 archive superseded specs | `docs/superpowers/specs/2026-05-18-maltreatment-reporting-design.md` and `dim-interno:docs/design/05-pro-portal.md` still in original locations | **Next PR** — move both to `dim-interno:docs/archive/` + update `AGENTS.md` |
 | PR-008 coverage thresholds | `vitest.config.ts:26-33` already has per-path branch thresholds (lib/business-rules 90%, lib/** 70%, app/actions 75%, app/api 60%) per `docs/testing/PLAN.md` D2 | **No-op** — verified |
 
 ### Decisions taken outside the plan
@@ -153,7 +153,7 @@ None. Sprint 2 starts clean with the `WizardShell` promotion.
 
 - **PR-053 scope cut:** the handoff specified rolling SuccessScreen across "turnos + foster accept + a few more"; the foster-accept path was the highest-value one and is the only one shipped this sprint. Remaining inline-success migrations deferred.
 - **PR-056 scope cut:** the org-side `mordedura/nuevo/page.tsx` is reachable via the per-pet flow but still lacks an explicit org-home CTA; the comment now documents that nav-presets enhancement remains a future improvement.
-- **PR-057 cross-link:** the new poncho README is the canonical entry for `components/poncho`; AGENTS.md and `docs/design/08`/`09`/`10` remain the rule statements.
+- **PR-057 cross-link:** the new poncho README is the canonical entry for `components/poncho`; AGENTS.md and `dim-interno:docs/design/08`/`09`/`10` remain the rule statements.
 
 ### Closing the trilogy
 

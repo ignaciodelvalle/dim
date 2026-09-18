@@ -80,7 +80,7 @@ vocabulary + the SENASA columns migration 0061 added to `pet_events`), and
 the unknown real byte layout is isolated behind a pluggable
 `SenasaFormatter` interface so the real formatter can drop in later with zero
 upstream change. There is **no notification path to SENASA** — this is a
-batch pull an operator generates and downloads (`docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md`),
+batch pull an operator generates and downloads (`dim-interno:docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md`),
 never a push, and never a webhook or callback in either direction.
 
 ## 3. Web push — STATUS: live, env-gated (best-effort second delivery leg)
@@ -128,7 +128,7 @@ harm that path"). Four files carry the full stub:
 - `app/admin/acerca/integracion-miarg/page.tsx` — the operator-facing page
   that states this status, so an admin does not have to read source to learn
   it.
-- `docs/design/sdd/2026-07-07-miargentina-federation.md` — the federation
+- `dim-interno:docs/design/sdd/2026-07-07-miargentina-federation.md` — the federation
   design doc this stub was scaffolded from.
 
 When the env vars are absent (every environment today, including staging),

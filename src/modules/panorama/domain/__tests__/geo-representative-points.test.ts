@@ -1,5 +1,5 @@
 // Regression guard for the "centroid dots in the water" fix (task #20 Part 2,
-// item 1 / docs/plans/panorama-v2-polish.md Part B #6).
+// item 1 / dim-interno:docs/plans/panorama-v2-polish.md Part B #6).
 //
 // Aggregated province/department markers used to plot at the ARITHMETIC MEAN
 // of member-locality coordinates, which has no guarantee of landing inside the

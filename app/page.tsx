@@ -91,7 +91,7 @@ export default async function Home() {
   //
   // 1. The deployment must DECLARE it has demo furniture (DEMO_PET_TOKEN, see
   //    components/landing/demo-pet.ts). Production, provisioned the way
-  //    docs/ops/cutover-playbook.md mandates ("no seed pets, no demo
+  //    dim-interno:docs/ops/cutover-playbook.md mandates ("no seed pets, no demo
   //    accounts"), declares nothing.
   // 2. The declared token must actually resolve. This probe is the SAME
   //    condition /p/[publicToken] uses before calling notFound(), so a stale

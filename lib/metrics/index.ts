@@ -136,7 +136,7 @@ export {
 } from "./targets";
 export { lastIngestAt } from "./freshness";
 
-// C1 — metric-contract guard engine (docs/reviews/results/
+// C1 — metric-contract guard engine (dim-interno:docs/reviews/results/
 // 2026-07-22-plan-maestro-integridad.md). Pure presentation guards enforcing
 // kpi-catalog.ts's guards/semaphore fields at render time.
 export {

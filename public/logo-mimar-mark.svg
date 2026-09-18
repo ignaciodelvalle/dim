@@ -30,7 +30,7 @@
     because an asset in public/ cannot import a token.
 
     Deliberately NOT species-specific. The concept recorded in
-    docs/plans/PENDIENTES.md required two distinguishable silhouettes, a dog and
+    dim-interno:docs/plans/PENDIENTES.md required two distinguishable silhouettes, a dog and
     a cat. That constraint was retired by the PO on 2026-09-03: it is in direct
     conflict with the 16px constraint in the same list, and a paw is common to
     both species. One shape, both animals, legible small.

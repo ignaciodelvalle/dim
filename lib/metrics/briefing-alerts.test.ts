@@ -1,7 +1,7 @@
 // Unit tests for lib/metrics/briefing-alerts.ts — PURE, DB-free (C6b).
 //
 // Pins the briefing engine's guards to the same red-team classes C1 already
-// fences at the tile level (docs/reviews/results/2026-07-22-plan-maestro-
+// fences at the tile level (dim-interno:docs/reviews/results/2026-07-22-plan-maestro-
 // integridad.md, §C6): an alert must never fire from unmeasurable data, a
 // semaphore that refuses a legal-verdict tone, or a met target — and the
 // ranked list is always capped at 5.

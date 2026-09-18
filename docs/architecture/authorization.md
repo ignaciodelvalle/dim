@@ -111,7 +111,7 @@ an infinite retry.
 predicate at `lib/infra/live-user.ts:324` reads `accountType`, so
 `profiles.deactivated_at` on a PERSONAL account is a column nothing reads for
 access. The code says so in its own comment (`:319-323`). The audit filed this
-as `A01-1` (HIGH) — see `docs/reviews/2026-09-fresh/lenses/A01.md`. The fix is
+as `A01-1` (HIGH) — see `dim-interno:docs/reviews/2026-09-fresh/lenses/A01.md`. The fix is
 gated on a landing screen that does not exist yet, because widening the
 predicate without one reproduces the 2026-07-04 redirect loop the
 `role-landing.ts` header documents.
@@ -285,7 +285,7 @@ action pins its capability check to the URL-resolved org via
 `requireCapabilityForOrgToken`, and `scripts/check-confused-deputy.ts`
 (`lint:authz-orgtoken`, inside `pnpm verify`) fails the build if one reverts to
 the bare form. Its allowlist is empty. All fifteen prior findings in this class
-are closed (`docs/reviews/2026-09-fresh/lenses/A10.md`, priors 21-7 through
+are closed (`dim-interno:docs/reviews/2026-09-fresh/lenses/A10.md`, priors 21-7 through
 21-15).
 
 ## Layer 4c — jurisdiction scope
@@ -411,8 +411,8 @@ provision, so a `REVOKE` is undone by the next deploy.
 `pet_events`: its INSERT policy constrains ownership and the titular-only event
 list, and constrains neither `author_role` nor `author_verified`. That is
 `A02-1` (HIGH), decided and queued as the next free migration number — see
-`docs/reviews/2026-09-fresh/lenses/A02.md` and
-`docs/reviews/2026-09-fresh/BACKLOG.md`. Recount the migration number at write
+`dim-interno:docs/reviews/2026-09-fresh/lenses/A02.md` and
+`dim-interno:docs/reviews/2026-09-fresh/BACKLOG.md`. Recount the migration number at write
 time; do not hardcode one from a plan.
 
 ## Service-role call sites
@@ -468,13 +468,13 @@ Second, `app/libreta` was named in A01's scope and never opened, `app/admin`'s
 pages were assumed covered by their layout guard rather than verified page by
 page, and roughly thirty route handlers outside `app/api/v1` and
 `app/api/panorama` were counted and not individually audited. See
-`docs/reviews/2026-09-fresh/SYNTHESIS.md` under "Method limits".
+`dim-interno:docs/reviews/2026-09-fresh/SYNTHESIS.md` under "Method limits".
 
 ## Related documents
 
 - `docs/architecture/rls-coverage.md` — table-by-table RLS inventory
 - `docs/architecture/privacy-controls.md` — DNI, subject rights, k-anonymity
 - `docs/architecture/government-views.md` — what `/gob` actually shows
-- `docs/reviews/2026-09-fresh/lenses/A01.md` — authz boundary invariant
-- `docs/reviews/2026-09-fresh/lenses/A02.md` — RLS and DB privilege
-- `docs/reviews/2026-09-fresh/lenses/A10.md` — jurisdiction, org tenant, dashboards
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A01.md` — authz boundary invariant
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A02.md` — RLS and DB privilege
+- `dim-interno:docs/reviews/2026-09-fresh/lenses/A10.md` — jurisdiction, org tenant, dashboards

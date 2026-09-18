@@ -14,8 +14,8 @@ describe("emailLocalPart", () => {
   });
 
   it("keeps the plus-addressing suffix — it is part of the local part", () => {
-    expect(emailLocalPart("ignaciodelvalle2014+cursor-owner2@gmail.com")).toBe(
-      "ignaciodelvalle2014+cursor-owner2",
+    expect(emailLocalPart("qa-maintainer+cursor-owner2@example.com")).toBe(
+      "qa-maintainer+cursor-owner2",
     );
   });
 
@@ -36,18 +36,18 @@ describe("emailLocalPart", () => {
 });
 
 describe("isIdentityPending", () => {
-  const EMAIL = "ignaciodelvalle2014+cursor-owner2@gmail.com";
+  const EMAIL = "qa-maintainer+cursor-owner2@example.com";
 
   it("flags the exact staging defect: display_name === email local part", () => {
-    expect(
-      isIdentityPending({ displayName: "ignaciodelvalle2014+cursor-owner2", email: EMAIL }),
-    ).toBe(true);
+    expect(isIdentityPending({ displayName: "qa-maintainer+cursor-owner2", email: EMAIL })).toBe(
+      true,
+    );
   });
 
   it("flags it case-insensitively — casing is not evidence of a real name", () => {
-    expect(
-      isIdentityPending({ displayName: "IgnacioDelValle2014+Cursor-Owner2", email: EMAIL }),
-    ).toBe(true);
+    expect(isIdentityPending({ displayName: "QA-Maintainer+Cursor-Owner2", email: EMAIL })).toBe(
+      true,
+    );
   });
 
   it("flags a blank or whitespace-only display_name", () => {
@@ -59,7 +59,7 @@ describe("isIdentityPending", () => {
 
   it("ignores surrounding whitespace when comparing against the local part", () => {
     expect(
-      isIdentityPending({ displayName: "  ignaciodelvalle2014+cursor-owner2  ", email: EMAIL }),
+      isIdentityPending({ displayName: "  qa-maintainer+cursor-owner2  ", email: EMAIL }),
     ).toBe(true);
   });
 
@@ -71,7 +71,7 @@ describe("isIdentityPending", () => {
     // Substring, not equality — the trigger writes the local part exactly.
     expect(
       isIdentityPending({
-        displayName: "ignaciodelvalle2014+cursor-owner2 Del Valle",
+        displayName: "qa-maintainer+cursor-owner2 Del Valle",
         email: EMAIL,
       }),
     ).toBe(false);

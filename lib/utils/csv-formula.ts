@@ -12,7 +12,7 @@
 // surface, for the same reason, and getting it wrong has the same consequence
 // wherever it happens. Duplicating it four times is how five of six builders
 // ended up without it — which is exactly what
-// `docs/reviews/2026-08-04-print-surfaces-audit.md` finding 8 recorded, VERIFIED
+// `dim-interno:docs/reviews/2026-08-04-print-surfaces-audit.md` finding 8 recorded, VERIFIED
 // and OPEN, across five builders.
 //
 // THE ATTACK. Excel, LibreOffice and Google Sheets evaluate a cell that begins

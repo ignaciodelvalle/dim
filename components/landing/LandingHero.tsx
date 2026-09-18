@@ -39,7 +39,7 @@
 // declared and app/page.tsx verified actually resolves. Unchanged as Pampa
 // plays through states.
 //
-// When there is no such pet (production, per docs/ops/cutover-playbook.md's
+// When there is no such pet (production, per dim-interno:docs/ops/cutover-playbook.md's
 // "no seed pets"), qrSvg/publicHref/publicToken all arrive null and the card
 // degrades to an ILLUSTRATIVE credential: an inert QR glyph, no link, a masked
 // token, and microcopy that describes the product instead of inviting a scan.

@@ -22,11 +22,11 @@ describe("isTestAccount", () => {
   it("flags the plus-addressed bulk-load accounts (staging finding 2026-08-01)", () => {
     // These carry the signup trigger's provisional display_name — the email
     // local part — so the roster was about to show a funcionario
-    // "ignaciodelvalle2014+cursor-owner2" as a person's name in a national
+    // "qa-maintainer+cursor-owner2" as a person's name in a national
     // registry. Both identifiers must hit, since the name IS the local part.
-    expect(isTestAccount("ignaciodelvalle2014+cursor-owner2@gmail.com")).toBe(true);
-    expect(isTestAccount("ignaciodelvalle2014+cursor-owner2")).toBe(true);
-    expect(isTestAccount("Ana Pérez", "ignaciodelvalle2014+cursor-vet1@gmail.com")).toBe(true);
+    expect(isTestAccount("qa-maintainer+cursor-owner2@example.com")).toBe(true);
+    expect(isTestAccount("qa-maintainer+cursor-owner2")).toBe(true);
+    expect(isTestAccount("Ana Pérez", "qa-maintainer+cursor-vet1@example.com")).toBe(true);
   });
 
   it("anchors on the plus-addressing, not on the word 'cursor'", () => {

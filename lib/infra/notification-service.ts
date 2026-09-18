@@ -1,7 +1,7 @@
 // createNotification() — the single write path for the owner-facing
 // notification pipeline.
 //
-// WHY THIS EXISTS (consistency review 2026-07-04, docs/design/handoffs/
+// WHY THIS EXISTS (consistency review 2026-07-04, dim-interno:docs/design/handoffs/
 // 2026-07-04-notifications-consistency-review.md):
 //   The `notifications` table is a single canonical STORAGE location, but there
 //   was no single WRITE path — 84 call sites each reinvented their own dedup

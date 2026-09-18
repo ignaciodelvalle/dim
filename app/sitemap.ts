@@ -23,7 +23,7 @@ import { queryLostListing } from "@/src/modules/lost/infrastructure/lost-listing
 export const dynamic = "force-dynamic";
 
 // NEXT_PUBLIC_SITE_URL is the single source of truth for the app's public
-// origin (see docs/ops/production-deploy-plan.md "Site URL consistency").
+// origin (see dim-interno:docs/ops/production-deploy-plan.md "Site URL consistency").
 // A wrong or missing value here is worse than a build failure: it ships a
 // sitemap that silently advertises the wrong domain to search engines. Fail
 // loud in production instead of falling back to a hardcoded guess; keep a

@@ -167,7 +167,7 @@ Esto sirve aunque el form se rompa o el admin use el server action directo (test
 Reemplazar los dos `<input type="text">` por:
 - `<select name="provinceCode">` con opciones de `PROVINCES`.
 - `<select name="localitySlug">` con opciones de `localitiesByProvince(provinceCode)`. Cuando se cambia province, resetea locality.
-- Last option en localitySlug: `"otra"` con label `"Sugerí una localidad nueva →"` que abre `mailto:ignaciodelvalle2014@gmail.com?subject=DIM — Agregar localidad al catálogo&body=Provincia: %0AClocalidad sugerida: %0AContexto: "`.
+- Last option en localitySlug: `"otra"` con label `"Sugerí una localidad nueva →"` que abre `mailto:<maintainer-email>?subject=DIM — Agregar localidad al catálogo&body=Provincia: %0AClocalidad sugerida: %0AContexto: "`.
 
 Al submit, el form mapea `provinceCode → province.name` y `localitySlug → locality.name` y envía los strings legibles al server action (que igual valida).
 

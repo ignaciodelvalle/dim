@@ -15,7 +15,7 @@
 //
 // Canonical fallback = the brand domain we actually control. The production
 // domain is still set explicitly via NEXT_PUBLIC_SITE_URL in Vercel (see
-// docs/ops/production-deploy-plan.md "Site URL consistency") — this fallback is
+// dim-interno:docs/ops/production-deploy-plan.md "Site URL consistency") — this fallback is
 // only ever exercised in local dev / preview where the var isn't set. That
 // "only ever" is precisely why the value went unnoticed for so long, and why
 // __tests__/public-hostname-fence.test.ts now reads it through resolveSiteUrl()

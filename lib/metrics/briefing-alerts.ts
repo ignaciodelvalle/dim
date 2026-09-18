@@ -1,4 +1,4 @@
-// lib/metrics/briefing-alerts.ts — THE BRIEFING alert engine (C6b, docs/reviews/
+// lib/metrics/briefing-alerts.ts — THE BRIEFING alert engine (C6b, dim-interno:docs/reviews/
 // results/2026-07-22-plan-maestro-integridad.md §C6 "Capa 1: BRIEFING").
 //
 // WHY THIS EXISTS

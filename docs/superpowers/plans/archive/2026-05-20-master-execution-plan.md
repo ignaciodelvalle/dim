@@ -26,10 +26,10 @@
 | # | Sprint | Plan / spec base | Duración | Dependencias | Outcome |
 |---|---|---|---|---|---|
 | 1 | Tech-debt cleanup | `2026-05-20-microchip-replaced-ui.md` + `2026-05-20-deprecate-pro-portal.md` | ~5d | ninguna | -1 portal, -1 capability deuda; `microchip_remediation` case lifecycle activo |
-| 2 | Foster volunteers pool | `2026-05-18-foster-volunteers-pool.md` + design spec `docs/design/02-foster-pool.md` | ~4d | Sprint 1 (pro deprecation libera authorship resolution) |
-| 3 | /adoptar listing público | design spec `docs/design/03-adoptar-public.md` + spec `2026-05-18-adoption-listing-public-design.md` (v1.4) | ~5d | Sprint 2 (foster pool fija eligibility flag que el listing usa) |
-| 4 | Vaccine-due UX owner | design spec `docs/design/06-vaccine-due.md` | ~3d | ninguna (puede correr en paralelo a Sprint 3) |
-| 5 | Govt dashboards | design spec `docs/design/04-govt-dashboards.md` | ~7d | Sprint 1 + 3 (proyecciones requieren listing público estable) |
+| 2 | Foster volunteers pool | `2026-05-18-foster-volunteers-pool.md` + design spec `dim-interno:docs/design/02-foster-pool.md` | ~4d | Sprint 1 (pro deprecation libera authorship resolution) |
+| 3 | /adoptar listing público | design spec `dim-interno:docs/design/03-adoptar-public.md` + spec `2026-05-18-adoption-listing-public-design.md` (v1.4) | ~5d | Sprint 2 (foster pool fija eligibility flag que el listing usa) |
+| 4 | Vaccine-due UX owner | design spec `dim-interno:docs/design/06-vaccine-due.md` | ~3d | ninguna (puede correr en paralelo a Sprint 3) |
+| 5 | Govt dashboards | design spec `dim-interno:docs/design/04-govt-dashboards.md` | ~7d | Sprint 1 + 3 (proyecciones requieren listing público estable) |
 | 6 | Welfare export fiscalía MPF (Ley 14.346) | sin plan — escribir desde la sección 6.9 del inventory | ~4d | Sprint 5 (reutiliza export pipeline) |
 | 7 | PPP export provincial | sin plan — escribir desde `docs/superpowers/specs/2026-05-19-ppp-pet-profile-display-design.md` | ~3d | ninguna |
 | 8 | Bulk operations refugios | sin plan — escribir desde AGENTS.md §"Bulk operations for high-capacity refugios" | ~5d | Sprint 2 (foster pool consolida operaciones org-side) |
@@ -83,7 +83,7 @@
 ## Sprint 2 — Foster volunteers pool (~4d)
 
 **Plan ejecutable:** [`2026-05-18-foster-volunteers-pool.md`](./2026-05-18-foster-volunteers-pool.md)
-**Design spec:** [`docs/design/02-foster-pool.md`](../../design/02-foster-pool.md)
+**Design spec:** [`dim-interno:docs/design/02-foster-pool.md`](../../design/02-foster-pool.md)
 
 4 fases secuenciales (A→B→C→D, cada una bloquea la siguiente):
 
@@ -106,7 +106,7 @@
 ## Sprint 3 — /adoptar listing público (~5d)
 
 **Spec base:** [`docs/superpowers/specs/2026-05-18-adoption-listing-public-design.md`](../specs/2026-05-18-adoption-listing-public-design.md) (v1.4)
-**Design spec:** [`docs/design/03-adoptar-public.md`](../../design/03-adoptar-public.md)
+**Design spec:** [`dim-interno:docs/design/03-adoptar-public.md`](../../design/03-adoptar-public.md)
 **Plan ejecutable:** ⚠️ pendiente de escribir — primer paso del sprint
 
 ### Pre-trabajo (~0.5d): escribir el plan ejecutable
@@ -139,7 +139,7 @@ Send a owner para review express, después ejecutar.
 
 ## Sprint 4 — Vaccine-due UX owner (~3d)
 
-**Design spec:** [`docs/design/06-vaccine-due.md`](../../design/06-vaccine-due.md)
+**Design spec:** [`dim-interno:docs/design/06-vaccine-due.md`](../../design/06-vaccine-due.md)
 **Plan ejecutable:** ⚠️ pendiente de escribir — primer paso del sprint
 
 Sprint chico, puede correr en paralelo a Sprint 3 si hay banda (no comparten archivos).
@@ -169,7 +169,7 @@ Claude Code escribe `docs/superpowers/plans/2026-05-2X-vaccine-due-ux.md`:
 
 ## Sprint 5 — Govt dashboards (~7d)
 
-**Design spec:** [`docs/design/04-govt-dashboards.md`](../../design/04-govt-dashboards.md)
+**Design spec:** [`dim-interno:docs/design/04-govt-dashboards.md`](../../design/04-govt-dashboards.md)
 **Plan ejecutable:** ⚠️ pendiente de escribir — primer paso del sprint
 
 ### Pre-trabajo (~1d): escribir el plan ejecutable

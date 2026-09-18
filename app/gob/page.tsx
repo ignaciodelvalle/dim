@@ -1,4 +1,4 @@
-// /gob home — C6b "THE BRIEFING" (docs/reviews/results/2026-07-22-plan-maestro-
+// /gob home — C6b "THE BRIEFING" (dim-interno:docs/reviews/results/2026-07-22-plan-maestro-
 // integridad.md §C6 "Capa 1"), revised per PO visual-validation batch B
 // (2026-07-23). PO-locked structure, five blocks in strict order — hierarchy
 // by ORDER + COLLAPSE + CONDITIONALITY, never tile-size:

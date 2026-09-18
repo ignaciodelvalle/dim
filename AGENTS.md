@@ -29,7 +29,7 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 | What | Where |
 |---|---|
 | Domain specs & plans index | `docs/superpowers/README.md` |
-| External-agent handoffs + orientation protocol | `docs/design/handoffs/README.md` — auditors/proposers MUST read it; canonical checkout only, never `.claude/worktrees/` |
+| External-agent handoffs + orientation protocol | `dim-interno:docs/design/handoffs/README.md` — auditors/proposers MUST read it; canonical checkout only, never `.claude/worktrees/` |
 | Implementation plans | `docs/superpowers/plans/` |
 | Event types — the `EVENT_TYPES` const IS the count (<!-- fact:event_types -->55<!-- /fact --> — generated from that const by `pnpm facts:write`, not typed by hand) | `db/schema.ts` |
 | Per-event Zod schemas | `lib/events/event-schemas.ts` |
@@ -142,7 +142,7 @@ DIM is rooted in concrete data about the city it was designed for. Figures below
 3. **Designed for expansion.** The data model includes columns and roles for veterinary and government actors from day one. Pet owner UI ships first; other actors are activated later with no schema rewrite.
 4. **Start tight, loosen later.** The public credential page exposes the minimum necessary by default; richer reveals are gated by status (lost), explicit owner action (shared link), or verified identity (future).
 5. **Build it properly, bit by bit.** No throwaway prototypes. Every milestone is usable. Foundation pays off.
-6. **Private repo, open by design.** The repo is private to protect design IP (PO decision 2026-07-15); it is maintained publishable-at-any-moment (no secrets, no plaintext PII, clean history — see `docs/ops/going-public-runbook.md`). Public transparency is delivered through open data and methodology at `/transparencia` (CC-BY 4.0), not open code. A future open-core carve-out of the credential-verification module is a deferred option, not current policy.
+6. **Public code, private operations.** The code repository is public so it can be audited (PO decision 2026-09-18, superseding the 2026-07-15 private-repo decision); it stays publishable at every commit (no secrets, no plaintext PII — `lint:secrets`). Internal operational material (deploy/cutover playbooks, incident runbooks, reviews, plans, handoffs, demo and pilot material) lives in the private companion repository **dim-interno** under the same relative paths; references written `dim-interno:docs/…` point there. History was not rewritten: what was published before the move stays in history. Vulnerability reports go through `SECURITY.md`. Public transparency is also delivered through open data and methodology at `/transparencia` (CC-BY 4.0).
 7. **Event-sourced facts, honest hybrid runtime.** Medical and custody lifecycle facts live only in the append-only event spine; owner timeline, public credential, vet record and government dashboards derive from it. The RUNTIME is deliberately hybrid (PO 2026-07-24, honest-hybrid rewording): operational caches (`pets.*` status columns, ownerships) are dual-written for hot reads, government aggregates read denormalized columns (Pattern B, D7 — owned lag), and drift is made observable (`rederivePetCache`, CI + detect-only cron) rather than pretended away. No cache ever outranks the spine. New dashboards = new queries, not new schemas — but say which layer they read.
 8. **Designed for the population, not just the pet.** Every event a pet owner records is potentially a public-health signal. Aggregation is a first-class architectural concern, with privacy preserved by k-anonymity and opt-in for granular contribution.
 
@@ -275,7 +275,7 @@ Institutional accounts do not author `pet_events` in normal operation — they m
 with the `on_auth_user_created` trigger** (`db/triggers.sql:88-92`, wired to `handle_new_user()`,
 created by migration `0134`): every `auth.users` insert already creates a `profiles` row via that
 trigger, so a second manual `insert` on the same id is either a duplicate-key error or the wrong
-instrument. The correct recipe, from `docs/ops/production-deploy-plan.md` §1.9 ("First admin
+instrument. The correct recipe, from `dim-interno:docs/ops/production-deploy-plan.md` §1.9 ("First admin
 account (W6)"):
 
 1. Have the operator sign up through the **normal** `/signup` flow, with their real email. This
@@ -579,7 +579,7 @@ insert used the shared `db` pool, not a caller-supplied transaction handle
   borra filas de `profiles` (`erase_subject_data` hace soft-delete; la acción
   de cuenta borra sólo `auth.users`, que no tiene FK a `profiles`). El endpoint
   de push y sus claves sobreviven a un borrado de sujeto. Hallazgo de
-  cumplimiento abierto (Ley 25.326 art. 16) en `docs/plans/PENDIENTES.md`.
+  cumplimiento abierto (Ley 25.326 art. 16) en `dim-interno:docs/plans/PENDIENTES.md`.
 - `created_at`
 
 RLS: owner-only (`user_id = auth.uid()`) for SELECT/INSERT/UPDATE; no DELETE
@@ -841,7 +841,7 @@ Fifteen event types were retired in the 2026-05-18/19 catalog cleanup (`lab_work
 → `clinical_info_logged`, the `foster_proposal_*` / `adoption_application_*` pairs →
 their `_resolved` forms, and so on). They are absent from both `EVENT_TYPES` and the
 Zod registry, so no flow can write them. The full old→new mapping lives in
-`docs/archive/2026-05-19-deprecated-event-types.md` — consult it only when an old plan
+`dim-interno:docs/archive/2026-05-19-deprecated-event-types.md` — consult it only when an old plan
 or seed script names one.
 
 The `incident_type='dog_attack'` value inside `incident_reported.payload` is also deprecated in favor of the unambiguous `incident_type='bite_suffered'`. Historical rows with `dog_attack` are preserved by keeping the value in the Zod enum.
@@ -1268,7 +1268,7 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 | ✅ | RLS aplicada en todas las tablas PII/tenant (la lista viva es `RLS_REQUIRED` en el coverage test) — authz model documentado (Wave 5 Item 26) | migrations 0086 + 0105; `__tests__/rls/coverage.test.ts`; `e2e/cross-tenant-isolation.spec.ts` |
 | ✅ | RLS smoke test cross-account vía PostgREST (extendido Item 26: pet_identifications, pet_transfers) | `pnpm rls:smoke` |
 | ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/ui/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/archive/2026-06-18-unified-app-shell.md` |
-| ✅ | Localities catalog INDEC (catalog reference) | `ar_localities` table + `scripts/import-indec-localities.ts`; seeded via `db:bootstrap` step 4; graceful fallback + vendored-CSV override (`INDEC_LOCALITIES_CSV`). Runbook: `docs/ops/remote-supabase-bootstrap-runbook.md` §3 + `docs/ops/db-bootstrap-runbook.md` |
+| ✅ | Localities catalog INDEC (catalog reference) | `ar_localities` table + `scripts/import-indec-localities.ts`; seeded via `db:bootstrap` step 4; graceful fallback + vendored-CSV override (`INDEC_LOCALITIES_CSV`). Runbook: `dim-interno:docs/ops/remote-supabase-bootstrap-runbook.md` §3 + `docs/ops/db-bootstrap-runbook.md` |
 | ✅ | Public-credential resilience — `/p/[publicToken]` reads are budgeted and fail-soft; a partial/slow read renders an honest degraded state instead of a 500 or an infinite spinner | `app/(public)/p/[publicToken]/DegradedCredentialCard.tsx` + `CredentialStreamedSections.tsx`; structured single-line JSON error logging for Vercel via `lib/infra/report-error.ts` |
 | ✅ | Durable rate limiting on public search endpoints (`rate_limit_buckets`, DB-backed, IP-and-endpoint keyed, cross-worker-safe) | `localities_search` (`src/modules/localities/application/search/search-localities.ts`), `performed_by_search` (`src/modules/search/application/performed-by/search-performed-by.ts`) |
 | ✅ | `/refugios` public directory — Next Data Cache (`unstable_cache`, 300s) instead of an uncacheable per-request fan-out; invalidated on tag `"org-directory"` when an org is verified or revoked | `app/(public)/refugios/page.tsx` |
@@ -1370,7 +1370,7 @@ Operator surfaces (`/gob/*`, `/admin/*`) get from an aggregate to a single recor
   - The header checkbox selects the **page**, not the whole query, for irreversible/notifying actions.
 ### 6. Pet profile order: identity/credential → alerts (lost leads) → capture → faces
 
-Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md) and the pet-document-redesign change (2026-07-02, S2/S3 — lost-as-case-block + anotar-as-sheet; DocFrame/Credencial/Libreta visual rewrite lands in a follow-up batch, this stub only covers the structural/navigation change). The owner profile at /mis-mascotas/[publicToken] is TWO FACES OF ONE DOCUMENT and MUST present blocks in this order:
+Updated by the pet-profile "two-face" redesign (2026-07-01; spec dim-interno:docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md) and the pet-document-redesign change (2026-07-02, S2/S3 — lost-as-case-block + anotar-as-sheet; DocFrame/Credencial/Libreta visual rewrite lands in a follow-up batch, this stub only covers the structural/navigation change). The owner profile at /mis-mascotas/[publicToken] is TWO FACES OF ONE DOCUMENT and MUST present blocks in this order:
 
 1. **Credencial first (Face 1)** — one credential object (LnHero identity + compliance stamp row + printed QR, plus an owner-only Emergencia card with tap-to-call vet/emergency contacts when set) is the first content block in **every** non-terminal state, including lost (no separate cockpit page — see item 2). No conditional banner precedes it. Provenance gates the stamps (H1): a stamp reads "al día" only for professional/institutional-verified events. There is no separate mono-ID card and no "Inscripción válida" seal block — both were cut as redundant with the hero + stamp row.
 2. **Avisos in one prioritized strip, LostCaseBlock leads it** — conditional alerts (rabies, transit/custody, open cases, pregnancy) collapse into a single <PetAlertStrip> BELOW the credential, ordered urgent → warning → info. When `pet.status === 'lost'`, `<LostCaseBlock>` (`components/pet-profile/LostCaseBlock.tsx`) is the FIRST urgent item — publicCode + public-credential link, owner-only "Marcar encontrada", last-seen + scans/sightings feed, and (owner-only) share/poster + disclosure toggles. There is no separate full-screen cockpit page anymore (`LostCockpit` deleted): the rest of the profile (faces, action row, Anotar sheet) stays reachable while lost. Org/vet viewers get the SAME block, read-only (no toggles, no Marcar encontrada, no /perdida update, no share/poster beyond public). Empty strip → renders nothing.
@@ -1420,7 +1420,7 @@ If a new feature seems to need an exception, write the exception into the PR des
 > anything decided moves to the section that owns it. Struck-through change-log
 > entries were pruned 2026-08-04 — this is not a diary.
 
-- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `docs/archive/mimar-go-to-market.md`)
+- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `dim-interno:docs/archive/mimar-go-to-market.md`)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - **`/gob` portal** and **`/admin` portal** — built. `/gob` is govt scope-bound (locality approvals + regional dashboards via `requireAdminOrGovtOrRedirect()`); `/admin` holds universal-scope surfaces. Admin page spec v2.2 and the fases 10-14 follow-up plan are both archived (implemented). See Feature inventory → Admin & govt.
 - **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA interoperability is an open integration question; the goal is to complement it.

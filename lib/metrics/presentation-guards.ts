@@ -1,4 +1,4 @@
-// lib/metrics/presentation-guards.ts — the C1 guard engine (docs/reviews/
+// lib/metrics/presentation-guards.ts — the C1 guard engine (dim-interno:docs/reviews/
 // results/2026-07-22-plan-maestro-integridad.md, §2 "C1 · Contrato de
 // Métrica").
 //

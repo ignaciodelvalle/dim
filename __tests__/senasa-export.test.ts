@@ -2,7 +2,7 @@
 // export (transform + CSV formatter). No DB: the query stage lives in
 // senasa-export-query.ts and is out of scope here.
 //
-// See docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md.
+// See dim-interno:docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md.
 
 import { describe, expect, it } from "vitest";
 

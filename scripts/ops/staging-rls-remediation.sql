@@ -10,7 +10,7 @@
 -- Every statement below is derived from reading db/migrations/*.sql and
 -- scripts/check-rls-coverage.ts. Nothing here has been run on staging.
 --
--- Context: docs/reviews/results/2026-07-26-cutover-staging-readiness.md §B1.
+-- Context: dim-interno:docs/reviews/results/2026-07-26-cutover-staging-readiness.md §B1.
 --   27 of 53 public tables in staging have relrowsecurity = false. The anon
 --   REST key returns HTTP 206 with full rows from pets, profiles, pet_events,
 --   ownerships and audit_log, including a real user's email address.

@@ -18,16 +18,15 @@
 //   (b) the markers vs facts.json — every `fact:` marker in the scanned docs
 //       must carry the generated value, and an unknown key fails rather than
 //       being ignored. A marker nobody generates is a number nobody owns.
-//   (c) backticked repo paths in `docs/architecture/**` and, WHEN IT EXISTS,
-//       `docs/presentation/**` must exist on disk. A doc that cites a file
-//       deleted two refactors ago reads as evidence and is not.
-//       `docs/presentation/` does NOT exist on this tree today: the 2026-09 doc
-//       pack creates it, and the scan is written to tolerate its absence rather
-//       than be rewritten on the day it lands. Tolerating a missing directory is
-//       how a scope becomes a silent no-op, so the roots are asserted rather
-//       than assumed: `DOC_TREE_ROOTS` + `ROOT_DOCS` are reported present or
-//       absent by name, and every entry of `REQUIRED_ROOTS` (`docs/architecture`,
-//       `AGENTS.md`, `CLAUDE.md`) must exist. Renaming a real root cannot
+//   (c) backticked repo paths in `docs/architecture/**` must exist on disk.
+//       A doc that cites a file deleted two refactors ago reads as evidence and
+//       is not. (`dim-interno:docs/presentation/` used to be a second root; it moved to the
+//       private companion repo dim-interno on 2026-09-18 and is no longer
+//       scanned from here.) Tolerating a missing directory is how a scope
+//       becomes a silent no-op, so the roots are asserted rather than assumed:
+//       `DOC_TREE_ROOTS` + `ROOT_DOCS` are reported present or absent by name,
+//       and every entry of `REQUIRED_ROOTS` (`docs/architecture`, `AGENTS.md`,
+//       `CLAUDE.md`) must exist. Renaming a real root cannot
 //       quietly empty this fence, and the marker count is checked PER root so
 //       markers in one cannot cover for a scan that stopped reading another.
 //
@@ -61,17 +60,12 @@ function markdownUnder(rel: string): string[] {
   return acc.sort();
 }
 
-/** The doc trees this fence owns end to end. `docs/presentation` is not here yet. */
-const DOC_TREE_ROOTS = ["docs/architecture", "docs/presentation"];
+/** The doc trees this fence owns end to end. */
+const DOC_TREE_ROOTS = ["docs/architecture"];
 /** Root docs that also carry markers, but whose paths are NOT asserted yet. */
 const ROOT_DOCS = ["AGENTS.md", "CLAUDE.md"];
 
-/**
- * Roots that MUST exist, so no rename can empty the marker scan in silence.
- *
- * `docs/presentation` is deliberately absent from this list and present in
- * `DOC_TREE_ROOTS`: it is scanned when it lands and tolerated until then.
- */
+/** Roots that MUST exist, so no rename can empty the marker scan in silence. */
 const REQUIRED_ROOTS = ["docs/architecture", ...ROOT_DOCS];
 
 const DOC_TREES = DOC_TREE_ROOTS.flatMap((root) => markdownUnder(root));
@@ -223,7 +217,7 @@ describe("architecture facts — the docs cite paths that exist", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("(c) every backticked repo path under docs/architecture and docs/presentation exists", () => {
+  it("(c) every backticked repo path under docs/architecture exists", () => {
     const dangling = cited
       .filter((c) => !HISTORICAL_PATHS.has(c.path) && !existsSync(join(REPO_ROOT, c.path)))
       .map((c) => `${c.rel}: \`${c.span}\``);

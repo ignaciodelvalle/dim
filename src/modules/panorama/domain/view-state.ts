@@ -1,6 +1,6 @@
 // Panorama ViewState — the single canonical view-configuration value (task #50).
 //
-// See docs/plans/panorama-viewstate-design.md for the concrete design. This is
+// See dim-interno:docs/plans/panorama-viewstate-design.md for the concrete design. This is
 // the FOUNDATION module (P1a): the pure type + its constructors/converters. The
 // URL boundary lives in `view-state-url.ts`; the capability gate (`capabilitiesFor`)
 // arrives in P2. Nothing in the React console reads this yet — P1b wires it.

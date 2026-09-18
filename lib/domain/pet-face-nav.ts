@@ -1,5 +1,5 @@
 // Pure nav mapper for the pet profile's two-face redesign (Credencial | Libreta).
-// Spec: docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md
+// Spec: dim-interno:docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md
 //
 // Resolves the incoming `?tab=` / `?lente=` URL state into { face, lens }.
 //

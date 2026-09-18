@@ -6,7 +6,7 @@
 
 > Status: **adopted** · Applies to: all backend logic (server actions, business rules, persistence)
 > Companion docs: [`AGENTS.md`](../../AGENTS.md) (domain model & event-sourcing principles), [`CONTRIBUTING.md`](../../CONTRIBUTING.md)
-> Related diagrams: `docs/presentation/2026-09-oficiales/04-espina-eventos-y-caches.md` (the event-spine + cache diagram this pattern backs) and `docs/architecture/README.md` (the full doc map).
+> Related diagrams: `dim-interno:docs/presentation/2026-09-oficiales/04-espina-eventos-y-caches.md` (the event-spine + cache diagram this pattern backs) and `docs/architecture/README.md` (the full doc map).
 
 ---
 

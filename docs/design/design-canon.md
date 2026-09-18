@@ -6,8 +6,8 @@
 > rounds; each one is a bug we actually shipped and had to walk back. Use this as
 > the checklist for new screens and as the rubric for reviews.
 >
-> Companion audit of the current screens: `docs/reviews/2026-07-12-design-canon-audit.md`.
-> Provenance of each invariant: `docs/plans/panorama-campaign-2026-07-12.md` §"The design canon".
+> Companion audit of the current screens: `dim-interno:docs/reviews/2026-07-12-design-canon-audit.md`.
+> Provenance of each invariant: `dim-interno:docs/plans/panorama-campaign-2026-07-12.md` §"The design canon".
 
 ## How to use this
 
@@ -20,7 +20,7 @@
   change, a disabled state, a default view — fixable in the screen itself.
   A few are **structural** (C8 derive-don't-store, C9 one-shared-primitive): don't
   patch them inline, route them to the shared-primitive work
-  (`docs/plans/jurisdiction-scope-primitive.md`, viz-suite #33).
+  (`dim-interno:docs/plans/jurisdiction-scope-primitive.md`, viz-suite #33).
 
 ---
 

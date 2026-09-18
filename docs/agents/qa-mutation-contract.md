@@ -24,5 +24,5 @@ left pets alive-and-dead for two days; untagged rows cost hours of forensics).
    another session, append an `## Addendum — <who> <when>` section; never
    rewrite others' findings.
 8. **Report with branch + short SHA + the commands you ran** (see
-   `docs/design/handoffs/README.md`). Claims without reproduction commands
+   `dim-interno:docs/design/handoffs/README.md`). Claims without reproduction commands
    are discarded.

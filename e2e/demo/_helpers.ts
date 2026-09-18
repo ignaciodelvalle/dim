@@ -54,7 +54,7 @@ export const ACCOUNTS = {
 
 // Real animal photos shipped in the repo, reused for live upload flows.
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const PHOTO_DIR = path.resolve(here, "../../docs/archive/Fotos");
+export const PHOTO_DIR = path.resolve(here, "../../scripts/assets/pet-photos");
 export const DEMO_PHOTOS = ["bolt.jpg", "courage.jpg", "hachi.jpg"].map((f) =>
   path.join(PHOTO_DIR, f),
 );

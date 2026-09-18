@@ -1,7 +1,7 @@
 // GET /gob/senasa/export — SENASA / LSUCyF batch download for an authorized
 // government operator.
 //
-// This is design D5 of docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md,
+// This is design D5 of dim-interno:docs/design/sdd/2026-07-07-senasa-lsucyf-batch-export.md,
 // deliberately held out of that cycle and wired on 2026-09-11. Until today the
 // whole pipeline had ZERO callers: the transform, the formatter registry and the
 // keyset-paged query existed and nothing could reach them.

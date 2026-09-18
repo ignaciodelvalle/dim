@@ -24,10 +24,10 @@
 // cuentas de prueba" toggle. No real operator handle carries `-gen-` today.
 //
 // `+cursor-` added 2026-08-01. The QA team's staging load runs as
-// ignaciodelvalle2014+cursor-ownerN@gmail.com (scripts/bulk-cursor-pets-staging.mjs),
+// qa-maintainer+cursor-ownerN@example.com (scripts/bulk-cursor-pets-staging.mjs),
 // and those accounts also carry the signup trigger's provisional display_name —
 // the email local part. None of the three patterns above matched them, so the
-// roster a funcionario is about to be shown listed "ignaciodelvalle2014+cursor-owner2"
+// roster a funcionario is about to be shown listed "qa-maintainer+cursor-owner2"
 // as a person's name in a national registry. Both identifiers hit this pattern:
 // the email directly, and the display name because it IS the local part.
 //

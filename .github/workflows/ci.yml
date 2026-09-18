@@ -303,7 +303,7 @@ jobs:
         # (engram #621/#622). Post-mutation UI truth comes from full document
         # navigation or optimistic local state — never router.refresh().
         # See scripts/check-router-refresh.ts and
-        # docs/design/handoffs/2026-07-04-router-refresh-tiers.md.
+        # dim-interno:docs/design/handoffs/2026-07-04-router-refresh-tiers.md.
         run: pnpm lint:nav
 
       - name: Lint (scheduled-fence refs)
@@ -878,7 +878,7 @@ jobs:
       # by looking for a literal `pnpm lint:<name>` token in this file.
       # The offline half of the drift is still open and is WIDER than it looks:
       # measured 2026-07-27, `verify` runs 43 lints and this workflow runs 14.
-      # See docs/plans/ola1-spec-conflicts.md §SC-1.
+      # See dim-interno:docs/plans/ola1-spec-conflicts.md §SC-1.
       # ---------------------------------------------------------------------
 
       #

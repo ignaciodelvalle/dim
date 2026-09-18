@@ -98,7 +98,8 @@ const canon: Canon = loadCanon(REPO_ROOT);
 //
 // 7 -> 8 on 2026-09-18: `__tests__/gob-synthetic-exclusion-fence.test.ts`
 // (pilot item T1-P1). Its rule - no seed-tagged row reaches a govt or national
-// reader of /gob - is written in docs/handoff/rumbo-al-piloto.md (decision D3),
+// reader of /gob - is written in the pilot plan (decision D3; private companion
+// repo, dim-interno: docs/handoff/rumbo-al-piloto.md),
 // which the d7dbf25f7 snapshot does not harvest, so it joins the list for the
 // same mechanical reason as the clock fence above.
 const UNMAPPED_COUNT = 8;

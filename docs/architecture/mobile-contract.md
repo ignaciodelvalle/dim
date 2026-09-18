@@ -95,7 +95,7 @@ lock on the same door, not the setting's replacement — it closes the shapes a
 project WITH confirmations on can still produce (an admin-created account, an
 identity imported from a provider that did not verify the address). The setting
 is currently **OFF by deliberate decision** on the remote projects
-(`docs/design/handoffs/2026-07-07-deploy-checklist.md` §3, task #65: two-step
+(`dim-interno:docs/design/handoffs/2026-07-07-deploy-checklist.md` §3, task #65: two-step
 onboarding assumes a live session after step 1), so the day that decision is
 revisited is the day this guard starts carrying weight. Nobody on this change
 verified the live staging or production setting.
@@ -329,7 +329,7 @@ declarations that need paragraphs of explanation. Three things it handles:
   and cannot be changed afterwards are the `EXPO_PUBLIC_*` values, inlined by
   babel at bundle time; a build made with `EXPO_PUBLIC_SUPABASE_*` empty ships an
   app that cannot sign in, which is exactly what happened to Play build 5
-  (`docs/agents/open-work.md`).
+  (`dim-interno:docs/agents/open-work.md`).
 - **OTA updates, fenced to hotfixes** by PO decision
   (`docs/mobile/ota-policy.md`). The mechanism that makes the policy enforceable
   rather than aspirational is `runtimeVersion: { policy: "fingerprint" }`: an
