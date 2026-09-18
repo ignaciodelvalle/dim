@@ -9,12 +9,31 @@
 //   - afterAll deletes them with app.allow_audit_mutation GUC
 //   - Each test calls the inner *ForAuthority writer directly (no Next.js runtime)
 
-import { AuthError, createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The access-link mail goes out through Resend (security review, T1-P3). The
+// provider is replaced by a recorder so the tests assert the REQUEST — who it
+// went to and which link it carried — and can make the provider refuse.
+const mail = vi.hoisted(() => ({
+  sent: [] as Array<{ to: string; subject: string; html: string }>,
+  refuse: false,
+}));
+vi.mock("resend", () => ({
+  Resend: class {
+    emails = {
+      send: async (m: { to: string; subject: string; html: string }) => {
+        if (mail.refuse) return { data: null, error: { name: "provider_down", message: "down" } };
+        mail.sent.push(m);
+        return { data: { id: "mail-1" }, error: null };
+      },
+    };
+  },
+}));
 
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { escapeHtml } from "@/lib/utils/escape-html";
 import {
   FIRST_ACCESS_MESSAGES,
   setInitialPassword,
@@ -30,6 +49,7 @@ import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const adminSdk = createClient(SUPABASE_URL, SECRET, {
   auth: { persistSession: false },
 });
@@ -150,12 +170,11 @@ describe("createInstitutionalAccountForAuthority — happy path govt", () => {
     expect(result.magicLink).toBeTypeOf("string");
     expect(result.magicLink.length).toBeGreaterThan(0);
 
-    // Verify auth user was created. Pilot T1-P3: it is born UNCONFIRMED (GoTrue
-    // only mails an invite to an unconfirmed address; following the link
-    // confirms it) and owing a password.
+    // Verify auth user was created. Born CONFIRMED (security review, T1-P3: an
+    // unconfirmed user can be claimed by a public signUp) and owing a password.
     const { data: authUser } = await adminSdk.auth.admin.getUserById(result.profileId);
     expect(authUser.user?.email).toBe(NEW_GOVT_EMAIL);
-    expect(authUser.user?.email_confirmed_at ?? null).toBeNull();
+    expect(authUser.user?.email_confirmed_at ?? null).not.toBeNull();
     expect(authUser.user?.app_metadata?.password_setup_pending).toBe(true);
 
     // Verify profile
@@ -1480,11 +1499,13 @@ describe("assignGovtLocalityForAuthority — unresolvable locality rejected (iss
 // Pilot T1-P3 — the invite mail and the first-access step
 // ============================================================================
 //
-// The account is born without a password. GoTrue mails the invite (spied on
-// the shared admin client so the test asserts the REQUEST, not the SMTP), the
-// fallback magic link lands on /primer-acceso, and the session that link mints
-// must choose a password — with the app's password rules — before the flag
-// that pins it to that step is cleared.
+// The account is born without a password and CONFIRMED. The app mails ONE
+// first-access link (Resend, recorded by the mock at the top of this file) and
+// hands the same link to the admin panel; it lands on /primer-acceso, and the
+// session it mints must choose a password — with the app's password rules —
+// before the flag that pins it to that step is cleared. A public signUp with
+// the operator's address, attempted before the invitee opens the mail, must
+// get nothing (security review, item 1).
 
 const SITE = "http://127.0.0.1:3000";
 const FIRST_ACCESS_URL = `${SITE}/primer-acceso`;
@@ -1515,15 +1536,19 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
   beforeAll(() => {
     createdNewUserEmails.push(INVITE_EMAIL);
   });
+  beforeEach(() => {
+    mail.sent.length = 0;
+    mail.refuse = false;
+  });
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
-  it("asks GoTrue to mail an invite that lands on /primer-acceso, and the link's session must set a password first", async () => {
+  it("mails ONE link that lands on /primer-acceso, and the link's session must set a password first", async () => {
     await deleteTestUser(INVITE_EMAIL);
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
-    const invite = vi.spyOn(createAdminClient().auth.admin, "inviteUserByEmail");
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
 
     const result = await createInstitutionalAccountForAuthority(actorUserId, {
       role: "govt",
@@ -1533,10 +1558,13 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
     });
     if ("error" in result) throw new Error(result.error);
 
-    // The mail was requested exactly once, for this address, landing on the step.
-    expect(invite).toHaveBeenCalledTimes(1);
-    expect(invite).toHaveBeenCalledWith(INVITE_EMAIL, { redirectTo: FIRST_ACCESS_URL });
+    // One mail, to this address, carrying the SAME link the panel shows — a
+    // second link would have voided the first in GoTrue's one-time slot.
     expect(result.inviteEmailSent).toBe(true);
+    expect(mail.sent).toHaveLength(1);
+    expect(mail.sent[0].to).toBe(INVITE_EMAIL);
+    expect(result.magicLink.length).toBeGreaterThan(0);
+    expect(mail.sent[0].html).toContain(escapeHtml(result.magicLink));
 
     // The account owes a password and cannot enter with one yet.
     const { data: born } = await adminSdk.auth.admin.getUserById(result.profileId);
@@ -1583,15 +1611,73 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
     ).toEqual({ error: FIRST_ACCESS_MESSAGES.not_pending });
   });
 
-  it("still returns the copy-by-hand link, flagged as not mailed, when the invite mail fails", async () => {
+  // Security review item 1. With signup open and autoconfirm on, GoTrue's
+  // signup handed the address of an UNCONFIRMED user sets the caller's password
+  // on it. The account is now born confirmed, so the same request gets nothing.
+  it("refuses a public signUp with the operator's address before the invitee opens the mail", async () => {
     await deleteTestUser(INVITE_EMAIL);
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
-    vi.spyOn(createAdminClient().auth.admin, "inviteUserByEmail").mockResolvedValue({
-      data: { user: null },
-      error: new AuthError("smtp down", 500),
-    } as Awaited<
-      ReturnType<ReturnType<typeof createAdminClient>["auth"]["admin"]["inviteUserByEmail"]>
-    >);
+    const ATTACKER_PASSWORD = "Atacante_2026!x";
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      // govt, not admin: an extra ACTIVE admin would perturb the last-admin
+      // race tests earlier in this file if this one ever fails before cleanup.
+      role: "govt",
+      email: INVITE_EMAIL,
+      displayName: "Invitado T1P3",
+      initialLocalities: [],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    const signup = await anon.auth.signUp({ email: INVITE_EMAIL, password: ATTACKER_PASSWORD });
+    expect(signup.data.session).toBeNull();
+
+    // The attacker's password was not set on the account...
+    const signIn = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: INVITE_EMAIL, password: ATTACKER_PASSWORD });
+    expect(signIn.error).not.toBeNull();
+    expect(signIn.data.session).toBeNull();
+
+    // ...the account still owes its first password, and it is still ONE account.
+    const { data: after } = await adminSdk.auth.admin.getUserById(result.profileId);
+    expect(after.user?.app_metadata?.password_setup_pending).toBe(true);
+    const { data: list } = await adminSdk.auth.admin.listUsers({ perPage: 200 });
+    expect(list.users.filter((u) => u.email === INVITE_EMAIL)).toHaveLength(1);
+  }, 30_000);
+
+  it("does not send, and logs no link, when the mail provider is not configured", async () => {
+    await deleteTestUser(INVITE_EMAIL);
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
+    vi.stubEnv("RESEND_API_KEY", "");
+    const logged = [
+      vi.spyOn(console, "log"),
+      vi.spyOn(console, "warn"),
+      vi.spyOn(console, "error"),
+    ];
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "national",
+      email: INVITE_EMAIL,
+      displayName: "Invitado T1P3",
+      initialLocalities: [],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    expect(result.inviteEmailSent).toBe(false);
+    expect(mail.sent).toHaveLength(0);
+    expect(result.magicLink.length).toBeGreaterThan(0);
+    for (const spy of logged) {
+      expect(JSON.stringify(spy.mock.calls)).not.toContain(result.magicLink);
+    }
+  });
+
+  it("still returns the copy-by-hand link, flagged as not mailed, when the provider refuses the mail", async () => {
+    await deleteTestUser(INVITE_EMAIL);
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    mail.refuse = true;
 
     const result = await createInstitutionalAccountForAuthority(actorUserId, {
       role: "govt",
