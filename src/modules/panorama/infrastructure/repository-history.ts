@@ -34,6 +34,9 @@ import { findDisease } from "@/lib/reference/diseases";
 
 import { type ChoroplethMetric, metricPredicate } from "./repository-choropleth";
 import {
+  biteIncidentLocalitySql,
+  biteIncidentProvinceSql,
+  biteIncidentScope,
   isDecomisoCase,
   jurisdictionColumnsScope,
   mordedurasEventPredicate,
@@ -288,13 +291,14 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         break;
       }
       case "mordeduras": {
-        const scope = petsScope(actor, jurisdictions);
+        const scope = biteIncidentScope(actor, jurisdictions);
         const conditions: SQL[] = [
           mordedurasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          sql`${pets.jurisdictionProvince} = ${province}`,
-          unitLocalityFilter(sql`${pets.jurisdictionLocality}`),
+          // Where the bite OCCURRED — the same unit the map counts it in.
+          sql`${biteIncidentProvinceSql()} = ${province}`,
+          unitLocalityFilter(biteIncidentLocalitySql()),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const [row] = await db
@@ -507,6 +511,14 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       return filters;
     }
 
+    // A bite belongs to the unit where it OCCURRED (biteIncidentProvinceSql,
+    // repository-scope.ts) — the same attribution the map layer counts with.
+    function biteUnitFilter(): SQL[] {
+      const filters: SQL[] = [sql`${biteIncidentProvinceSql()} = ${province}`];
+      if (locality) filters.push(unitLocalityFilter(biteIncidentLocalitySql()));
+      return filters;
+    }
+
     switch (layer) {
       case "perdidas": {
         // pets-JOIN attribution (payload carries no jurisdiction); synthetic
@@ -538,12 +550,12 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "mordeduras": {
-        const scope = petsScope(actor, jurisdictions);
+        const scope = biteIncidentScope(actor, jurisdictions);
         const conditions: SQL[] = [
           mordedurasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          ...petsJurisdictionFilter(),
+          ...biteUnitFilter(),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const rows = await db
@@ -806,6 +818,14 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       return filters;
     }
 
+    // A bite belongs to the unit where it OCCURRED (biteIncidentProvinceSql,
+    // repository-scope.ts) — the same attribution the map layer counts with.
+    function biteUnitFilter(): SQL[] {
+      const filters: SQL[] = [sql`${biteIncidentProvinceSql()} = ${province}`];
+      if (locality) filters.push(unitLocalityFilter(biteIncidentLocalitySql()));
+      return filters;
+    }
+
     let rows: Array<{ day: string; n: number }> = [];
 
     switch (layer) {
@@ -829,12 +849,12 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "mordeduras": {
-        const scope = petsScope(actor, jurisdictions);
+        const scope = biteIncidentScope(actor, jurisdictions);
         const conditions: SQL[] = [
           mordedurasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          ...petsJurisdictionFilter(),
+          ...biteUnitFilter(),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         rows = await db
@@ -1040,6 +1060,14 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       return filters;
     }
 
+    // A bite belongs to the unit where it OCCURRED (biteIncidentProvinceSql,
+    // repository-scope.ts) — the same attribution the map layer counts with.
+    function biteUnitFilter(): SQL[] {
+      const filters: SQL[] = [sql`${biteIncidentProvinceSql()} = ${province}`];
+      if (locality) filters.push(unitLocalityFilter(biteIncidentLocalitySql()));
+      return filters;
+    }
+
     // Fold grouped {type,n} rows into a Record, coalescing NULL keys (matches the
     // `?? fallback` the queryEvents mapping applies). Empty rows → empty object,
     // preserving the prior "no events → {}" behavior.
@@ -1086,13 +1114,13 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
 
       case "mordeduras": {
-        const scope = petsScope(actor, jurisdictions);
+        const scope = biteIncidentScope(actor, jurisdictions);
         const typeExpr = sql<string | null>`(${petEvents.payload}->>'incident_type')`;
         const conditions: SQL[] = [
           mordedurasEventPredicate(),
           gte(petEvents.occurredAt, since),
           lte(petEvents.occurredAt, until),
-          ...petsJurisdictionFilter(),
+          ...biteUnitFilter(),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const rows = await db

@@ -8,7 +8,7 @@
 
 import { type SQL, and, sql } from "drizzle-orm";
 
-import { cases, organizations, petEvents, welfareReports } from "@/db";
+import { cases, organizations, petEvents, pets, welfareReports } from "@/db";
 import { hasNationalReadScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   type DashboardActor,
@@ -199,8 +199,8 @@ function jurisdictionColumnsOnly(
     }
     return sql`${provinceCol} = ${adminProvince}`;
   }
-  // synthetic: covered — jurisdictionColumnsScope wraps this with withoutSyntheticRows.
   return (
+    // synthetic: covered — jurisdictionColumnsScope and biteIncidentScope wrap this with withoutSyntheticRows.
     jurisdictionPairClause(jurisdictions, sql`${provinceCol}`, sql`${localityCol}`) ?? sql`false`
   );
 }
@@ -260,11 +260,66 @@ export function perdidasKindExpr(): SQL<string> {
 }
 
 // Bite incidents — the incident_type discriminator IS real (event-schemas.ts
-// incidentReported); only the geography attribution needed fixing (the demo
-// keyed on flat payload province/locality the schema never writes). Attribution
-// is via the JOIN to pets, same as perdidas.
+// incidentReported). Geography: see biteIncidentProvinceSql below — a bite is
+// attributed to where it OCCURRED, not to the biting animal's home.
 export function mordedurasEventPredicate(): SQL {
   return sql`(${petEvents.eventType} = 'incident_reported' AND (${petEvents.payload}->>'incident_type') IN ('bite_inflicted', 'bite_suffered'))`;
+}
+
+// ---------------------------------------------------------------------------
+// Bite geography — A BITE COUNTS WHERE IT OCCURRED (PO 2026-09-08; localidad
+// plan L2·3, pilot item T1-G2).
+//
+// Both bite writers (report-bite.ts, report-bite-from-org.ts) stamp the
+// incident's own place into the `incident_reported` payload as
+// `jurisdiction_province` / `jurisdiction_locality` (event-schemas.ts), and open
+// the bite case there, falling back to the pet's home jurisdiction FIELD BY
+// FIELD (`input.eventJurisdictionProvince ?? pet.jurisdictionProvince`, and the
+// same for the locality) when the reporter dropped no pin. These expressions
+// are the SQL spelling of exactly that fallback — COALESCE is `??` — so the map
+// and the case queue agree about where a bite happened. A CABA dog that bites
+// in Córdoba is Córdoba's bite, in the case AND on the map.
+//
+// Used by loadBiteEvents and loadMordedurassByUnit; `pets` must be in FROM (the
+// fallback half, and the synthetic-row exclusion, read it).
+// ---------------------------------------------------------------------------
+
+export function biteIncidentProvinceSql(): SQL<string | null> {
+  return sql<
+    string | null
+  >`COALESCE((${petEvents.payload}->>'jurisdiction_province'), ${pets.jurisdictionProvince})`;
+}
+
+export function biteIncidentLocalitySql(): SQL<string | null> {
+  return sql<
+    string | null
+  >`COALESCE((${petEvents.payload}->>'jurisdiction_locality'), ${pets.jurisdictionLocality})`;
+}
+
+/**
+ * The viewer scope for a bite query, over the incident's place (above) rather
+ * than the pet's home. Same contract as jurisdictionColumnsScope (admin
+ * universal / admin drill / govt pairs / govt without assignments → false),
+ * plus the synthetic-row exclusion on the biting pet (T1-P1).
+ */
+export function biteIncidentScope(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
+  return withoutSyntheticRows(
+    actor.role,
+    "pets",
+    jurisdictionColumnsOnly(
+      actor,
+      jurisdictions,
+      biteIncidentProvinceSql(),
+      biteIncidentLocalitySql(),
+      adminProvince,
+      adminLocality,
+    ),
+  );
 }
 
 /** Internal raw rollup row before suppression. */

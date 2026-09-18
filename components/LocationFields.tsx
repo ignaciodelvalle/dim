@@ -17,8 +17,11 @@
 //                         hasn't picked anything).
 //   provinceName        — display name. Companion to provinceCode.
 //   localityName        — canonical when picked, raw query otherwise.
-//   localityNameIndecId — INDEC id from ar_localities; empty when L2 (no
-//                         INDEC match path) or when L1 user typed free text.
+//   localityNameIndecId — INDEC id from ar_localities; empty when L2 (the
+//                         pin / geocoder yields a NAME, never an id — a
+//                         writer normalising with locality "soft" resolves
+//                         the id server-side, e.g. the bite writers) or when
+//                         L1 user typed free text.
 //   locationLat         — decimal latitude (L2 only).
 //   locationLng         — decimal longitude (L2 only).
 //   locationAddress     — address text (L2 only). MarkLost can override
@@ -117,8 +120,12 @@ export function LocationFields({
    * gates the locality autocomplete, which stays disabled until a province is
    * picked and then searches scoped to that province_code. Changing the province
    * clears the locality selection. Mirrors the JurisdictionFilter pattern.
-   * Reusable capability — wired ON for the pet alta forms; other L1 surfaces
-   * keep the single cross-province input (cascade=false). No effect on L2. */
+   * Reusable capability, OPT-IN per call site: it is on wherever a caller
+   * passes `cascade` — the pet alta forms, and also the move, vet-visit,
+   * check-in, clinical-info, vet-upgrade, org-create and consultorio forms
+   * (grep the call sites rather than trusting this list). Every other L1
+   * surface keeps the single cross-province input (cascade=false). No effect
+   * on L2. */
   cascade?: boolean;
   // Override the wire-format name for the L2 address / lat / lng hidden
   // inputs. Retained for flexibility; no current consumer overrides these

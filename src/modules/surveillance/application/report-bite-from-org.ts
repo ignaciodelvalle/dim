@@ -70,6 +70,15 @@ export type ReportBiteFromOrgInput = {
   vetInvolved: boolean;
   eventJurisdictionProvince: string | null;
   eventJurisdictionLocality: string | null;
+  /**
+   * ar_localities id of the incident locality when it resolved against the
+   * catalog (the web writers normalise with locality "soft"). Stamped on the
+   * bite case as its structural locality attribution (cases.locality_id,
+   * migration 0147) — only when the case routes to the INCIDENT locality; a
+   * case that falls back to the pet's home gets no id from here. Optional so
+   * a caller that resolves no id (the v1 events route) is unchanged.
+   */
+  eventLocalityId?: string | null;
   noRedirect: boolean;
   orgToken: string;
   clientIdempotencyKey: string | null;
@@ -99,6 +108,7 @@ type Deps = {
       primaryPetId: string;
       jurisdictionProvince: string | null;
       jurisdictionLocality: string | null;
+      localityId?: string | null;
       openedByUserId: string;
       openedByOrganizationId: string;
       openedReason: OpenedReason;
@@ -251,6 +261,10 @@ export async function reportBiteFromOrg(
           primaryPetId: pet.id,
           jurisdictionProvince: caseProvince,
           jurisdictionLocality: caseLocality,
+          // The id names the INCIDENT locality, so it travels only when the
+          // case routes there (no field-by-field fallback to the pet's home).
+          localityId:
+            input.eventJurisdictionLocality !== null ? (input.eventLocalityId ?? null) : null,
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
           openedReason: {

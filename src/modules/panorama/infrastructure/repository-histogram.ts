@@ -20,6 +20,8 @@ import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 
 import {
+  biteIncidentProvinceSql,
+  biteIncidentScope,
   eventWindowCol,
   jurisdictionColumnsScope,
   mordedurasEventPredicate,
@@ -178,12 +180,19 @@ export async function loadScopeDailyCounts(params: {
   switch (layer) {
     case "perdidas":
     case "mordeduras": {
-      const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+      // A bite counts where it OCCURRED (biteIncidentScope, repository-scope.ts);
+      // a lost pet still attributes to its home, as the perdidas map does.
+      const isBite = layer === "mordeduras";
+      const scope = isBite
+        ? biteIncidentScope(actor, jurisdictions, adminProvince, adminLocality)
+        : petsScope(actor, jurisdictions, adminProvince, adminLocality);
       const conditions: SQL[] = [
-        layer === "perdidas" ? perdidasEventPredicate() : mordedurasEventPredicate(),
+        isBite ? mordedurasEventPredicate() : perdidasEventPredicate(),
         gte(tcol, since),
         lte(tcol, until),
-        isNotNull(pets.jurisdictionProvince),
+        isBite
+          ? sql`${biteIncidentProvinceSql()} IS NOT NULL`
+          : isNotNull(pets.jurisdictionProvince),
       ];
       if (scope) conditions.push(sql`(${scope})`);
       rows = await db

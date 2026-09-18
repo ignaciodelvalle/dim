@@ -50,6 +50,15 @@ export type ReportBiteInput = {
   clientIdempotencyKey: string | null;
   eventJurisdictionProvince: string | null;
   eventJurisdictionLocality: string | null;
+  /**
+   * ar_localities id of the incident locality when it resolved against the
+   * catalog (the web writers normalise with locality "soft"). Stamped on the
+   * bite case as its structural locality attribution (cases.locality_id,
+   * migration 0147) — only when the case routes to the INCIDENT locality; a
+   * case that falls back to the pet's home gets no id from here. Optional so
+   * a caller that resolves no id (the v1 events route) is unchanged.
+   */
+  eventLocalityId?: string | null;
   // panorama-event-points Slice 2: the incident coordinate (optional) captured by
   // the bite form's map pin, persisted COLUMNAR on the event so the mordeduras
   // near-zoom dot loader (loadBiteEvents) can plot it. Null when the reporter
@@ -77,6 +86,7 @@ type Deps = {
       primaryPetId: string;
       jurisdictionProvince: string | null;
       jurisdictionLocality: string | null;
+      localityId?: string | null;
       openedByUserId: string;
       openedReason: OpenedReason;
     },
@@ -183,6 +193,10 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
           primaryPetId: pet.id,
           jurisdictionProvince: caseProvince,
           jurisdictionLocality: caseLocality,
+          // The id names the INCIDENT locality, so it travels only when the
+          // case routes there (no field-by-field fallback to the pet's home).
+          localityId:
+            input.eventJurisdictionLocality !== null ? (input.eventLocalityId ?? null) : null,
           openedByUserId: user.id,
           openedReason: {
             code: "bite_reported_owner",

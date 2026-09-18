@@ -253,10 +253,15 @@ export async function reportBiteAction(
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  // locality:"none" — canonicalize province only (bite report behavior unchanged).
+  // locality:"soft" (localidad plan L2·1, PO 2026-09-08). The locality is
+  // resolved against the INDEC catalog: a match stores the canonical name AND
+  // its ar_localities id (carried onto the bite case below, even when the
+  // capture came from the map pin, which has a name but no id); a miss keeps
+  // the raw text and still saves. NEVER "strict" — a bite report must not be
+  // blocked by how a geocoder spells a place.
   let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
   try {
-    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "soft" });
   } catch (err) {
     if (err instanceof CoordError) {
       return { error: err.message };
@@ -288,6 +293,7 @@ export async function reportBiteAction(
       clientIdempotencyKey,
       eventJurisdictionProvince,
       eventJurisdictionLocality,
+      eventLocalityId: normalizedLoc.localityId,
       // panorama-event-points Slice 2: the map-pin coordinate (may be null).
       locationLat: normalizedLoc.lat,
       locationLng: normalizedLoc.lng,
@@ -425,10 +431,15 @@ export async function reportBiteFromOrgAction(
   const vetInvolved = checkboxOn(formData, "vetInvolved");
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
   const loc = parseLocationFromFormData(formData);
-  // locality:"none" — canonicalize province only (org bite report behavior unchanged).
+  // locality:"soft" (localidad plan L2·1, PO 2026-09-08). The locality is
+  // resolved against the INDEC catalog: a match stores the canonical name AND
+  // its ar_localities id (carried onto the bite case below, even when the
+  // capture came from the map pin, which has a name but no id); a miss keeps
+  // the raw text and still saves. NEVER "strict" — a bite report must not be
+  // blocked by how a geocoder spells a place.
   let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
   try {
-    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "soft" });
   } catch (err) {
     if (err instanceof CoordError) {
       return { error: err.message };
@@ -470,6 +481,7 @@ export async function reportBiteFromOrgAction(
       clientIdempotencyKey,
       eventJurisdictionProvince,
       eventJurisdictionLocality,
+      eventLocalityId: normalizedLoc.localityId,
       // panorama-event-points Slice 2: the map-pin coordinate (may be null).
       locationLat: normalizedLoc.lat,
       locationLng: normalizedLoc.lng,

@@ -419,6 +419,27 @@ describe("reportBiteFromOrg — incident jurisdiction overrides pet home jurisdi
       "fake-tx",
     );
   });
+
+  // T1-G2 (localidad plan L2·1): the resolved incident locality id rides onto
+  // the case — only when the case routes to the incident locality.
+  it("stamps the resolved incident locality id on the case, and none on a home fallback", async () => {
+    const LOCALITY_ID = "b0000000-0000-4000-8000-0000000000c2";
+    const deps = makeDeps();
+    await reportBiteFromOrg({ ...INCIDENT_ELSEWHERE_INPUT, eventLocalityId: LOCALITY_ID }, deps);
+    expect(deps.openCase).toHaveBeenLastCalledWith(
+      expect.objectContaining({ jurisdictionLocality: "Río Cuarto", localityId: LOCALITY_ID }),
+      "fake-tx",
+    );
+    const fallback = makeDeps();
+    await reportBiteFromOrg(
+      { ...BASE_INPUT, eventJurisdictionProvince: "CABA", eventLocalityId: LOCALITY_ID },
+      fallback,
+    );
+    expect(fallback.openCase).toHaveBeenLastCalledWith(
+      expect.objectContaining({ jurisdictionLocality: "Palermo", localityId: null }),
+      "fake-tx",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
