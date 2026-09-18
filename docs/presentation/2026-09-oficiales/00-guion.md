@@ -424,7 +424,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->70<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1531<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1537<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
