@@ -37,6 +37,14 @@ type NumericFieldConfig = {
   max: number;
 };
 
+type TextFieldConfig = {
+  /** Payload field name — matches the registry's parseFromForm reads. */
+  name: string;
+  label: string;
+  hint: string;
+  maxLength: number;
+};
+
 type Props = {
   mode: "create" | "edit";
   ruleId?: string;
@@ -47,6 +55,8 @@ type Props = {
   ruleType: "rabies_vaccination" | "sterilization";
   helperText: string;
   fields: NumericFieldConfig[];
+  /** Optional free-text payload parameters, rendered after the numeric ones. */
+  textFields?: TextFieldConfig[];
   /** Existing row payload (edit) or the default payload (create). */
   initialPayload: Record<string, unknown>;
   initialNotes: string;
@@ -63,6 +73,7 @@ export function ObligationRuleForm({
   ruleType,
   helperText,
   fields,
+  textFields = [],
   initialPayload,
   initialNotes,
   initialLegalMetadata,
@@ -112,6 +123,25 @@ export function ObligationRuleForm({
                 max={field.max}
                 step={1}
                 defaultValue={typeof initialValue === "number" ? String(initialValue) : ""}
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+        );
+      })}
+
+      {textFields.map((field) => {
+        const initialValue = initialPayload[field.name];
+        return (
+          <LnField key={field.name} label={field.label} hint={field.hint}>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name={field.name}
+                type="text"
+                maxLength={field.maxLength}
+                defaultValue={typeof initialValue === "string" ? initialValue : ""}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -180,6 +210,14 @@ export function RabiesVaccinationForm(props: WrapperProps) {
       fields={[
         { name: "frequency_months", label: "Frecuencia de refuerzo (meses)", min: 1, max: 120 },
         { name: "min_age_months", label: "Edad mínima (meses)", min: 0, max: 60 },
+      ]}
+      textFields={[
+        {
+          name: "frequency_legal_basis",
+          label: "Norma que fija la frecuencia de refuerzo",
+          hint: "Completalo solo si una norma fija ese intervalo. Con norma, la fecha calculada cuenta como vencimiento legal; sin norma, se muestra como refuerzo sugerido.",
+          maxLength: 300,
+        },
       ]}
     />
   );

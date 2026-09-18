@@ -100,6 +100,10 @@ export const mpfExportFormatSchema = z.object({ format: z.enum(MPF_EXPORT_FORMAT
 export const rabiesVaccinationSchema = z
   .object({
     frequency_months: z.number().int().min(1).max(120).optional(),
+    // The norm that fixes the cadence (D5, PO 2026-09-18) — see
+    // RabiesVaccination.frequency_legal_basis. Read only together with
+    // frequency_months: a citation with no cadence to cite changes nothing.
+    frequency_legal_basis: z.string().trim().min(1).max(300).optional(),
     min_age_months: z.number().int().min(0).max(60).optional(),
   })
   .strict();

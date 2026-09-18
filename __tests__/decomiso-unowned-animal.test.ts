@@ -55,20 +55,23 @@ vi.mock("@/lib/infra/auth-guards", async (importOriginal) => {
 
 // One shared upload double, so the byte-typing tests (A07-4) can read what
 // reached the bucket: the object key and the content type it was stored under.
-const { storageUpload } = vi.hoisted(() => ({
-  storageUpload: vi.fn(async (_path: string, _body: unknown, _opts: { contentType: string }) => ({
-    error: null,
-  })),
-}));
+const { storageUpload, storageFrom } = vi.hoisted(() => {
+  const storageUpload = vi.fn(
+    async (_path: string, _body: unknown, _opts: { contentType: string }) => ({
+      error: null,
+    }),
+  );
+  // Records WHICH bucket each upload targets (D10: decomiso-evidence).
+  const storageFrom = vi.fn((_bucket: string) => ({
+    upload: storageUpload,
+    remove: vi.fn(async () => ({ data: null, error: null })),
+  }));
+  return { storageUpload, storageFrom };
+});
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
-    storage: {
-      from: vi.fn(() => ({
-        upload: storageUpload,
-        remove: vi.fn(async () => ({ data: null, error: null })),
-      })),
-    },
+    storage: { from: storageFrom },
   })),
 }));
 
@@ -91,6 +94,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
+import { withholdUnreadableDecomisoEvidence } from "@/lib/infra/decomiso-evidence-access";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { setAuditMutationGucs, withMutationOverride } from "./_helpers/db-overrides";
@@ -114,6 +118,9 @@ let createdPetPublicToken: string;
 let caseId: string;
 let casePublicCode: string;
 let intakeEventId: string;
+
+// Stub profiles the D7 suite creates (no auth.users row, like govtUserId).
+const extraProfileIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
@@ -212,6 +219,10 @@ afterAll(async () => {
     await tx.execute(sql`DELETE FROM organization_memberships WHERE organization_id IN (
       SELECT id FROM organizations WHERE public_token IN (${GOVT_ORG_TOKEN}, ${RECEIVER_ORG_TOKEN})
     )`);
+    for (const id of extraProfileIds) {
+      await tx.execute(sql`DELETE FROM organization_memberships WHERE user_id = ${id}`);
+      await tx.execute(sql`DELETE FROM profiles WHERE id = ${id}`);
+    }
     await tx.execute(
       sql`DELETE FROM organizations WHERE public_token IN (${GOVT_ORG_TOKEN}, ${RECEIVER_ORG_TOKEN})`,
     );
@@ -566,10 +577,9 @@ describe("executeDecomisoAction — unowned_animal validation", () => {
 
 // ---------------------------------------------------------------------------
 // A07-4 — evidence is typed by its BYTES, never by what the client declared.
-// Only raster JPG/PNG/WEBP, up to 5 MiB: bucket `event-attachments`
-// (db/migrations/0213) accepts nothing else, so a PDF acta or an oversized
-// file must be refused server-side before any upload — PDF is a pending PO
-// decision on the bucket, not something the app layer can widen on its own.
+// D10 (PO 2026-09-18): JPG/PNG/WEBP photos and the PDF acta, up to 10 MiB,
+// into the private `decomiso-evidence` bucket (db/migrations/0234). Anything
+// else, or anything larger, is refused server-side before any upload.
 // ---------------------------------------------------------------------------
 
 describe("executeDecomisoAction — attachment types come from the bytes (A07-4)", () => {
@@ -600,41 +610,80 @@ describe("executeDecomisoAction — attachment types come from the bytes (A07-4)
     ]);
 
     expect(result).toEqual({
-      error: 'El archivo "acta.jpg" no es una imagen JPG, PNG o WEBP.',
+      error: 'El archivo "acta.jpg" no es una imagen JPG, PNG o WEBP ni un PDF.',
     });
     // The valid first file was not uploaded either: nothing to clean up.
     expect(storageUpload).not.toHaveBeenCalled();
   });
 
-  it("refuses a PDF acta by its magic bytes, before ANY upload — PDF awaits a PO decision on the bucket", async () => {
+  it("accepts a PDF acta by its magic bytes, whatever it is called, into decomiso-evidence", async () => {
+    storageUpload.mockClear();
+    storageFrom.mockClear();
+
+    await run([
+      new File([JPEG_BYTES], "foto.jpg", { type: "image/jpeg" }),
+      // A PDF that claims to be a JPEG: the bytes decide.
+      new File([PDF_BYTES], "acta.jpg", { type: "image/jpeg" }),
+    ]);
+
+    expect(storageUpload).toHaveBeenCalledTimes(2);
+    const [pdfPath, pdfBody, pdfOpts] = storageUpload.mock.calls[1];
+    expect(pdfPath).toMatch(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.pdf$/);
+    expect(pdfOpts).toEqual({ contentType: "application/pdf" });
+    expect([...(pdfBody as Buffer)]).toEqual([...PDF_BYTES]);
+    // Every Storage call — the two uploads and the cleanup after the refused
+    // tx — went to the new private bucket, none to event-attachments.
+    expect(new Set(storageFrom.mock.calls.map(([bucket]) => bucket))).toEqual(
+      new Set(["decomiso-evidence"]),
+    );
+  });
+
+  it("refuses bytes that only START like a PDF signature, before ANY upload", async () => {
     storageUpload.mockClear();
 
     const result = await run([
       new File([JPEG_BYTES], "foto.jpg", { type: "image/jpeg" }),
-      new File([PDF_BYTES], "acta.pdf", { type: "application/pdf" }),
+      // "%PDF" without the dash.
+      new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x31])], "acta.pdf", {
+        type: "application/pdf",
+      }),
     ]);
 
     expect(result).toEqual({
-      error: 'El archivo "acta.pdf" no es una imagen JPG, PNG o WEBP.',
+      error: 'El archivo "acta.pdf" no es una imagen JPG, PNG o WEBP ni un PDF.',
     });
     expect(storageUpload).not.toHaveBeenCalled();
   });
 
-  it("refuses a file over the 5 MiB bucket ceiling, before ANY upload", async () => {
+  it("refuses a file over the 10 MiB bucket ceiling, before ANY upload", async () => {
     storageUpload.mockClear();
 
-    const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
-    oversized.set(JPEG_BYTES);
+    const oversized = new Uint8Array(10 * 1024 * 1024 + 1);
+    oversized.set(PDF_BYTES);
 
     const result = await run([
       new File([JPEG_BYTES], "foto.jpg", { type: "image/jpeg" }),
-      new File([oversized], "grande.jpg", { type: "image/jpeg" }),
+      new File([oversized], "acta.pdf", { type: "application/pdf" }),
     ]);
 
     expect(result).toEqual({
-      error: '"grande.jpg" supera el límite de 5 MB.',
+      error: 'El archivo "acta.pdf" supera el límite de 10 MB.',
     });
     expect(storageUpload).not.toHaveBeenCalled();
+  });
+
+  it("accepts a file of exactly 10 MiB", async () => {
+    storageUpload.mockClear();
+
+    const edge = new Uint8Array(10 * 1024 * 1024);
+    edge.set(PDF_BYTES);
+
+    await run([
+      new File([JPEG_BYTES], "foto.jpg", { type: "image/jpeg" }),
+      new File([edge], "acta.pdf", { type: "application/pdf" }),
+    ]);
+
+    expect(storageUpload).toHaveBeenCalledTimes(2);
   });
 
   it("stores each file under the DETECTED type, with the extension derived from it", async () => {
@@ -649,9 +698,9 @@ describe("executeDecomisoAction — attachment types come from the bytes (A07-4)
     expect(storageUpload).toHaveBeenCalledTimes(2);
     const [webpPath, , webpOpts] = storageUpload.mock.calls[0];
     const [jpegPath, , jpegOpts] = storageUpload.mock.calls[1];
-    expect(webpPath).toMatch(/^decomiso\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.webp$/);
+    expect(webpPath).toMatch(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.webp$/);
     expect(webpOpts).toEqual({ contentType: "image/webp" });
-    expect(jpegPath).toMatch(/^decomiso\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/);
+    expect(jpegPath).toMatch(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/);
     expect(jpegOpts).toEqual({ contentType: "image/jpeg" });
   });
 
@@ -702,5 +751,69 @@ describe("executeDecomisoAction — unowned_animal jurisdiction", () => {
       .where(eq(pets.id, createdPetId))
       .limit(1);
     expect(pet.jurisdictionProvince).toBe("CABA");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D7 (PO 2026-09-18) — decomiso evidence keeps its metadata, so the pet readers
+// sign it only for a viewer who reads THE DECOMISO: canReadCase (govt in
+// jurisdiction, admin, current titular) or a member of the receiver org.
+// Pet access alone is not enough. Uses the happy-path case above.
+// ---------------------------------------------------------------------------
+
+describe("withholdUnreadableDecomisoEvidence — D7 read rule", () => {
+  async function stubProfile(opts: { receiverMember: boolean }): Promise<string> {
+    const id = randomUUID();
+    await db.insert(profiles).values({
+      id,
+      displayName: "Visitante D7",
+      role: "owner",
+      accountType: "personal",
+    });
+    extraProfileIds.push(id);
+    if (opts.receiverMember) {
+      await db.insert(organizationMemberships).values({
+        userId: id,
+        organizationId: receiverOrgId,
+        role: "coordinator",
+      });
+    }
+    return id;
+  }
+
+  const rows = () => [
+    { eventId: intakeEventId, storagePath: "decomiso/dir/legacy.jpg" },
+    { eventId: intakeEventId, storagePath: "decomiso-evidence/dir/acta.pdf" },
+    { eventId: intakeEventId, storagePath: "pet/vacuna.jpg" },
+    // Evidence whose event carries no case: fails closed for everyone but
+    // is not something this rule can authorize.
+    { eventId: null, storagePath: "decomiso-evidence/dir/orphan.jpg" },
+  ];
+
+  it("the govt officer in jurisdiction reads the evidence", async () => {
+    const visible = await withholdUnreadableDecomisoEvidence(rows(), govtUserId);
+    expect(visible.map((r) => r.storagePath)).toEqual([
+      "decomiso/dir/legacy.jpg",
+      "decomiso-evidence/dir/acta.pdf",
+      "pet/vacuna.jpg",
+    ]);
+  });
+
+  it("a member of the receiver org reads the evidence", async () => {
+    const member = await stubProfile({ receiverMember: true });
+    const visible = await withholdUnreadableDecomisoEvidence(rows(), member);
+    expect(visible.map((r) => r.storagePath)).toEqual([
+      "decomiso/dir/legacy.jpg",
+      "decomiso-evidence/dir/acta.pdf",
+      "pet/vacuna.jpg",
+    ]);
+  });
+
+  it("anyone else — or no viewer — keeps the ordinary attachment and loses the evidence", async () => {
+    const stranger = await stubProfile({ receiverMember: false });
+    for (const viewer of [stranger, null, randomUUID()]) {
+      const visible = await withholdUnreadableDecomisoEvidence(rows(), viewer);
+      expect(visible.map((r) => r.storagePath)).toEqual(["pet/vacuna.jpg"]);
+    }
   });
 });

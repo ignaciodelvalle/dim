@@ -15,6 +15,13 @@
 //     co-owner, once, through the durable service;
 //   · the urgent authority fan-out goes through createNotificationsBulk with a
 //     deterministic dedupe key.
+//
+// And the death door beside it (PO D8, 2026-09-18) —
+// atenderRecordDeathInObservationAction — with the REAL death writer
+// (createDeathRecord) over a faked EventsRepository: same licence gate, the
+// canonical death_recorded, the observation closed by THIS vet through the
+// guarded update, the audit row, the durable urgent authority alert, every
+// owner told, and a double submit that writes once.
 
 import { PgDialect } from "drizzle-orm/pg-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,6 +48,44 @@ const mocks = vi.hoisted(() => ({
     findActiveOwnership: vi.fn(),
     insertObservationCloseAuditLog: vi.fn(),
   },
+}));
+
+// D8 — the death writer's edges.
+const deathMocks = vi.hoisted(() => ({
+  eventsRepo: {
+    insertEventIdempotent: vi.fn(),
+    insertEvent: vi.fn(),
+    insertAttachment: vi.fn(),
+    updateDeceased: vi.fn(),
+    findActiveFosters: vi.fn(),
+    endFoster: vi.fn(),
+    findLatestRabiesObservationStarted: vi.fn(),
+    updateRabiesObservationStatus: vi.fn(),
+    updateStatusProjection: vi.fn(),
+  },
+  findOpenCaseForPetAndKind: vi.fn(),
+  lockPetForDeathRecord: vi.fn(),
+  endSponsorshipForDeceasedPet: vi.fn(),
+  flushNotifications: vi.fn(),
+}));
+
+vi.mock("@/src/modules/events/infrastructure/events-repository", () => ({
+  EventsRepository: class {
+    insertEventIdempotent = deathMocks.eventsRepo.insertEventIdempotent;
+    insertEvent = deathMocks.eventsRepo.insertEvent;
+    insertAttachment = deathMocks.eventsRepo.insertAttachment;
+    updateDeceased = deathMocks.eventsRepo.updateDeceased;
+    findActiveFosters = deathMocks.eventsRepo.findActiveFosters;
+    endFoster = deathMocks.eventsRepo.endFoster;
+    findLatestRabiesObservationStarted = deathMocks.eventsRepo.findLatestRabiesObservationStarted;
+    updateRabiesObservationStatus = deathMocks.eventsRepo.updateRabiesObservationStatus;
+    updateStatusProjection = deathMocks.eventsRepo.updateStatusProjection;
+  },
+}));
+
+vi.mock("@/lib/infra/rehome-death-cascade", () => ({
+  lockPetForDeathRecord: deathMocks.lockPetForDeathRecord,
+  endSponsorshipForDeceasedPet: deathMocks.endSponsorshipForDeceasedPet,
 }));
 
 vi.mock("./atender-access", () => ({
@@ -82,6 +127,7 @@ vi.mock("@/src/modules/surveillance/infrastructure/surveillance-repository", () 
 vi.mock("@/lib/infra/case-helpers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/infra/case-helpers")>()),
   closeCase: mocks.closeCase,
+  findOpenCaseForPetAndKind: deathMocks.findOpenCaseForPetAndKind,
 }));
 
 vi.mock("@/lib/infra/approval-routing", async (importOriginal) => ({
@@ -363,5 +409,235 @@ describe("atenderCloseRabiesObservationAction — the authority fan-out is durab
         `event:${ENDED_EVENT_ID}:${r.userId}:rabies_observation_positive_authority`,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PO D8 (2026-09-18) — the vet records a death DURING the observation
+// ---------------------------------------------------------------------------
+
+describe("atenderRecordDeathInObservationAction — PO D8", () => {
+  const DEATH_EVENT_ID = "b0000000-0000-4000-8000-000000000009";
+  const KEY = "c0000000-0000-4000-8000-000000000001";
+
+  function recordDeath(fields: Record<string, string> = {}) {
+    return actions.atenderRecordDeathInObservationAction(
+      "ORG-1",
+      "DIM-TEST-0001",
+      formData({
+        cause: "sudden",
+        occurredAt: "2026-09-18",
+        confirmIrreversible: "true",
+        clientIdempotencyKey: KEY,
+        ...fields,
+      }),
+    );
+  }
+
+  beforeEach(() => {
+    vi.setSystemTime(BEFORE_DEADLINE);
+    deathMocks.eventsRepo.insertEventIdempotent.mockResolvedValue({
+      event: { id: DEATH_EVENT_ID },
+      wasNoop: false,
+    });
+    deathMocks.eventsRepo.insertEvent.mockResolvedValue({ id: ENDED_EVENT_ID });
+    deathMocks.eventsRepo.updateDeceased.mockResolvedValue(undefined);
+    deathMocks.eventsRepo.findActiveFosters.mockResolvedValue([]);
+    deathMocks.eventsRepo.findLatestRabiesObservationStarted.mockResolvedValue({
+      id: STARTED_EVENT_ID,
+      payload: { bite_event_id: BITE_EVENT_ID, observation_until: DEADLINE_ISO },
+    });
+    deathMocks.findOpenCaseForPetAndKind.mockResolvedValue(null);
+    deathMocks.lockPetForDeathRecord.mockResolvedValue(undefined);
+    deathMocks.endSponsorshipForDeceasedPet.mockResolvedValue(null);
+    deathMocks.flushNotifications.mockResolvedValue(undefined);
+  });
+
+  function expectNoDeathWritten() {
+    expect(deathMocks.eventsRepo.insertEventIdempotent).not.toHaveBeenCalled();
+    expect(mocks.repo.closeObservationIfOpen).not.toHaveBeenCalled();
+    expect(mocks.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+    expect(mocks.createNotification).not.toHaveBeenCalled();
+    expect(mocks.createNotificationsBulk).not.toHaveBeenCalled();
+  }
+
+  it("REFUSES a signer without a validated matrícula — the close's own gate — and writes nothing", async () => {
+    for (const eventAuthorship of [
+      { authorRole: "shelter", authorOrganizationId: "org-1", authorVerified: false },
+      { authorRole: "vet", authorOrganizationId: "org-1", authorVerified: false },
+    ]) {
+      mocks.resolveAtenderPet.mockResolvedValueOnce(makeAccess({ eventAuthorship }));
+      const result = await recordDeath();
+      expect(result.error, eventAuthorship.authorRole).toBe(LICENCE_REFUSAL);
+    }
+    expectNoDeathWritten();
+  });
+
+  it("REFUSES a pet the guard did not resolve (no event.write here, or no code)", async () => {
+    mocks.resolveAtenderPet.mockResolvedValueOnce({ ok: false, error: "No tenés acceso." });
+    const result = await recordDeath();
+    expect(result.error).toBe("No tenés acceso.");
+    expectNoDeathWritten();
+  });
+
+  it("REFUSES outside a running observation, and without the irreversible confirmation", async () => {
+    const base = makeAccess();
+    mocks.resolveAtenderPet.mockResolvedValueOnce({
+      ...base,
+      pet: { ...base.pet, rabiesObservationStatus: "window_expired_unclosed" },
+    });
+    expect((await recordDeath()).error).toContain("no tiene una observación antirrábica en curso");
+
+    expect((await recordDeath({ confirmIrreversible: "" })).error).toBe(
+      "Confirmá que el fallecimiento es definitivo: queda asentado y no se puede deshacer.",
+    );
+    expectNoDeathWritten();
+  });
+
+  it("writes the canonical death, closes the observation as THIS vet, audits it, alerts the authority and every owner", async () => {
+    const result = await recordDeath();
+
+    expect(result).toEqual({
+      error: null,
+      ok: true,
+      redirectTo: "/org/ORG-1/atender/DIM-TEST-0001?firmado=1",
+    });
+
+    // One death_recorded, on the spine, signed by the licensed vet of this clinic.
+    expect(deathMocks.eventsRepo.insertEventIdempotent).toHaveBeenCalledTimes(1);
+    const [death] = deathMocks.eventsRepo.insertEventIdempotent.mock.calls[0];
+    expect(death).toMatchObject({
+      petId: PET_ID,
+      eventType: "death_recorded",
+      recordedByUserId: "vet-user-1",
+      authorRole: "vet",
+      authorOrganizationId: "org-1",
+      authorVerified: true,
+      clientIdempotencyKey: KEY,
+    });
+    expect(death.payload).toMatchObject({
+      cause: "sudden",
+      confirmed_by_vet: true,
+      during_rabies_observation: true,
+    });
+
+    // The observation's end, signed by the vet, pointing at the death.
+    const [ended] = deathMocks.eventsRepo.insertEvent.mock.calls[0];
+    expect(ended).toMatchObject({
+      eventType: "rabies_observation_ended",
+      recordedByUserId: "vet-user-1",
+      authorRole: "vet",
+      authorOrganizationId: "org-1",
+      authorVerified: true,
+      caseId: "case-1",
+    });
+    expect(ended.payload).toMatchObject({
+      outcome: "dead",
+      closed_by_role: "vet",
+      death_event_id: DEATH_EVENT_ID,
+      observation_started_event_id: STARTED_EVENT_ID,
+    });
+
+    // The GUARDED close, not the unguarded projection update.
+    expect(mocks.repo.closeObservationIfOpen).toHaveBeenCalledWith(
+      PET_ID,
+      "completed_dead",
+      expect.any(Date),
+      "fake-tx",
+    );
+    expect(deathMocks.eventsRepo.updateRabiesObservationStatus).not.toHaveBeenCalled();
+    expect(mocks.closeCase).toHaveBeenCalledWith(
+      { caseId: "case-1", reason: "resolved", closedByUserId: "vet-user-1" },
+      "fake-tx",
+    );
+
+    // The accountability row, in the same transaction.
+    expect(mocks.repo.insertObservationCloseAuditLog).toHaveBeenCalledTimes(1);
+    const [audit, auditTx] = mocks.repo.insertObservationCloseAuditLog.mock.calls[0];
+    expect(auditTx).toBe("fake-tx");
+    expect(audit).toMatchObject({
+      action: "rabies_observation_closed_professional",
+      actorUserId: "vet-user-1",
+      payload: { outcome: "dead", closed_by_role: "vet", death_event_id: DEATH_EVENT_ID },
+      after: { rabies_observation_status: "completed_dead" },
+    });
+
+    // The authority: URGENT, durable, keyed on the death.
+    expect(mocks.findAuthoritiesForJurisdiction).toHaveBeenCalledWith(
+      { province: "Buenos Aires", locality: "La Plata" },
+      { route: "rabies_observation_completed_dead_authority" },
+    );
+    const authorityRows = mocks.createNotificationsBulk.mock.calls.flatMap(([rows]) => rows);
+    expect(authorityRows.map((r: { userId: string }) => r.userId)).toEqual([
+      "authority-1",
+      "authority-2",
+    ]);
+    for (const r of authorityRows) {
+      expect(r.notificationType).toBe("rabies_observation_completed_dead_authority");
+      expect(r.severity).toBe("urgent");
+      expect(r.dedupeKey).toBe(
+        `event:${DEATH_EVENT_ID}:${r.userId}:rabies_observation_completed_dead_authority`,
+      );
+    }
+
+    // Every active owner and co-owner, URGENT, the clinic named, keyed on the death.
+    const sent = mocks.createNotification.mock.calls.map((c) => c[0]);
+    expect(sent.map((n) => n.userId)).toEqual(["owner-1", "co-owner-2"]);
+    for (const n of sent) {
+      expect(n.severity).toBe("urgent");
+      expect(n.notificationType).toBe("rabies_observation_completed_professional_owner");
+      expect(n.body).toContain(
+        `Un veterinario matriculado de ${CLINIC} registró el fallecimiento de Pampa`,
+      );
+      expect(n.relatedEventId).toBe(DEATH_EVENT_ID);
+    }
+  });
+
+  it("a double submit (same key) resolves to the first death: no second close, alert or notice", async () => {
+    await recordDeath();
+    vi.clearAllMocks();
+    mocks.resolveAtenderPet.mockResolvedValue(makeAccess());
+    mocks.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
+      cb("fake-tx"),
+    );
+    mocks.repo.findPetByToken.mockResolvedValue({
+      id: PET_ID,
+      publicToken: "DIM-TEST-0001",
+      name: "Pampa",
+      species: "dog",
+      status: "active",
+      rabiesObservationStatus: "in_progress",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "La Plata",
+    });
+    mocks.repo.findOpenBiteCase.mockResolvedValue({ id: "case-1" });
+    deathMocks.findOpenCaseForPetAndKind.mockResolvedValue(null);
+    deathMocks.lockPetForDeathRecord.mockResolvedValue(undefined);
+    deathMocks.flushNotifications.mockResolvedValue(undefined);
+    // The idempotent insert finds the row the first submit wrote.
+    deathMocks.eventsRepo.insertEventIdempotent.mockResolvedValue({
+      event: { id: DEATH_EVENT_ID },
+      wasNoop: true,
+    });
+
+    const replay = await recordDeath();
+
+    expect(replay.redirectTo).toBe("/org/ORG-1/atender/DIM-TEST-0001?firmado=1");
+    expect(deathMocks.eventsRepo.insertEvent).not.toHaveBeenCalled();
+    expect(mocks.repo.closeObservationIfOpen).not.toHaveBeenCalled();
+    expect(mocks.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+    expect(mocks.findAuthoritiesForJurisdiction).not.toHaveBeenCalled();
+    expect(mocks.createNotification).not.toHaveBeenCalled();
+  });
+
+  it("a close that landed in between aborts the death with it — nothing half-recorded, nobody alerted", async () => {
+    mocks.repo.closeObservationIfOpen.mockResolvedValueOnce(false);
+
+    const result = await recordDeath();
+
+    expect(result.error).toContain("otra persona cerró esta observación mientras tanto");
+    expect(mocks.repo.insertObservationCloseAuditLog).not.toHaveBeenCalled();
+    expect(mocks.findAuthoritiesForJurisdiction).not.toHaveBeenCalled();
+    expect(mocks.createNotification).not.toHaveBeenCalled();
   });
 });

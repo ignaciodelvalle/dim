@@ -148,11 +148,17 @@ describe("complianceRuleParams — payload fields the projection computes with",
   it("maps each operational field from its own payload key", () => {
     expect(
       complianceRuleParams(
-        { payload: { frequency_months: 12, min_age_months: 3 } },
+        {
+          payload: {
+            frequency_months: 12,
+            min_age_months: 3,
+            frequency_legal_basis: "  Norma de cadencia  ",
+          },
+        },
         { payload: { min_age_months: 5, mandatory_from_months: 7 } },
       ),
     ).toEqual({
-      rabies: { frequencyMonths: 12, minAgeMonths: 3 },
+      rabies: { frequencyMonths: 12, minAgeMonths: 3, frequencyLegalBasis: "Norma de cadencia" },
       sterilization: { minAgeMonths: 5, mandatoryFromMonths: 7 },
     });
   });
@@ -164,7 +170,7 @@ describe("complianceRuleParams — payload fields the projection computes with",
         { payload: BUSINESS_RULES_DEFAULTS.sterilization },
       ),
     ).toEqual({
-      rabies: { frequencyMonths: null, minAgeMonths: null },
+      rabies: { frequencyMonths: null, minAgeMonths: null, frequencyLegalBasis: null },
       sterilization: { minAgeMonths: null, mandatoryFromMonths: null },
     });
   });

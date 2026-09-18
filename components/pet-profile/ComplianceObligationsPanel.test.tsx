@@ -119,7 +119,7 @@ describe("ComplianceObligationsPanel — tier treatment table", () => {
 // suggestion: the panel prints the projection's own words in a plain badge,
 // never the vaccine stamp's VENCIDA / POR VENCER, and never red.
 describe("ComplianceObligationsPanel — rule-derived rabies date", () => {
-  function ruleInput(frequencyMonths: number): ComplianceInput {
+  function ruleInput(frequencyMonths: number, frequencyLegalBasis?: string): ComplianceInput {
     return {
       now: NOW,
       events: [
@@ -135,7 +135,7 @@ describe("ComplianceObligationsPanel — rule-derived rabies date", () => {
       microchipCode: null,
       pppApplies: false,
       ruleParams: {
-        rabies: { frequencyMonths, minAgeMonths: null },
+        rabies: { frequencyMonths, minAgeMonths: null, frequencyLegalBasis },
         sterilization: { minAgeMonths: null, mandatoryFromMonths: null },
       },
     };
@@ -159,6 +159,20 @@ describe("ComplianceObligationsPanel — rule-derived rabies date", () => {
     expect(html).toContain("Refuerzo sugerido");
     expect(html).not.toContain("VIGENTE");
     expect(html).not.toContain("SIN DATO");
+  });
+
+  // D5 (PO 2026-09-18): the SAME cadence with its norm cited is a deadline —
+  // the vaccine stamp speaks, the suggestion copy is gone, the norm is shown.
+  it("a SOURCED cadence stamps like a dated dose and cites the cadence norm", () => {
+    const lapsed = render(ruleInput(6, "Norma de cadencia"));
+    expect(lapsed).toContain("VENCIDA");
+    expect(lapsed).not.toContain("Refuerzo sugerido");
+    expect(lapsed).toContain("refuerzo cada 6 meses según Norma de cadencia");
+
+    const upcoming = render(ruleInput(12, "Norma de cadencia"));
+    expect(upcoming).toContain("VIGENTE");
+    expect(upcoming).not.toContain("Refuerzo sugerido");
+    expect(upcoming).not.toContain("SIN DATO");
   });
 });
 

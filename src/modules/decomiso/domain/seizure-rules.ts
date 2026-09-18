@@ -37,14 +37,14 @@ export function validateSeizureMotive(
   return null;
 }
 
-/** Validate attachment files (DC5: min 2, max 25 MB each). */
+/** Validate attachment files (DC5: min 2; each within the evidence bucket's 10 MB). */
 export function validateAttachments(files: File[]): string | null {
   if (files.length < 2) {
     return "Mínimo 2 adjuntos requeridos: foto del animal + acta administrativa.";
   }
   for (const file of files) {
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      return `El archivo "${file.name}" supera el límite de 25 MB.`;
+      return `El archivo "${file.name}" supera el límite de ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB.`;
     }
   }
   return null;

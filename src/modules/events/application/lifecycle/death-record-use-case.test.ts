@@ -607,6 +607,73 @@ describe("createDeathRecord", () => {
     // not hide a bug.
     if (!result.ok) expect(result.error).toBe("db error");
   });
+
+  // PO D8 (2026-09-18) — the veterinary closer. The action-edge suite
+  // (atender/actions.rabies-close.test.ts) covers the happy path; these pin the
+  // fail-closed legs the action cannot reach.
+  describe("veterinary closer (D8)", () => {
+    const closer = {
+      role: "vet" as const,
+      userId: "vet-1",
+      organizationId: "org-1",
+      petPublicToken: "DIM-TEST-0001",
+    };
+
+    it("refuses outside an observation: no death, no flush, no alert", async () => {
+      const repo = makeRepo();
+      const flush = vi.fn().mockResolvedValue(undefined);
+      const closeObservationIfOpen = vi.fn().mockResolvedValue(true);
+
+      const result = await createDeathRecord(
+        {
+          ...baseInput,
+          pet: { ...basePet, rabiesObservationStatus: null },
+          observationCloser: closer,
+        },
+        {
+          repo,
+          transaction: makeTransaction(),
+          flushNotifications: flush,
+          closeObservationIfOpen,
+          insertObservationCloseAuditLog: vi.fn(),
+        },
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("no tiene una observación antirrábica en curso");
+      }
+      expect(closeObservationIfOpen).not.toHaveBeenCalled();
+      expect(flush).not.toHaveBeenCalled();
+      expect(mockFindAuthoritiesForJurisdiction).not.toHaveBeenCalled();
+    });
+
+    it("fails closed without the guarded close, instead of falling back to the unguarded update", async () => {
+      const repo = makeRepo({
+        findLatestRabiesObservationStarted: vi
+          .fn()
+          .mockResolvedValue({ id: randomUUID(), payload: { bite_event_id: null } }),
+      });
+
+      const result = await createDeathRecord(
+        {
+          ...baseInput,
+          pet: { ...basePet, rabiesObservationStatus: "in_progress" },
+          observationCloser: closer,
+        },
+        {
+          repo,
+          transaction: makeTransaction(),
+          flushNotifications: vi.fn(),
+          insertObservationCloseAuditLog: vi.fn(),
+        },
+      );
+
+      expect(result.ok).toBe(false);
+      expect(repo.updateRabiesObservationStatus).not.toHaveBeenCalled();
+      expect(mockFindAuthoritiesForJurisdiction).not.toHaveBeenCalled();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

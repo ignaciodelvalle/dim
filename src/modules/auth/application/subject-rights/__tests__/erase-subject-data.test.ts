@@ -225,6 +225,24 @@ describe("eraseMySubjectDataAction", () => {
       expect(params).toContain("owner");
     });
 
+    // Decomiso evidence (new bucket and legacy prefix) is the authority's record
+    // of a seizure: it survives the titular's erasure, and the bucket is
+    // declared a KNOWN GAP (scripts/check-subject-rights-coverage.ts).
+    it("leaves decomiso evidence alone, in both its homes", async () => {
+      mockOwnedRows.push({ petId: OWNED_PET_Y });
+      mockAttachmentRows.push(
+        { id: "att-y-event", storagePath: "events/y-1.jpg", eventId: "evt-1" },
+        { id: "att-y-acta", storagePath: "decomiso-evidence/dir/acta.pdf", eventId: "evt-2" },
+        { id: "att-y-legacy", storagePath: "decomiso/dir/foto.jpg", eventId: "evt-2" },
+      );
+
+      const result = await eraseMySubjectDataAction("borro mi cuenta");
+      expect(result.ok).toBe(true);
+
+      expect(mockStorageRemove).toHaveBeenCalledWith("event-attachments", ["events/y-1.jpg"]);
+      expect(mockStorageRemove).toHaveBeenCalledTimes(1);
+    });
+
     it("removes nothing when the subject owns no pets (only fosters)", async () => {
       // A subject who ONLY fosters resolves to zero owner-role pets → the purge
       // early-returns before touching Storage.

@@ -40,13 +40,14 @@ import { createDeworming } from "@/src/modules/events/application/medical/deworm
 import { createMedicationStart } from "@/src/modules/events/application/medical/medication-start-use-case";
 import { createSterilization } from "@/src/modules/events/application/medical/sterilization-use-case";
 import { createVaccination } from "@/src/modules/events/application/medical/vaccination-use-case";
+import { DEATH_CAUSES, DISPOSITION_METHODS } from "@/src/modules/events/domain/death-rules";
 import { CLINICAL_SUB_KINDS } from "@/src/modules/events/domain/enums";
 import { revalidatePath } from "next/cache";
 
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
-import { closeCase } from "@/lib/infra/case-helpers";
+import { closeCase, findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
 import { professionalCloseObservation } from "@/src/modules/surveillance/application/professional-close-observation";
@@ -956,5 +957,213 @@ export async function atenderCloseRabiesObservationAction(
     eventType: "rabies_observation_ended",
     occurredAt: closedAt,
     ownerNotice: ownerNotice ?? undefined,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// atenderRecordDeathInObservationAction — the vet records a death during a
+// rabies observation, from the clinic
+// ---------------------------------------------------------------------------
+//
+// PO DECISION D8 (2026-09-18). Until now the veterinarian was told to ask the
+// authority or the owner: the web death form sits behind requirePetAccess and
+// the API's appendDeath behind PetHolderAccess, both of which admit only
+// whoever HOLDS the animal, so a walk-in clinic had no door — while it is very
+// often the clinic that has the body in front of it.
+//
+// WHO: exactly who may close the observation here (atenderCloseRabiesObservation
+// Action above) — `resolveAtenderPet` (event.write on THIS organization + the
+// DIM code) and a validated matrícula bound to the SIGNER. The same two checks,
+// in the same order, with the same refusal copy.
+//
+// WHAT: the canonical death, through the SAME writer the owner and the API use
+// (createDeathRecord) — one `death_recorded` on the append-only spine, no new
+// event type — with its veterinary-closer extension: the observation's
+// `rabies_observation_ended` {outcome: dead} signed by this vet, the guarded
+// close (a concurrent close aborts the death with it), the professional close's
+// audit row, the bite case closed, all in ONE transaction. The writer's own
+// post-commit path sends the URGENT death-in-observation alert to the
+// jurisdiction's authorities through the durable service (dedupe key +
+// dead-letter), falling back to the national administrators if the lookup
+// throws — the route every death-in-observation already takes.
+//
+// IRREVERSIBLE, so it is confirmed twice: the form's own confirmation step, and
+// `confirmIrreversible` checked HERE, because a form is a courtesy. A double
+// submit carries the same `clientIdempotencyKey` and resolves to the first
+// death, with no second cascade and no second alert.
+//
+// THE OWNERS are told through the walk-in exit, like every writer here: every
+// active owner and co-owner, the clinic named, URGENT — their animal died while
+// under a legal observation and a clinic without custody recorded it.
+export async function atenderRecordDeathInObservationAction(
+  orgToken: string,
+  publicToken: string,
+  formData: FormData,
+): Promise<EventFormState> {
+  const access = await resolveAtenderPet(orgToken, publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, organizationId, organizationName, eventAuthorship } = access;
+
+  // The licence — the same gate, and the same words, as the close above.
+  if (eventAuthorship.authorRole !== "vet" || !eventAuthorship.authorVerified) {
+    return {
+      error:
+        "El resultado de una observación antirrábica lo registra un profesional con matrícula validada. Si sos veterinario, pedí que se valide tu matrícula desde el perfil de la organización.",
+    };
+  }
+
+  // Only a RUNNING observation. The writer refuses anything else inside its
+  // transaction too; this answers before anything is parsed, with the reason.
+  if (pet.rabiesObservationStatus !== "in_progress") {
+    return {
+      error: `${pet.name} no tiene una observación antirrábica en curso. Si ya terminó sin cierre, cerrala desde “Cerrar observación antirrábica”.`,
+    };
+  }
+
+  if (formData.get("confirmIrreversible") !== "true") {
+    return {
+      error: "Confirmá que el fallecimiento es definitivo: queda asentado y no se puede deshacer.",
+    };
+  }
+
+  const cause = String(formData.get("cause") ?? "").trim();
+  if (!(DEATH_CAUSES as readonly string[]).includes(cause)) {
+    return { error: "Elegí la causa del fallecimiento." };
+  }
+  const causeDetail = String(formData.get("causeDetail") ?? "").trim() || null;
+
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  if (!occurredAtRaw) return { error: "Falta la fecha del fallecimiento." };
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
+
+  const dispositionRaw = String(formData.get("dispositionMethod") ?? "").trim();
+  const dispositionMethod = dispositionRaw === "" ? null : dispositionRaw;
+  if (
+    dispositionMethod !== null &&
+    !(DISPOSITION_METHODS as readonly string[]).includes(dispositionMethod)
+  ) {
+    return { error: "Método de disposición inválido." };
+  }
+  const facility = String(formData.get("facility") ?? "").trim() || null;
+  const deathAtClinic = formData.get("deathAtClinic") === "true";
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  // The animal's jurisdiction routes the authority alert. Read here, by the
+  // token the guard resolved, rather than widened into resolveAtenderPet's
+  // deliberately narrow projection — the same lookup the close above uses.
+  const surveillance = new SurveillanceRepository();
+  const [located, biteCase, custodyEpisodeCase] = await Promise.all([
+    surveillance.findPetByToken(pet.publicToken),
+    surveillance.findOpenBiteCase(pet.id),
+    findOpenCaseForPetAndKind(pet.id, "custody_episode"),
+  ]);
+  if (!located || located.id !== pet.id) return { error: "Mascota no encontrada." };
+
+  // Loaded here, not at module top: the death writer pulls the rehome cascade
+  // (and its schema enums) into every walk-in writer's import graph otherwise.
+  const { createDeathRecord } = await import(
+    "@/src/modules/events/application/lifecycle/death-record-use-case"
+  );
+  const result = await createDeathRecord(
+    {
+      pet: {
+        id: pet.id,
+        name: pet.name,
+        status: pet.status,
+        rabiesObservationStatus: pet.rabiesObservationStatus,
+        jurisdictionProvince: located.jurisdictionProvince ?? null,
+        jurisdictionLocality: located.jurisdictionLocality ?? null,
+      },
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as Authorship,
+      cause,
+      causeDetail,
+      // The death is recorded BY a matriculated vet; the payload says so.
+      confirmedByVet: true,
+      vetName: null,
+      dispositionMethod,
+      facility,
+      occurredAt,
+      notes,
+      deathAtClinic,
+      clinicName: deathAtClinic ? organizationName : null,
+      vetContactedOwner: null,
+      vetDecidedAlone: false,
+      ownerToPrivateCrematorium: false,
+      diseaseCode: null,
+      confirmedByLab: false,
+      isReportable: false,
+      uploadedPath: null,
+      uploadedMimeType: null,
+      uploadedSize: null,
+      clientIdempotencyKey,
+      custodyEpisodeCaseId: custodyEpisodeCase?.id ?? null,
+      biteCaseId: biteCase?.id ?? null,
+      observationCloser: {
+        role: "vet",
+        userId: user.id,
+        organizationId,
+        petPublicToken: pet.publicToken,
+      },
+    },
+    {
+      repo: new EventsRepository(),
+      transaction: makeTransaction(),
+      // Foster / rehome notices the cascades may queue, through the durable
+      // service like every other notice this action sends. Each carries the
+      // death as its related event, which keys it for the retry cron.
+      flushNotifications: async (rows) => {
+        await createNotificationsBulk(
+          rows.map((n) => ({
+            ...n,
+            dedupeKey: `event:${n.relatedEventId ?? pet.id}:${n.userId}:${n.notificationType}`,
+          })),
+        );
+      },
+      closeObservationIfOpen: (petId, status, now, tx) =>
+        surveillance.closeObservationIfOpen(
+          petId,
+          status,
+          now,
+          tx as Parameters<typeof surveillance.closeObservationIfOpen>[3],
+        ),
+      // The action spelled out as a literal, so lint:audit-actions can check it.
+      insertObservationCloseAuditLog: (entry, tx) =>
+        surveillance.insertObservationCloseAuditLog(
+          { ...entry, action: "rabies_observation_closed_professional" },
+          tx as Parameters<typeof surveillance.insertObservationCloseAuditLog>[1],
+        ),
+    },
+  );
+
+  if (!result.ok) {
+    return { error: `No se pudo registrar el fallecimiento: ${result.error}` };
+  }
+
+  revalidatePath(`/org/${orgToken}/atender/${pet.publicToken}`);
+
+  return completeAtenderSignature({
+    orgToken,
+    publicToken: pet.publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName,
+    signerUserId: user.id,
+    // A replayed key inserted nothing: the receipt is still owed, the owners
+    // were already told the first time.
+    eventId: result.insertedEventId,
+    eventType: "death_recorded",
+    occurredAt,
+    ownerNotice: {
+      notificationType: "rabies_observation_completed_professional_owner",
+      severity: "urgent",
+      title: `Fallecimiento durante la observación — ${pet.name}`,
+      body: `Un veterinario matriculado de ${organizationName} registró el fallecimiento de ${pet.name} durante su observación antirrábica. La observación quedó cerrada y se avisó a la autoridad sanitaria, que puede necesitar tomar una muestra. Si no reconocés esta atención, avisá a la autoridad sanitaria de tu localidad.`,
+      relatedCaseId: biteCase?.id ?? null,
+    },
   });
 }

@@ -35,7 +35,7 @@
 //   Pure domain rules:
 //     - motiveLabel — label for all motives
 //     - validateSeizureMotive — otro without/with detail
-//     - validateAttachments — < 2 files, > 25 MB file
+//     - validateAttachments — < 2 files, > 10 MB file (decomiso-evidence, D10)
 //     - validateUnownedAnimal — missing species, invalid species, age too high
 //     - validateReceiverOrg — not found, not verified, wrong type, self
 
@@ -284,10 +284,12 @@ describe("pure domain rules", () => {
       expect(validateAttachments([makeFile()])).not.toBeNull();
       expect(validateAttachments([makeFile(), makeFile()])).toBeNull();
     });
-    it("rejects files over 25 MB", () => {
-      const bigFile = makeFile(26 * 1024 * 1024, "big.jpg");
+    it("rejects files over the 10 MB evidence ceiling, and admits exactly 10 MB", () => {
       const smallFile = makeFile(100, "small.jpg");
-      expect(validateAttachments([bigFile, smallFile])).not.toBeNull();
+      expect(validateAttachments([makeFile(10 * 1024 * 1024 + 1, "big.pdf"), smallFile])).toBe(
+        'El archivo "big.pdf" supera el límite de 10 MB.',
+      );
+      expect(validateAttachments([makeFile(10 * 1024 * 1024, "edge.pdf"), smallFile])).toBeNull();
     });
   });
 

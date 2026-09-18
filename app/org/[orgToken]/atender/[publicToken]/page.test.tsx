@@ -170,7 +170,7 @@ describe("atender sign page — the observation close waits for the deadline", (
     expect(html).toMatch(/<option value="positive_rabies">/);
   });
 
-  it("before the deadline, the death is DISABLED and the hint sends the vet to the authority (PO D1)", async () => {
+  it("before the deadline, the bare death close is DISABLED and the hint sends the vet to the death door (PO D1 + D8)", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
     resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
@@ -180,15 +180,30 @@ describe("atender sign page — the observation close waits for the deadline", (
     expect(html).toContain(
       '<option value="dead" disabled="">Fallecido — disponible desde el 24 de septiembre de 2026 a las 09:00</option>',
     );
-    expect(html).toContain(
-      "Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que toma la muestra para el laboratorio",
-    );
-    // A walk-in vet has no door to record a death (the web form and the API
-    // both require holding the animal): the copy names who does, not "registrá".
-    expect(html).toContain(
-      "Desde la clínica no se registra la muerte; pedile a quien tiene al animal a su cargo que la registre desde su libreta.",
-    );
-    expect(html).not.toContain("registrá la muerte desde la libreta");
+    // D8: the clinic now records the death itself — the old "desde la clínica
+    // no se registra la muerte" is gone, and the door it names is on screen.
+    expect(html).toContain("usá “Registrar muerte durante la observación”, más abajo");
+    expect(html).not.toContain("Desde la clínica no se registra la muerte");
+    expect(html).toContain("Registrar muerte durante la observación</button>");
+  });
+
+  it("offers the death door only to a licensed vet, and only while the observation runs (PO D8)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-18T15:00:00.000Z"));
+    const DOOR = "Registrar muerte durante la observación</button>";
+
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(false));
+    expect(await renderPage({ evento: "observacion" })).not.toContain(DOOR);
+
+    const expired = observedAccess(true);
+    resolveAtenderPetMock.mockResolvedValueOnce({
+      ...expired,
+      pet: { ...expired.pet, rabiesObservationStatus: "window_expired_unclosed" },
+    });
+    expect(await renderPage({ evento: "observacion" })).not.toContain(DOOR);
+
+    resolveAtenderPetMock.mockResolvedValueOnce(observedAccess(true));
+    expect(await renderPage({ evento: "observacion" })).toContain(DOOR);
   });
 
   it("never offers 'sin seguimiento' to the vet, and says why — before or after the deadline", async () => {

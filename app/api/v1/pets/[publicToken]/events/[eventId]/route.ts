@@ -53,6 +53,7 @@ import {
   API_V1_AUTHENTICATED_READ_USER_LIMIT,
 } from "@/lib/infra/api-v1-limits";
 import { DbBudgetExceededError, withDbBudgetOrThrow } from "@/lib/infra/db-budget";
+import { withholdUnreadableDecomisoEvidence } from "@/lib/infra/decomiso-evidence-access";
 import { type LiveUserFailureReason, requireLiveUser } from "@/lib/infra/live-user";
 import { resolvePetHolderAccess } from "@/lib/infra/pet-access";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -184,7 +185,7 @@ export async function GET(
   if (!read) return apiV1Error("not_found", 404);
 
   const now = new Date();
-  const attachments = await signOrDegrade(read.attachments, now);
+  const attachments = await signOrDegrade(read.attachments, eventId, live.user.id, now);
 
   return apiV1Json(
     buildPetEventDetailV1({
@@ -209,12 +210,22 @@ export async function GET(
  */
 async function signOrDegrade(
   rows: NonNullable<Awaited<ReturnType<typeof loadPetEventDetail>>>["attachments"],
+  eventId: string,
+  viewerUserId: string,
   now: Date,
 ): Promise<EventAttachmentV1[] | null> {
   if (rows.length === 0) return [];
   try {
     return await withDbBudgetOrThrow(
-      buildAttachments(rows, eventAttachmentSignedUrl, now),
+      (async () => {
+        // Decomiso evidence keeps its metadata (PO decision D7): withheld
+        // unless the viewer reads the decomiso itself, not merely the pet.
+        const visible = await withholdUnreadableDecomisoEvidence(
+          rows.map((row) => ({ ...row, eventId })),
+          viewerUserId,
+        );
+        return buildAttachments(visible, eventAttachmentSignedUrl, now);
+      })(),
       SIGN_BUDGET_MS,
       "api-v1-pet-event-detail-sign",
     );

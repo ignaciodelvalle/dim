@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
 import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
-import { RULE_TYPE_REGISTRY, getRuleTypeDef } from "@/lib/domain/rule-types-registry";
+import {
+  RULE_TYPE_REGISTRY,
+  getRuleTypeDef,
+  summarizeRulePayload,
+} from "@/lib/domain/rule-types-registry";
 import { BUSINESS_RULE_VALIDATORS } from "@/lib/infra/business-rules-validators";
 
 describe("RULE_TYPE_REGISTRY (shape parity — zero behavior diff)", () => {
@@ -168,6 +172,13 @@ describe("obligation rule types — Zod round-trips (migration 0183)", () => {
     if (ok.success) expect(ok.data).toEqual({ frequency_months: 12, min_age_months: 3 });
     expect(schema.safeParse({ frequency_months: 0 }).success).toBe(false);
     expect(schema.safeParse({ frequency_months: 12, extra: true }).success).toBe(false);
+    // D5: the cadence's own citation — trimmed, non-blank, bounded.
+    const cited = schema.safeParse({ frequency_months: 12, frequency_legal_basis: " Norma " });
+    expect(cited.success).toBe(true);
+    if (cited.success)
+      expect(cited.data).toEqual({ frequency_months: 12, frequency_legal_basis: "Norma" });
+    expect(schema.safeParse({ frequency_legal_basis: "   " }).success).toBe(false);
+    expect(schema.safeParse({ frequency_legal_basis: "x".repeat(301) }).success).toBe(false);
   });
 
   it("sterilization: accepts populated payload, rejects extra fields and out-of-range values", () => {
@@ -198,9 +209,14 @@ describe("obligation rule types — Zod round-trips (migration 0183)", () => {
     const rabies = new FormData();
     rabies.append("frequency_months", "12");
     rabies.append("min_age_months", "");
+    rabies.append("frequency_legal_basis", "  Norma de cadencia ");
     expect(getRuleTypeDef("rabies_vaccination").parseFromForm(rabies)).toEqual({
       frequency_months: 12,
+      frequency_legal_basis: "Norma de cadencia",
     });
+    const blankBasis = new FormData();
+    blankBasis.append("frequency_legal_basis", "   ");
+    expect(getRuleTypeDef("rabies_vaccination").parseFromForm(blankBasis)).toEqual({});
 
     const sterilization = new FormData();
     sterilization.append("min_age_months", "6");
@@ -215,5 +231,19 @@ describe("obligation rule types — Zod round-trips (migration 0183)", () => {
     expect(getRuleTypeDef("compliance_targets").parseFromForm(targets)).toEqual({
       rabies_coverage_pct: 85.5,
     });
+  });
+});
+
+describe("summarizeRulePayload — rabies cadence citation (D5, PO 2026-09-18)", () => {
+  it("names the norm next to the cadence only when the payload cites one", () => {
+    expect(summarizeRulePayload("rabies_vaccination", { frequency_months: 12 })).toBe(
+      "refuerzo cada 12 meses",
+    );
+    expect(
+      summarizeRulePayload("rabies_vaccination", {
+        frequency_months: 12,
+        frequency_legal_basis: "Norma de cadencia",
+      }),
+    ).toBe("refuerzo cada 12 meses (Norma de cadencia)");
   });
 });

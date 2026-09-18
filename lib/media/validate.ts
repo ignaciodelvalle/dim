@@ -148,11 +148,56 @@ export async function reencodeRaster(buffer: Buffer): Promise<Buffer> {
 export const REENCODE_MAX_INPUT_PIXELS = 8192 * 8192;
 
 // ---------------------------------------------------------------------------
-// Decomiso evidence used to have a SECOND whitelist here (raster + PDF, not
-// re-encoded) for the "acta" attachment. It is gone: bucket `event-attachments`
-// (db/migrations/0213) only ever accepted image/jpeg, image/png, image/webp up
-// to 5 MiB, so accepting PDF at the app layer just meant every PDF acta failed
-// at upload after the officer filled the whole form. Decomiso evidence now goes
-// through the same RASTER_IMAGE_TYPES whitelist as every other upload door.
-// Whether the bucket itself should start accepting PDF actas is a pending PO
-// decision, not one this module makes on its own.
+// Decomiso evidence — raster photos plus the PDF acta (PO decision D10,
+// 2026-09-18).
+//
+// History, so the shape is not mistaken for the old one: a raster+PDF
+// whitelist used to live here and was removed because its destination,
+// `event-attachments` (0213), only ever accepted JPG/PNG/WEBP up to 5 MiB —
+// every PDF acta failed at upload after the officer filled the whole form. The
+// PO decided the acta gets its own private bucket instead of widening the
+// shared one: `decomiso-evidence` (0234) admits exactly DECOMISO_EVIDENCE_TYPES
+// up to MAX_DECOMISO_EVIDENCE_BYTES, and only the service role writes to it.
+//
+// NOT RE-ENCODED, and not by oversight. PO decision D7 (2026-09-18): the
+// metadata of seizure evidence (EXIF, GPS, capture time) is itself evidence,
+// so the bytes are stored exactly as they arrived. That is safe only because
+// the bucket is private and every read goes through the decomiso's own read
+// rule (lib/infra/decomiso-evidence-access.ts). The type is still decided by
+// the BYTES, never by the client, so no SVG/HTML/polyglot can be declared in.
+// ---------------------------------------------------------------------------
+
+/** Canonical MIME → storage-key extension for decomiso evidence. */
+export const DECOMISO_EVIDENCE_TYPES = {
+  ...RASTER_IMAGE_TYPES,
+  "application/pdf": "pdf",
+} as const;
+
+export type DecomisoEvidenceMime = keyof typeof DECOMISO_EVIDENCE_TYPES;
+
+export { DECOMISO_EVIDENCE_MIME_LIST, MAX_DECOMISO_EVIDENCE_BYTES } from "./limits";
+
+/**
+ * Identify decomiso evidence by its MAGIC BYTES: a whitelisted raster, or a PDF
+ * (a file that starts with `%PDF-`, 25 50 44 46 2D). Null for anything else.
+ */
+export function detectDecomisoEvidenceMime(bytes: Uint8Array): DecomisoEvidenceMime | null {
+  const raster = detectRasterMime(bytes);
+  if (raster) return raster;
+  if (
+    bytes.length >= 5 &&
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46 &&
+    bytes[4] === 0x2d
+  ) {
+    return "application/pdf";
+  }
+  return null;
+}
+
+/** The storage-key extension for a VALIDATED evidence mime. Never a client filename. */
+export function decomisoEvidenceExtension(mime: DecomisoEvidenceMime): string {
+  return DECOMISO_EVIDENCE_TYPES[mime];
+}

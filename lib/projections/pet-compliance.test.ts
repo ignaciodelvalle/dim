@@ -1211,6 +1211,88 @@ describe("T1-G1 — rule fields drive the compliance verdict", () => {
     );
   });
 
+  // D5 (PO 2026-09-18): a cadence whose OWN norm the rule row cites is a legal
+  // deadline — the same dose, the same frequency, only the cadence citation
+  // moves, and the card goes from suggestion to obligation.
+  it("a SOURCED cadence (frequency_legal_basis) dates the dose as an obligation, cited and counted", () => {
+    const cited = obligations({
+      rabies: { legalBasis: "Ley Nacional Antirrábica", authority: "Autoridad Local" },
+    });
+    const sourced = (frequencyMonths: number) =>
+      params({ rabies: { frequencyMonths, frequencyLegalBasis: "Resolución de Cadencia" } });
+
+    // 12 months → 15/09/2026, after NOW (01/07/2026): Vigente, counted al día.
+    const upcoming = deriveComplianceState(
+      baseInput({ events: [signedDoseNoDue], ruleParams: sourced(12), obligations: cited }),
+    );
+    const annual = card(upcoming, "rabies");
+    expect(annual?.dueSource).toBe("legal_cadence");
+    expect(annual?.state).toBe("Vigente");
+    expect(annual?.tone).toBe("ok");
+    expect(annual?.currencyKnown).toBe(true);
+    expect(annual?.currencyUntil).toBe("15/09");
+    expect(annual?.detail).toBe("Próxima 15/09");
+    expect(annual?.legalFootnote).toBe(
+      "Obligación del propietario · Ley Nacional Antirrábica · Autoridad Local · refuerzo cada 12 meses según Resolución de Cadencia",
+    );
+    expect(upcoming.summary.ok).toBe(1);
+    expect(upcoming.worstIsUnknown).toBe(false);
+
+    // 6 months → 15/03/2026, before NOW: the red "Vencida", not a warning.
+    const lapsedState = deriveComplianceState(
+      baseInput({ events: [signedDoseNoDue], ruleParams: sourced(6), obligations: cited }),
+    );
+    const lapsed = card(lapsedState, "rabies");
+    expect(lapsed?.dueSource).toBe("legal_cadence");
+    expect(lapsed?.state).toBe("Vencida");
+    expect(lapsed?.tone).toBe("over");
+    expect(lapsed?.detail).toBe("Venció 15/03");
+    expect(lapsedState.worstTone).toBe("over");
+    expect(lapsedState.worstIsUnknown).toBe(false);
+    expect(lapsedState.summary.ok).toBe(0);
+
+    // Without a rule-row citation, the cadence clause still rides the stopgap.
+    const uncitedRow = card(
+      deriveComplianceState(baseInput({ events: [signedDoseNoDue], ruleParams: sourced(12) })),
+      "rabies",
+    );
+    expect(uncitedRow?.legalFootnote).toBe(
+      "Obligación del propietario · según normativa jurisdiccional · refuerzo cada 12 meses según Resolución de Cadencia",
+    );
+
+    // Control: the SAME inputs minus the cadence citation (blank counts as
+    // none) stay the suggestion — no other jurisdiction changes behaviour.
+    for (const frequencyLegalBasis of [null, "   "]) {
+      const unsourced = card(
+        deriveComplianceState(
+          baseInput({
+            events: [signedDoseNoDue],
+            ruleParams: params({ rabies: { frequencyMonths: 12, frequencyLegalBasis } }),
+            obligations: cited,
+          }),
+        ),
+        "rabies",
+      );
+      expect(unsourced?.dueSource).toBe("rule");
+      expect(unsourced?.state).toBe("Refuerzo sugerido");
+    }
+  });
+
+  it("a DECLARED dose on a sourced cadence shows its currency in the dual block and does not count", () => {
+    const declared: ComplianceEvent = { ...signedDoseNoDue, ...SELF };
+    const state = deriveComplianceState(
+      baseInput({
+        events: [declared],
+        ruleParams: params({ rabies: { frequencyMonths: 6, frequencyLegalBasis: "Resolución" } }),
+      }),
+    );
+    const rabies = card(state, "rabies");
+    expect(rabies?.dueSource).toBe("legal_cadence");
+    expect(rabies?.state).toBe("Vencida");
+    expect(rabies?.dual?.currencyLabel).toBe("Vencida");
+    expect(state.summary.ok).toBe(0);
+  });
+
   it("a rule-derived date never counts as al día, in either direction, and never stamps a temporal word", () => {
     const upcoming = deriveComplianceState(
       baseInput({

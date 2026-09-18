@@ -7,6 +7,8 @@
 // No signer in this module takes a caller client: an authenticated-role SELECT
 // on a private bucket is an enumeration grant, not an access check.
 
+import { eventAttachmentLocation } from "@/lib/infra/attachment-location";
+
 // The service-role client is imported dynamically: lib/supabase/admin.ts is
 // `server-only`, and this module also exports petPhotoUrl/orgLogoUrl, which
 // client components import. The promise is memoised so N concurrent signers
@@ -55,7 +57,13 @@ export function orgLogoUrl(storagePath: string | null | undefined): string | nul
  * was the enumeration surface.
  *
  * Callers must authorize first — they already do: every call site is an owner
- * page behind requirePetAccess or the pet-scoped timeline signer.
+ * page behind requirePetAccess or the pet-scoped timeline signer, and decomiso
+ * evidence is additionally filtered by withholdUnreadableDecomisoEvidence.
+ *
+ * The bucket comes from the path (lib/infra/attachment-location.ts): decomiso
+ * evidence uploaded since 0234 lives in the private `decomiso-evidence`
+ * bucket and its row path carries that bucket as a prefix; everything else,
+ * legacy evidence included, lives in `event-attachments`.
  */
 export async function eventAttachmentSignedUrl(
   storagePath: string,
@@ -63,9 +71,10 @@ export async function eventAttachmentSignedUrl(
 ): Promise<string | null> {
   try {
     const { createAdminClient } = await loadAdmin();
+    const { bucket, objectPath } = eventAttachmentLocation(storagePath);
     const { data, error } = await createAdminClient()
-      .storage.from("event-attachments")
-      .createSignedUrl(storagePath, expiresIn);
+      .storage.from(bucket)
+      .createSignedUrl(objectPath, expiresIn);
     if (error || !data?.signedUrl) return null;
     return data.signedUrl;
   } catch {
@@ -121,15 +130,27 @@ export async function eventAttachmentSignedUrls(
 ): Promise<Map<string, string>> {
   if (storagePaths.length === 0) return new Map();
   const result = new Map<string, string>();
+  // One round-trip PER BUCKET: a path's bucket comes from its prefix
+  // (lib/infra/attachment-location.ts), and the map is keyed by the ROW path
+  // the caller passed, not the bucket-relative key Storage echoes back.
+  const byBucket = new Map<string, Map<string, string>>();
+  for (const storagePath of storagePaths) {
+    const { bucket, objectPath } = eventAttachmentLocation(storagePath);
+    const keys = byBucket.get(bucket) ?? new Map<string, string>();
+    keys.set(objectPath, storagePath);
+    byBucket.set(bucket, keys);
+  }
   try {
     const { createAdminClient } = await loadAdmin();
-    const { data, error } = await createAdminClient()
-      .storage.from("event-attachments")
-      .createSignedUrls(storagePaths, expiresIn);
-    if (error || !data) return result;
-    for (const item of data) {
-      if (item.signedUrl && item.path) {
-        result.set(item.path, item.signedUrl);
+    const client = createAdminClient();
+    for (const [bucket, keys] of byBucket) {
+      const { data, error } = await client.storage
+        .from(bucket)
+        .createSignedUrls([...keys.keys()], expiresIn);
+      if (error || !data) continue;
+      for (const item of data) {
+        const rowPath = item.path ? keys.get(item.path) : undefined;
+        if (item.signedUrl && rowPath) result.set(rowPath, item.signedUrl);
       }
     }
   } catch {

@@ -421,6 +421,8 @@ export const BUCKETS_EXEMPT: Record<string, string> = {
  * like KNOWN_GAP — every entry says what is in there.
  */
 export const BUCKETS_KNOWN_GAP: Record<string, string> = {
+  "decomiso-evidence":
+    "Seizure evidence (photos of the animal and the acta, 0234) kept with its EXIF/GPS by PO decision D7 — the place of a seizure is usually someone's home. Legal-hold shaped like welfare-evidence, with no retention decision documented, so erase-subject-data.ts skips it (legacy decomiso/ objects in event-attachments included) and this says so.",
   "ppp-exports":
     "Pet-passport PDFs naming a pet and its owner. The audit payload records petId, never the path, so no erasure could find them.",
   revocations:

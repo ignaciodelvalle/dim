@@ -116,6 +116,14 @@ export interface MpfExportFormat {
 export interface RabiesVaccination {
   /** Booster cadence, in months (e.g. 12 = annual). */
   frequency_months?: number;
+  /**
+   * The norm that fixes `frequency_months`, when one does (PO decision
+   * 2026-09-18, D5). Deliberately separate from the row's `legal_basis`
+   * column: that column cites the OBLIGATION, and an obligation can be law
+   * while its interval is an administrative choice. With this set, a date
+   * computed from the cadence is a legal deadline; without it, a suggestion.
+   */
+  frequency_legal_basis?: string;
   /** Minimum age at which the obligation starts, in months. */
   min_age_months?: number;
 }
@@ -218,8 +226,16 @@ export function microchipObligationRuleInfo(
  * law without a row).
  */
 export interface ComplianceRuleParamsInfo {
-  rabies: { frequencyMonths: number | null; minAgeMonths: number | null };
+  rabies: {
+    frequencyMonths: number | null;
+    minAgeMonths: number | null;
+    frequencyLegalBasis: string | null;
+  };
   sterilization: { minAgeMonths: number | null; mandatoryFromMonths: number | null };
+}
+
+function nonBlankOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
 function finiteOrNull(value: unknown): number | null {
@@ -234,6 +250,7 @@ export function complianceRuleParams(
     rabies: {
       frequencyMonths: finiteOrNull(rabies.payload.frequency_months),
       minAgeMonths: finiteOrNull(rabies.payload.min_age_months),
+      frequencyLegalBasis: nonBlankOrNull(rabies.payload.frequency_legal_basis),
     },
     sterilization: {
       minAgeMonths: finiteOrNull(sterilization.payload.min_age_months),

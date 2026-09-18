@@ -181,14 +181,15 @@ export function deriveRabiesSemaphore(
     ? "profesional"
     : "declarada";
 
-  // KNOWN GAP (follow-up, recorded with the "Refuerzo sugerido" change to
-  // pet-compliance): this reads only the dose's own next_due_at. The owner's
-  // card also derives a SUGGESTED booster date from the jurisdiction's
-  // frequency_months (dueSource "rule"); this public credential ignores it and
-  // shows the neutral "sin-vencimiento" ("Con registro firmado") instead. That
-  // is less information, not a contradiction — the card presents that date as
-  // a suggestion, never as vencida — so it is left as is until the PO decides
-  // whether an unsourced cadence belongs on a public face at all.
+  // KNOWN GAP (follow-up): this reads only the dose's own next_due_at. The
+  // owner's card also derives a booster date from the jurisdiction's
+  // frequency_months — a suggestion (dueSource "rule") or, where the rule row
+  // cites the norm fixing the cadence, a legal deadline (dueSource
+  // "legal_cadence", PO decision 2026-09-18, D5). This public credential has
+  // no jurisdiction context and shows the neutral "sin-vencimiento" ("Con
+  // registro firmado") for both. That is less information, not a
+  // contradiction — it never claims "vigente" on a date it cannot see — and
+  // threading the resolved rule in here is the open follow-up.
   const nextDueRaw = (latest.payload as { next_due_at?: unknown })?.next_due_at;
   if (typeof nextDueRaw !== "string" || !nextDueRaw) return { estado: "sin-vencimiento", respaldo };
   const nextDueAt = parseNextDue(nextDueRaw);

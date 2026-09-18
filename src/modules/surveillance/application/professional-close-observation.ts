@@ -217,15 +217,13 @@ export function vetRefusalMessage(
       return `Todavía no podés registrar un resultado negativo: el período de observación termina el ${formatObservationEnd(deadline)}, y los signos de rabia pueden aparecer hasta el último día. Antes de esa fecha sólo podés registrar un resultado positivo.`;
     case "lost_to_followup_never":
       return `Desde la clínica no podés cerrar la observación como “sin seguimiento”: ${petName} está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad, que es quien cierra una observación sin seguimiento.`;
-    // It used to say "registrá la muerte desde la libreta de {pet}". A walk-in
-    // veterinarian has no such door: the web death form sits behind
-    // requirePetAccess and the API's appendDeath behind PetHolderAccess, both of
-    // which admit only whoever HOLDS the animal, and Atender offers no death
-    // kind. So the copy now names what the vet can do (tell the authority) and
-    // who can record the death (whoever holds the animal — whose record also
-    // fires the urgent death-in-observation alert to the authority).
+    // PO D8 (2026-09-18): the clinic now HAS a door for a death during the
+    // observation — atenderRecordDeathInObservationAction records the death
+    // itself, closes the observation with it and sends the urgent alert to the
+    // authority. A bare "dead" close before the deadline stays refused: it
+    // would end the observation with no death on the record.
     case "dead_before_deadline":
-      return `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que tiene que tomar la muestra para el laboratorio: avisá ahora a la autoridad sanitaria de tu localidad. Desde la clínica no se registra la muerte; pedile a quien tiene a ${petName} a su cargo que la registre desde su libreta, y eso también le llega a la autoridad. Vas a poder cerrar la observación acá a partir del ${formatObservationEnd(deadline)}.`;
+      return `Si ${petName} murió durante la observación, usá “Registrar muerte durante la observación”: registra el fallecimiento, cierra la observación y avisa de urgencia a la autoridad sanitaria, que puede necesitar tomar la muestra para el laboratorio. Cerrar como “Fallecido” sin registrar la muerte se habilita recién desde el ${formatObservationEnd(deadline)}.`;
   }
 }
 

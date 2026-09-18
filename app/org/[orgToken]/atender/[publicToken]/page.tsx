@@ -32,12 +32,16 @@ import {
   vetCloseRefusal,
 } from "@/src/modules/surveillance/domain/rabies-observation";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
-import { atenderCloseRabiesObservationAction } from "../actions";
+import {
+  atenderCloseRabiesObservationAction,
+  atenderRecordDeathInObservationAction,
+} from "../actions";
 import { resolveAtenderPet } from "../atender-access";
 import { fetchPendingDeclaredEvents } from "../atender-declared-events";
 import { AtenderCaptureMounter } from "./AtenderCaptureMounter";
 import { AtenderQuickCapture } from "./AtenderQuickCapture";
 import { PendingSignaturesCard } from "./PendingSignaturesCard";
+import { RecordDeathInObservationForm } from "./RecordDeathInObservationForm";
 import { ATENDER_EVENTOS, ATENDER_EVENTOS_CONDICIONALES } from "./atender-eventos";
 
 /**
@@ -300,6 +304,23 @@ export default async function AtenderSignPage({
                     deadLockedUntil={fallecidoBloqueadoHasta}
                     withholdLostToFollowup
                   />
+                  {/* PO D8 (2026-09-18): a death DURING the observation is
+                      recorded here, by the same licensed vet — the death,
+                      the close and the urgent alert to the authority in one
+                      act. Only while the window runs: after it, the close
+                      above takes "Fallecido" on its own. */}
+                  {access.pet.rabiesObservationStatus === "in_progress" && (
+                    <div className="mt-6 border-t border-ln-op-line pt-4">
+                      <RecordDeathInObservationForm
+                        action={atenderRecordDeathInObservationAction.bind(
+                          null,
+                          orgToken,
+                          access.pet.publicToken,
+                        )}
+                        petName={access.pet.name}
+                      />
+                    </div>
+                  )}
                 </>
               ) : (
                 /* El motivo, no el silencio: un miembro sin matrícula validada

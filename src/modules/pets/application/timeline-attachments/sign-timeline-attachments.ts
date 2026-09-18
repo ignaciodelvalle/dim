@@ -10,6 +10,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { attachments, db } from "@/db";
+import { withholdUnreadableDecomisoEvidence } from "@/lib/infra/decomiso-evidence-access";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { eventAttachmentSignedUrl } from "@/lib/infra/storage";
 
@@ -67,7 +68,7 @@ export async function signTimelineAttachments(
     return { error: "Pet not found or access denied" };
   }
 
-  const { pet } = access;
+  const { pet, user } = access;
 
   // 4. Query attachments for the given event ids, SCOPED TO THIS PET.
   //    The `eq(attachments.petId, pet.id)` fence is load-bearing security:
@@ -76,7 +77,7 @@ export async function signTimelineAttachments(
   //    pass pet B's eventIds and sign B's clinical attachments (cross-tenant
   //    IDOR). Event attachments carry both pet_id and event_id (schema §"content
   //    group", kept in sync by app code), so the pet_id filter is exact.
-  const rows = await db
+  const allRows = await db
     .select({
       eventId: attachments.eventId,
       storagePath: attachments.storagePath,
@@ -89,6 +90,10 @@ export async function signTimelineAttachments(
         inArray(attachments.eventId, parsed.data.eventIds),
       ),
     );
+
+  // 4b. Decomiso evidence keeps its metadata (PO decision D7), so pet access
+  //     is not enough to sign it — only a viewer who reads the decomiso itself.
+  const rows = await withholdUnreadableDecomisoEvidence(allRows, user.id);
 
   if (rows.length === 0) {
     return {};

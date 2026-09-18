@@ -98,11 +98,20 @@
 // a periodic administrative determination. The "12 months" in ar-v1's CABA row
 // (and in the spec's CABA scenario) traces to no norm that was located.
 //
-// ar-v2 therefore carries the CABA row WITHOUT `frequency_months`. This is a
-// deliberate correction and it HAS BEHAVIOURAL CONSEQUENCES (a CABA rabies
-// cadence would no longer resolve from this row), so it is the single most
-// important item for PO adjudication before ar-v2 is signed. ar-v1 is frozen
-// and still carries the 12 — this file does not and must not touch it.
+// ar-v2 therefore carried the CABA row WITHOUT `frequency_months` until the
+// PO adjudicated it. ar-v1 is frozen and still carries the 12 (with no cadence
+// citation) — this file does not and must not touch it.
+//
+// ADJUDICATED — PO decision 2026-09-18 (D5): CABA rabies revaccination is
+// ANNUAL and SOURCED. The interval is fixed by the national anchors the
+// product's legal framework lists for antirrábica ("obligatoria desde los 3
+// meses, anual": Ley 22.953 + Res. MS 1144/2018 + Res. SENASA 580/2014), and
+// Ord. 41.831 art. 9 applies them locally. The CABA row now carries
+// `frequency_months: 12` together with `frequency_legal_basis`, the payload
+// field that says WHICH norm fixes the interval. The compliance projection
+// treats a cadence WITH that field as a legal deadline (Vigente / Vencida,
+// cited, counted "al día") and a cadence WITHOUT it as a suggestion, so no
+// other jurisdiction's behaviour changes until its own cadence is sourced.
 //
 // ============================================================================
 // ✅ FINDING 4 — FOUR REAL RABIES MANDATES CONFIRMED
@@ -156,8 +165,9 @@
 //     art. 9 delegates to the Dirección General de Medio Ambiente; PBA Decreto
 //     4669/1973 art. 5 states the duty without an interval. A SENASA
 //     informational page states "anual" and San Juan Decreto 0556-SESP/97 is
-//     reported to fix it, but neither was confirmed against primary text. No
-//     `frequency_months` is set on any row — see FINDING 3.
+//     reported to fix it, but neither was confirmed against primary text.
+//     Only the CABA row carries `frequency_months`, by PO adjudication
+//     (FINDING 3, D5 2026-09-18); every other row still has none.
 //  6. Whether Santa Fe 13.383 art. 4's generic "la vacunación" reaches
 //     ANTIRRÁBICA specifically. The article sits among "métodos preventivos
 //     contra enfermedades zoonóticas" and rabies is the canonical zoonosis, so
@@ -235,9 +245,9 @@ export const AR_V2: LegalBaselineDataset = {
     },
 
     // =======================================================================
-    // rabies_vaccination — four confirmed mandates. NO `frequency_months` on
-    // any row: not one of the norms read here fixes an interval (TODO 5,
-    // FINDING 3).
+    // rabies_vaccination — four confirmed mandates. Only CABA carries a
+    // `frequency_months`, with its cadence citation, by PO adjudication
+    // (FINDING 3, D5 2026-09-18); the rest stay without one (TODO 5).
     // =======================================================================
     {
       // National. Ley 22.953 art. 6, Secc. I inc. a puts the duty on the
@@ -255,9 +265,9 @@ export const AR_V2: LegalBaselineDataset = {
     },
     {
       // CABA override — the local ordinance on top of the national law.
-      // frequency_months is DELIBERATELY ABSENT: art. 9 delegates the cadence
-      // to the Dirección General de Medio Ambiente rather than fixing one. See
-      // FINDING 3 — this differs from ar-v1 and needs PO adjudication.
+      // Annual revaccination by PO adjudication (FINDING 3, D5 2026-09-18):
+      // art. 9 delegates the cadence, and the national anchors cited in
+      // frequency_legal_basis fix it at one year.
       ruleKey: "rabies_vaccination",
       jurisdiction: { country: "AR", province: "CABA", locality: null },
       requirementLevel: "mandatory",
@@ -265,7 +275,10 @@ export const AR_V2: LegalBaselineDataset = {
       authority: "Dirección General de Medio Ambiente (GCBA)",
       sourceUrl: "https://boletinoficial.buenosaires.gob.ar/normativaba/norma/30564",
       effectiveFrom: null, // TODO 4
-      rulePayload: {},
+      rulePayload: {
+        frequency_months: 12,
+        frequency_legal_basis: "Ley 22.953 · Res. MS 1144/2018 · Res. SENASA 580/2014",
+      },
       reviewStatus: "pending_legal_review",
     },
     {

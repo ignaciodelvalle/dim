@@ -42,9 +42,10 @@ export function CloseObservationForm({
    */
   negativeLockedUntil?: string;
   /**
-   * Veterinary door only (PO D1, 2026-09-18): the date a DEATH becomes
-   * recordable here. Before it, a death during observation is the sanitary
-   * authority's to close (lab sample), and the server refuses it.
+   * Veterinary door only (PO D1, 2026-09-18): the date a bare "Fallecido"
+   * close becomes available here. Before it, the vet records the death itself
+   * with "Registrar muerte durante la observación" (PO D8), which closes the
+   * observation and alerts the authority; the server refuses the bare close.
    */
   deadLockedUntil?: string;
   /**
@@ -102,7 +103,7 @@ export function CloseObservationForm({
       ? `El resultado negativo se habilita cuando termina el período de observación, el ${negativeLockedUntil}: los signos de rabia pueden aparecer hasta el último día.`
       : null,
     deadLockedUntil
-      ? `Un fallecimiento durante la observación lo cierra la autoridad sanitaria, que toma la muestra para el laboratorio: avisale ahora. Desde la clínica no se registra la muerte; pedile a quien tiene al animal a su cargo que la registre desde su libreta. Acá se habilita desde el ${deadLockedUntil}.`
+      ? `Si el animal murió durante la observación, usá “Registrar muerte durante la observación”, más abajo: registra el fallecimiento, cierra la observación y avisa de urgencia a la autoridad sanitaria. “Fallecido” sin registrar la muerte se habilita desde el ${deadLockedUntil}.`
       : null,
     withholdLostToFollowup
       ? "“Sin seguimiento” no se registra desde la clínica: el animal está con vos. Si el dueño deja de traerlo, avisá a la autoridad sanitaria de tu localidad."
