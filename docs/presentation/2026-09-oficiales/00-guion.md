@@ -424,7 +424,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Guardas automatizadas en la cadena de verificación:
     <!-- fact:verify_fences -->70<!-- /fact -->.
-  - Archivos de prueba de la web: <!-- fact:vitest_files -->1561<!-- /fact -->.
+  - Archivos de prueba de la web: <!-- fact:vitest_files -->1562<!-- /fact -->.
   - Recorridos de navegador: <!-- fact:e2e_specs -->45<!-- /fact -->.
   - Archivos de prueba de la aplicación de celular:
     <!-- fact:mobile_jest_files -->113<!-- /fact -->.
@@ -509,7 +509,7 @@ funciona si las dos láminas incómodas están donde se ven.
 - **Hechos.**
   - Pantallas: <!-- fact:pages -->263<!-- /fact -->.
   - Migraciones de base de datos aplicadas en orden:
-    <!-- fact:migrations -->224<!-- /fact -->.
+    <!-- fact:migrations -->226<!-- /fact -->.
   - Tablas: <!-- fact:tables -->54<!-- /fact -->.
   - Este conteo son las tablas vivas del esquema de hoy, distinto del conteo
     de tablas con seguridad fila por fila declarada de la lámina 10 (que
