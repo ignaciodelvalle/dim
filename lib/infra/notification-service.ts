@@ -271,10 +271,14 @@ async function deadLetter(
       errorMessage,
     });
   } catch (deadLetterErr) {
+    // Never the raw `deadLetterErr`: it can be the SAME DrizzleQueryError shape
+    // as `err` above — its message carries the query params, i.e. the whole
+    // notification — so it goes through the same summariser before it ever
+    // reaches a log line.
     console.error("[createNotification] insert AND dead-letter both failed — notification lost:", {
       dedupeKey: values.dedupeKey,
       insertError: errorMessage,
-      deadLetterErr,
+      deadLetterErr: summarizeDeadLetterError(deadLetterErr),
     });
   }
 }

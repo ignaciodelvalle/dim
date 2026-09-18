@@ -331,4 +331,30 @@ describe("dead-letter rows carry no query params (single and bulk paths)", () =>
       expect(m).not.toContain(FINDER_TEXT);
     }
   });
+
+  // LOW-B: when the dead-letter insert ITSELF throws, the fallback console.error
+  // used to log the raw DrizzleQueryError (params = the whole notification). It
+  // must go through the same summariser as error_message.
+  it("summarizes deadLetterErr in the console.error fallback, not the raw error", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dbInsertSpy = vi.spyOn(db, "insert").mockImplementation(() => {
+      throw drizzleQueryError(postgresError());
+    });
+    try {
+      const key = `${PARAMS_KEY_PREFIX}both-fail`;
+      const result = await createNotification(
+        { userId, notificationType: "test_notification", title: FINDER_TEXT, dedupeKey: key },
+        clientThrowing(drizzleQueryError(postgresError())),
+      );
+      expect(result.status).toBe("dead_lettered");
+      expect(consoleSpy).toHaveBeenCalledOnce();
+      const serialized = JSON.stringify(consoleSpy.mock.calls[0]);
+      expect(serialized).not.toContain(FINDER_TEXT);
+      expect(serialized).not.toContain("params");
+      expect(serialized).toContain("code=23505");
+    } finally {
+      dbInsertSpy.mockRestore();
+      consoleSpy.mockRestore();
+    }
+  });
 });
