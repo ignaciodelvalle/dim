@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
 import postgres from "postgres";
 
-import { assertNotSplitEnv, describeTarget } from "./_env-target";
+import { assertNotSplitEnv, describeTarget, isLocalUrl } from "./_env-target";
 
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
@@ -29,7 +29,8 @@ if (process.env.NODE_ENV === "production") {
   process.exit(2);
 }
 assertNotSplitEnv(url, databaseUrl, "seed:genesis-admin");
-const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
+// Hostname-parsed (scripts/_env-target.ts), not a substring match: a remote
+// URL that merely CONTAINS "localhost" must not pass as local here.
 if (!isLocalUrl(url) || !isLocalUrl(databaseUrl)) {
   console.error(
     `[seed:genesis-admin] Me niego: el destino es REMOTO (${describeTarget(url)} / ${describeTarget(databaseUrl)}). Este script solo corre en local; no hay --allow-remote. El primer admin de un entorno real sigue docs/ops/production-deploy-plan.md §1 paso 9.`,

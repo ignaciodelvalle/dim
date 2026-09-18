@@ -98,6 +98,7 @@ const EMAILS = {
   deactivated: "meroute-deact@dim-test.local",
   noProfile: "meroute-noprofile@dim-test.local",
   provisional: "meroute-provisional@dim-test.local",
+  firstAccess: "meroute-first-access@dim-test.local",
 } as const;
 
 /**
@@ -118,6 +119,7 @@ const ids: Record<keyof typeof EMAILS, string> = {
   deactivated: "",
   noProfile: "",
   provisional: "",
+  firstAccess: "",
 };
 const tokens: Record<keyof typeof EMAILS, string> = {
   owner: "",
@@ -125,6 +127,7 @@ const tokens: Record<keyof typeof EMAILS, string> = {
   deactivated: "",
   noProfile: "",
   provisional: "",
+  firstAccess: "",
 };
 
 function meRequest(authorization?: string) {
@@ -193,6 +196,19 @@ beforeAll(async () => {
 
   // The mid-signup window: auth.users exists, profiles does not yet.
   await db.delete(profiles).where(eq(profiles.id, ids.noProfile));
+
+  // An institutional account that still owes its first password (pilot T1-P3).
+  // The flag is armed AFTER the token was minted, the way a credential reset
+  // re-arms it on an account that already had a session: it is read from
+  // GoTrue on every request, not from the token.
+  await db
+    .update(profiles)
+    .set({ role: "govt", accountType: "institutional" })
+    .where(eq(profiles.id, ids.firstAccess));
+  const armed = await supabaseAdmin.auth.admin.updateUserById(ids.firstAccess, {
+    app_metadata: { password_setup_pending: true },
+  });
+  if (armed.error) throw new Error(`arm first access: ${armed.error.message}`);
 }, 60_000);
 
 afterAll(async () => {
@@ -362,6 +378,15 @@ describe("GET /api/v1/me — the SAME guard the cookie path uses", () => {
     const res = await meRoute(meRequest(`Bearer ${tokens.deactivated}`));
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "account_deactivated" });
+  });
+
+  // Security review item 4: the first-access step used to be enforced on page
+  // loads only, so the session an access link minted could use the API freely.
+  it("refuses a session that still owes its first password with 401 auth_expired", async () => {
+    const res = await meRoute(meRequest(`Bearer ${tokens.firstAccess}`));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "auth_expired" });
+    expect(control.cookieDoorTouched).toBe(false);
   });
 
   it("answers 503 during a maintenance window, before any token check", async () => {

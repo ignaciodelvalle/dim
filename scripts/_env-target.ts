@@ -31,7 +31,28 @@ export type EnvTarget = {
   supabaseHost: string;
 };
 
-const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
+/** Hostnames that mean "this machine". Compared EXACTLY, never as substrings. */
+const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+/**
+ * Does this URL point at the local machine?
+ *
+ * PARSED, NOT SUBSTRING-MATCHED. The previous check was
+ * `u.includes("127.0.0.1") || u.includes("localhost")`, which answered yes for
+ * `https://localhost.example.supabase.co` and for any remote URL carrying
+ * "localhost" in its path, query or password — and "local" is the answer that
+ * lets a seed with a published password write. The hostname is compared as a
+ * whole; a string that does not parse as a URL is NOT local (fail closed).
+ */
+export function isLocalUrl(u: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(u).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return LOCAL_HOSTNAMES.has(hostname);
+}
 
 /**
  * Host + REF DEL PROYECTO, sin credenciales.

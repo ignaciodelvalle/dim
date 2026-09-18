@@ -54,7 +54,7 @@ type Props = {
   // Used in "reset credentials" context: show a dismiss/close button.
   onReset?: () => void;
   resetLabel?: string;
-  // "create" only (pilot T1-P3): whether GoTrue accepted the invite mail. When
+  // "create" only (pilot T1-P3): whether the access-link mail was accepted. When
   // it did, the link below is the FALLBACK; when it did not, it is the only way
   // in and the panel says so. Omitted (reset) → no mail line at all.
   inviteEmailSent?: boolean;

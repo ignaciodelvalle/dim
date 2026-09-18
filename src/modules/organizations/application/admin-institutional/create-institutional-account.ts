@@ -4,11 +4,12 @@
 //   1. Zod validation
 //   2. Capability check (admin only)
 //   3. Pre-flight duplicate email check via auth admin SDK
-//   4. auth.admin.createUser (unconfirmed, NO password, first-access flag)
+//   4. auth.admin.createUser (CONFIRMED, NO password, first-access flag)
 //   5. DB transaction: profile + govt_assignments + audit_log + notification
 //      (compensating auth.admin.deleteUser on tx failure)
-//   6. auth.admin.inviteUserByEmail — GoTrue mails the link (after commit)
-//   7. auth.admin.generateLink — the same access, for the copy-by-hand panel
+//   6. auth.admin.generateLink — ONE first-access link (after commit)
+//   7. mail that link through the repo's mail path (./access-link-mail.ts);
+//      the same link goes back to the admin panel to forward by hand
 //
 // §2.2: notifications accumulate in pendingNotifications[] inside the tx and
 // are inserted AFTER the transaction commits (best-effort, logged on failure).
@@ -30,6 +31,7 @@ import {
   pendingPasswordSetupMetadata,
 } from "@/src/modules/auth/domain/first-access";
 
+import { mailInstitutionalAccessLink } from "./access-link-mail";
 import { loadActorProfile } from "./helpers";
 import type { CreateInstitutionalResult } from "./types";
 
@@ -145,14 +147,18 @@ export async function createInstitutionalAccountForAuthority(
   // (pilot T1-P3). The person chooses the password at FIRST_ACCESS_PATH, and
   // every guarded page sends them there until they do.
   //
-  // UNCONFIRMED ON PURPOSE (`email_confirm: false`): GoTrue only sends an
-  // invite to an address it has not confirmed yet, and the invite goes out in
-  // step 6, AFTER the transaction commits — so a rolled-back creation never
-  // mails anybody a link to an account that no longer exists. Following the
-  // invite (or the fallback magic link) confirms the address.
+  // CONFIRMED ON PURPOSE (`email_confirm: true`) — this is the security
+  // boundary, not a convenience. The hosted project runs with signup OPEN and
+  // autoconfirm ON (PO D2). GoTrue's signup, handed the address of an existing
+  // UNCONFIRMED user, sets the caller's password on that user and confirms it:
+  // anybody who knew or guessed the operator's address could `signUp` with it
+  // before the invitee opened the mail and walk away with a govt/admin/national
+  // account (security review, pilot T1-P3). A CONFIRMED user is refused as
+  // "already registered". The price is that GoTrue will not send an invite to a
+  // confirmed address, so the link is mailed by us in step 7.
   const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
     email,
-    email_confirm: false,
+    email_confirm: true,
     app_metadata: pendingPasswordSetupMetadata(),
     user_metadata: {
       display_name: displayName,
@@ -264,37 +270,32 @@ export async function createInstitutionalAccountForAuthority(
     }
   }
 
-  // 6. Mail the invite through Supabase Auth's own mailer (the project's SMTP,
-  // GoTrue's "invite" template). Best-effort: a mail that cannot go out does
-  // not undo a committed account — the admin gets the link below to forward
-  // by hand, and the panel says which of the two happened.
+  // 6. ONE first-access link, generated AFTER the transaction commits so a
+  // rolled-back creation never hands anybody a link to an account that no
+  // longer exists. It lands on FIRST_ACCESS_PATH with a session in the
+  // fragment. Exactly one: a second magic link would overwrite the first in
+  // GoTrue's one-time-token slot and void whichever copy went out earlier.
   const redirectTo = `${resolveSiteUrl()}${FIRST_ACCESS_PATH}`;
-  let inviteEmailSent = false;
-  try {
-    const { error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-    });
-    if (inviteErr) console.error("institutional invite mail failed (account exists)", inviteErr);
-    inviteEmailSent = !inviteErr;
-  } catch (e) {
-    console.error("institutional invite mail threw (account exists)", e);
-  }
-
-  // 7. Fallback link for the copy-by-hand panel. GoTrue keeps it in a
-  // different one-time-token slot from the invite (recovery vs confirmation),
-  // so generating it does not void the mailed link; whichever the person
-  // opens first is the one that works, and it voids the other.
   const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email,
     options: { redirectTo },
   });
+  // Empty when generation failed: the panel then points at "Reset credentials".
+  const magicLink =
+    linkErr || !linkData?.properties?.action_link ? "" : linkData.properties.action_link;
+
+  // 7. Mail it. Best-effort: a mail that cannot go out does not undo a
+  // committed account — the admin gets the same link to forward by hand, and
+  // the panel says which of the two happened.
+  const inviteEmailSent = magicLink
+    ? await mailInstitutionalAccessLink({ to: email, displayName, actionLink: magicLink })
+    : false;
 
   return {
     ok: true,
     profileId: authUserId,
-    // Empty when generation failed: the panel then points at "Reset credentials".
-    magicLink: linkErr || !linkData?.properties?.action_link ? "" : linkData.properties.action_link,
+    magicLink,
     inviteEmailSent,
   };
 }

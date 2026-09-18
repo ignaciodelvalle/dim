@@ -14,6 +14,7 @@ import { createInstitutionalAccountAction } from "@/app/actions/admin-institutio
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { OpButton, OpInput } from "@/components/ui/dashboard";
+import { emailConfirmationProblem } from "@/lib/domain/email-confirmation";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
@@ -54,6 +55,8 @@ type SuccessState = {
 export function CreateGovtForm() {
   const [role, setRole] = useState<GovtScreenRole>("govt");
   const [email, setEmail] = useState("");
+  // Typed twice (security review, T1-P3): the access link is mailed to it.
+  const [emailConfirmation, setEmailConfirmation] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [localities, setLocalities] = useState<LocalityEntry[]>([
     { id: 0, provinceName: "", locality: "" },
@@ -79,6 +82,11 @@ export function CreateGovtForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const confirmationProblem = emailConfirmationProblem(email, emailConfirmation);
+    if (confirmationProblem) {
+      setError(confirmationProblem);
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -123,6 +131,7 @@ export function CreateGovtForm() {
     setSuccess(null);
     setRole("govt");
     setEmail("");
+    setEmailConfirmation("");
     setDisplayName("");
     setLocalities([{ id: 0, provinceName: "", locality: "" }]);
     nextId.current = 1;
@@ -136,13 +145,9 @@ export function CreateGovtForm() {
         displayName={success.displayName}
         email={success.email}
         profileId={success.profileId}
-        // A national observer has no /admin/govts/[id] page (that one is
-        // govt-only); the user directory is where the account shows up.
-        detailPath={
-          success.role === "national"
-            ? "/admin/directorio?registro=usuarios"
-            : `/admin/govts/${success.profileId}`
-        }
+        // A national observer has the same detail page as a govt (it is
+        // where its deactivation and credential reset live).
+        detailPath={`/admin/govts/${success.profileId}`}
         variant="create"
         inviteEmailSent={success.inviteEmailSent}
         onCreateAnother={handleCreateAnother}
@@ -190,6 +195,30 @@ export function CreateGovtForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="operador@municipio.gob.ar"
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="emailConfirmation"
+            className="block text-sm font-medium text-ln-op-ink-2 mb-1"
+          >
+            Escribí el correo de nuevo{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
+          </label>
+          <OpInput
+            id="emailConfirmation"
+            type="email"
+            required
+            autoComplete="off"
+            value={emailConfirmation}
+            onChange={(e) => setEmailConfirmation(e.target.value)}
+            placeholder="operador@municipio.gob.ar"
+          />
+          <p className="mt-1 text-sm text-ln-op-mute">
+            El link de acceso se manda a esta dirección: si tiene un error, le llega a otra persona.
+          </p>
         </div>
 
         <div>

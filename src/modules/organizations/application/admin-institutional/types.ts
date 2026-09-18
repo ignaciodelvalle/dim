@@ -6,7 +6,7 @@ export type CreateInstitutionalResult =
       ok: true;
       profileId: string;
       magicLink: string;
-      /** GoTrue accepted the invite mail (pilot T1-P3). False → forward the link by hand. */
+      /** The mail provider accepted the access-link mail (pilot T1-P3). False → forward the link by hand. */
       inviteEmailSent: boolean;
     };
 

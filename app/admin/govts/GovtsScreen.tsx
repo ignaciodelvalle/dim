@@ -9,6 +9,13 @@
 // per-account detail drill (/admin/govts/[userId], where jurisdiction
 // assignment/reassignment and deactivation live), search, estado filter,
 // dead-account remedy. Guard unchanged: requireAdminOrRedirect.
+//
+// NATIONAL OBSERVERS LIVE HERE TOO (pilot T1-P9). They are born on the same
+// form (/admin/govts/new) and switched off through the same use case, so they
+// are listed in the same register, marked as such, and drill into the same
+// /admin/govts/[userId] page — where deactivation and credential reset are.
+// They hold no localities by construction, so the locality count and the
+// "sin localidades" dead state never apply to them.
 
 import Link from "next/link";
 
@@ -92,13 +99,15 @@ export async function GovtsScreen({
         ? isNotNull(profiles.deactivatedAt)
         : status === "dead"
           ? and(
+              // A national holds no localities by design; it is never "dead".
+              eq(profiles.role, "govt"),
               isNull(profiles.deactivatedAt),
               sql`NOT EXISTS (SELECT 1 FROM ${govtAssignments} WHERE ${govtAssignments.userId} = ${profiles.id} AND ${govtAssignments.revokedAt} IS NULL)`,
             )
           : undefined;
 
   const whereClause = and(
-    eq(profiles.role, "govt"),
+    inArray(profiles.role, ["govt", "national"]),
     ...(searchClause ? [searchClause] : []),
     ...(statusClause ? [statusClause] : []),
   );
@@ -109,6 +118,7 @@ export async function GovtsScreen({
     .select({
       id: profiles.id,
       displayName: profiles.displayName,
+      role: profiles.role,
       accountType: profiles.accountType,
       deactivatedAt: profiles.deactivatedAt,
       createdAt: profiles.createdAt,
@@ -173,7 +183,8 @@ export async function GovtsScreen({
           title="Gobiernos"
           subtitle={
             <p className="text-sm text-ln-op-ink-2">
-              Operadores institucionales con rol de gobierno.
+              Operadores institucionales con rol de gobierno, y observadores nacionales de solo
+              lectura.
             </p>
           }
         />
@@ -304,6 +315,7 @@ type GovtRowProps = {
     id: string;
     displayName: string;
     email: string;
+    role: string;
     activeLocalityCount: number;
     deactivatedAt: Date | null;
   };
@@ -314,7 +326,8 @@ function GovtRow({ govt }: GovtRowProps) {
   // C24: an active govt with 0 active localities cannot enter /gob (needs ≥1
   // assignment) — a dead account that must be flagged, not shown as a healthy
   // "Activo · 0 localidades".
-  const isDead = isDeadGovt(isActive, govt.activeLocalityCount);
+  const isNational = govt.role === "national";
+  const isDead = !isNational && isDeadGovt(isActive, govt.activeLocalityCount);
 
   return (
     <li>
@@ -336,9 +349,13 @@ function GovtRow({ govt }: GovtRowProps) {
           <div className="flex items-center gap-3 shrink-0">
             {/* C24: "open" is the OpPill warn (amber) palette — see OpPill tones. */}
             {isDead && <OpPill tone="open">sin localidades — no puede operar</OpPill>}
-            <span className="text-sm text-ln-op-mute">
-              {govt.activeLocalityCount} {pluralizeEs(govt.activeLocalityCount, "localidad")}
-            </span>
+            {isNational ? (
+              <OpPill tone="neutral">Observador nacional</OpPill>
+            ) : (
+              <span className="text-sm text-ln-op-mute">
+                {govt.activeLocalityCount} {pluralizeEs(govt.activeLocalityCount, "localidad")}
+              </span>
+            )}
             <OpPill tone={isActive ? "ok" : "neutral"}>
               {isActive ? "Activo" : "Desactivado"}
             </OpPill>

@@ -1,9 +1,9 @@
 // Use-case: deactivateGovtForAuthority
 //
-// Deactivates a govt account:
+// Deactivates a govt account — or a national observer (pilot T1-P9):
 //   1. Validation
 //   2. Capability check (admin only)
-//   3. Verify target is active institutional govt
+//   3. Verify target is an active institutional govt or national
 //   4. DB transaction: revoke localities, deactivate, audit_log, claim attachments, notification
 //
 // §2.2: notifications accumulate in pendingNotificationsGovt[] inside the tx
@@ -36,7 +36,16 @@ export async function deactivateGovtForAuthority(
   if (!actorProfile) return { error: "CAPABILITY_DENIED" };
   if (!canDeactivateGovt(actorProfile)) return { error: "CAPABILITY_DENIED" };
 
-  // 3. Verify target is an active institutional govt
+  // 3. Verify target is an active institutional govt OR national.
+  //
+  // `national` (the read-only, country-wide observer, migration 0214) is
+  // deactivated through THIS use case rather than a copy of it: the act is the
+  // same (deactivated_at, audit row with the evidence, notification), and a
+  // national simply holds no govt_assignments, so step a revokes zero rows.
+  // Until this existed an admin could create a national and never switch it
+  // off. The audit action stays `govt_deactivated_by_admin` (a new action
+  // would need a migration of the audit_log CHECK); `target_role` in the
+  // payload says which of the two it was.
   const [targetProfile] = await db
     .select({
       id: profiles.id,
@@ -49,7 +58,10 @@ export async function deactivateGovtForAuthority(
     .limit(1);
 
   if (!targetProfile) return { error: "NOT_INSTITUTIONAL_GOVT" };
-  if (targetProfile.role !== "govt" || targetProfile.accountType !== "institutional") {
+  if (
+    (targetProfile.role !== "govt" && targetProfile.role !== "national") ||
+    targetProfile.accountType !== "institutional"
+  ) {
     return { error: "NOT_INSTITUTIONAL_GOVT" };
   }
   if (targetProfile.deactivatedAt !== null) {
@@ -102,6 +114,7 @@ export async function deactivateGovtForAuthority(
             reason: input.motivo.trim(),
             evidence_attachment_ids: input.attachmentIds,
             revoked_assignments_count: revokedCount,
+            target_role: targetProfile.role,
           },
         })
         .returning({ id: auditLog.id });

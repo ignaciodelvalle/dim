@@ -14,6 +14,9 @@
 //
 // Cascading effect: deactivating a govt also revokes all their active locality
 // assignments (handled server-side in deactivateGovtForAuthority).
+//
+// Also used for a national observer (pilot T1-P9): same use case, no
+// localities to revoke, so the copy drops them.
 
 import { useRef, useState, useTransition } from "react";
 
@@ -28,7 +31,14 @@ type Target = {
   id: string;
   displayName: string;
   activeLocalityCount: number;
+  /** Defaults to "govt". A national observer holds no localities. */
+  role?: "govt" | "national";
 };
+
+/** The noun for the account in this form's copy. */
+function accountNoun(target: Target): string {
+  return target.role === "national" ? "observador nacional" : "gobierno";
+}
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -42,7 +52,8 @@ export function DeactivateGovtActions({
   if (mode === "done") {
     return (
       <p className="text-sm text-ln-op-ok font-medium">
-        Gobierno desactivado. {target.displayName} fue notificado.
+        {target.role === "national" ? "Observador nacional desactivado." : "Gobierno desactivado."}{" "}
+        {target.displayName} fue notificado.
       </p>
     );
   }
@@ -59,7 +70,7 @@ export function DeactivateGovtActions({
 
   return (
     <OpButton type="button" onClick={() => setMode("confirming")} variant="danger" size="sm">
-      Desactivar gobierno
+      Desactivar {accountNoun(target)}
     </OpButton>
   );
 }
@@ -131,7 +142,7 @@ function DeactivateGovtForm({
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 space-y-3">
       <p className="text-xs uppercase tracking-wider font-bold text-ln-op-danger">
-        Desactivar gobierno &mdash; {target.displayName}
+        Desactivar {accountNoun(target)} &mdash; {target.displayName}
       </p>
       <p className="text-xs text-ln-op-danger">
         Esta acción es irreversible desde esta interfaz. El usuario quedará desactivado y recibirá
@@ -183,8 +194,9 @@ function DeactivateGovtForm({
         onChange={(e) => setConfirm(e.target.checked)}
         labelClassName="text-xs! text-ln-op-danger!"
       >
-        Confirmo que quiero desactivar la cuenta de {target.displayName} y revocar todas sus
-        localidades activas. Esta acción genera un registro permanente en el audit log.
+        {target.role === "national"
+          ? `Confirmo que quiero desactivar la cuenta de ${target.displayName}. Esta acción genera un registro permanente en el audit log.`
+          : `Confirmo que quiero desactivar la cuenta de ${target.displayName} y revocar todas sus localidades activas. Esta acción genera un registro permanente en el audit log.`}
       </LnCheckbox>
 
       {error && <p className="text-sm text-ln-op-danger">{error}</p>}

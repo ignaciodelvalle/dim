@@ -2,14 +2,16 @@
 //
 // WHAT "LIVE" MEANS
 // ---------------------------------------------------------------------------
-// A caller is live when all five of these hold:
+// A caller is live when all six of these hold:
 //   1. the platform is accepting traffic  (maintenance kill-switch off)
 //   2. a Supabase session resolves        (NO_SESSION otherwise)
 //   3. the account was not erased         (profiles.deleted_at, Ley 25.326 art. 16)
 //   4. the account was not deactivated    (either an operator switching an
 //      institutional account off, or a person self-deactivating a personal one
 //      from /cuenta — both are `profiles.deactivated_at`, both refuse writes)
-//   5. an INSTITUTIONAL principal is still inside its 8-hour shift (B9)
+//   5. the account does not still owe its first password (pilot T1-P3;
+//      refused as NO_SESSION with `passwordSetupPending`, see the check)
+//   6. an INSTITUTIONAL principal is still inside its 8-hour shift (B9)
 //
 // WHY IT EXISTS — this is a live web bug, not native prep
 // ---------------------------------------------------------------------------
@@ -68,6 +70,7 @@ import {
 } from "@/lib/infra/operator-shift";
 import { type CachedProfile, getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
+import { isPasswordSetupPending } from "@/src/modules/auth/domain/first-access";
 
 export type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -145,8 +148,17 @@ export type LiveUserFailure = {
   // complete session instead of reconstructing one.
   user: { id: string; email?: string } | null;
   reason: LiveUserFailureReason;
-  // Ready-to-render es-AR copy, identical to liveUserMessage(reason).
+  // Ready-to-render es-AR copy, identical to liveUserMessage(reason) — except
+  // where a refusal carries a more specific string (DEACTIVATED by account type,
+  // NO_SESSION for a first access; see PASSWORD_SETUP_PENDING_MESSAGE).
   error: string;
+  /**
+   * Set only on the NO_SESSION refusal of a session that still owes its first
+   * password (pilot T1-P3). The REASON stays NO_SESSION on purpose — see the
+   * check in requireLiveUser — so this flag is how the page-level wrapper tells
+   * "send them to /primer-acceso" apart from "send them to log in".
+   */
+  passwordSetupPending?: true;
 };
 
 export type LiveUserResult = LiveUserSuccess | LiveUserFailure;
@@ -215,6 +227,15 @@ export const DEACTIVATED_MESSAGE_INSTITUTIONAL =
   "Tu cuenta institucional está desactivada. Contactá al equipo de miMAR.";
 
 /**
+ * The refusal a session gets while its account still owes the first password
+ * (pilot T1-P3). Rides on NO_SESSION — see requireLiveUser — so every caller
+ * that already renders `live.error` shows this instead of "Sesión expirada.",
+ * which would send the person to a login they have no password for.
+ */
+export const PASSWORD_SETUP_PENDING_MESSAGE =
+  "Antes de seguir tenés que elegir tu contraseña. Abrí el link de acceso que te llegó por mail.";
+
+/**
  * The DEACTIVATED copy a PERSONAL account gets.
  *
  * Says what happened, WHO did it, and where the way back is — in that order,
@@ -248,7 +269,8 @@ export type OptionalLiveUserSuccess = {
 
 export type OptionalLiveUserResult =
   | OptionalLiveUserSuccess
-  | (LiveUserFailure & { reason: Exclude<LiveUserFailureReason, "NO_SESSION"> });
+  | (LiveUserFailure & { reason: Exclude<LiveUserFailureReason, "NO_SESSION"> })
+  | (LiveUserFailure & { reason: "NO_SESSION"; passwordSetupPending: true });
 
 /**
  * Same guard, for the three write boundaries where an ANONYMOUS caller is
@@ -269,6 +291,12 @@ export async function resolveOptionalLiveUser(
 ): Promise<OptionalLiveUserResult> {
   const live = await requireLiveUser(options);
   if (live.ok) return live;
+  // A session that still owes its first password is NOT anonymous: somebody is
+  // holding an institutional account's access link. Laundering that into an
+  // anonymous submission is the same mistake as laundering an erased one.
+  if (live.reason === "NO_SESSION" && live.passwordSetupPending) {
+    return live as OptionalLiveUserResult;
+  }
   if (live.reason === "NO_SESSION" && live.supabase) {
     return { ok: true, supabase: live.supabase, user: null, profile: null };
   }
@@ -407,6 +435,38 @@ export async function requireLiveUser(options?: RequireLiveUserOptions): Promise
       // (`account_deactivated`, 403) and every consumer of it are unchanged,
       // and a native client still has exactly one code to handle.
       error: institutional ? DEACTIVATED_MESSAGE_INSTITUTIONAL : DEACTIVATED_MESSAGE_PERSONAL,
+    };
+  }
+
+  // FIRST ACCESS (pilot T1-P3). A session minted by an institutional account's
+  // access link, before the person has chosen a password, may do exactly one
+  // thing: choose it, at /primer-acceso (whose action does not come through
+  // here — it reads GoTrue directly and REQUIRES this flag). Page loads were
+  // already sent there by requireUserOrRedirect; this closes the rest — every
+  // server action and every /api/v1 bearer route — which used to act freely
+  // with the unfinished session.
+  //
+  // WHY IT RIDES ON NO_SESSION instead of a sixth reason: every write boundary
+  // already knows how to render NO_SESSION (`{ error: live.error }` on the web,
+  // `auth_expired` 401 on /api/v1), and the ~20 exhaustive refusal switches in
+  // app/api/v1 plus the native client's wire contract stay untouched. For the
+  // purpose of acting, "no session yet" is what this is: the account is not
+  // usable until the password step is done. The specific copy travels in
+  // `error`, and `passwordSetupPending` lets requireUserOrRedirect send the
+  // person to /primer-acceso rather than to a login they cannot complete.
+  //
+  // AFTER erased/deactivated on purpose: those are the truer answers and
+  // requireUserOrRedirect's DEACTIVATED tolerance must keep working.
+  // `user` is what getUser() just fetched from GoTrue, so the flag is the
+  // server's, never a stale token claim.
+  if (isPasswordSetupPending(user)) {
+    return {
+      ok: false,
+      supabase,
+      user: { id: user.id, email: user.email },
+      reason: "NO_SESSION",
+      error: PASSWORD_SETUP_PENDING_MESSAGE,
+      passwordSetupPending: true,
     };
   }
 

@@ -9,12 +9,31 @@
 //   - afterAll deletes them with app.allow_audit_mutation GUC
 //   - Each test calls the inner *ForAuthority writer directly (no Next.js runtime)
 
-import { AuthError, createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The access-link mail goes out through Resend (security review, T1-P3). The
+// provider is replaced by a recorder so the tests assert the REQUEST — who it
+// went to and which link it carried — and can make the provider refuse.
+const mail = vi.hoisted(() => ({
+  sent: [] as Array<{ to: string; subject: string; html: string }>,
+  refuse: false,
+}));
+vi.mock("resend", () => ({
+  Resend: class {
+    emails = {
+      send: async (m: { to: string; subject: string; html: string }) => {
+        if (mail.refuse) return { data: null, error: { name: "provider_down", message: "down" } };
+        mail.sent.push(m);
+        return { data: { id: "mail-1" }, error: null };
+      },
+    };
+  },
+}));
 
 import { attachments, auditLog, db, govtAssignments, notifications, profiles } from "@/db";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { escapeHtml } from "@/lib/utils/escape-html";
 import {
   FIRST_ACCESS_MESSAGES,
   setInitialPassword,
@@ -25,11 +44,13 @@ import { createInstitutionalAccountForAuthority } from "@/src/modules/organizati
 import { deactivateAdminForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-admin";
 import { deactivateGovtForAuthority } from "@/src/modules/organizations/application/admin-institutional/deactivate-govt";
 import { resetInstitutionalCredentialsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-institutional-credentials";
+import { revokeAllSessionsOf } from "@/src/modules/organizations/application/admin-institutional/revoke-target-sessions";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
 import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const adminSdk = createClient(SUPABASE_URL, SECRET, {
   auth: { persistSession: false },
 });
@@ -150,12 +171,11 @@ describe("createInstitutionalAccountForAuthority — happy path govt", () => {
     expect(result.magicLink).toBeTypeOf("string");
     expect(result.magicLink.length).toBeGreaterThan(0);
 
-    // Verify auth user was created. Pilot T1-P3: it is born UNCONFIRMED (GoTrue
-    // only mails an invite to an unconfirmed address; following the link
-    // confirms it) and owing a password.
+    // Verify auth user was created. Born CONFIRMED (security review, T1-P3: an
+    // unconfirmed user can be claimed by a public signUp) and owing a password.
     const { data: authUser } = await adminSdk.auth.admin.getUserById(result.profileId);
     expect(authUser.user?.email).toBe(NEW_GOVT_EMAIL);
-    expect(authUser.user?.email_confirmed_at ?? null).toBeNull();
+    expect(authUser.user?.email_confirmed_at ?? null).not.toBeNull();
     expect(authUser.user?.app_metadata?.password_setup_pending).toBe(true);
 
     // Verify profile
@@ -1104,6 +1124,72 @@ describe("deactivateGovtForAuthority — happy path with cascading locality revo
   });
 });
 
+// Security review item 2: a national observer could be created but never
+// switched off. It goes through the SAME use case as a govt.
+describe("deactivateGovtForAuthority — a national observer can be deactivated", () => {
+  const NATIONAL_DEACT_EMAIL = "fase5-deactivate-national@dim-test.local";
+
+  it("deactivates a national, audits it with its role, and notifies it", async () => {
+    await deleteTestUser(NATIONAL_DEACT_EMAIL);
+    createdNewUserEmails.push(NATIONAL_DEACT_EMAIL);
+    const nationalId = await createUserOrThrow(NATIONAL_DEACT_EMAIL);
+    await db
+      .update(profiles)
+      .set({ role: "national", accountType: "institutional" })
+      .where(eq(profiles.id, nationalId));
+    const [att] = await db
+      .insert(attachments)
+      .values({
+        storagePath: "test/deactivate-national-evidence.pdf",
+        mimeType: "application/pdf",
+        uploadedByUserId: deactivateActorId,
+        fileSize: 1000,
+      })
+      .returning({ id: attachments.id });
+
+    const result = await deactivateGovtForAuthority(deactivateActorId, {
+      targetGovtUserId: nationalId,
+      motivo: "Fin del convenio con el organismo nacional, se da de baja la lectura.",
+      attachmentIds: [att.id],
+    });
+    expect(result).toEqual({ ok: true });
+
+    const [row] = await db
+      .select({ deactivatedAt: profiles.deactivatedAt })
+      .from(profiles)
+      .where(eq(profiles.id, nationalId))
+      .limit(1);
+    expect(row.deactivatedAt).not.toBeNull();
+
+    const [logRow] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetUserId, nationalId),
+          eq(auditLog.action, "govt_deactivated_by_admin"),
+        ),
+      )
+      .limit(1);
+    const payload = logRow.payload as Record<string, unknown>;
+    expect(payload.target_role).toBe("national");
+    expect(payload.revoked_assignments_count).toBe(0);
+    expect(payload.evidence_attachment_ids).toEqual([att.id]);
+
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, nationalId),
+          eq(notifications.notificationType, "govt_deactivated"),
+        ),
+      )
+      .limit(1);
+    expect(notif).toBeDefined();
+  });
+});
+
 describe("deactivateGovtForAuthority — already deactivated is an error", () => {
   it("returns error when target is already deactivated", async () => {
     // deactivateGovtTargetId was just deactivated above
@@ -1196,6 +1282,17 @@ const RESET_REASON = "Operador comprometio sus credenciales — rotacion prevent
 
 describe("resetInstitutionalCredentialsForAuthority — happy path: active govt", () => {
   it("generates magic link, inserts audit_log and notification, returns magicLink", async () => {
+    // A live session of the target BEFORE the reset — the one a compromised
+    // account would be holding (security review, item 3).
+    const live = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: RESET_GOVT_EMAIL, password: "Fase5Create_2026!" });
+    if (live.error || !live.data.session) throw new Error(`sign-in: ${live.error?.message}`);
+    const oldAccess = live.data.session.access_token;
+    const oldRefresh = live.data.session.refresh_token;
+    const probe = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    expect((await probe.auth.getUser(oldAccess)).data.user?.id).toBe(resetGovtId);
+
     const result = await resetInstitutionalCredentialsForAuthority(deactivateActorId, {
       targetUserId: resetGovtId,
       reason: RESET_REASON,
@@ -1229,10 +1326,35 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
     expect(logRow).toBeDefined();
     const payload = logRow.payload as Record<string, unknown>;
     expect(payload.method).toBe("magic_link");
-    expect(typeof payload.magic_link).toBe("string");
-    expect((payload.magic_link as string).length).toBeGreaterThan(0);
+    // The link is a live credential: never in the audit row (item 3). The
+    // method and the moment are.
+    expect(payload).not.toHaveProperty("magic_link");
+    expect(JSON.stringify(payload)).not.toContain(result.magicLink);
+    expect(Number.isNaN(Date.parse(String(payload.link_issued_at)))).toBe(false);
+    expect(payload.sessions_revoked).toBe(true);
     // C4: the reset reason is recorded in the audit payload.
     expect(payload.reason).toBe(RESET_REASON);
+
+    // The session that existed before the reset is dead — access and refresh.
+    const afterAccess = await probe.auth.getUser(oldAccess);
+    expect(afterAccess.data.user).toBeNull();
+    expect(afterAccess.error).not.toBeNull();
+    const afterRefresh = await probe.auth.refreshSession({ refresh_token: oldRefresh });
+    expect(afterRefresh.data.session).toBeNull();
+    expect(afterRefresh.error).not.toBeNull();
+
+    // And the old password no longer signs in: whoever held it cannot come
+    // back and choose the new password at /primer-acceso themselves.
+    const again = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: RESET_GOVT_EMAIL, password: "Fase5Create_2026!" });
+    expect(again.data.session).toBeNull();
+    expect(again.error).not.toBeNull();
+
+    // The link issued AFTER the revocation still works (it was not the one the
+    // revocation spent) and lands on the first-access step.
+    const opened = await sessionFromActionLink(result.magicLink);
+    expect(opened.hasSession).toBe(true);
 
     // Verify notification
     const [notif] = await db
@@ -1248,6 +1370,42 @@ describe("resetInstitutionalCredentialsForAuthority — happy path: active govt"
       .limit(1);
     expect(notif).toBeDefined();
   });
+});
+
+// The revocation on its own, with NO password change around it. Measured on
+// local GoTrue: an admin password update already ends every session of the
+// user, so the reset test above cannot tell whether revokeAllSessionsOf did
+// anything. This one can.
+describe("revokeAllSessionsOf — ends every session without touching the password", () => {
+  const REVOKE_EMAIL = "fase5-revoke-sessions@dim-test.local";
+
+  it("kills two live sessions (access and refresh), and the password still signs in", async () => {
+    await deleteTestUser(REVOKE_EMAIL);
+    createdNewUserEmails.push(REVOKE_EMAIL);
+    await createUserOrThrow(REVOKE_EMAIL);
+    const signIn = () =>
+      createClient(SUPABASE_URL, ANON_KEY, {
+        auth: { persistSession: false },
+      }).auth.signInWithPassword({
+        email: REVOKE_EMAIL,
+        password: "Fase5Create_2026!",
+      });
+    const first = await signIn();
+    const second = await signIn();
+    if (!first.data.session || !second.data.session) throw new Error("sign-in failed");
+    const probe = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    expect((await probe.auth.getUser(first.data.session.access_token)).data.user).not.toBeNull();
+
+    expect(await revokeAllSessionsOf(adminSdk, REVOKE_EMAIL)).toEqual({ ok: true });
+
+    for (const session of [first.data.session, second.data.session]) {
+      expect((await probe.auth.getUser(session.access_token)).data.user).toBeNull();
+      const refreshed = await probe.auth.refreshSession({ refresh_token: session.refresh_token });
+      expect(refreshed.data.session).toBeNull();
+    }
+    // Sessions, not credentials: the password is untouched.
+    expect((await signIn()).data.session).not.toBeNull();
+  }, 30_000);
 });
 
 describe("resetInstitutionalCredentialsForAuthority — happy path: active admin target", () => {
@@ -1480,11 +1638,13 @@ describe("assignGovtLocalityForAuthority — unresolvable locality rejected (iss
 // Pilot T1-P3 — the invite mail and the first-access step
 // ============================================================================
 //
-// The account is born without a password. GoTrue mails the invite (spied on
-// the shared admin client so the test asserts the REQUEST, not the SMTP), the
-// fallback magic link lands on /primer-acceso, and the session that link mints
-// must choose a password — with the app's password rules — before the flag
-// that pins it to that step is cleared.
+// The account is born without a password and CONFIRMED. The app mails ONE
+// first-access link (Resend, recorded by the mock at the top of this file) and
+// hands the same link to the admin panel; it lands on /primer-acceso, and the
+// session it mints must choose a password — with the app's password rules —
+// before the flag that pins it to that step is cleared. A public signUp with
+// the operator's address, attempted before the invitee opens the mail, must
+// get nothing (security review, item 1).
 
 const SITE = "http://127.0.0.1:3000";
 const FIRST_ACCESS_URL = `${SITE}/primer-acceso`;
@@ -1515,15 +1675,19 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
   beforeAll(() => {
     createdNewUserEmails.push(INVITE_EMAIL);
   });
+  beforeEach(() => {
+    mail.sent.length = 0;
+    mail.refuse = false;
+  });
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
-  it("asks GoTrue to mail an invite that lands on /primer-acceso, and the link's session must set a password first", async () => {
+  it("mails ONE link that lands on /primer-acceso, and the link's session must set a password first", async () => {
     await deleteTestUser(INVITE_EMAIL);
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
-    const invite = vi.spyOn(createAdminClient().auth.admin, "inviteUserByEmail");
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
 
     const result = await createInstitutionalAccountForAuthority(actorUserId, {
       role: "govt",
@@ -1533,10 +1697,13 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
     });
     if ("error" in result) throw new Error(result.error);
 
-    // The mail was requested exactly once, for this address, landing on the step.
-    expect(invite).toHaveBeenCalledTimes(1);
-    expect(invite).toHaveBeenCalledWith(INVITE_EMAIL, { redirectTo: FIRST_ACCESS_URL });
+    // One mail, to this address, carrying the SAME link the panel shows — a
+    // second link would have voided the first in GoTrue's one-time slot.
     expect(result.inviteEmailSent).toBe(true);
+    expect(mail.sent).toHaveLength(1);
+    expect(mail.sent[0].to).toBe(INVITE_EMAIL);
+    expect(result.magicLink.length).toBeGreaterThan(0);
+    expect(mail.sent[0].html).toContain(escapeHtml(result.magicLink));
 
     // The account owes a password and cannot enter with one yet.
     const { data: born } = await adminSdk.auth.admin.getUserById(result.profileId);
@@ -1583,15 +1750,73 @@ describe("createInstitutionalAccountForAuthority — T1-P3 invite mail + first a
     ).toEqual({ error: FIRST_ACCESS_MESSAGES.not_pending });
   });
 
-  it("still returns the copy-by-hand link, flagged as not mailed, when the invite mail fails", async () => {
+  // Security review item 1. With signup open and autoconfirm on, GoTrue's
+  // signup handed the address of an UNCONFIRMED user sets the caller's password
+  // on it. The account is now born confirmed, so the same request gets nothing.
+  it("refuses a public signUp with the operator's address before the invitee opens the mail", async () => {
     await deleteTestUser(INVITE_EMAIL);
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
-    vi.spyOn(createAdminClient().auth.admin, "inviteUserByEmail").mockResolvedValue({
-      data: { user: null },
-      error: new AuthError("smtp down", 500),
-    } as Awaited<
-      ReturnType<ReturnType<typeof createAdminClient>["auth"]["admin"]["inviteUserByEmail"]>
-    >);
+    const ATTACKER_PASSWORD = "Atacante_2026!x";
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      // govt, not admin: an extra ACTIVE admin would perturb the last-admin
+      // race tests earlier in this file if this one ever fails before cleanup.
+      role: "govt",
+      email: INVITE_EMAIL,
+      displayName: "Invitado T1P3",
+      initialLocalities: [],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+    const signup = await anon.auth.signUp({ email: INVITE_EMAIL, password: ATTACKER_PASSWORD });
+    expect(signup.data.session).toBeNull();
+
+    // The attacker's password was not set on the account...
+    const signIn = await createClient(SUPABASE_URL, ANON_KEY, {
+      auth: { persistSession: false },
+    }).auth.signInWithPassword({ email: INVITE_EMAIL, password: ATTACKER_PASSWORD });
+    expect(signIn.error).not.toBeNull();
+    expect(signIn.data.session).toBeNull();
+
+    // ...the account still owes its first password, and it is still ONE account.
+    const { data: after } = await adminSdk.auth.admin.getUserById(result.profileId);
+    expect(after.user?.app_metadata?.password_setup_pending).toBe(true);
+    const { data: list } = await adminSdk.auth.admin.listUsers({ perPage: 200 });
+    expect(list.users.filter((u) => u.email === INVITE_EMAIL)).toHaveLength(1);
+  }, 30_000);
+
+  it("does not send, and logs no link, when the mail provider is not configured", async () => {
+    await deleteTestUser(INVITE_EMAIL);
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
+    vi.stubEnv("RESEND_API_KEY", "");
+    const logged = [
+      vi.spyOn(console, "log"),
+      vi.spyOn(console, "warn"),
+      vi.spyOn(console, "error"),
+    ];
+
+    const result = await createInstitutionalAccountForAuthority(actorUserId, {
+      role: "national",
+      email: INVITE_EMAIL,
+      displayName: "Invitado T1P3",
+      initialLocalities: [],
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    expect(result.inviteEmailSent).toBe(false);
+    expect(mail.sent).toHaveLength(0);
+    expect(result.magicLink.length).toBeGreaterThan(0);
+    for (const spy of logged) {
+      expect(JSON.stringify(spy.mock.calls)).not.toContain(result.magicLink);
+    }
+  });
+
+  it("still returns the copy-by-hand link, flagged as not mailed, when the provider refuses the mail", async () => {
+    await deleteTestUser(INVITE_EMAIL);
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", SITE);
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    mail.refuse = true;
 
     const result = await createInstitutionalAccountForAuthority(actorUserId, {
       role: "govt",

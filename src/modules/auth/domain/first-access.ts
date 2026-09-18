@@ -10,7 +10,9 @@
 //
 // Now the account is born WITHOUT a password and with a flag in `app_metadata`
 // (writable by the service role only — the person cannot clear it from the
-// browser). GoTrue mails the invite; the link lands on FIRST_ACCESS_PATH, which
+// browser). The account is born CONFIRMED (an unconfirmed one can be claimed
+// by a public signUp — see create-institutional-account.ts) and the link is
+// mailed by the app; it lands on FIRST_ACCESS_PATH, which
 // turns the link into a session and asks for a password. Until that happens,
 // every page-level guard sends the session back to FIRST_ACCESS_PATH
 // (lib/infra/auth-guards.ts → requireUserOrRedirect), so nothing else is
