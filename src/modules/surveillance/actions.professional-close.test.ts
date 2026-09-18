@@ -250,6 +250,9 @@ describe("professionalCloseRabiesObservationAction — notifications", () => {
       `event:${ENDED_EVENT_ID}:co-owner-2:${OWNER_TYPE}`,
       `event:${ENDED_EVENT_ID}:owner-1:${OWNER_TYPE}`,
     ]);
-    for (const r of deadLettered) expect(r.errorMessage).toBe("connection reset by peer");
+    // summarizeDeadLetterError keeps the error's name for an uncoded error
+    // (see lib/infra/dead-letter-error-summary.ts) — "connection reset by
+    // peer" alone was never the sanitized shape.
+    for (const r of deadLettered) expect(r.errorMessage).toBe("Error: connection reset by peer");
   });
 });

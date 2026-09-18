@@ -348,10 +348,15 @@ describe("dead-letter rows carry no query params (single and bulk paths)", () =>
       );
       expect(result.status).toBe("dead_lettered");
       expect(consoleSpy).toHaveBeenCalledOnce();
-      const serialized = JSON.stringify(consoleSpy.mock.calls[0]);
-      expect(serialized).not.toContain(FINDER_TEXT);
-      expect(serialized).not.toContain("params");
-      expect(serialized).toContain("code=23505");
+      // Check the summarized fields specifically, not the whole call (the
+      // dedupeKey itself is built from PARAMS_KEY_PREFIX, which contains the
+      // substring "params" — a red herring for a bare toContain("params")).
+      const [, logged] = consoleSpy.mock.calls[0] as [string, Record<string, unknown>];
+      expect(logged.insertError).not.toContain(FINDER_TEXT);
+      expect(logged.deadLetterErr).not.toContain(FINDER_TEXT);
+      expect(logged.insertError).not.toContain("params:");
+      expect(logged.deadLetterErr).not.toContain("params:");
+      expect(logged.deadLetterErr).toContain("code=23505");
     } finally {
       dbInsertSpy.mockRestore();
       consoleSpy.mockRestore();
