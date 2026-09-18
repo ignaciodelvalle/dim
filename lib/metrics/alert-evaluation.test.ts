@@ -44,7 +44,11 @@ vi.mock("@/lib/metrics/population-control", () => ({ fetchSterilizationCoverage:
 import { fetchActiveZoonosis } from "@/lib/analytics/govt-home-kpis";
 import type { ProjectionContext } from "@/lib/metrics";
 
-import { evaluateAlertSubscriptions, isBreaching } from "./alert-evaluation";
+import {
+  evaluateAlertSubscriptions,
+  intersectWithCallerScope,
+  isBreaching,
+} from "./alert-evaluation";
 
 // ---------------------------------------------------------------------------
 // isBreaching — pure function
@@ -189,5 +193,99 @@ describe("evaluateAlertSubscriptions — each subscription evaluates ITS jurisdi
     const byId = new Map(rows.map((r) => [r.id, r]));
     expect(byId.get("00000000-0000-4000-8000-00000000000a")?.currentValue).toBe(NATIONAL_COUNT);
     expect(byId.get("00000000-0000-4000-8000-00000000000b")?.currentValue).toBe(SCOPED_COUNT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A10-G2 — a govt caller never evaluates outside its own mandate
+// ---------------------------------------------------------------------------
+
+describe("evaluateAlertSubscriptions — govt caller is bounded by its own assignments", () => {
+  const ALMAGRO = { province: "CABA", locality: "Almagro" };
+
+  beforeEach(() => {
+    store.subs = [];
+    mockZoonosis.mockReset();
+    mockZoonosis.mockImplementation(async () => ({
+      count: SCOPED_COUNT,
+      rabies: 0,
+      lepto: 0,
+      hidat: 0,
+      deltaWeek: 0,
+    }));
+  });
+
+  it("a subscription outside the caller's mandate fetches nothing and reads as no data", async () => {
+    store.subs = [makeSub({ jurisdictionProvince: "Salta", jurisdictionLocality: "Cafayate" })];
+
+    const [row] = await evaluateAlertSubscriptions("user-1", { role: "govt" }, [ALMAGRO]);
+
+    expect(mockZoonosis).not.toHaveBeenCalled();
+    expect(row.currentValue).toBeNull();
+    expect(row.breaching).toBe(false);
+  });
+
+  it("a subscription inside the caller's mandate is scoped to exactly that pair", async () => {
+    store.subs = [makeSub({ jurisdictionProvince: "CABA", jurisdictionLocality: "Almagro" })];
+
+    const [row] = await evaluateAlertSubscriptions("user-1", { role: "govt" }, [ALMAGRO]);
+
+    const ctx = mockZoonosis.mock.calls[0][0];
+    expect(ctx.scope).toEqual({
+      kind: "jurisdictions",
+      jurisdictions: [{ province: "CABA", locality: "Almagro" }],
+    });
+    expect(ctx.adminProvince).toBeUndefined();
+    expect(row.currentValue).toBe(SCOPED_COUNT);
+  });
+
+  it("a national subscription evaluates over the caller's whole mandate, not the country", async () => {
+    store.subs = [makeSub()];
+
+    await evaluateAlertSubscriptions("user-1", { role: "govt" }, [
+      ALMAGRO,
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
+
+    const ctx = mockZoonosis.mock.calls[0][0];
+    expect(ctx.scope).toEqual({
+      kind: "jurisdictions",
+      jurisdictions: [
+        { province: "CABA", locality: "Almagro" },
+        { province: "Buenos Aires", locality: "La Plata" },
+      ],
+    });
+  });
+
+  it("a govt with no assignments evaluates nothing (fail closed)", async () => {
+    store.subs = [makeSub()];
+
+    const [row] = await evaluateAlertSubscriptions("user-1", { role: "govt" });
+
+    expect(mockZoonosis).not.toHaveBeenCalled();
+    expect(row.currentValue).toBeNull();
+  });
+});
+
+describe("intersectWithCallerScope", () => {
+  it("narrows a whole-province subscription to the caller's barrios in that province", () => {
+    expect(
+      intersectWithCallerScope("Buenos Aires", null, [
+        { province: "Buenos Aires", locality: "La Plata" },
+        { province: "Salta", locality: "Cafayate" },
+      ]),
+    ).toEqual([{ province: "Buenos Aires", locality: "La Plata" }]);
+  });
+
+  it("admits a barrio subscription under a whole-province assignment", () => {
+    expect(
+      intersectWithCallerScope("CABA", "Almagro", [{ province: "CABA", locality: "" }]),
+    ).toEqual([{ province: "CABA", locality: "Almagro" }]);
+  });
+
+  it("refuses a barrio next door to the caller's barrio", () => {
+    expect(
+      intersectWithCallerScope("CABA", "Palermo", [{ province: "CABA", locality: "Almagro" }]),
+    ).toEqual([]);
   });
 });

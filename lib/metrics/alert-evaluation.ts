@@ -8,10 +8,12 @@
 //     boundary (value === threshold) → not breaching
 //
 // DB-bound evaluator:
-//   evaluateAlertSubscriptions(userId, baseActor) → EvaluatedSubscription[]
+//   evaluateAlertSubscriptions(userId, baseActor, callerJurisdictions)
+//     → EvaluatedSubscription[]
 //     Loads is_active subscriptions for userId, fetches current metric values,
-//     scopes each subscription to ITS OWN jurisdiction, dedupes metric fetches
-//     by (metricKey, province, locality).
+//     scopes each subscription to ITS OWN jurisdiction — intersected with the
+//     caller's own mandate when the caller is not national-scope (govt) —
+//     and dedupes metric fetches by (metricKey, province, locality).
 //
 // Metric registry:
 //   active_zoonosis            → fetchActiveZoonosis(ctx).count
@@ -34,6 +36,11 @@ import { fetchQueueHealth } from "@/lib/analytics/admin-metrics";
 import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import { fetchActiveZoonosis, fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
+import {
+  hasNationalReadScope,
+  isWholeProvinceLocality,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 import { buildProjectionContext, windows } from "@/lib/metrics";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
@@ -89,6 +96,38 @@ function makeCacheKey(
 }
 
 // ---------------------------------------------------------------------------
+// Caller-scope intersection (A10-G2)
+// ---------------------------------------------------------------------------
+
+/**
+ * The jurisdictions a NON-national caller may see for one subscription: the
+ * subscription's pair intersected with the caller's own mandate.
+ *
+ *   - national subscription (no province) → the caller's whole mandate;
+ *   - pair inside one of the caller's assignments → exactly that pair;
+ *   - whole-province pair over a caller holding barrios of that province →
+ *     those barrios (the part of the province the caller governs);
+ *   - anything else → [] (nothing — the caller evaluates no data).
+ *
+ * Exported for tests.
+ */
+export function intersectWithCallerScope(
+  subProvince: string | null | undefined,
+  subLocality: string | null | undefined,
+  callerJurisdictions: readonly DashboardJurisdiction[],
+): DashboardJurisdiction[] {
+  if (!subProvince) return [...callerJurisdictions];
+  const locality = subLocality ?? "";
+  if (jurisdictionScopeContains(callerJurisdictions, subProvince, locality)) {
+    return [{ province: subProvince, locality }];
+  }
+  if (isWholeProvinceLocality(subProvince, locality)) {
+    return callerJurisdictions.filter((j) => j.province === subProvince);
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
 // Main evaluator
 // ---------------------------------------------------------------------------
 
@@ -98,11 +137,17 @@ function makeCacheKey(
  *
  * @param userId    - The auth user id (resolved by the page from auth, NOT from actor).
  * @param baseActor - The actor to use for projection (typically { role: "admin" }).
+ * @param callerJurisdictions - The caller's OWN active assignments. Consulted
+ *   only for a non-national-scope actor (govt): each subscription's pair is
+ *   intersected with it, so a govt never evaluates outside its mandate. A
+ *   govt passing none evaluates nothing (fail closed).
  */
 export async function evaluateAlertSubscriptions(
   userId: string,
   baseActor: DashboardActor,
+  callerJurisdictions: readonly DashboardJurisdiction[] = [],
 ): Promise<EvaluatedSubscription[]> {
+  const nationalCaller = hasNationalReadScope(baseActor.role);
   // 1. Load active subscriptions for this user.
   const subs = await db
     .select()
@@ -120,34 +165,49 @@ export async function evaluateAlertSubscriptions(
     const key = makeCacheKey(sub.metricKey, sub.jurisdictionProvince, sub.jurisdictionLocality);
     if (fetchCache.has(key)) continue;
 
-    // Build jurisdiction list for this subscription's scope.
-    const jurisdictions: DashboardJurisdiction[] = sub.jurisdictionProvince
-      ? [{ province: sub.jurisdictionProvince, locality: sub.jurisdictionLocality ?? "" }]
-      : [];
-
     // Build a ProjectionContext scoped to this subscription's jurisdiction.
     //
-    // SCOPING BUG FIX (numbers-that-lie audit 2026-08-01): buildProjectionScope
-    // DISCARDS the jurisdictions array for admin actors (admin ⇒ global scope),
-    // and subscriptions are evaluated under an admin actor (the /admin/programa
-    // page and the firings cron both pass { role: "admin" }). So every
-    // jurisdiction-scoped subscription silently evaluated the NATIONAL value
-    // under its provincial label. The admin drill-down channel is the correct
-    // one for narrowing a global-scope ctx: every fetcher already honors
-    // adminProvince/adminLocality (petsScopeClause etc.), and govt actors
-    // ignore these fields once scope.kind === "jurisdictions" (SECURITY notes
-    // in lib/metrics/scope.ts), so a govt baseActor keeps its own scoping.
-    const ctx = buildProjectionContext(
-      baseActor,
-      jurisdictions,
-      period,
-      sub.jurisdictionProvince
-        ? {
-            adminProvince: sub.jurisdictionProvince,
-            adminLocality: sub.jurisdictionLocality ?? undefined,
-          }
-        : undefined,
-    );
+    // National-scope actor (admin | national): buildProjectionScope DISCARDS
+    // the jurisdictions array (global scope), so the subscription's pair must
+    // travel on the admin drill-down channel (adminProvince/adminLocality),
+    // which every fetcher honors — numbers-that-lie audit 2026-08-01: without
+    // it every provincial subscription evaluated the NATIONAL value under its
+    // provincial label.
+    //
+    // Govt actor (A10-G2): scope.kind is "jurisdictions" and the drill-down
+    // channel is ignored, so the jurisdictions array IS the scope. It used to
+    // be the subscription's own pair, i.e. a govt evaluated wherever its
+    // subscription pointed. Now it is that pair intersected with the caller's
+    // own assignments; an empty intersection evaluates to "no data".
+    let ctx: ReturnType<typeof buildProjectionContext> | null;
+    if (nationalCaller) {
+      const jurisdictions: DashboardJurisdiction[] = sub.jurisdictionProvince
+        ? [{ province: sub.jurisdictionProvince, locality: sub.jurisdictionLocality ?? "" }]
+        : [];
+      ctx = buildProjectionContext(
+        baseActor,
+        jurisdictions,
+        period,
+        sub.jurisdictionProvince
+          ? {
+              adminProvince: sub.jurisdictionProvince,
+              adminLocality: sub.jurisdictionLocality ?? undefined,
+            }
+          : undefined,
+      );
+    } else {
+      const scoped = intersectWithCallerScope(
+        sub.jurisdictionProvince,
+        sub.jurisdictionLocality,
+        callerJurisdictions,
+      );
+      ctx = scoped.length > 0 ? buildProjectionContext(baseActor, scoped, period) : null;
+    }
+
+    if (ctx === null) {
+      fetchCache.set(key, Promise.resolve(null));
+      continue;
+    }
 
     let promise: Promise<number | null>;
 

@@ -20,8 +20,9 @@
 //     same "admin universal / govt needs an active jurisdiction assignment"
 //     access gate /gob/programa used for its whole exec summary. Subscriptions
 //     are NOT jurisdiction-scoped by the PAGE — each row carries its OWN
-//     optional jurisdiction, and results are filtered to the CALLING user's
-//     own subscriptions only (queue_oldest_days is always evaluated globally;
+//     optional jurisdiction, intersected with a govt caller's own assignments
+//     (A10-G2), and results are filtered to the CALLING user's own
+//     subscriptions only (queue_oldest_days is always evaluated globally;
 //     see lib/metrics/alert-evaluation.ts).
 //   WRITE (create/toggle/delete server actions) — gated by requireAdminOrRedirect
 //     (admin-only) inside app/actions/alert-subscriptions.ts, unchanged by this
@@ -133,7 +134,12 @@ export default async function SuscripcionesPage({
   const currentUserId = currentUser?.id ?? null;
 
   const actor = { role: profile.role } as const;
-  const alertEvals = currentUserId ? await evaluateAlertSubscriptions(currentUserId, actor) : [];
+  // The caller's own assignments bound what a govt may evaluate: each
+  // subscription's pair is intersected with them (A10-G2). Ignored for
+  // admin | national, which read the whole country.
+  const alertEvals = currentUserId
+    ? await evaluateAlertSubscriptions(currentUserId, actor, jurisdictions)
+    : [];
 
   const sp = await searchParams;
   const metricFilter = parseMetricParam(sp.metricKey);
