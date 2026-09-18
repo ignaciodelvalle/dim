@@ -165,14 +165,25 @@ revocaciones (sin poder leerlo ni crear la revocación).
   Supabase no los ofrece y no los construimos. La salida es asistida: otra
   persona admin, desde `/admin/govts/[userId]` (o `/admin/admins/[userId]`),
   usa **Restablecer segundo factor** (`ResetMfaButton`,
-  `reset-mfa-factors.ts`). Pide motivo, borra todos los factores de la cuenta
-  y queda en el audit log como `mfa_factors_reset_by_admin` con los ids
-  borrados. En su próximo ingreso, con su contraseña, la persona configura una
-  app nueva. **Antes de apretar el botón, confirmá la identidad por otro
-  canal** (llamada al teléfono institucional, no un mail): es exactamente cómo
-  se desarma el control para una cuenta. Un admin no puede restablecer su
-  propio factor; si el único admin pierde el teléfono, hace falta otra cuenta
-  admin — tené siempre dos.
+  `reset-mfa-factors.ts`). Pide motivo y **también restablece las
+  credenciales**: cierra todas las sesiones abiertas, reemplaza la contraseña
+  por una que nadie conoce y genera un link nuevo de un solo uso (el panel te
+  lo muestra para que se lo pases, igual que "Resetear credenciales"). Recién
+  después borra los factores. Queda en el audit log dos veces:
+  `operator_credentials_reset` y `mfa_factors_reset_by_admin` con los ids
+  borrados. La persona entra con el link, elige contraseña y configura una app
+  nueva. Por qué las dos cosas juntas: una cuenta sin factor pero con la
+  contraseña vieja y sesiones vivas la reclama el primero que configure una app
+  — y ese podía ser quien le robó la contraseña. **Antes de apretar el botón,
+  confirmá la identidad por otro canal** (llamada al teléfono institucional, no
+  un mail): es exactamente cómo se desarma el control para una cuenta. Un admin
+  no puede restablecer su propio factor; si el único admin pierde el teléfono,
+  hace falta otra cuenta admin — tené siempre dos.
+- **Configurar la app pide una sesión recién iniciada** (15 minutos). Si la
+  persona dejó la pantalla abierta y vuelve más tarde, le pedimos que cierre
+  sesión y entre de nuevo. Y cuando termina de configurarla le llega un mail
+  avisando que se activó la verificación en dos pasos, con qué hacer si no fue
+  ella (sin Resend configurado, el aviso no sale y queda en el log).
 - **La app móvil no sirve para cuentas institucionales.** Las rutas `/api/v1`
   aplican la misma regla y la app no tiene el paso del código, así que una
   cuenta institucional queda afuera con "sesión expirada". Es a propósito: los

@@ -8,7 +8,11 @@
 //      the per-account code budget, the cookie client doing the verify, and the
 //      `mfa_factor_enrolled` audit row.
 //   3. reset-mfa-factors.ts — admin-assisted recovery (Supabase has no recovery
-//      codes): admin only, never on oneself, every factor removed, audited.
+//      codes): admin only, never on oneself, credentials reset FIRST (password,
+//      sessions, new link), then every factor removed, audited.
+//
+// Enrolment hardening (2026-09-18): only a session that authenticated in the
+// last 15 minutes may enrol, and a completed enrolment mails the holder.
 //
 // Where requireLiveUser and the page guards act on the policy is pinned in
 // live-user-guard.test.ts and auth-guards.test.ts.
@@ -24,6 +28,9 @@ const h = vi.hoisted(() => ({
   targetRows: [] as Array<{ id: string; accountType: string }>,
   adminListFactors: vi.fn(),
   adminDeleteFactor: vi.fn(),
+  resetCredentials: vi.fn(),
+  mailEnrolled: vi.fn(),
+  calls: [] as string[],
 }));
 
 vi.mock("@/lib/infra/request-cache", () => ({ getProfileCached: h.getProfileCached }));
@@ -46,6 +53,13 @@ vi.mock("@/db", () => ({
 vi.mock("@/src/modules/organizations/application/admin-institutional/helpers", () => ({
   loadActorProfile: h.loadActorProfile,
 }));
+vi.mock(
+  "@/src/modules/organizations/application/admin-institutional/reset-institutional-credentials",
+  () => ({ resetInstitutionalCredentialsForAuthority: h.resetCredentials }),
+);
+vi.mock("@/src/modules/auth/application/mfa/mfa-enrolled-mail", () => ({
+  mailMfaFactorEnrolled: h.mailEnrolled,
+}));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     auth: {
@@ -60,7 +74,11 @@ import {
   startMfaEnrolmentAction,
   verifyMfaChallengeAction,
 } from "@/src/modules/auth/application/mfa/mfa-actions";
-import { mfaRequirement } from "@/src/modules/auth/domain/mfa-policy";
+import {
+  MFA_ENROL_MAX_SESSION_AGE_SECONDS,
+  isFreshForEnrolment,
+  mfaRequirement,
+} from "@/src/modules/auth/domain/mfa-policy";
 import { resetMfaFactorsForAuthority } from "@/src/modules/organizations/application/admin-institutional/reset-mfa-factors";
 
 // ---------------------------------------------------------------------------
@@ -68,8 +86,14 @@ import { resetMfaFactorsForAuthority } from "@/src/modules/organizations/applica
 // ---------------------------------------------------------------------------
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
-const token = (aal: string) =>
-  `${b64({ alg: "HS256" })}.${b64({ aal, amr: [{ method: "password", timestamp: Math.floor(Date.now() / 1000) }] })}.sig`;
+/** A token whose password authentication happened `ageSeconds` ago (null: no amr at all). */
+const token = (aal: string, ageSeconds: number | null = 0) =>
+  `${b64({ alg: "HS256" })}.${b64({
+    aal,
+    ...(ageSeconds === null
+      ? {}
+      : { amr: [{ method: "password", timestamp: Math.floor(Date.now() / 1000) - ageSeconds }] }),
+  })}.sig`;
 const VERIFIED = { id: "f-ok", factor_type: "totp", status: "verified" };
 const UNVERIFIED = { id: "f-old", factor_type: "totp", status: "unverified" };
 
@@ -82,8 +106,13 @@ const govtProfile = {
 };
 
 function cookieClient({
-  user = { id: "op-1", factors: [] as unknown[] } as { id: string; factors?: unknown[] } | null,
+  user = { id: "op-1", factors: [] as unknown[] } as {
+    id: string;
+    email?: string;
+    factors?: unknown[];
+  } | null,
   aal = "aal1",
+  authAgeSeconds = 0 as number | null,
   verifyError = null as unknown,
 } = {}) {
   const mfa = {
@@ -106,7 +135,9 @@ function cookieClient({
   const client = {
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }),
-      getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: token(aal) } } }),
+      getSession: vi
+        .fn()
+        .mockResolvedValue({ data: { session: { access_token: token(aal, authAgeSeconds) } } }),
       mfa,
     },
   };
@@ -133,7 +164,16 @@ beforeEach(() => {
   });
   h.targetRows = [{ id: "op-1", accountType: "institutional" }];
   h.adminListFactors.mockResolvedValue({ data: { factors: [VERIFIED] }, error: null });
-  h.adminDeleteFactor.mockResolvedValue({ data: { id: "f-ok" }, error: null });
+  h.adminDeleteFactor.mockImplementation(async ({ id }: { id: string }) => {
+    h.calls.push(`delete:${id}`);
+    return { data: { id }, error: null };
+  });
+  h.calls = [];
+  h.resetCredentials.mockImplementation(async () => {
+    h.calls.push("credentials");
+    return { ok: true, magicLink: "https://example.test/link" };
+  });
+  h.mailEnrolled.mockResolvedValue(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -319,6 +359,101 @@ describe("confirmMfaEnrolmentAction", () => {
   });
 });
 
+describe("enrolment needs a fresh session (trust on first use)", () => {
+  const now = new Date("2026-09-18T12:00:00Z");
+  it.each([
+    [0, true],
+    [MFA_ENROL_MAX_SESSION_AGE_SECONDS, true],
+    [MFA_ENROL_MAX_SESSION_AGE_SECONDS + 1, false],
+    [24 * 3600, false],
+    [-60, true],
+    [-3600, false],
+  ])("authenticated %ss ago → fresh %s", (age, expected) => {
+    expect(isFreshForEnrolment(new Date(now.getTime() - age * 1000), now)).toBe(expected);
+  });
+
+  it("an unknown authentication time is NOT fresh (fails closed)", () => {
+    expect(isFreshForEnrolment(null, now)).toBe(false);
+  });
+
+  it("start refuses a session that signed in 20 minutes ago, before touching GoTrue", async () => {
+    const { client, mfa } = cookieClient({ authAgeSeconds: 20 * 60 });
+    const result = await startMfaEnrolmentAction(client);
+    expect("error" in result && result.error).toMatch(/hace menos de 15 minutos/);
+    expect(mfa.enroll).not.toHaveBeenCalled();
+    expect(mfa.unenroll).not.toHaveBeenCalled();
+  });
+
+  it("start refuses a token with no amr timestamp at all", async () => {
+    const { client, mfa } = cookieClient({ authAgeSeconds: null });
+    const result = await startMfaEnrolmentAction(client);
+    expect("error" in result && result.error).toMatch(/hace menos de 15 minutos/);
+    expect(mfa.enroll).not.toHaveBeenCalled();
+  });
+
+  it("confirm refuses a stale session: no verify, no audit, no mail", async () => {
+    const { client, mfa } = cookieClient({
+      user: { id: "op-1", email: "op@muni.test", factors: [UNVERIFIED] },
+      authAgeSeconds: 20 * 60,
+    });
+    const result = await confirmMfaEnrolmentAction(
+      client,
+      { error: null },
+      form({ factorId: "f-new", code: "654321" }),
+    );
+    expect(result.error).toMatch(/hace menos de 15 minutos/);
+    expect(mfa.challengeAndVerify).not.toHaveBeenCalled();
+    expect(h.writeAuditLog).not.toHaveBeenCalled();
+    expect(h.mailEnrolled).not.toHaveBeenCalled();
+  });
+
+  it("a completed enrolment mails the account holder's own address", async () => {
+    const { client } = cookieClient({
+      user: { id: "op-1", email: "op@muni.test", factors: [UNVERIFIED] },
+    });
+    await confirmMfaEnrolmentAction(
+      client,
+      { error: null },
+      form({ factorId: "f-new", code: "654321" }),
+    );
+    expect(h.mailEnrolled).toHaveBeenCalledTimes(1);
+    expect(h.mailEnrolled).toHaveBeenCalledWith({
+      to: "op@muni.test",
+      enrolledAt: expect.any(Date),
+    });
+  });
+
+  it("the notice itself carries no link, no secret and no factor id, and degrades without Resend", async () => {
+    const actual = await vi.importActual<
+      typeof import("@/src/modules/auth/application/mfa/mfa-enrolled-mail")
+    >("@/src/modules/auth/application/mfa/mfa-enrolled-mail");
+    const html = actual.mfaEnrolledMailHtml(new Date("2026-09-18T15:00:00Z"));
+    expect(html).not.toMatch(/href|otpauth|SECRETBASE32|f-new/i);
+    expect(html).toMatch(/restablezca tu segundo factor/);
+    vi.stubEnv("RESEND_API_KEY", "");
+    try {
+      expect(
+        await actual.mailMfaFactorEnrolled({ to: "op@muni.test", enrolledAt: new Date() }),
+      ).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("a wrong code mails nobody", async () => {
+    const { client } = cookieClient({
+      user: { id: "op-1", email: "op@muni.test", factors: [UNVERIFIED] },
+      verifyError: { message: "Invalid TOTP code entered" },
+    });
+    await confirmMfaEnrolmentAction(
+      client,
+      { error: null },
+      form({ factorId: "f-new", code: "654321" }),
+    );
+    expect(h.mailEnrolled).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 3. Admin-assisted recovery
 // ---------------------------------------------------------------------------
@@ -343,7 +478,28 @@ describe("resetMfaFactorsForAuthority", () => {
         payload: expect.objectContaining({ factor_ids: ["f-ok", "f-old"], complete: true }),
       }),
     );
-    expect(result).toEqual({ ok: true, removed: 2 });
+    expect(result).toEqual({ ok: true, removed: 2, magicLink: "https://example.test/link" });
+  });
+
+  it("resets the credentials BEFORE removing any factor (no factor-less account with live sessions)", async () => {
+    h.adminListFactors.mockResolvedValue({
+      data: { factors: [VERIFIED, UNVERIFIED] },
+      error: null,
+    });
+    await resetMfaFactorsForAuthority("admin-1", input);
+    expect(h.resetCredentials).toHaveBeenCalledWith("admin-1", {
+      targetUserId: "op-1",
+      reason: input.reason,
+    });
+    expect(h.calls).toEqual(["credentials", "delete:f-ok", "delete:f-old"]);
+  });
+
+  it("leaves every factor in place when the credential reset fails, and relays its error", async () => {
+    h.resetCredentials.mockResolvedValue({ error: "No pudimos cerrar las sesiones abiertas" });
+    const result = await resetMfaFactorsForAuthority("admin-1", input);
+    expect(result).toEqual({ error: "No pudimos cerrar las sesiones abiertas" });
+    expect(h.adminDeleteFactor).not.toHaveBeenCalled();
+    expect(h.writeAuditLog).not.toHaveBeenCalled();
   });
 
   it("refuses an admin resetting THEIR OWN factor", async () => {
@@ -375,6 +531,7 @@ describe("resetMfaFactorsForAuthority", () => {
       data: { factors: [VERIFIED, UNVERIFIED] },
       error: null,
     });
+    h.adminDeleteFactor.mockReset();
     h.adminDeleteFactor
       .mockResolvedValueOnce({ data: { id: "f-ok" }, error: null })
       .mockResolvedValueOnce({ data: null, error: { message: "boom" } });
@@ -390,7 +547,11 @@ describe("resetMfaFactorsForAuthority", () => {
 
   it("writes no row when there was nothing to remove", async () => {
     h.adminListFactors.mockResolvedValue({ data: { factors: [] }, error: null });
-    expect(await resetMfaFactorsForAuthority("admin-1", input)).toEqual({ ok: true, removed: 0 });
+    expect(await resetMfaFactorsForAuthority("admin-1", input)).toEqual({
+      ok: true,
+      removed: 0,
+      magicLink: "https://example.test/link",
+    });
     expect(h.writeAuditLog).not.toHaveBeenCalled();
   });
 });

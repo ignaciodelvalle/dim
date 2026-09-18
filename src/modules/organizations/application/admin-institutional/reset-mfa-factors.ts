@@ -5,8 +5,21 @@
 // (src/modules/auth/domain/mfa-policy.ts). Supabase Auth has NO recovery codes,
 // so an operator who loses the phone that holds the factor has no self-service
 // way back in. This is the way back: an admin removes EVERY factor of the
-// account, and the operator's next request lands on /mfa/configurar to enrol a
-// new one — after signing in with their password, which this does not touch.
+// account, and the operator enrols a new one on /mfa/configurar.
+//
+// IT RESETS THE CREDENTIALS TOO (2026-09-18). Removing the factors alone left
+// the account exactly where an attacker wants it: no factor, the old password
+// still valid, every live session still alive. Enrolment is trust on first use,
+// so any of those sessions — or anyone holding the password — could enrol THEIR
+// phone seconds after the reset and own the account from then on. So the reset
+// runs the credential reset first (reset-institutional-credentials.ts): the
+// password is replaced by a random one nobody holds, every session is ended
+// (or, if that fails, the account is DEACTIVATED and no factor is touched), the
+// first-access flag is re-armed, and a fresh one-time link is issued. The
+// person comes back through that link, sets a password, and enrols from a
+// session that is minutes old — which is also the only kind of session
+// /mfa/configurar accepts. The link goes back to the admin exactly as the
+// credential reset returns it (the panel shows it to forward by hand).
 //
 // It is how the control is disarmed for one account, so it carries the same
 // friction as a credential reset: admin only, a motivo, never on oneself (an
@@ -14,9 +27,13 @@
 // password plus this button would be a way past the second factor), and an
 // audit row naming the removed factor ids. Never a secret.
 //
-// ORDER. GoTrue first, then the audit row with what actually happened. The two
-// cannot share a transaction (one is an HTTP call). If a deletion fails halfway,
-// the factors that WERE removed are still audited and the admin is told.
+// ORDER. Credentials, then factors, then the audit row with what actually
+// happened. Credentials first because a failure there must leave the factor in
+// place: a factor-less account with live sessions is the state this ordering
+// exists to never create. The steps cannot share a transaction (they are HTTP
+// calls). If a deletion fails halfway, the factors that WERE removed are still
+// audited and the admin is told; the credentials are already reset, which is
+// the safe side.
 
 import { eq } from "drizzle-orm";
 
@@ -27,8 +44,11 @@ import { writeAuditLog } from "@/lib/infra/audit-log";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { loadActorProfile } from "./helpers";
+import { resetInstitutionalCredentialsForAuthority } from "./reset-institutional-credentials";
 
-export type ResetMfaFactorsResult = { error: string } | { ok: true; removed: number };
+export type ResetMfaFactorsResult =
+  | { error: string }
+  | { ok: true; removed: number; magicLink: string };
 
 export async function resetMfaFactorsForAuthority(
   actorUserId: string,
@@ -56,6 +76,8 @@ export async function resetMfaFactorsForAuthority(
   if (!target) return { error: "NOT_FOUND" };
   if (target.accountType !== "institutional") return { error: "NOT_INSTITUTIONAL" };
 
+  // Read the factors BEFORE anything changes, so a GoTrue that cannot even list
+  // them stops the reset while the account is still whole.
   const admin = createAdminClient();
   const { data: listed, error: listError } = await admin.auth.admin.mfa.listFactors({
     userId: input.targetUserId,
@@ -63,6 +85,12 @@ export async function resetMfaFactorsForAuthority(
   if (listError || !listed) {
     return { error: "No pudimos leer los factores de la cuenta. Probá de nuevo en unos minutos." };
   }
+
+  const credentials = await resetInstitutionalCredentialsForAuthority(actorUserId, {
+    targetUserId: input.targetUserId,
+    reason,
+  });
+  if ("error" in credentials) return { error: credentials.error };
 
   const removedIds: string[] = [];
   let failed = false;
@@ -94,5 +122,5 @@ export async function resetMfaFactorsForAuthority(
         "No pudimos quitar todos los factores de la cuenta. Lo que se quitó quedó registrado; probá de nuevo.",
     };
   }
-  return { ok: true, removed: removedIds.length };
+  return { ok: true, removed: removedIds.length, magicLink: credentials.magicLink };
 }

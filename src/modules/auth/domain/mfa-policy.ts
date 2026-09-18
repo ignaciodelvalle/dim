@@ -51,6 +51,38 @@ export function mfaRequirement(input: {
   return input.aal === "aal2" ? "satisfied" : "challenge";
 }
 
+// ENROLMENT NEEDS A FRESH SESSION (2026-09-18). Enrolling is trust on first use:
+// whoever holds a session of an account WITHOUT a verified factor can bind their
+// own phone to it, and from then on they are the one who passes the challenge.
+// A session is not proof that its holder just typed the password — the session
+// timebox is 30 days (supabase/config.toml [auth.sessions]), so a cookie lifted
+// from a shared computer last week is still a session. So the app only offers
+// enrolment to a session whose most recent authentication (the newest `amr`
+// timestamp — a password, a first-access link, a recovery code) is at most
+// fifteen minutes old: long enough to sign in, install an authenticator app
+// from the store and scan the code; far too short for an old session.
+//
+// What this does NOT bind: somebody calling GoTrue's /factors endpoints
+// directly with an old token never runs this code. That path is bounded in the
+// database instead — the MFA verification hook (migration 0232) refuses to
+// verify a NEW factor unless the account signed in within the same window.
+//
+// Unknown (no usable timestamp) is NOT fresh: failing closed here costs one
+// sign-in, and the alternative is letting an unreadable token enrol.
+export const MFA_ENROL_MAX_SESSION_AGE_SECONDS = 15 * 60;
+
+/** Tolerated clock skew between GoTrue and this server, for a timestamp "from the future". */
+const ENROL_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+export function isFreshForEnrolment(authenticatedAt: Date | null, now: Date = new Date()): boolean {
+  if (!authenticatedAt) return false;
+  const ageMs = now.getTime() - authenticatedAt.getTime();
+  return ageMs >= -ENROL_CLOCK_SKEW_MS && ageMs <= MFA_ENROL_MAX_SESSION_AGE_SECONDS * 1000;
+}
+
+export const MFA_ENROL_STALE_MESSAGE =
+  "Por seguridad, para configurar la verificación en dos pasos tenés que haber iniciado sesión hace menos de 15 minutos. Cerrá sesión y volvé a entrar con tu contraseña.";
+
 /** Where a page load goes for each unmet requirement. */
 export const MFA_CHALLENGE_PATH = "/mfa";
 export const MFA_ENROL_PATH = "/mfa/configurar";

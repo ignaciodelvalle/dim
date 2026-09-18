@@ -266,7 +266,12 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
               email={email}
               detailPath={`/admin/govts/${govt.id}`}
             />
-            <ResetMfaButton targetUserId={govt.id} displayName={govt.displayName} />
+            <ResetMfaButton
+              targetUserId={govt.id}
+              displayName={govt.displayName}
+              email={email}
+              detailPath={`/admin/govts/${govt.id}`}
+            />
           </div>
         </section>
       )}
