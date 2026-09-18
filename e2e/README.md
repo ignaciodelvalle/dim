@@ -241,8 +241,11 @@ The convention:
 **LOCAL / CI ONLY.** The harness rewrites the factor of whatever account it is
 pointed at. Against a shared environment where a PERSON uses the same account
 (staging's `admin@dim.test`), it would replace that person's authenticator — and
-without the service-role key it cannot clear a factor it did not enrol. Do not
-run institutional logins against staging until that is decided.
+without the service-role key it cannot clear a factor it did not enrol. So the
+helper enforces it: on any host other than localhost it never enrols. Inside a
+test it SKIPS with the reason (the nightly staging run reports those specs as
+skipped, not red); outside a test (a QA script) it throws. Institutional
+coverage on staging needs an operator-provided secret — a PO decision.
 
 Inspecting the state by hand: the factor list is `auth.mfa_factors` in the local
 DB; deleting `e2e/.auth/totp-secrets.json` makes the next run re-enrol every

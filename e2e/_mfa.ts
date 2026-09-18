@@ -14,7 +14,7 @@
 // code computed from that secret. The app has no test shortcut: the step is
 // walked in the real UI.
 
-import type { Page } from "@playwright/test";
+import { type Page, test } from "@playwright/test";
 
 import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 
@@ -22,6 +22,9 @@ import { ensureSeedTotp, seedMfaEnvFromProcess } from "../scripts/lib/seed-mfa";
 import { secondsLeftInStep, totp } from "../scripts/lib/totp";
 
 const MFA_PREFIX = "/mfa";
+
+/** Hosts where the suite owns the database and may enrol seed factors. */
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
 /** Is this one of the two second-factor screens? */
 export function isMfaPath(pathname: string): boolean {
@@ -63,6 +66,28 @@ export async function passSecondFactorIfAsked(
       await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
       return;
     }
+  }
+
+  // NEVER ENROL ON A REMOTE TARGET. Against staging the seed accounts are real
+  // people's accounts too (the PO signs in as admin@dim.test): enrolling a
+  // factor there would replace their authenticator, and a CI runner cannot even
+  // clear it the next night without the staging service key. Institutional
+  // logins on a remote target need an operator-provided secret, which does not
+  // exist yet — so inside a test the step is skipped with that reason, and
+  // outside one (a QA script) it stops loudly instead of enrolling.
+  if (!LOCAL_HOSTS.has(here.hostname)) {
+    const reason = `institutional login on ${here.host} needs a second factor; e2e never enrols one on a remote target`;
+    // test.info() throws outside a running test; that is the only thing the
+    // probe asks. The skip itself stays outside the try so its own control-flow
+    // throw propagates untouched.
+    let insideTest = true;
+    try {
+      test.info();
+    } catch {
+      insideTest = false;
+    }
+    if (insideTest) test.skip(true, reason);
+    throw new Error(reason);
   }
 
   const { secret, enrolledNow } = await ensureSeedTotp(seedMfaEnvFromProcess(), email, password);
