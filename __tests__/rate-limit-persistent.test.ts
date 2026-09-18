@@ -147,7 +147,7 @@ describe("rateLimitKeySegment — every bucket-key segment is bounded", () => {
       "203.0.113.7",
       "2001:db8:0:1::/64",
       "3f2b8c1e-9a4d-4c7e-8b21-5d6f7a8b9c0d",
-      "DIM-PAMP-0001",
+      "DIM-7K4Q-9XWZ",
       "auth_login_ip",
       "x".repeat(RATE_LIMIT_SEGMENT_MAX),
     ]) {
