@@ -1181,6 +1181,180 @@ describe("reassign → accept (L-4)", () => {
   });
 });
 
+describe("reassign vs accept race (review 2026-09)", () => {
+  // Both writers validate OUTSIDE their transaction. The old receiver validated
+  // a moment before the reassign committed; its accept then ran on a stale
+  // snapshot. Under the case row lock it now re-reads the case and refuses.
+  it("refuses the old receiver's accept that validated before a reassign committed, and a stale reassign", async () => {
+    let govtCaseId!: string;
+    let govtCasePublicCode!: string;
+    const firstProposalAt = new Date(Date.now() - 60 * 60 * 1000);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        UPDATE cases SET status='closed', closed_reason='cancelled', closed_at=NOW()
+        WHERE primary_pet_id=${petId} AND status='open'
+      `);
+      await tx
+        .update(ownerships)
+        .set({ endedAt: new Date() })
+        .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+      const caseRow = await openCase(
+        {
+          kind: "custody_episode",
+          primarySubjectKind: "registered_pet",
+          primaryPetId: petId,
+          jurisdictionCountry: "AR",
+          jurisdictionProvince: "Buenos Aires",
+          jurisdictionLocality: "Tres Arroyos",
+          openedByUserId: govtUserId,
+          openedByOrganizationId: govtOrgId,
+          receiverOrganizationId: receiverOrgId,
+          openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
+        },
+        tx,
+      );
+      govtCaseId = caseRow.id;
+      govtCasePublicCode = caseRow.publicCode;
+      await tx.insert(petEvents).values({
+        petId,
+        eventType: "custody_transfer_proposed",
+        occurredAt: firstProposalAt,
+        recordedAt: firstProposalAt,
+        recordedByUserId: govtUserId,
+        authorRole: "govt",
+        authorOrganizationId: govtOrgId,
+        authorVerified: true,
+        payload: validateEventPayload("custody_transfer_proposed", {
+          from_user_id: null,
+          from_organization_id: govtOrgId,
+          to_user_id: null,
+          to_organization_id: receiverOrgId,
+          reason: "other" as const,
+          matched_against_pet_id: null,
+          proposed_at: firstProposalAt.toISOString(),
+          notes: "from_decomiso=true test-race",
+        }),
+        caseId: govtCaseId,
+      });
+      await tx.insert(ownerships).values({
+        petId,
+        ownerOrganizationId: govtOrgId,
+        role: "shelter_custody",
+        startedAt: firstProposalAt,
+      });
+    });
+
+    const receiver1Ctx = {
+      user: { id: receiverUserId },
+      organization: {
+        id: receiverOrgId,
+        publicToken: UC_RCV_ORG_TOKEN,
+        verified: true,
+        displayName: "Refugio UC",
+      },
+    };
+
+    // 1. Receiver 1 validates while the case is still theirs.
+    const validation = await validateAcceptDecomisoHandoff(
+      { casePublicCode: govtCasePublicCode },
+      receiver1Ctx,
+      db,
+    );
+    if (!validation.ok) throw new Error(`validation refused: ${validation.error}`);
+    const staleSnapshot = validation.caseRow;
+
+    // 2. The govt reassigns to receiver 2 and commits.
+    const govtCtx = {
+      user: { id: govtUserId },
+      govtOrg: {
+        id: govtOrgId,
+        displayName: "Autoridad UC",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "Tres Arroyos",
+      },
+    };
+    const receiver2 = {
+      id: receiver2OrgId,
+      displayName: "Refugio UC 2",
+      verified: true,
+      status: "active",
+      orgType: "shelter",
+    };
+    await withMutationOverride(async (tx) => {
+      await reassignDecomisoInTx(
+        {
+          id: staleSnapshot.id,
+          primaryPetId: staleSnapshot.primaryPetId,
+          publicCode: staleSnapshot.publicCode,
+          receiverOrganizationId: staleSnapshot.receiverOrganizationId,
+        },
+        receiver2,
+        "Fido UC",
+        "Reasignado durante la carrera",
+        govtCtx,
+        tx,
+      );
+    });
+
+    // 3. Receiver 1's accept runs on the pre-reassign snapshot: refused.
+    await expect(
+      withMutationOverride(async (tx) => {
+        await acceptDecomisoHandoffInTx(
+          staleSnapshot,
+          validation.govtOrgId,
+          validation.govtOrgName,
+          receiver1Ctx,
+          tx,
+        );
+      }),
+    ).rejects.toThrow(
+      "El decomiso cambió mientras operabas (fue reasignado o ya no está abierto). Recargá la página.",
+    );
+
+    // Nothing moved: the case is open, addressed to receiver 2, and receiver 1
+    // holds no custody.
+    const [after] = await db.select().from(cases).where(eq(cases.id, govtCaseId)).limit(1);
+    expect(after.status).toBe("open");
+    expect(after.receiverOrganizationId).toBe(receiver2OrgId);
+    const rcv1Custody = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, receiverOrgId),
+          isNull(ownerships.endedAt),
+        ),
+      );
+    expect(rcv1Custody).toHaveLength(0);
+
+    // 4. A second reassign that validated on the same stale snapshot (receiver
+    // 1) is refused too — reassign takes the same lock and re-check.
+    await expect(
+      withMutationOverride(async (tx) => {
+        await reassignDecomisoInTx(
+          {
+            id: staleSnapshot.id,
+            primaryPetId: staleSnapshot.primaryPetId,
+            publicCode: staleSnapshot.publicCode,
+            receiverOrganizationId: staleSnapshot.receiverOrganizationId,
+          },
+          receiver2,
+          "Fido UC",
+          "Segunda reasignacion vieja",
+          govtCtx,
+          tx,
+        );
+      }),
+    ).rejects.toThrow("El decomiso cambió mientras operabas");
+
+    await withMutationOverride(async (tx) => {
+      await closeCase({ caseId: govtCaseId, reason: "cancelled", closedByUserId: govtUserId }, tx);
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // validateAcceptDecomisoHandoff — guards
 // ---------------------------------------------------------------------------

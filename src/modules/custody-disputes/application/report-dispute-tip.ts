@@ -30,6 +30,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { caseEvents, cases, custodyDisputes, db, pets } from "@/db";
+import { SYNTHETIC_PET_WRITE_REFUSED, isSyntheticPet } from "@/lib/domain/synthetic-pet";
 import {
   ANONYMOUS_REPORT_TOKEN_BUSY,
   ANONYMOUS_REPORT_TOKEN_LIMIT,
@@ -104,6 +105,7 @@ export async function reportDisputeTip(
       id: pets.id,
       name: pets.name,
       inCustodyDispute: pets.inCustodyDispute,
+      seedTag: pets.seedTag,
     })
     .from(pets)
     // PO-4: a soft-deleted pet resolves nowhere public, including this
@@ -111,6 +113,8 @@ export async function reportDisputeTip(
     .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
+  // A seeded pet records no real act (lib/domain/synthetic-pet.ts).
+  if (isSyntheticPet(pet)) return { ok: false, error: SYNTHETIC_PET_WRITE_REFUSED };
 
   // Hard gate: this path exists ONLY for disputed pets. A non-disputed pet
   // must use the regular found/sighting flows (which notify the owner) — a

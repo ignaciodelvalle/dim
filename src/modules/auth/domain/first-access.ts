@@ -29,11 +29,6 @@ export const FIRST_ACCESS_PATH = "/primer-acceso";
 /** Key inside GoTrue's `app_metadata`. */
 export const PASSWORD_SETUP_PENDING_KEY = "password_setup_pending";
 
-/** `app_metadata` to stamp on an account that must choose a password next. */
-export function pendingPasswordSetupMetadata(): Record<string, boolean> {
-  return { [PASSWORD_SETUP_PENDING_KEY]: true };
-}
-
 /** `app_metadata` patch that clears the flag once the password is set. */
 export function completedPasswordSetupMetadata(): Record<string, boolean> {
   return { [PASSWORD_SETUP_PENDING_KEY]: false };
@@ -50,4 +45,68 @@ export function isPasswordSetupPending(user: unknown): boolean {
   const meta = (user as { app_metadata?: unknown }).app_metadata;
   if (typeof meta !== "object" || meta === null) return false;
   return (meta as Record<string, unknown>)[PASSWORD_SETUP_PENDING_KEY] === true;
+}
+
+// ---------------------------------------------------------------------------
+// WHICH SESSION may set the password: only one authenticated AFTER the arming.
+// ---------------------------------------------------------------------------
+// The flag says "this ACCOUNT owes a password". It says nothing about which
+// SESSION may pay it. A credential reset re-arms the flag and then revokes every
+// session; if that revocation fails, a session the reset was meant to end still
+// carries the armed flag — and every guard walks it to FIRST_ACCESS_PATH, where
+// it could choose the password the reset took away (security review, 2026-09).
+//
+// So arming also stamps WHEN it happened, and the step accepts only a session
+// authenticated at or after that instant. "Authenticated" is the `amr[].timestamp`
+// of the session, NOT the access token's `iat`: `iat` moves on every refresh, so
+// a surviving session would simply refresh its way past the stamp.
+// lib/infra/operator-shift.ts measured all three candidates against GoTrue.
+//
+// CLOCK: the stamp is taken from Postgres (`select now()`), the amr timestamp is
+// written by GoTrue — two services on one host clock in every environment we
+// run. The Node process's clock is never one side of this comparison.
+
+/** Key inside GoTrue's `app_metadata`: ISO instant the flag was last armed. */
+export const PASSWORD_SETUP_ARMED_AT_KEY = "password_setup_armed_at";
+
+/**
+ * `app_metadata` to stamp on an account that must choose a password next. The
+ * ONLY way to arm the flag: an arming without its instant would be refused at
+ * the step (fails closed), so there is deliberately no unstamped variant.
+ */
+export function armedPasswordSetupMetadata(armedAt: Date): Record<string, boolean | string> {
+  return {
+    [PASSWORD_SETUP_PENDING_KEY]: true,
+    [PASSWORD_SETUP_ARMED_AT_KEY]: armedAt.toISOString(),
+  };
+}
+
+/** The arming instant stamped on the user, or null when absent/unparseable. */
+export function passwordSetupArmedAt(user: unknown): Date | null {
+  if (typeof user !== "object" || user === null) return null;
+  const meta = (user as { app_metadata?: unknown }).app_metadata;
+  if (typeof meta !== "object" || meta === null) return null;
+  const raw = (meta as Record<string, unknown>)[PASSWORD_SETUP_ARMED_AT_KEY];
+  if (typeof raw !== "string") return null;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? new Date(ms) : null;
+}
+
+/**
+ * May a session authenticated at `sessionStartedAt` complete the first access
+ * of an account armed at `armedAt`?
+ *
+ * FAILS CLOSED on either side unknown. An account armed before the stamp
+ * existed gets a fresh link from a credential reset; a GoTrue whose token
+ * stops carrying amr timestamps breaks first access loudly rather than
+ * silently re-opening the takeover.
+ *
+ * `amr` timestamps are whole seconds, so the arming instant is compared at the
+ * same resolution (floored): a link opened in the same second the account was
+ * armed is not refused for a sub-second the claim cannot express.
+ */
+export function isSessionAfterArming(sessionStartedAt: Date | null, armedAt: Date | null): boolean {
+  if (sessionStartedAt === null || armedAt === null) return false;
+  const armedSecondMs = Math.floor(armedAt.getTime() / 1000) * 1000;
+  return sessionStartedAt.getTime() >= armedSecondMs;
 }

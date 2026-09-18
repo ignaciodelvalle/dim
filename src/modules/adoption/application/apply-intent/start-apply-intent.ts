@@ -42,6 +42,7 @@ import {
   APPLY_INTENT_TTL_MS,
   generateApplyIntentToken,
 } from "@/lib/domain/apply-intent";
+import { SYNTHETIC_PET_WRITE_REFUSED, isSyntheticPet } from "@/lib/domain/synthetic-pet";
 import { resolveOptionalLiveUser } from "@/lib/infra/live-user";
 
 import type { StartApplyIntentResult } from "./types";
@@ -72,6 +73,8 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
 
   if (!row) return { error: "Mascota no encontrada." };
   const { pet, org } = row;
+  // A seeded pet records no real act (lib/domain/synthetic-pet.ts).
+  if (isSyntheticPet(pet)) return { error: SYNTHETIC_PET_WRITE_REFUSED };
   const isListable =
     pet.adoptionListedAt !== null &&
     pet.adoptionListingPausedAt === null &&

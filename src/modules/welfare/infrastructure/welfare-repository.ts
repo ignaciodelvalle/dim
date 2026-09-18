@@ -453,9 +453,11 @@ export class WelfareRepository {
    * Used by create-welfare-report / create-org-welfare-report to resolve
    * subjectPetToken → subjectPetId before the insert tx.
    */
-  async findPetByToken(publicToken: string): Promise<{ id: string } | null> {
+  async findPetByToken(
+    publicToken: string,
+  ): Promise<{ id: string; seedTag: string | null } | null> {
     const [row] = await db
-      .select({ id: pets.id })
+      .select({ id: pets.id, seedTag: pets.seedTag })
       .from(pets)
       .where(eq(pets.publicToken, publicToken))
       .limit(1);

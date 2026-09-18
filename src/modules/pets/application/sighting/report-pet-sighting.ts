@@ -50,6 +50,7 @@ import { headers } from "next/headers";
 import { attachments, cases, db, pets } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { SYNTHETIC_PET_WRITE_REFUSED, isSyntheticPet } from "@/lib/domain/synthetic-pet";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import {
@@ -169,6 +170,7 @@ export async function reportPetSighting(
       name: pets.name,
       status: pets.status,
       inCustodyDispute: pets.inCustodyDispute,
+      seedTag: pets.seedTag,
     })
     .from(pets)
     // PO-4: a soft-deleted pet resolves nowhere public. The page hosting this
@@ -176,6 +178,8 @@ export async function reportPetSighting(
     .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
+  // A seeded pet records no real act (lib/domain/synthetic-pet.ts).
+  if (isSyntheticPet(pet)) return { ok: false, error: SYNTHETIC_PET_WRITE_REFUSED };
   if (pet.status !== "lost") {
     // Only meaningful while the pet is in lost mode.
     return { ok: false, error: "Esta mascota no está marcada como perdida." };

@@ -5,7 +5,8 @@
 //   2. Load + validate target (institutional, not deactivated)
 //   3. Fetch target email from auth.users via admin SDK
 //   4. Re-arm the first-access flag AND replace the password with a random one
-//   5. Revoke EVERY live session of the target (./revoke-target-sessions.ts)
+//   5. Revoke EVERY live session of the target (./revoke-target-sessions.ts);
+//      if that fails, DEACTIVATE the target and tell the admin (see step 5)
 //   6. auth.admin.generateLink (type: magiclink) — only after 4 and 5 succeeded
 //   7. INSERT audit_log action='operator_credentials_reset' — method and
 //      time, NEVER the link
@@ -16,7 +17,7 @@
 
 import { randomBytes } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { auditLog, db, notifications, profiles } from "@/db";
 import { canResetCredentials } from "@/lib/domain/institutional-scope";
@@ -25,12 +26,65 @@ import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   FIRST_ACCESS_PATH,
-  pendingPasswordSetupMetadata,
+  armedPasswordSetupMetadata,
 } from "@/src/modules/auth/domain/first-access";
 
-import { loadActorProfile } from "./helpers";
+import { databaseNow, loadActorProfile } from "./helpers";
 import { revokeAllSessionsOf } from "./revoke-target-sessions";
 import type { ResetCredentialsResult } from "./types";
+
+export const RESET_REVOKE_FAILED_DEACTIVATED_MESSAGE =
+  "No pudimos cerrar las sesiones abiertas de la cuenta, así que la desactivamos para que nadie pueda seguir usándola. No se generó ningún link nuevo. Revisá la situación y reactivala cuando corresponda.";
+export const RESET_REVOKE_FAILED_NOT_DEACTIVATED_MESSAGE =
+  "No pudimos cerrar las sesiones abiertas de la cuenta y tampoco pudimos desactivarla. No se generó ningún link nuevo. Desactivala a mano antes de volver a intentar.";
+export const RESET_REVOKE_FAILED_SELF_MESSAGE =
+  "No pudimos cerrar las sesiones abiertas de tu cuenta. No se generó ningún link nuevo. Probá de nuevo en unos minutos.";
+
+/**
+ * Deactivates the target after its sessions could not be ended. Same anti-race
+ * WHERE as the regular deactivation; an account already deactivated counts as
+ * done. Audited under the reset's own action (a new action would need a
+ * migration of the audit_log CHECK), with `sessions_revoked: false` and
+ * `deactivated: true` saying what actually happened. Returns false only when the
+ * account could not be confirmed deactivated.
+ */
+async function deactivateAfterFailedRevocation(
+  actorUserId: string,
+  targetUserId: string,
+  reason: string,
+  revokeError: string,
+): Promise<boolean> {
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(profiles)
+        .set({ deactivatedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(profiles.id, targetUserId), isNull(profiles.deactivatedAt)));
+      const [row] = await tx
+        .select({ deactivatedAt: profiles.deactivatedAt })
+        .from(profiles)
+        .where(eq(profiles.id, targetUserId))
+        .limit(1);
+      if (!row || row.deactivatedAt === null) throw new Error("DEACTIVATION_NOT_CONFIRMED");
+      await tx.insert(auditLog).values({
+        actorUserId,
+        action: "operator_credentials_reset",
+        targetUserId,
+        payload: {
+          method: "none",
+          sessions_revoked: false,
+          deactivated: true,
+          revoke_error: revokeError,
+          reason,
+        },
+      });
+    });
+    return true;
+  } catch (e) {
+    console.error("reset: sessions not revoked AND deactivation failed", e);
+    return false;
+  }
+}
 
 export async function resetInstitutionalCredentialsForAuthority(
   actorUserId: string,
@@ -82,8 +136,13 @@ export async function resetInstitutionalCredentialsForAuthority(
   // compromised; without this, whoever holds the old password signs straight
   // back in after step 5, and — the flag being armed — is walked to
   // /primer-acceso to choose the new password themselves.
+  //
+  // The re-arming is STAMPED with its instant (Postgres clock): the first-access
+  // step only accepts a session authenticated after it, so a session that
+  // somehow outlives step 5 still cannot choose the password.
+  const armedAt = await databaseNow();
   const { error: flagErr } = await supabase.auth.admin.updateUserById(input.targetUserId, {
-    app_metadata: pendingPasswordSetupMetadata(),
+    app_metadata: armedPasswordSetupMetadata(armedAt),
     password: randomBytes(32).toString("base64url"),
   });
   if (flagErr) return { error: `AUTH_UPDATE_FAILED: ${flagErr.message}` };
@@ -98,8 +157,33 @@ export async function resetInstitutionalCredentialsForAuthority(
   // purpose: that is a side effect of a password write that nothing
   // documents, and a reset must not depend on it staying true in the hosted
   // GoTrue version. This is the explicit revocation; step 4 is the bonus.
+  //
+  // IF IT FAILS, THE ACCOUNT IS DEACTIVATED. A reset is what an admin does when
+  // the account may be in the wrong hands, and the step that ends the wrong
+  // hands' session just did not happen. The stamped flag already keeps that
+  // session away from /primer-acceso, but it could still act as the operator
+  // everywhere else; a deactivated profile is refused by every guard
+  // (requireLiveUser → DEACTIVATED). Reactivating is an admin decision made
+  // with the facts in hand, not something this flow should leave to chance.
+  // Not applied to the actor's own account: an admin who resets themselves
+  // and trips here must not lock the console out from under their own feet.
   const revoked = await revokeAllSessionsOf(supabase, targetEmail);
-  if ("error" in revoked) return { error: revoked.error };
+  if ("error" in revoked) {
+    if (input.targetUserId === actorUserId) {
+      return { error: `${RESET_REVOKE_FAILED_SELF_MESSAGE} (${revoked.error})` };
+    }
+    const deactivated = await deactivateAfterFailedRevocation(
+      actorUserId,
+      input.targetUserId,
+      reasonTrimmed,
+      revoked.error,
+    );
+    return {
+      error: deactivated
+        ? `${RESET_REVOKE_FAILED_DEACTIVATED_MESSAGE} (${revoked.error})`
+        : `${RESET_REVOKE_FAILED_NOT_DEACTIVATED_MESSAGE} (${revoked.error})`,
+    };
+  }
 
   // 6. Generate the magic link. It lands on FIRST_ACCESS_PATH (pilot T1-P3),
   // the one page that turns the link into a session. Generated after step 5,

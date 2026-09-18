@@ -9,11 +9,11 @@
 // value.
 //
 // The use-case's own checks stay authoritative; this only decides what the
-// page OFFERS. It is deliberately narrower than the use-case on one axis: the
-// use-case accepts any open ownership row for the user, this requires the
-// LEGAL owner. A foster or transit holder has an open ownership row too, but
-// registering a potentially dangerous dog is the titular's personal duty, not
-// the person keeping it this week.
+// page OFFERS. Both require the LEGAL owner (the use-case since security
+// review 2026-09 — it used to accept any open ownership row). A foster or
+// transit holder has an open ownership row too, but registering a potentially
+// dangerous dog is the titular's personal duty, not the person keeping it this
+// week.
 
 /** Canonical province value for CABA (CHECK constraint since migration 0055). */
 export const CABA_PROVINCE = "CABA";

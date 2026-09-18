@@ -85,7 +85,14 @@ export async function resetInstitutionalCredentialsAction(input: {
   reason: string;
 }) {
   const { user } = await requireAdminOrRedirect();
-  return _resetCredentials(user.id, input);
+  const result = await _resetCredentials(user.id, input);
+  // A reset whose session revocation failed DEACTIVATES the target; the
+  // account pages must show that at once, not after a manual reload.
+  if ("error" in result) {
+    revalidatePath("/admin/govts");
+    revalidatePath(`/admin/govts/${input.targetUserId}`);
+  }
+  return result;
 }
 
 export async function assignGovtLocalityAction(input: {

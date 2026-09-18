@@ -36,6 +36,7 @@
 // queue. Same instrument, opposite direction, and the difference is which side
 // pays for being wrong.
 
+import { SYNTHETIC_PET_WRITE_REFUSED, isSyntheticPet } from "@/lib/domain/synthetic-pet";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 
@@ -144,6 +145,9 @@ export async function submitAdoptionApplication(
     return { ok: false, error: "La mascota no existe o ya no está bajo custodia de un refugio." };
   }
   const { pet, org } = petWithOrg;
+  // A seeded pet records no real act (lib/domain/synthetic-pet.ts). It is
+  // never listed, but the token can still be posted to by hand.
+  if (isSyntheticPet(pet)) return { ok: false, error: SYNTHETIC_PET_WRITE_REFUSED };
 
   const petSnapshot = {
     adoptionListedAt: pet.adoptionListedAt,
