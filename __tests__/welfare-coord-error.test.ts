@@ -174,6 +174,9 @@ vi.mock("@/lib/infra/welfare-moderation", () => ({
 }));
 
 vi.mock("@/lib/infra/welfare-uploads", () => ({
+  // The action runs the storage-free evidence checks before inserting; this
+  // file has no evidence, so they pass.
+  checkWelfareEvidence: vi.fn(async () => null),
   uploadWelfareEvidence: vi.fn(),
 }));
 

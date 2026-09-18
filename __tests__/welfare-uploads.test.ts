@@ -9,7 +9,11 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
+import {
+  checkWelfareEvidence,
+  removeWelfareEvidence,
+  uploadWelfareEvidence,
+} from "@/lib/infra/welfare-uploads";
 
 // ---------------------------------------------------------------------------
 // Mock: sharp (dynamic import inside welfare-uploads.ts)
@@ -49,6 +53,28 @@ vi.mock("@/lib/supabase/admin", () => ({
 function makeFile(name: string, type: string, sizeBytes = 1024): File {
   const bytes = new Uint8Array(sizeBytes);
   return new File([bytes], name, { type });
+}
+
+/**
+ * The first bytes of an ISO-BMFF file: box size, `ftyp`, major brand, minor
+ * version, compatible brands. An iPhone HEIC opens `ftypheic`; many converted
+ * or Android files open `ftypmif1` and list `heic` only as compatible.
+ */
+function ftypHeader(major: string, compatible: string[]): Uint8Array {
+  const brands = [major, "\0\0\0\0", ...compatible].join("");
+  const size = 8 + brands.length;
+  return new Uint8Array([
+    0,
+    0,
+    0,
+    size,
+    ...new TextEncoder().encode("ftyp"),
+    ...new TextEncoder().encode(brands),
+  ]);
+}
+
+function makeBytesFile(head: Uint8Array, name: string, type: string): File {
+  return new File([new Uint8Array(head), new Uint8Array(256)], name, { type });
 }
 
 /** The (path, body, options) tuple of the nth storage.upload call. */
@@ -210,19 +236,123 @@ describe("uploadWelfareEvidence", () => {
     expect(result.uploaded[0].fileSize).toBe(1024);
   });
 
-  it("sharp throw is non-fatal: falls back to uploading the original file", async () => {
+  // -------------------------------------------------------------------------
+  // D4: the strip FAILS CLOSED. It used to fall back to the original bytes —
+  // the GPS-bearing ones — whenever sharp threw.
+  // -------------------------------------------------------------------------
+
+  it("a strip failure refuses the submission and stores nothing", async () => {
     mockToBuffer.mockRejectedValue(new Error("sharp: unsupported format"));
 
     const file = makeFile("corrupt.jpg", "image/jpeg", 512);
     const result = await uploadWelfareEvidence("report-id-exif-3", [file]);
 
-    // Overall upload succeeds despite the sharp failure.
+    expect(result.error).toContain('"corrupt.jpg"');
+    expect(result.error).toMatch(/lugar donde se sacó/);
+    expect(result.error).toMatch(/no guardamos nada/);
+    expect(result.uploaded).toEqual([]);
+    expect(result.uploadedPaths).toEqual([]);
+    // The original File never reached storage.
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("a strip failure on a later file rolls back the files already stored", async () => {
+    // First JPEG strips fine, the second one does not.
+    mockToBuffer
+      .mockResolvedValueOnce(Buffer.from("sharp-processed"))
+      .mockRejectedValueOnce(new Error("sharp: corrupt"));
+
+    const result = await uploadWelfareEvidence("report-id-exif-4", [
+      makeFile("ok.jpg", "image/jpeg"),
+      makeFile("bad.jpg", "image/jpeg"),
+    ]);
+
+    expect(result.error).toContain('"bad.jpg"');
+    expect(result.uploaded).toEqual([]);
+    expect(result.uploadedPaths).toEqual([]);
+    // Only the first file was ever written, as its stripped body...
+    expect(uploadMock).toHaveBeenCalledOnce();
+    const [firstPath, firstBody] = uploadCall();
+    expect(firstBody).toEqual(Buffer.from("sharp-processed"));
+    // ...and exactly that path is removed again.
+    expect(removeMock).toHaveBeenCalledWith([firstPath]);
+  });
+
+  // -------------------------------------------------------------------------
+  // D4: HEIC/HEIF is refused, whatever the file claims to be.
+  // -------------------------------------------------------------------------
+
+  it("refuses an iPhone HEIC (ftypheic) with the D4 message and uploads nothing", async () => {
+    const heic = makeBytesFile(ftypHeader("heic", ["mif1", "heic"]), "IMG_0001.HEIC", "image/heic");
+
+    const result = await uploadWelfareEvidence("report-id-heic-1", [heic]);
+
+    expect(result.error).toContain('"IMG_0001.HEIC"');
+    expect(result.error).toMatch(/formato HEIC/);
+    expect(result.error).toMatch(/lugar exacto/);
+    expect(result.error).toMatch(/captura de pantalla/);
+    expect(result.error).toMatch(/Más compatible/);
+    expect(result.uploaded).toEqual([]);
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(mockSharpFn).not.toHaveBeenCalled();
+  });
+
+  it("refuses HEIF bytes (ftypmif1) even when the file is labelled image/jpeg", async () => {
+    // The declared type is the client's to choose; the bytes are not.
+    const disguised = makeBytesFile(ftypHeader("mif1", ["heic"]), "foto.jpg", "image/jpeg");
+
+    const result = await uploadWelfareEvidence("report-id-heic-2", [disguised]);
+
+    expect(result.error).toMatch(/formato HEIC/);
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(mockSharpFn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a .heic file the browser sent with no type at all", async () => {
+    const untyped = makeFile("IMG_0002.heic", "", 2048);
+
+    const result = await uploadWelfareEvidence("report-id-heic-3", [untyped]);
+
+    expect(result.error).toMatch(/formato HEIC/);
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("one HEIC among valid files refuses the whole set before anything is stored", async () => {
+    const result = await uploadWelfareEvidence("report-id-heic-4", [
+      makeFile("ok.jpg", "image/jpeg"),
+      makeBytesFile(ftypHeader("heic", []), "IMG_0003.HEIC", "image/heic"),
+    ]);
+
+    expect(result.error).toMatch(/formato HEIC/);
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(removeMock).not.toHaveBeenCalled();
+  });
+
+  it("an MP4 or MOV is not mistaken for HEIF (its ftyp brands are video brands)", async () => {
+    const mp4 = makeBytesFile(ftypHeader("isom", ["iso2", "mp41"]), "clip.mp4", "video/mp4");
+    const mov = makeBytesFile(ftypHeader("qt  ", ["qt  "]), "clip.mov", "video/quicktime");
+
+    const result = await uploadWelfareEvidence("report-id-video", [mp4, mov]);
+
     expect(result.error).toBeNull();
-    expect(result.uploaded).toHaveLength(1);
-    // Upload body fell back to the original File.
-    expect(uploadCall()[1]).toBe(file);
-    // fileSize is the original size since the processed buffer was never produced.
-    expect(result.uploaded[0].fileSize).toBe(512);
+    expect(result.uploaded.map((u) => u.mimeType)).toEqual(["video/mp4", "video/quicktime"]);
+  });
+});
+
+describe("checkWelfareEvidence — the storage-free checks callers run before inserting", () => {
+  it("passes a valid set", async () => {
+    expect(await checkWelfareEvidence([makeFile("a.jpg", "image/jpeg")])).toBeNull();
+  });
+
+  it("refuses HEIC by its bytes", async () => {
+    const heic = makeBytesFile(ftypHeader("heic", []), "x.bin", "application/octet-stream");
+    expect(await checkWelfareEvidence([heic])).toMatch(/formato HEIC/);
+  });
+
+  it("refuses an unsupported type with the generic message", async () => {
+    expect(await checkWelfareEvidence([makeFile("doc.pdf", "application/pdf")])).toMatch(
+      /Tipo de archivo no soportado: application\/pdf/,
+    );
   });
 });
 

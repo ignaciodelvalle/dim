@@ -10,6 +10,7 @@ import { useRef } from "react";
 
 import { Icon } from "@/components/Icon";
 import { LnInput } from "@/components/ui/Field";
+import { heicRefusalMessage, isDeclaredHeic } from "@/lib/media/heic";
 
 export type ContactMode = "anonymous" | "with_contact";
 
@@ -21,12 +22,12 @@ export type EvidenceFile = {
 
 const MAX_EVIDENCE_FILES = 5;
 const MAX_EVIDENCE_BYTES = 25 * 1024 * 1024; // 25 MB
+// No HEIC/HEIF: refused by PO decision D4 (lib/media/heic.ts). Leaving them out
+// of `accept` below is also what makes iOS Safari hand over a JPEG instead.
 const ALLOWED_EVIDENCE_MIME = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
-  "image/heic",
-  "image/heif",
   "image/gif",
   "video/mp4",
   "video/webm",
@@ -87,9 +88,14 @@ export function Step5Contact({
     }
 
     for (const f of newFiles) {
+      if (isDeclaredHeic(f)) {
+        onEvidenceErrorChange(heicRefusalMessage(f.name));
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
       if (!ALLOWED_EVIDENCE_MIME.has(f.type)) {
         onEvidenceErrorChange(
-          `Tipo de archivo no soportado: "${f.name}". Solo imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`,
+          `Tipo de archivo no soportado: "${f.name}". Solo imágenes (JPG, PNG, WebP, GIF) y videos (MP4, WebM, MOV).`,
         );
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
@@ -276,8 +282,8 @@ export function Step5Contact({
         </div>
 
         <p className="text-xs text-[var(--color-ln-mute)]">
-          Hasta {MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF)
-          y videos (MP4, WebM, MOV).
+          Hasta {MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, GIF) y
+          videos (MP4, WebM, MOV).
         </p>
 
         {/* File input — cleared after each selection to allow incremental adds */}
@@ -290,7 +296,7 @@ export function Step5Contact({
           id="evidenceFiles"
           type="file"
           multiple
-          accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
+          accept="image/*,video/mp4,video/webm,video/quicktime"
           capture="environment"
           onChange={(e) => handleFilesSelected(e.target.files)}
           className="block w-full text-xs text-[var(--color-ln-ink-2)] file:mr-3 file:px-3 file:py-1.5 file:rounded-[var(--radius-sm)] file:border-0 file:bg-[var(--color-ln-stripe)] file:text-[var(--color-ln-ink)] file:cursor-pointer"

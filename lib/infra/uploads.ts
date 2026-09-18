@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { heicRefusalMessage, isHeifContainer, metadataStripRefusalMessage } from "@/lib/media/heic";
 import {
   MAX_IMAGE_BYTES,
   RASTER_IMAGE_TYPES,
@@ -23,8 +24,9 @@ export type UploadResult = {
 
 export type UploadOptions = {
   /** When true, strips EXIF metadata (including GPS) via sharp before upload.
-   * Only applies to raster images. Falls back to the original file if sharp
-   * throws. Default: false (preserves current behavior for all existing callers). */
+   * FAILS CLOSED (PO decision D4, 2026-09-18): if sharp throws, nothing is
+   * uploaded and the caller gets an es-AR refusal — the original bytes are
+   * never stored as a fallback. Default: false (existing callers unchanged). */
   stripMetadata?: boolean;
 };
 
@@ -74,7 +76,12 @@ export async function uploadAttachmentIfPresent(
       uploadedPath: null,
       mimeType: null,
       size: null,
-      error: "El archivo debe ser una imagen JPG, PNG o WebP.",
+      // HEIC is refused like any other non-whitelisted type, but it gets the
+      // D4 sentence: it is the iPhone's default, and the person needs to know
+      // how to send the same photo in a form we take.
+      error: isHeifContainer(inputBuffer)
+        ? heicRefusalMessage()
+        : "El archivo debe ser una imagen JPG, PNG o WebP.",
     };
   }
 
@@ -107,9 +114,18 @@ export async function uploadAttachmentIfPresent(
           error: "No se pudo procesar la imagen. Probá con otra foto.",
         };
       }
-      // Private-ish bucket (opt-in strip): non-fatal fallback to original file.
-      console.warn("[uploads] EXIF strip failed (non-fatal), uploading original:", err);
-      uploadBody = file;
+      // Opt-in strip: FAILS CLOSED too (D4). It used to fall back to the
+      // original file, which stored the GPS position of exactly the photos
+      // sharp could not read — the finder's and sighting reporter's location,
+      // the reason these callers opted in. Nothing has been uploaded yet on
+      // this path, so refusing is the whole of the rollback.
+      console.warn("[uploads] EXIF strip failed, refusing rather than storing raw:", err);
+      return {
+        uploadedPath: null,
+        mimeType: null,
+        size: null,
+        error: metadataStripRefusalMessage(),
+      };
     }
   }
 

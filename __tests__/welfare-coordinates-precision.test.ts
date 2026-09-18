@@ -158,10 +158,10 @@ describe("authority surfaces — exact location, labelled, and logged (Ley 14.34
 // (segunda pasada de auditoría, hallazgo #1, 2026-08-12)
 // ---------------------------------------------------------------------------
 //
-// El comprobante público firma y sirve los adjuntos de la denuncia. `sharp`
-// sólo re-encodea jpeg/png/webp; HEIC/HEIF/GIF y video se guardan con los bytes
-// originales, o sea con el GPS de la cámara intacto — y HEIC es el default del
-// iPhone. Servirlos derrotaba el mismo control que esta página aplica al punto
+// El comprobante público firmaba y servía los adjuntos de la denuncia. `sharp`
+// sólo re-encodea jpeg/png/webp; en ese momento HEIC/HEIF/GIF y video se
+// guardaban con los bytes originales, o sea con el GPS de la cámara intacto (HEIC
+// se rechaza desde D4, 2026-09-18). Servirlos derrotaba el mismo control que esta página aplica al punto
 // del mapa (coarsenPoint "approx") y a la dirección de calle (Ley 25.326): se
 // descarga el archivo y se lee la coordenada exacta del metadato.
 //
@@ -172,10 +172,12 @@ describe("authority surfaces — exact location, labelled, and logged (Ley 14.34
 // QUÉ TENDRÍA QUE ROMPERSE PARA QUE ESTO FALLE: que el gate se saque o que se
 // agregue un formato a ALLOWED_MIME sin poder estriparlo.
 describe("evidencia de denuncia — sólo se sirve en público lo que pudimos estripar", () => {
-  it("acepta subir HEIC y video, pero NO los declara con metadatos removidos", () => {
-    // Las dos mitades importan: si dejáramos de aceptarlos perderíamos evidencia
-    // real (el denunciante filma con el teléfono), así que la respuesta no es
-    // rechazarlos sino no servirlos crudos al público.
+  it("NO declara con metadatos removidos a HEIC, GIF ni video", () => {
+    // HEIC/HEIF ya no se aceptan (decisión D4 del PO, 2026-09-18: se rechazan en
+    // vez de transcodificarse — __tests__/welfare-uploads.test.ts lo prueba), pero
+    // si alguno llegara a estar guardado sigue sin poder declararse limpio. El
+    // video se sigue aceptando (el denunciante filma con el teléfono) con sus
+    // metadatos hasta el neutralizador de D4b, así que tampoco.
     expect(isMetadataStripped("image/heic")).toBe(false);
     expect(isMetadataStripped("image/heif")).toBe(false);
     expect(isMetadataStripped("image/gif")).toBe(false);

@@ -32,6 +32,7 @@ import {
   LnSelect,
   LnTextarea,
 } from "@/components/ui/Field";
+import { heicRefusalMessage, isDeclaredHeic } from "@/lib/media/heic";
 import type { WelfareReportFormState } from "@/src/modules/welfare/actions";
 import {
   WELFARE_REPORT_KINDS,
@@ -51,12 +52,12 @@ type FormAction = (
 
 const MAX_EVIDENCE_FILES = 5;
 const MAX_EVIDENCE_BYTES = 25 * 1024 * 1024;
+// No HEIC/HEIF: refused by PO decision D4 (lib/media/heic.ts). Leaving them out
+// of `accept` below is also what makes iOS Safari hand over a JPEG instead.
 const ALLOWED_EVIDENCE_MIME = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
-  "image/heic",
-  "image/heif",
   "image/gif",
   "video/mp4",
   "video/webm",
@@ -180,9 +181,14 @@ export function WelfareReportForm({
     }
 
     for (const f of incoming) {
+      if (isDeclaredHeic(f)) {
+        setEvidenceError(heicRefusalMessage(f.name));
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
       if (!ALLOWED_EVIDENCE_MIME.has(f.type)) {
         setEvidenceError(
-          `Tipo de archivo no soportado: "${f.name}". Solo imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`,
+          `Tipo de archivo no soportado: "${f.name}". Solo imágenes (JPG, PNG, WebP, GIF) y videos (MP4, WebM, MOV).`,
         );
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
@@ -399,7 +405,7 @@ export function WelfareReportForm({
       <LnField
         label="Evidencia"
         required={evidenceRequired}
-        hint={`${evidenceRequired ? "Al menos 1 archivo. " : ""}Hasta ${MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, HEIC, GIF) y videos (MP4, WebM, MOV).`}
+        hint={`${evidenceRequired ? "Al menos 1 archivo. " : ""}Hasta ${MAX_EVIDENCE_FILES} archivos, 25 MB cada uno. Imágenes (JPG, PNG, WebP, GIF) y videos (MP4, WebM, MOV).`}
         error={evidenceError ?? undefined}
       >
         {({ id }) => (
@@ -409,7 +415,7 @@ export function WelfareReportForm({
               id={id}
               type="file"
               multiple
-              accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
+              accept="image/*,video/mp4,video/webm,video/quicktime"
               onChange={(e) => handleFilesSelected(e.target.files)}
               className="text-sm text-ln-ink-2 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-ln-line-strong file:bg-ln-card file:text-ln-ink-2 file:text-sm file:cursor-pointer hover:file:bg-ln-stripe"
             />

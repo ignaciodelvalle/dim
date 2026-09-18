@@ -45,11 +45,11 @@
 // DO NOT BUILD A PARALLEL UPLOAD PATH TO GET AROUND IT. This repo already
 // carries two blanket storage grants that exist because somebody did exactly
 // that once. And there is a second, sharper reason to keep photos off this door
-// in particular: the web's own denuncia form accepts HEIC, so the GPS EXIF of an
-// anonymous reporter's home travels inside every iPhone photo they attach. That
-// leak is declared, live, and deferred — it needs server-side transcoding and it
-// is not this lane's territory — but a door that takes no photos cannot make it
-// worse, and this one takes none.
+// in particular: a phone photo carries the GPS EXIF of an anonymous reporter's
+// home. The web door refuses HEIC/HEIF (PO decision D4, 2026-09-18) and strips
+// JPEG/PNG/WebP failing closed (`lib/infra/welfare-uploads.ts`); video still
+// carries its position until D4b. When this door takes bytes, it goes through
+// that helper — never a second path beside it.
 //
 // WHAT IS ALSO NOT HERE: `dwellTimeMs` AND THE HONEYPOT
 // ---------------------------------------------------------------------------
