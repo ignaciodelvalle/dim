@@ -505,14 +505,14 @@
         "AGENTS.md:1499"
       ],
       "enforcer": [
-        "vitest.config.ts:111",
+        "vitest.config.ts:124",
         "__tests__/global-setup.ts:115-126"
       ],
       "enforcementKind": "none",
       "wired": "none",
       "status": "UNENFORCED",
       "clause": "R2",
-      "statusBasis": "vitest.config.ts:111 globalSetup: [\"./__tests__/global-setup.ts\"] is the declaration itself and __tests__/global-setup.ts:115-126 its implementation, not a check on it; an rg for globalSetup across ts/tsx/mjs/yml/json finds no assertion outside the config. setup() calls its own DATABASE_URL forcing 'Belt-and-suspenders … Per-file setup.ts handles workers' (:119-120), so deleting the entry fails nothing deterministically.",
+      "statusBasis": "vitest.config.ts:124 globalSetup: [\"./__tests__/global-setup.ts\"] is the declaration itself and __tests__/global-setup.ts:115-126 its implementation, not a check on it; an rg for globalSetup across ts/tsx/mjs/yml/json finds no assertion outside the config. setup() calls its own DATABASE_URL forcing 'Belt-and-suspenders … Per-file setup.ts handles workers' (:119-120), so deleting the entry fails nothing deterministically.",
       "notes": "Followed the previous basis's lead and opened scripts/check-spine-integrity.ts:188-189 (lint:spine, in verify): it does fail on pets with no pet_events row, so eventless debris left by an aborted run surfaces there. That is a downstream, run-dependent consequence of the missing sweep, not a check on the entry, and the VITEST=true and DATABASE_URL limbs stay unfenced — verdict unchanged.",
       "confidence": 0.68,
       "verifiedAt": "d7dbf25f7"
@@ -2388,17 +2388,17 @@
       "rule": "The \"db\" vitest project must run after (never alongside) the \"unit\" project, per groupOrder, because concurrent scheduling starves the DB project.",
       "scope": "process",
       "sources": [
-        "vitest.config.ts:77"
+        "vitest.config.ts:90"
       ],
       "enforcer": [
-        "vitest.config.ts:62",
-        "vitest.config.ts:101"
+        "vitest.config.ts:75",
+        "vitest.config.ts:114"
       ],
       "enforcementKind": "none",
       "wired": "none",
       "status": "UNENFORCED",
       "clause": "R2",
-      "statusBasis": "vitest.config.ts:62 sequence:{groupOrder:0} and :101 sequence:{groupOrder:1} ARE the scheduling mechanism; setting both to the same value changes behaviour and fails no check. An rg for groupOrder across ts/tsx/mjs/yml/json finds it only in vitest.config.ts and in explanatory comments (components/panorama/PanoramaConsole.test.tsx).",
+      "statusBasis": "vitest.config.ts:75 sequence:{groupOrder:0} and :114 sequence:{groupOrder:1} ARE the scheduling mechanism; setting both to the same value changes behaviour and fails no check. An rg for groupOrder across ts/tsx/mjs/yml/json finds it only in vitest.config.ts and in explanatory comments (components/panorama/PanoramaConsole.test.tsx).",
       "notes": "self-executing declaration, true at this SHA. The previous basis states it verbatim ('The config line IS the scheduling mechanism … no test asserts groupOrder') while grading ENFORCED.",
       "confidence": 0.82,
       "verifiedAt": "d7dbf25f7"
@@ -3604,14 +3604,14 @@
       ],
       "enforcer": [
         "__tests__/rabies-professional-closure-fence.test.ts:1-20,72-126",
-        "db/schema.ts:717 petsRabiesObservationStatusValid"
+        "db/schema.ts:753 petsRabiesObservationStatusValid"
       ],
       "enforcementKind": "vitest",
       "wired": "test:verified",
       "status": "ENFORCED",
       "clause": "R1",
       "statusBasis": "__tests__/rabies-professional-closure-fence.test.ts:83-88 flags any file outside ALLOWED_WRITERS emitting `eventType: \"rabies_observation_ended\"`; :111 flags setObservationStatus(…, \"completed_*\"); :122 flags any ownerClose*Observation identifier. Corpus app/+src/+lib minus tests (:59-65) with a >200-file floor (:69) and a bites-control (:92-100).",
-      "notes": "The status half anchors on the helper spelling; the only production writer of pets.rabies_observation_status is the repository method (src/modules/events/infrastructure/events-repository.ts:666-679), so the single write door is what the anchor names. The basis's extra citation (db/schema.ts:717 value-domain CHECK) constrains values, not authorship — it does not change the verdict either way.",
+      "notes": "The status half anchors on the helper spelling; the only production writer of pets.rabies_observation_status is the repository method (src/modules/events/infrastructure/events-repository.ts:666-679), so the single write door is what the anchor names. The basis's extra citation (db/schema.ts:753 value-domain CHECK) constrains values, not authorship — it does not change the verdict either way.",
       "confidence": 0.8,
       "verifiedAt": "d7dbf25f7"
     },
