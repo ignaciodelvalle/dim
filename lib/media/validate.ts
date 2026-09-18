@@ -48,16 +48,9 @@ export type RasterMime = keyof typeof RASTER_IMAGE_TYPES;
 /** Every MIME a caller may legally declare, as a runtime list for zod/enums. */
 export const RASTER_MIME_LIST = Object.keys(RASTER_IMAGE_TYPES) as readonly RasterMime[];
 
-/**
- * The size ceiling, in bytes.
- *
- * Lives here because two enforcement points must agree on it: the Server Action
- * path checks `file.size` before reading, and the staging bucket declares the
- * same number as its `file_size_limit` so the Storage API refuses an oversized
- * PUT that no server code ever sees. A limit the client volunteers is not a
- * limit; a limit the object store enforces is.
- */
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+// The size ceiling lives in ./limits so client code can import it without
+// dragging sharp into the browser bundle.
+export { MAX_IMAGE_BYTES } from "./limits";
 
 /** Is this a MIME a caller may declare? Narrows on the way through. */
 export function isRasterMime(value: string): value is RasterMime {

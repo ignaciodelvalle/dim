@@ -48,7 +48,7 @@ import {
   type GovtPetLookupResult,
   lookupPetForDecomisoAction,
 } from "@/app/actions/decomiso-pet-lookup";
-import { MAX_IMAGE_BYTES } from "@/lib/media/validate";
+import { MAX_IMAGE_BYTES } from "@/lib/media/limits";
 import { formatRate, sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
