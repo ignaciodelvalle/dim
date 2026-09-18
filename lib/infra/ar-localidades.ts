@@ -282,3 +282,80 @@ export async function searchLocalities(input: {
     }),
   );
 }
+
+/** A catalog locality near a point, with its approximate distance to it. */
+export type NearbyLocality = {
+  id: string;
+  provinceCode: ProvinceCode;
+  localityName: string;
+  distanceKm: number;
+};
+
+/** Kilometres per degree of latitude (mean Earth radius 6371 km). */
+const KM_PER_DEGREE = 111.195;
+
+/**
+ * Equirectangular distance in km from a catalog centroid to `point` — exact
+ * enough at the tens-of-kilometres scale it is used for, and plain arithmetic
+ * (the local stack has no PostGIS). Rows without a centroid come out NULL.
+ */
+function distanceKmSql(point: { lat: number; lng: number }) {
+  return sql<number | null>`(${KM_PER_DEGREE} * sqrt(
+    power(${arLocalities.latitude}::float8 - ${point.lat}::float8, 2) +
+    power((${arLocalities.longitude}::float8 - ${point.lng}::float8) * cos(radians(${point.lat}::float8)), 2)
+  ))`;
+}
+
+/**
+ * The `limit` catalog localities whose centroid lies closest to `point`,
+ * nearest first. Rows without a centroid are skipped. Used to CORROBORATE a
+ * client-supplied jurisdiction against the coordinates that came with it —
+ * never to derive one (see lib/infra/jurisdiction-from-text.ts).
+ */
+export async function nearestLocalities(input: {
+  lat: number;
+  lng: number;
+  limit: number;
+}): Promise<NearbyLocality[]> {
+  const distance = distanceKmSql(input);
+  const rows = await db
+    .select({
+      id: arLocalities.id,
+      provinceCode: arLocalities.provinceCode,
+      localityName: arLocalities.localityName,
+      distanceKm: distance,
+    })
+    .from(arLocalities)
+    .where(
+      and(
+        isNull(arLocalities.removedAt),
+        sql`${arLocalities.latitude} IS NOT NULL`,
+        sql`${arLocalities.longitude} IS NOT NULL`,
+      ),
+    )
+    .orderBy(asc(distance))
+    .limit(input.limit);
+  return rows.map((r) => ({
+    id: r.id,
+    provinceCode: r.provinceCode as ProvinceCode,
+    localityName: r.localityName,
+    distanceKm: Number(r.distanceKm),
+  }));
+}
+
+/**
+ * Distance in km from one catalog locality's centroid to `point`, or null when
+ * the row is missing, removed, or has no centroid.
+ */
+export async function localityDistanceKm(
+  localityId: string,
+  point: { lat: number; lng: number },
+): Promise<number | null> {
+  const [row] = await db
+    .select({ distanceKm: distanceKmSql(point) })
+    .from(arLocalities)
+    .where(and(eq(arLocalities.id, localityId), isNull(arLocalities.removedAt)))
+    .limit(1);
+  if (!row || row.distanceKm === null) return null;
+  return Number(row.distanceKm);
+}

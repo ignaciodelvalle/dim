@@ -1049,6 +1049,8 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
       locality: null,
       localityId: null,
       addressText: FACTS.locationAddress,
+      lat: FACTS.locationLat,
+      lng: FACTS.locationLng,
     });
     expect(control.inserted[0].jurisdictionProvince).toBe("Río Negro");
     expect(control.inserted[0].jurisdictionLocality).toBe("San Carlos de Bariloche");
@@ -1083,6 +1085,8 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
       locality: "Palermo",
       localityId: null,
       addressText: FACTS.locationAddress,
+      lat: FACTS.locationLat,
+      lng: FACTS.locationLng,
     });
     // And the row honors the gate's VERIFIED answer — the inference mark is for
     // rows whose pair really did come out of text, which this one did not.
@@ -1131,6 +1135,8 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
       locality: "Palermo",
       localityId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       addressText: FACTS.locationAddress,
+      lat: FACTS.locationLat,
+      lng: FACTS.locationLng,
     });
     expect(control.inserted[0].jurisdictionProvince).toBe("CABA");
     expect(control.inserted[0].localityId).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
@@ -1162,6 +1168,8 @@ describe("the jurisdiction is resolved the way both of the web's intakes resolve
       locality: "Barrio inexistente",
       localityId: null,
       addressText: FACTS.locationAddress,
+      lat: FACTS.locationLat,
+      lng: FACTS.locationLng,
     });
     expect(control.inserted[0].jurisdictionProvince).toBe("CABA");
     expect(control.inserted[0].localityId).toBeNull();

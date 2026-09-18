@@ -38,7 +38,15 @@ vi.stubGlobal("fetch", fetchMock);
 // Two provinces, plus one deliberately ambiguous name shared by two provinces.
 // ---------------------------------------------------------------------------
 
-type CatalogRow = { id: string; provinceCode: string; provinceName: string; localityName: string };
+type CatalogRow = {
+  id: string;
+  provinceCode: string;
+  provinceName: string;
+  localityName: string;
+  /** Centroid, for the coordinate-corroboration arm (A11-G1). */
+  lat: number;
+  lng: number;
+};
 
 const CATALOG: CatalogRow[] = [
   {
@@ -46,18 +54,93 @@ const CATALOG: CatalogRow[] = [
     provinceCode: "AR-B",
     provinceName: "Buenos Aires",
     localityName: "Quilmes",
+    lat: -34.7206,
+    lng: -58.2546,
   },
-  { id: "loc-lanus", provinceCode: "AR-B", provinceName: "Buenos Aires", localityName: "Lanús" },
-  { id: "loc-palermo", provinceCode: "AR-C", provinceName: "CABA", localityName: "Palermo" },
+  {
+    id: "loc-lanus",
+    provinceCode: "AR-B",
+    provinceName: "Buenos Aires",
+    localityName: "Lanús",
+    lat: -34.7009,
+    lng: -58.3918,
+  },
+  {
+    id: "loc-palermo",
+    provinceCode: "AR-C",
+    provinceName: "CABA",
+    localityName: "Palermo",
+    lat: -34.5889,
+    lng: -58.4306,
+  },
   // Same name in two provinces — the inference must refuse to pick one.
-  { id: "loc-belgrano-c", provinceCode: "AR-C", provinceName: "CABA", localityName: "Belgrano" },
+  {
+    id: "loc-belgrano-c",
+    provinceCode: "AR-C",
+    provinceName: "CABA",
+    localityName: "Belgrano",
+    lat: -34.5627,
+    lng: -58.4583,
+  },
   {
     id: "loc-belgrano-b",
     provinceCode: "AR-B",
     provinceName: "Buenos Aires",
     localityName: "Belgrano",
+    lat: -35.0,
+    lng: -58.9,
   },
+  // La Plata and three neighbours, so a pin there has closer settlements than
+  // Quilmes (~35 km away) — the locality arm of the corroboration check.
+  {
+    id: "loc-la-plata",
+    provinceCode: "AR-B",
+    provinceName: "Buenos Aires",
+    localityName: "La Plata",
+    lat: -34.9214,
+    lng: -57.9544,
+  },
+  {
+    id: "loc-berisso",
+    provinceCode: "AR-B",
+    provinceName: "Buenos Aires",
+    localityName: "Berisso",
+    lat: -34.8733,
+    lng: -57.8866,
+  },
+  {
+    id: "loc-ensenada",
+    provinceCode: "AR-B",
+    provinceName: "Buenos Aires",
+    localityName: "Ensenada",
+    lat: -34.8646,
+    lng: -57.9111,
+  },
+  {
+    id: "loc-city-bell",
+    provinceCode: "AR-B",
+    provinceName: "Buenos Aires",
+    localityName: "City Bell",
+    lat: -34.8667,
+    lng: -58.05,
+  },
+  // Ten settlements around Salta city, so a pin there has ten nearer catalog
+  // rows than any in CABA — the province arm of the corroboration check.
+  ...Array.from({ length: 10 }, (_, i) => ({
+    id: `loc-salta-${i}`,
+    provinceCode: "AR-A",
+    provinceName: "Salta",
+    localityName: `Paraje Salteño ${i}`,
+    lat: -24.78 + i * 0.05,
+    lng: -65.41,
+  })),
 ];
+
+/** Same equirectangular approximation as the real catalog query. */
+function fakeDistanceKm(row: CatalogRow, p: { lat: number; lng: number }): number {
+  const dLng = (row.lng - p.lng) * Math.cos((p.lat * Math.PI) / 180);
+  return 111.195 * Math.sqrt((row.lat - p.lat) ** 2 + dLng ** 2);
+}
 
 function fold(s: string): string {
   return s
@@ -85,6 +168,20 @@ vi.mock("@/lib/infra/ar-localidades", () => ({
       localitySlug: fold(r.localityName),
       matchKind: "exact" as const,
     }));
+  }),
+  nearestLocalities: vi.fn(async (p: { lat: number; lng: number; limit: number }) =>
+    CATALOG.map((r) => ({
+      id: r.id,
+      provinceCode: r.provinceCode,
+      localityName: r.localityName,
+      distanceKm: fakeDistanceKm(r, p),
+    }))
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, p.limit),
+  ),
+  localityDistanceKm: vi.fn(async (id: string, p: { lat: number; lng: number }) => {
+    const row = CATALOG.find((r) => r.id === id);
+    return row ? fakeDistanceKm(row, p) : null;
   }),
 }));
 
@@ -303,12 +400,14 @@ describe("inferJurisdictionFromText", () => {
 // ===========================================================================
 
 describe("resolveRoutableJurisdiction — D.11 gate", () => {
-  it("GEOCODER SUCCEEDED: passes the verified jurisdiction through untouched and unmarked", async () => {
+  it("GEOCODER SUCCEEDED and the pin agrees: passes the jurisdiction through untouched and unmarked", async () => {
     const r = await resolveRoutableJurisdiction({
       province: "CABA",
       locality: "Palermo",
       localityId: "loc-palermo",
       addressText: "Av. Santa Fe 3253, Palermo, CABA",
+      lat: -34.5885,
+      lng: -58.4108,
     });
     expect(r).toEqual({
       province: "CABA",
@@ -326,9 +425,83 @@ describe("resolveRoutableJurisdiction — D.11 gate", () => {
       locality: "Villa Tesei",
       localityId: null,
       addressText: "Calle 12, Villa Tesei, Buenos Aires",
+      lat: -34.6167,
+      lng: -58.6333,
     });
     expect(r.unverified).toBe(false);
     expect(r.locality).toBe("Villa Tesei");
+  });
+
+  // A11-G1: the pair on this arm is the CLIENT's echo of a geocoder answer. A
+  // client can put any pair next to any pin, so it is marked verified only when
+  // the pin corroborates it — and it is never rewritten from the pin.
+  it("an echoed province the pin contradicts keeps its pair but is MARKED", async () => {
+    const r = await resolveRoutableJurisdiction({
+      province: "CABA",
+      locality: "Palermo",
+      localityId: "loc-palermo",
+      addressText: "Av. Santa Fe 3253, Palermo, CABA",
+      lat: -24.7821,
+      lng: -65.4232, // Salta
+    });
+    expect(r).toEqual({
+      province: "CABA",
+      locality: "Palermo",
+      localityId: "loc-palermo",
+      unverified: true,
+    });
+  });
+
+  it("an echoed province-only pair the pin contradicts is MARKED (the province arm alone)", async () => {
+    const r = await resolveRoutableJurisdiction({
+      province: "CABA",
+      locality: null,
+      localityId: null,
+      addressText: "Av. Corrientes 1234, CABA",
+      lat: -24.7821,
+      lng: -65.4232, // Salta
+    });
+    expect(r.province).toBe("CABA");
+    expect(r.unverified).toBe(true);
+  });
+
+  it("an echoed locality ~35 km from the pin, with nearer settlements, is MARKED", async () => {
+    const r = await resolveRoutableJurisdiction({
+      province: "Buenos Aires",
+      locality: "Quilmes",
+      localityId: "loc-quilmes",
+      addressText: "Calle 7 y 50, Quilmes, Buenos Aires",
+      lat: -34.9205,
+      lng: -57.9536, // La Plata
+    });
+    expect(r.province).toBe("Buenos Aires");
+    expect(r.locality).toBe("Quilmes");
+    expect(r.unverified).toBe(true);
+  });
+
+  it("control: the same pin echoing its own locality is verified", async () => {
+    const r = await resolveRoutableJurisdiction({
+      province: "Buenos Aires",
+      locality: "La Plata",
+      localityId: "loc-la-plata",
+      addressText: "Calle 7 y 50, La Plata, Buenos Aires",
+      lat: -34.9205,
+      lng: -57.9536,
+    });
+    expect(r.unverified).toBe(false);
+  });
+
+  it("an echoed pair with no coordinates to check it against is MARKED", async () => {
+    const r = await resolveRoutableJurisdiction({
+      province: "CABA",
+      locality: "Palermo",
+      localityId: "loc-palermo",
+      addressText: "Av. Santa Fe 3253, Palermo, CABA",
+      lat: null,
+      lng: null,
+    });
+    expect(r.province).toBe("CABA");
+    expect(r.unverified).toBe(true);
   });
 
   it("GEOCODER DOWN: recovers the jurisdiction from the form text and MARKS it", async () => {
@@ -336,6 +509,8 @@ describe("resolveRoutableJurisdiction — D.11 gate", () => {
       province: null,
       locality: null,
       localityId: null,
+      lat: null,
+      lng: null,
       addressText: "Av. Rivadavia 1234, Quilmes, Buenos Aires",
     });
     expect(r).toEqual({
@@ -351,6 +526,8 @@ describe("resolveRoutableJurisdiction — D.11 gate", () => {
       province: null,
       locality: null,
       localityId: null,
+      lat: null,
+      lng: null,
       addressText: "atrás del galpón",
     });
     expect(r.province).toBeNull();
@@ -377,6 +554,8 @@ describe("a geocoder outage no longer makes a denuncia invisible", () => {
       province: null,
       locality: null,
       localityId: null,
+      lat: null,
+      lng: null,
       addressText: "Av. Rivadavia 1234, Quilmes, Buenos Aires",
     });
     expect(jurisdictionScopeContains(QUILMES_OPERATOR, r.province, r.locality)).toBe(true);
@@ -390,6 +569,8 @@ describe("a geocoder outage no longer makes a denuncia invisible", () => {
       province: null,
       locality: null,
       localityId: null,
+      lat: null,
+      lng: null,
       addressText: "Av. 9 de Julio y Corrientes, CABA",
     });
     expect(r.province).toBe("CABA");

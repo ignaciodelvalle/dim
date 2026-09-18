@@ -164,7 +164,9 @@ const ERASE_TS = "src/modules/auth/application/subject-rights/erase-subject-data
 export const CLASSIFICATION: Readonly<Record<string, Classification>> = {
   _dim_migrations: bothExempt("Migration ledger: filename, checksum, applied_at. No person."),
   alert_firings: bothGap("Free-text `notes` written by a govt operator while working an alert."),
-  alert_subscriptions: bothGap("The subject's own alert `label` and thresholds (actor_user_id)."),
+  alert_subscriptions: bothGap(
+    "The subject's own alert `label` and thresholds (actor_user_id). Processing stops at erasure/deactivation — the fleet sweep (record-firings.ts) evaluates only live admin owners — but the rows themselves are not erased.",
+  ),
   appointments: bothGap(
     "owner_user_id plus `notes_from_owner`, `notes_from_org`, `cancellation_reason`.",
   ),

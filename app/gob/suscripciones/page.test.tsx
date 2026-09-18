@@ -84,6 +84,17 @@ describe("/gob/suscripciones — render smoke test", () => {
     expect(html).not.toContain("max-w-5xl");
   });
 
+  // A10-G2: the evaluator intersects each subscription with the caller's own
+  // mandate, so the page must hand it the caller's assignments — not drop them.
+  it("hands the govt caller's own assignments to the evaluator", async () => {
+    const { evaluateAlertSubscriptions } = await import("@/lib/metrics/alert-evaluation");
+    vi.mocked(evaluateAlertSubscriptions).mockClear();
+    await SuscripcionesPage({ searchParams: Promise.resolve({}) });
+    expect(evaluateAlertSubscriptions).toHaveBeenCalledWith("govt-1", { role: "govt" }, [
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
+  });
+
   it("renders the breaching-alert banner and both subscription rows", async () => {
     const node = await SuscripcionesPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);

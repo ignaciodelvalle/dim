@@ -921,6 +921,8 @@ export async function createWelfareReportAction(
     locality: normalizedLoc.locality,
     localityId: normalizedLoc.localityId,
     addressText: locationAddress,
+    lat: normalizedLoc.lat,
+    lng: normalizedLoc.lng,
   });
   const jurisdictionProvince: string | null = routable.province;
   const jurisdictionLocality: string | null = routable.locality;
@@ -1220,6 +1222,8 @@ export async function createOrgWelfareReportAction(
     locality: normalizedLoc.locality,
     localityId: normalizedLoc.localityId,
     addressText: locationAddress,
+    lat: normalizedLoc.lat,
+    lng: normalizedLoc.lng,
   });
   const jurisdictionProvince: string | null = routable.province;
   const jurisdictionLocality: string | null = routable.locality;
