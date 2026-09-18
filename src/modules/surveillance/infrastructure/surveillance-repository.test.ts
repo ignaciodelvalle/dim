@@ -13,6 +13,7 @@
 // Note: pet_events is append-only (db/triggers.sql). Cleanup uses withMutationOverride.
 
 import { eq, sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, enoProcessingQueue, petEvents, pets } from "@/db";
@@ -579,6 +580,58 @@ describe("SurveillanceRepository.setObservationStatus", () => {
 
     // Reset to null
     await db.update(pets).set({ rabiesObservationStatus: null }).where(eq(pets.id, petId));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findActiveOwnerUserIds — the State's rabies close notifies these
+// ---------------------------------------------------------------------------
+
+describe("SurveillanceRepository.findActiveOwnerUserIds", () => {
+  // A fake executor: the predicate is what matters, and it is compiled and read
+  // back rather than trusted. `findActiveOwnership` (one `role = 'owner'` row,
+  // limit 1) is what this replaced on the close — a co-owner never heard.
+  function fakeExecutor(rows: Array<{ ownerUserId: string | null }>) {
+    const seen: { where?: unknown; limited: boolean } = { limited: false };
+    const executor = {
+      select: () => ({
+        from: () => ({
+          where: (predicate: unknown) => {
+            seen.where = predicate;
+            const result = Promise.resolve(rows);
+            return Object.assign(result, {
+              limit: () => {
+                seen.limited = true;
+                return result;
+              },
+            });
+          },
+        }),
+      }),
+    };
+    return { executor: executor as never, seen };
+  }
+
+  it("asks for owners AND co-owners still active, with no row limit", async () => {
+    const { executor, seen } = fakeExecutor([]);
+    await repo.findActiveOwnerUserIds("pet-x", executor);
+
+    const compiled = new PgDialect().sqlToQuery(seen.where as never);
+    expect(compiled.sql).toContain('"ownerships"."pet_id" = $1');
+    expect(compiled.sql).toContain('"ownerships"."role" in ($2, $3)');
+    expect(compiled.sql).toContain('"ownerships"."ended_at" is null');
+    expect(compiled.params).toEqual(["pet-x", "owner", "co_owner"]);
+    expect(seen.limited).toBe(false);
+  });
+
+  it("returns every distinct user id and drops org-held rows with no human owner", async () => {
+    const { executor } = fakeExecutor([
+      { ownerUserId: "owner-1" },
+      { ownerUserId: "co-owner-2" },
+      { ownerUserId: "owner-1" },
+      { ownerUserId: null },
+    ]);
+    expect(await repo.findActiveOwnerUserIds("pet-x", executor)).toEqual(["owner-1", "co-owner-2"]);
   });
 });
 

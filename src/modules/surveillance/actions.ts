@@ -121,6 +121,12 @@ function parseLocationSource(fd: FormData): "gps" | "pin_manual" | "geocodificad
  * A row WITHOUT a case anchor is refused rather than keyed on the pet: two
  * separate bites on the same animal would otherwise collapse into one alert to
  * the authority, which is a worse failure than a duplicate.
+ *
+ * ONLY FOR THE BITE REPORTS, whose use-cases open the case inside their own
+ * transaction, so every row they emit carries it. The professional close does
+ * NOT come through here: a close may have no open case, and this refusal used
+ * to drop its owner notice and its urgent rabies alert (fixed 2026-09-18 — see
+ * professionalCloseRabiesObservationAction, which keys on the ended event).
  */
 async function flushNotifications(
   pending: Array<typeof notifications.$inferInsert>,
@@ -576,7 +582,26 @@ export async function professionalCloseRabiesObservationAction(
 
   if (!result.ok) return { error: result.error };
 
-  await flushNotifications(result.notifications as (typeof notifications.$inferInsert)[]);
+  // THROUGH THE DURABLE SERVICE, KEYED ON THE ENDED EVENT — not flushNotifications.
+  //
+  // flushNotifications keys on the bite CASE and refuses a row without one. A
+  // close is not guaranteed a case: an observation can outlive its bite case,
+  // or predate the case system. Until 2026-09-18 that meant a State close with
+  // no open case dropped EVERY notification it produced — the owner's result
+  // AND the urgent confirmed-rabies alert to the health authority — while the
+  // operator saw success. The ended event always exists (the close just wrote
+  // it), so it is the anchor, in the service's `event:${id}:${user}:${type}`
+  // shape. It is the same key the veterinary door derives
+  // (app/org/[orgToken]/atender/actions.ts), so both doors of one act dedupe
+  // alike. A failed insert dead-letters and the drain cron replays it.
+  const { endedEventId } = result.value;
+  await createNotificationsBulk(
+    result.notifications.map((n) => ({
+      ...(n as CreateNotificationInput),
+      relatedEventId: endedEventId,
+      dedupeKey: `event:${endedEventId}:${n.userId}:${n.notificationType}`,
+    })),
+  );
 
   // Mark the list stale, then hand the destination back to the client instead
   // of calling redirect() here. The action's own redirect() rides the App

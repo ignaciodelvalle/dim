@@ -140,7 +140,7 @@ type Deps = {
     | "findOpenBiteCase"
     | "insertObservationEnded"
     | "closeObservationIfOpen"
-    | "findActiveOwnership"
+    | "findActiveOwnerUserIds"
     | "insertObservationCloseAuditLog"
   >;
   closeCase: (
@@ -410,19 +410,24 @@ export async function professionalCloseObservation(
         );
       }
 
-      // 10. The State's paths notify the active owner here, as before. The
-      // veterinary path does NOT: its notice goes back as content
-      // (`value.ownerNotice`) and the walk-in completion delivers it to every
-      // active owner and co-owner — not the single `role = 'owner'` row this
-      // lookup returns — through the durable notification service.
+      // 10. The State's paths notify here: one row per ACTIVE owner and
+      // co-owner. Until 2026-09-18 this read `findActiveOwnership` — a single
+      // `role = 'owner'` row — so a co-owner never heard that the observation
+      // on their animal had closed, a positive included. The action delivers
+      // these rows through the durable service keyed on the ended event, so a
+      // close with no open bite case no longer loses them either.
+      //
+      // The veterinary path does NOT push rows: its notice goes back as content
+      // (`value.ownerNotice`) and the walk-in completion delivers it to the same
+      // set of owners through the same durable service.
       if (!esVet) {
-        const activeOwnership = await repo.findActiveOwnership(
+        const ownerIds = await repo.findActiveOwnerUserIds(
           pet.id,
-          tx as Parameters<typeof repo.findActiveOwnership>[1],
+          tx as Parameters<typeof repo.findActiveOwnerUserIds>[1],
         );
-        if (activeOwnership?.ownerUserId) {
+        for (const ownerUserId of new Set(ownerIds)) {
           pendingNotifications.push({
-            userId: activeOwnership.ownerUserId,
+            userId: ownerUserId,
             ...ownerNotice,
             relatedPetId: pet.id,
             ctaLabel: "Ver mascota",
