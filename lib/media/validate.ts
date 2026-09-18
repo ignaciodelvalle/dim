@@ -126,8 +126,30 @@ export function detectRasterMime(bytes: Uint8Array): RasterMime | null {
  * this function's to make and it is not the same decision in both places.
  *
  * The import is dynamic to keep sharp out of any client bundle.
+ *
+ * THE PIXEL CEILING IS EXPLICIT (REENCODE_MAX_INPUT_PIXELS, below). Every
+ * upload door bounds the BYTES that arrive (5 MB); none bounded what those bytes
+ * DECODE to, and sharp's default `limitInputPixels` is 16383 × 16383 ≈ 268 MP.
+ * A PNG is deflate-compressed, so a single-colour 16000 × 16000 image is a few
+ * tens of kilobytes on the wire and ~1 GB decoded as RGBA — enough to kill the
+ * function on every submission. Over the ceiling sharp throws before decoding,
+ * and every caller already treats a throw as its fail-closed refusal.
  */
 export async function reencodeRaster(buffer: Buffer): Promise<Buffer> {
   const sharp = (await import("sharp")).default;
-  return sharp(buffer).rotate().toBuffer();
+  return sharp(buffer, { limitInputPixels: REENCODE_MAX_INPUT_PIXELS }).rotate().toBuffer();
 }
+
+/**
+ * The largest image, in pixels, any upload may decode: 8192 × 8192 =
+ * 67 108 864 (≈ 67 MP).
+ *
+ * Why that and not less: the largest phone photos people actually send are the
+ * full-resolution modes — iPhone 48 MP (8064 × 6048 = 48 771 072) and the 50 MP
+ * Android sensors (8160 × 6144 = 50 135 040). A 40 MP ceiling would refuse
+ * both. Why not more: the worst case this admits decodes to 67 108 864 × 4
+ * bytes (RGBA) ≈ 268 MB, a quarter of the ≈ 1 GB sharp's default admits, and
+ * inside one function's memory. The 108-200 MP sensor modes are refused; their
+ * JPEGs are well over the 5 MB byte ceiling every door already enforces.
+ */
+export const REENCODE_MAX_INPUT_PIXELS = 8192 * 8192;
