@@ -499,6 +499,13 @@ export default async function CuentaPage() {
           label="Privacidad y derechos"
           description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
         />
+        {/* A04-1 — the in-account password change asks for the current
+            password; the recovery page is for when it is lost. */}
+        <ActionRow
+          href="/cuenta/contrasena"
+          label="Cambiar contraseña"
+          description="Te pedimos la contraseña actual para confirmar que sos vos"
+        />
         {/* B11 — the counterpart that makes B9's long citizen session
             defensible. It lives HERE, and not in "Zona de riesgo", because that
             section is for acts that destroy something irreversibly; this one is

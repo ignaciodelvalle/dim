@@ -1,7 +1,9 @@
-// Use-case: updatePasswordAction — re-verifies recovery session, validates password strength,
-// then calls supabase.auth.updateUser({ password }).
+// Use-case: updatePasswordAction — re-verifies that the session IS a recovery
+// session (amr proof, A04-1), validates password strength, then calls
+// supabase.auth.updateUser({ password }).
 //
-// Runs inside a valid recovery session. Since 2026-09-15 that session comes from
+// Runs inside a valid recovery session — and, since A04-1, ONLY inside one: an
+// ordinary signed-in session is refused (see recovery-proof.ts). Since 2026-09-15 that session comes from
 // the LEGACY RECOVERY LINK and only from it (mail link → /auth/callback →
 // /recuperar/actualizar): the six-digit code no longer lands here, because
 // `ResetCodeStep` redeems it and sets the password in the same submit, so no
@@ -9,14 +11,21 @@
 // mail client, a forwarded message or an edited template can still deliver a
 // link and no code, and a person holding one has no other way through.
 //
-// The page verifies the session before rendering the form; this action
-// re-verifies to prevent direct POST abuse.
+// The page verifies the session AND its recovery proof before rendering the
+// form; this action re-verifies both to prevent direct POST abuse. Changing the
+// password from inside the account is a different act with a different proof —
+// the current password — and lives in ../change-password.ts.
 
+import { authMethodReferences, verifiedSessionClaims } from "@/lib/infra/verified-token-claims";
 import { createClient } from "@/lib/supabase/server";
 import { validateNewPassword } from "@/src/modules/auth/domain/new-password-rules";
+import { hasFreshRecoveryProof } from "@/src/modules/auth/domain/recovery-proof";
 
 import { revokeOtherSessions } from "./revoke-other-sessions";
 import type { UpdatePasswordState } from "./types";
+
+const RECOVERY_SESSION_INVALID =
+  "Tu sesión de recuperación expiró o no es válida. Pedí un código nuevo desde la página de recuperación.";
 
 export async function updatePasswordAction(
   _previous: UpdatePasswordState,
@@ -32,10 +41,18 @@ export async function updatePasswordAction(
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return {
-      error:
-        "Tu sesión de recuperación expiró o no es válida. Pedí un código nuevo desde la página de recuperación.",
-    };
+    return { error: RECOVERY_SESSION_INVALID };
+  }
+
+  // A04-1: a live session is NOT enough. This form sets a password without the
+  // current one, so the session must have been minted by the recovery mail, and
+  // recently — see recovery-proof.ts. Any other session (an ordinary sign-in, a
+  // borrowed laptop) is refused and pointed back at the recovery page. The token
+  // read here is the one getUser() just validated; an unreadable one fails
+  // CLOSED.
+  const claims = await verifiedSessionClaims(supabase);
+  if (!hasFreshRecoveryProof(authMethodReferences(claims))) {
+    return { error: RECOVERY_SESSION_INVALID };
   }
 
   const password = String(formData.get("password") ?? "");

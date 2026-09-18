@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { authMethodReferences, verifiedSessionClaims } from "@/lib/infra/verified-token-claims";
 import { createClient } from "@/lib/supabase/server";
+import { hasFreshRecoveryProof } from "@/src/modules/auth/domain/recovery-proof";
 
 import { UpdatePasswordForm } from "./UpdatePasswordForm";
 
@@ -23,6 +25,13 @@ export default async function ActualizarPasswordPage() {
 
   if (!user) {
     // No valid session — redirect to the request page with an informative flag.
+    redirect("/recuperar?expired=1");
+  }
+
+  // A04-1: an ORDINARY session is not a recovery session. The action refuses it
+  // (update-password.ts); showing it the form first would be a form that can
+  // only fail. Same proof, same destination as an expired recovery session.
+  if (!hasFreshRecoveryProof(authMethodReferences(await verifiedSessionClaims(supabase)))) {
     redirect("/recuperar?expired=1");
   }
 
