@@ -31,16 +31,16 @@
     ]
   },
   "stats": {
-    "rows": 518,
+    "rows": 519,
     "byStatus": {
       "UNENFORCED": 245,
-      "ENFORCED": 180,
+      "ENFORCED": 181,
       "PARTIAL": 93
     },
     "byScopeStatus": {
       "process": {
         "UNENFORCED": 113,
-        "ENFORCED": 19,
+        "ENFORCED": 20,
         "PARTIAL": 19
       },
       "db": {
@@ -437,7 +437,7 @@
       "wired": "none",
       "status": "UNENFORCED",
       "statusBasis": "No enforcer found: no scripts/check-*.ts, no vitest/jest fence, no biome override, no CI step and no DB constraint has this rule's subject as its predicate. It is a working norm applied by hand.",
-      "notes": "No secret scanner is configured (no gitleaks/trufflehog anywhere). The 'no plaintext PII' half is covered independently by the DNI-hash rules and the profiles_institutional_no_pii DB CHECK (CANON-168), not by anything about repo publishability.",
+      "notes": "Since L-24 the 'no secrets' half is fenced for tracked files at HEAD by CANON-532 (lint:secrets); history is not scanned, so 'clean history' is still applied by hand and this row's whole-rule verdict was not re-graded here. The 'no plaintext PII' half is covered independently by the DNI-hash rules and the profiles_institutional_no_pii DB CHECK (CANON-168), not by anything about repo publishability.",
       "confidence": 0.85,
       "verifiedAt": "d7dbf25f7"
     },
@@ -9429,6 +9429,30 @@
       "notes": "MEASURED, not stylistic. maplibre-gl 6 resolves its worker at runtime through new URL('./maplibre-gl-worker.mjs', import.meta.url) — a form no bundler detects statically, so webpack emits no asset: after a clean pnpm build, `find .next -iname \"*worker*\"` returned nothing. The fetch does not 404; Next answers the app's own HTML with a 200, the worker executes HTML as JavaScript and dies silently, and the map renders an empty canvas with every layer and source registered and zero features in all of them — no console output, no failed request, no CSP violation. It cost a day of ruling out the database, WebGL2, the load handler, legacy expressions and the CSP. The A/B on one tree: canvas PNG 141099 bytes with the worker present, 82981 with the same file taken away. The e2e spec that covered this page only asserted the canvas was VISIBLE, which it was, which is why the blank map survived months of green.",
       "confidence": 0.95,
       "verifiedAt": "a15491"
+    },
+    {
+      "id": "CANON-532",
+      "rule": "No tracked file may carry a secret-shaped credential — a postgres URL with an inline password, a non-demo service_role JWT or sb_secret key, a live Stripe/Resend/AWS key, a private key block, a literal password or high-entropy *_SECRET/*_PASSWORD/*_TOKEN/*_API_KEY assignment in config or docs, or the seeded demo password outside the code that logs the demo accounts in; the local stack's published demo values are exempt by exact value, and every other exception is a reasoned one-kind-one-path ALLOWLIST entry that fails once it matches nothing.",
+      "scope": "process",
+      "sources": [
+        "scripts/check-secrets.ts:1-68"
+      ],
+      "enforcer": [
+        "scripts/check-secrets.ts:332-341",
+        "scripts/check-secrets.ts:428-446",
+        "scripts/check-secrets.ts:473-520",
+        "package.json:80 lint:secrets",
+        "__tests__/check-secrets.test.ts:79-97",
+        "__tests__/check-secrets.test.ts:293-299"
+      ],
+      "enforcementKind": "lint-script",
+      "wired": "verify",
+      "status": "ENFORCED",
+      "clause": "R1",
+      "statusBasis": "scripts/check-secrets.ts:473-520 runs findSecrets (:332-341, every SCANNER over every line) on every `git ls-files` path except binaries and files over 2 MiB, applies the allowlist (:428-446) and exits 1 on any unallowlisted finding (file:line + kind, never the value) and on any allowlist entry that matched nothing; :474-479 fails a zero-file listing instead of passing it. The non-vacuity floor is __tests__/check-secrets.test.ts:79-97 — every SECRET_KINDS member must fire on a synthetic sample and a new kind without one fails — and :293-299 self-scans the fence and its test. package.json:80 lint:secrets is in the verify chain and .github/workflows/ci.yml runs it in its own step (lint:ci-parity holds the pairing).",
+      "notes": "Scope is tracked files at HEAD by design (header :63-65): untracked/ignored files such as .env.local are where secrets belong, and history is not scanned — a value already published is not unpublished by this fence, which is why the failure message says to rotate. Closes the 'no secrets' half of CANON-022 for the tree, not its 'clean history' half. L-24 in docs/plans/PENDIENTES.md; env_secret_assignment was added 2026-09-18 after a security review found a pasted CRON_SECRET matched nothing.",
+      "confidence": 0.9,
+      "verifiedAt": "aa6df254c"
     }
   ],
   "recommendations": [
