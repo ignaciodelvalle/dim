@@ -42,11 +42,15 @@ type Executor = Pick<typeof db, "select">;
 /**
  * User ids of every ACTIVE, HUMAN, institutional administrator.
  *
- * The four clauses, and why each is load-bearing:
+ * The five clauses, and why each is load-bearing:
  *   - role "admin"                  — the fallback is for administrators.
  *   - accountType "institutional"   — a personal account that happens to hold
  *                                     the admin role is not the institution.
  *   - deactivatedAt IS NULL         — a revoked administrator is not reachable.
+ *   - deletedAt IS NULL             — an ERASED account (Ley 25.326 art. 16) is
+ *                                     not a person we can page either, and it
+ *                                     must not pad the empty-fan-out check
+ *                                     (security review, 2026-09-18).
  *   - isSystem = false              — a service account is not a person.
  *
  * Returns ids only. A caller that needs more columns should still filter with
@@ -61,6 +65,7 @@ export async function activeHumanInstitutionalAdminIds(executor: Executor = db):
         eq(profiles.role, "admin"),
         eq(profiles.accountType, "institutional"),
         isNull(profiles.deactivatedAt),
+        isNull(profiles.deletedAt),
         eq(profiles.isSystem, false),
       ),
     );

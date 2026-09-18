@@ -32,6 +32,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
 import { WHOLE_PROVINCE_SENTINEL } from "@/lib/domain/jurisdiction-canonical";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 import { setAuditMutationGucs } from "./_helpers/db-overrides";
 
 // A province nothing else in the seeds operates in, so the fixtures below are
@@ -55,12 +56,24 @@ const SYSTEM_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa05";
 // resolver can find there are the two above.
 const HOLDER_LOCALITY = "Tolhuin";
 
+// Security review 2026-09-18: an ERASED operator and a RE-ROLED one, each still
+// holding an open assignment, plus an erased administrator for the fallback.
+const ERASED_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa06";
+const REROLED_GOVT_ID = "d1a90000-0000-4000-8000-00000000fa07";
+const ERASED_ADMIN_ID = "d1a90000-0000-4000-8000-00000000fa08";
+// One locality per holder so each positive control sees exactly one candidate.
+const ERASED_LOCALITY = "Lago Escondido";
+const REROLED_LOCALITY = "Puerto Almanza";
+
 const FIXTURE_IDS = [
   WHOLE_PROVINCE_GOVT_ID,
   LOCALITY_GOVT_ID,
   SYSTEM_ADMIN_ID,
   DEACTIVATED_GOVT_ID,
   SYSTEM_GOVT_ID,
+  ERASED_GOVT_ID,
+  REROLED_GOVT_ID,
+  ERASED_ADMIN_ID,
 ];
 const TRACE_ROUTE = "test_empty_fanout";
 
@@ -79,6 +92,7 @@ async function activeInstitutionalAdminIds(): Promise<string[]> {
         eq(profiles.role, "admin"),
         eq(profiles.accountType, "institutional"),
         isNull(profiles.deactivatedAt),
+        isNull(profiles.deletedAt),
         eq(profiles.isSystem, false),
       ),
     );
@@ -138,6 +152,18 @@ beforeAll(async () => {
       role: "govt",
       accountType: "institutional",
       isSystem: true,
+    },
+    {
+      id: ERASED_GOVT_ID,
+      displayName: "routing-fixture-erased-govt",
+      role: "govt",
+      accountType: "institutional",
+    },
+    {
+      id: REROLED_GOVT_ID,
+      displayName: "routing-fixture-reroled-govt",
+      role: "govt",
+      accountType: "institutional",
     },
   ]);
 });
@@ -259,6 +285,68 @@ describe("findAuthoritiesForJurisdiction — the holder must still be reachable 
 
     expect(recipients).not.toContain(SYSTEM_GOVT_ID);
     expect(recipients).not.toContain(DEACTIVATED_GOVT_ID);
+  });
+
+  // Security review 2026-09-18. Each case opens with its positive control (the
+  // holder IS returned while live) so the negative half cannot pass against a
+  // resolver that simply finds nobody in that locality.
+  it("drops an ERASED operator whose assignment is still open", async () => {
+    await db.insert(govtAssignments).values({
+      userId: ERASED_GOVT_ID,
+      jurisdictionProvince: PROVINCE,
+      jurisdictionLocality: ERASED_LOCALITY,
+    });
+    const live = { province: PROVINCE, locality: ERASED_LOCALITY };
+    expect(await findAuthoritiesForJurisdiction(live)).toEqual([ERASED_GOVT_ID]);
+
+    await db.update(profiles).set({ deletedAt: new Date() }).where(eq(profiles.id, ERASED_GOVT_ID));
+
+    const recipients = await findAuthoritiesForJurisdiction(live);
+    expect(recipients).not.toContain(ERASED_GOVT_ID);
+    // With her gone nobody covers the locality, so the fallback fires.
+    expect([...recipients].sort()).toEqual([...(await activeInstitutionalAdminIds())].sort());
+  });
+
+  it("drops a holder who no longer has the govt ROLE, even with an open assignment", async () => {
+    await db.insert(govtAssignments).values({
+      userId: REROLED_GOVT_ID,
+      jurisdictionProvince: PROVINCE,
+      jurisdictionLocality: REROLED_LOCALITY,
+    });
+    const live = { province: PROVINCE, locality: REROLED_LOCALITY };
+    expect(await findAuthoritiesForJurisdiction(live)).toEqual([REROLED_GOVT_ID]);
+
+    await db.update(profiles).set({ role: "owner" }).where(eq(profiles.id, REROLED_GOVT_ID));
+
+    expect(await findAuthoritiesForJurisdiction(live)).not.toContain(REROLED_GOVT_ID);
+  });
+
+  it("the admin fallback never returns an ERASED administrator", async () => {
+    await db.insert(profiles).values({
+      id: ERASED_ADMIN_ID,
+      displayName: "routing-fixture-erased-admin",
+      role: "admin",
+      accountType: "institutional",
+    });
+    try {
+      // Positive control: a live human admin IS in the fallback set.
+      expect(await activeHumanInstitutionalAdminIds()).toContain(ERASED_ADMIN_ID);
+
+      await db
+        .update(profiles)
+        .set({ deletedAt: new Date() })
+        .where(eq(profiles.id, ERASED_ADMIN_ID));
+
+      expect(await activeHumanInstitutionalAdminIds()).not.toContain(ERASED_ADMIN_ID);
+      const recipients = await findAuthoritiesForJurisdiction({
+        province: PROVINCE,
+        locality: ERASED_LOCALITY,
+      });
+      expect(recipients).not.toContain(ERASED_ADMIN_ID);
+    } finally {
+      // Never leave a live fixture admin behind for the empty-fan-out window below.
+      await db.delete(profiles).where(eq(profiles.id, ERASED_ADMIN_ID));
+    }
   });
 });
 

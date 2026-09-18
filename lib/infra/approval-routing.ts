@@ -85,6 +85,16 @@ export async function findAuthoritiesForJurisdiction(
   //
   // Every call site is a "who do we tell" fan-out (reviewed together, T2-S5) —
   // none of them is a history view that would want a deactivated holder back.
+  //
+  // Two more clauses (security review, 2026-09-18), same reasoning:
+  //   - deletedAt IS NULL — an ERASED account (Ley 25.326 art. 16) is not
+  //     deactivated, it is gone; erasure does not necessarily revoke the
+  //     assignment row, and paging an erased subject is both useless and a
+  //     privacy defect.
+  //   - role = 'govt' — the assignment table is the govt mandate, but nothing
+  //     stops a row outliving a role change (a govt demoted or re-roled keeps
+  //     the row until someone revokes it). The mandate is only live while the
+  //     holder still HOLDS the role.
   const govts = await db
     .select({ userId: govtAssignments.userId })
     .from(govtAssignments)
@@ -94,7 +104,9 @@ export async function findAuthoritiesForJurisdiction(
         eq(govtAssignments.jurisdictionProvince, jurisdiction.province),
         inArray(govtAssignments.jurisdictionLocality, coveringLocalities),
         isNull(govtAssignments.revokedAt),
+        eq(profiles.role, "govt"),
         isNull(profiles.deactivatedAt),
+        isNull(profiles.deletedAt),
         eq(profiles.isSystem, false),
       ),
     );
