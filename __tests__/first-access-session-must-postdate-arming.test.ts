@@ -8,7 +8,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const adminUpdate = vi.hoisted(() => vi.fn(async () => ({ error: null })));
+const adminUpdate = vi.hoisted(() =>
+  vi.fn(async (_userId: string, _attrs: unknown) => ({ error: null })),
+);
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ auth: { admin: { updateUserById: adminUpdate } } }),
 }));
@@ -28,7 +30,7 @@ const PASSWORD = "Primera_Clave_2026!";
 function client(amrSeconds: number | null, iatSeconds: number) {
   const claims: Record<string, unknown> = { sub: "user-001", iat: iatSeconds };
   if (amrSeconds !== null) claims.amr = [{ method: "otp", timestamp: amrSeconds }];
-  const updateUser = vi.fn(async () => ({ error: null }));
+  const updateUser = vi.fn(async (_attrs: unknown) => ({ error: null }));
   return {
     updateUser,
     supabase: {
