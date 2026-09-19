@@ -179,10 +179,10 @@ export const TransfersRepository = {
   async findPetStatusById(
     petId: string,
     tx?: Tx,
-  ): Promise<{ status: PetRow["status"]; inCustodyDispute: boolean } | null> {
+  ): Promise<{ status: PetRow["status"]; inCustodyDispute: boolean; name: string } | null> {
     const client: DbOrTx = tx ?? db;
     const [row] = await (client as typeof db)
-      .select({ status: pets.status, inCustodyDispute: pets.inCustodyDispute })
+      .select({ status: pets.status, inCustodyDispute: pets.inCustodyDispute, name: pets.name })
       .from(pets)
       .where(eq(pets.id, petId))
       .limit(1);

@@ -14,11 +14,17 @@
 //      c. insertPetEvent (custody_transferred, authorRole=owner)
 //      d. updateTransferStatus(accepted)
 //   4. Collect post-tx notifications (sender)
-//   5. Return UseCaseResult<{ petId }>
+//   5. After commit: notify every caretaker whose arrangement the hand-off
+//      ended (A09-2) — same primitive and dedupe family as finalize-adoption
+//   6. Return UseCaseResult<{ petId }>
 //      The thin action maps petId → publicToken for revalidatePath (or pre-loads it).
 //
 // PARITY QUIRK: close BEFORE insert (unique-active-owner partial index validates at commit).
 
+import {
+  type EndedCaretakerGrant,
+  notifyCaretakersOfHandoff,
+} from "@/lib/infra/end-pet-ownerships";
 import {
   UNCONFIRMED_EMAIL_TRANSFER_ERROR,
   resolveRecipientMatch,
@@ -99,6 +105,10 @@ export async function acceptPetTransfer(
   }
 
   const pendingNotifications: NewNotification[] = [];
+  // Filled inside the tx, consumed only after it commits (ARCH-P): a rolled-back
+  // hand-off ended nobody's arrangement, so nobody may be told it did.
+  let endedGrants: EndedCaretakerGrant[] = [];
+  let petName = "";
 
   // 3. Atomic transaction.
   try {
@@ -136,6 +146,7 @@ export async function acceptPetTransfer(
       if (!petSnapshot) {
         throw new Error("La mascota ya no existe. La transferencia no es válida.");
       }
+      petName = petSnapshot.name;
       const petGuard = validatePetStatusForTransfer({
         status: petSnapshot.status,
         inCustodyDispute: petSnapshot.inCustodyDispute,
@@ -173,10 +184,17 @@ export async function acceptPetTransfer(
       }
 
       // PARITY QUIRK: close BEFORE insert.
-      await repo.closeOwnerOwnerships(
+      //
+      // The accepting user signs the `caretaker_ended` facts (their acceptance
+      // is what ended the arrangements), and the ended grants are kept for the
+      // post-commit notice below (A09-2): a caretaker who may be physically
+      // holding the animal otherwise loses access with no word at all.
+      const closed = await repo.closeOwnerOwnerships(
         transfer.petId,
         tx as Parameters<typeof repo.closeOwnerOwnerships>[1],
+        { actorUserId: user.id, now },
       );
+      endedGrants = closed.endedCaretakerGrants;
 
       await repo.insertOwnerOwnership(
         { petId: transfer.petId, ownerUserId: user.id, startedAt: now },
@@ -259,6 +277,15 @@ export async function acceptPetTransfer(
 
   // Fetch pet publicToken for cache revalidation in the thin action.
   const petPublicToken = await repo.findPetPublicTokenById(transfer.petId);
+
+  // A09-2 — exactly as finalize-adoption: sent directly, after commit, because
+  // the copy and the dedupe family belong to the hand-off primitive (the expiry
+  // cron uses the same keys and must not be able to double-notify).
+  // `createNotification` dead-letters instead of throwing, so this cannot fail
+  // an accept that already committed.
+  if (endedGrants.length > 0) {
+    await notifyCaretakersOfHandoff(endedGrants, { name: petName, publicToken: petPublicToken });
+  }
 
   return {
     ok: true,

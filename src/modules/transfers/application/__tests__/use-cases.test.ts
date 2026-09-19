@@ -5,6 +5,7 @@
 // Each describe block covers one use-case; guards are tested per spec R1-R11.
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { notifyCaretakersOfHandoff } from "@/lib/infra/end-pet-ownerships";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SPONSORED_CUSTODY_TRANSFER_ERROR } from "../../domain/cross-org-rules";
 import type { TransfersRepository } from "../../infrastructure/transfers-repository";
@@ -24,6 +25,10 @@ import { proposeCrossOrgTransfer } from "../propose-cross-org-transfer";
 import { rejectCrossOrgTransfer } from "../reject-cross-org-transfer";
 import { rejectPetTransfer } from "../reject-pet-transfer";
 import { transferCustody } from "../transfer-custody";
+
+// The post-commit caretaker notice (A09-2) is the only runtime import from the
+// hand-off primitive; the real one writes notifications through the DB.
+vi.mock("@/lib/infra/end-pet-ownerships", () => ({ notifyCaretakersOfHandoff: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // Fake repo builder
@@ -114,7 +119,9 @@ function makeFakeRepo(
     findActiveOwnerOwnership: vi
       .fn()
       .mockResolvedValue({ id: "own-1", ownerUserId: "user-sender" }),
-    findPetStatusById: vi.fn().mockResolvedValue({ status: "found", inCustodyDispute: false }),
+    findPetStatusById: vi
+      .fn()
+      .mockResolvedValue({ status: "found", inCustodyDispute: false, name: "Luna" }),
     findUserIdByEmail: vi.fn().mockResolvedValue(null),
     // owner-flow writes
     insertPetTransfer: vi.fn().mockResolvedValue(undefined),
@@ -122,7 +129,7 @@ function makeFakeRepo(
     findTransferByIdForUpdate: vi.fn().mockResolvedValue(makeTransfer()),
     updateTransferStatus: vi.fn().mockResolvedValue(1),
     expirablePetTransfers: vi.fn().mockResolvedValue([]),
-    closeOwnerOwnerships: vi.fn().mockResolvedValue(undefined),
+    closeOwnerOwnerships: vi.fn().mockResolvedValue({ endedCaretakerGrants: [] }),
     insertOwnerOwnership: vi.fn().mockResolvedValue({ id: "own-new" }),
     insertPetEvent: vi.fn().mockResolvedValue({ id: "evt-new" }),
     // cross-org reads
@@ -553,11 +560,78 @@ describe("acceptPetTransfer", () => {
   it("calls closeOwnerOwnerships then insertOwnerOwnership inside tx", async () => {
     const repo = makeFakeRepo();
     await acceptPetTransfer(baseInput, { repo, actor, transaction: fakeTransaction });
-    expect(repo.closeOwnerOwnerships).toHaveBeenCalledWith("pet-1", fakeTx);
+    // A09-2: the accepting user signs the caretaker_ended facts the close emits.
+    expect(repo.closeOwnerOwnerships).toHaveBeenCalledWith("pet-1", fakeTx, {
+      actorUserId: "user-recipient",
+      now: expect.any(Date),
+    });
     expect(repo.insertOwnerOwnership).toHaveBeenCalledWith(
       expect.objectContaining({ petId: "pet-1", ownerUserId: "user-recipient" }),
       fakeTx,
     );
+  });
+
+  // A09-2: the P2P hand-off ends every caretaker arrangement on the pet (the
+  // repo's close does that); the caretaker — who may be holding the animal —
+  // must be told, after commit, exactly as finalize-adoption does.
+  it("A09-2: notifies the caretakers the hand-off ended, after commit", async () => {
+    const ended = [
+      {
+        grantId: "grant-1",
+        petId: "pet-1",
+        caretakerUserId: "user-caretaker",
+        grantedByUserId: "user-sender",
+        endsAt: new Date("2026-12-01T00:00:00Z"),
+      },
+    ];
+    const notify = vi.mocked(notifyCaretakersOfHandoff);
+    notify.mockClear();
+    let committed = false;
+    const tx = vi.fn().mockImplementation(async (cb: (t: unknown) => unknown) => {
+      const r = await cb(fakeTx);
+      committed = true;
+      return r;
+    });
+    notify.mockImplementation(async () => {
+      expect(committed).toBe(true);
+    });
+    const repo = makeFakeRepo({
+      closeOwnerOwnerships: vi.fn().mockResolvedValue({ endedCaretakerGrants: ended }),
+    });
+
+    const result = await acceptPetTransfer(baseInput, { repo, actor, transaction: tx });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(ended, { name: "Luna", publicToken: "PET-pub-tok" });
+  });
+
+  it("A09-2: a rolled-back accept notifies nobody", async () => {
+    const notify = vi.mocked(notifyCaretakersOfHandoff);
+    notify.mockClear();
+    const repo = makeFakeRepo({
+      closeOwnerOwnerships: vi.fn().mockResolvedValue({
+        endedCaretakerGrants: [
+          {
+            grantId: "grant-1",
+            petId: "pet-1",
+            caretakerUserId: "user-caretaker",
+            grantedByUserId: "user-sender",
+            endsAt: new Date(),
+          },
+        ],
+      }),
+      updateTransferStatus: vi.fn().mockResolvedValue(0),
+    });
+
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("emits custody_transferred event inside tx", async () => {
