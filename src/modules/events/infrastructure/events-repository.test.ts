@@ -19,9 +19,11 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petEvents, pets } from "@/db";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetWeight } from "@/lib/projections/pet-weight";
 import type { ProjectionEvent } from "@/lib/projections/types";
 import { withMutationOverride } from "../../../../__tests__/_helpers/db-overrides";
+import { rederivePregnancyStatus } from "../../pets/application/pregnancy/rederive-pregnancy-status";
 import { EventsRepository } from "./events-repository";
 
 // ---------------------------------------------------------------------------
@@ -202,17 +204,38 @@ describe("insertEvent (plain)", () => {
 //
 // WHAT WOULD HAVE TO BREAK FOR THESE TO FAIL: the re-derivation. They insert
 // real weight_recorded rows and read the real pets column.
+let newestWeighingId: string;
+
+async function insertAmendment(
+  targetEventId: string,
+  changes: Array<{ field: string; old: unknown; new: unknown }>,
+): Promise<void> {
+  await db.insert(petEvents).values({
+    petId,
+    eventType: "event_amended",
+    occurredAt: new Date("2026-08-20T12:00:00Z"),
+    recordedAt: new Date(),
+    payload: { payload_version: 1, target_event_id: targetEventId, reason: null, changes },
+    authorRole: "owner",
+    recordedByUserId: null,
+  });
+}
+
 describe("updateWeightProjection", () => {
-  async function insertWeighing(kg: string, occurredAt: Date) {
-    await db.insert(petEvents).values({
-      petId,
-      eventType: "weight_recorded",
-      occurredAt,
-      recordedAt: new Date(),
-      payload: { payload_version: 1, kg },
-      authorRole: "owner",
-      recordedByUserId: null,
-    });
+  async function insertWeighing(kg: string, occurredAt: Date): Promise<string> {
+    const [row] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "weight_recorded",
+        occurredAt,
+        recordedAt: new Date(),
+        payload: { payload_version: 1, kg },
+        authorRole: "owner",
+        recordedByUserId: null,
+      })
+      .returning({ id: petEvents.id });
+    return row.id;
   }
 
   async function cachedWeight(): Promise<string | null> {
@@ -242,10 +265,23 @@ describe("updateWeightProjection", () => {
   });
 
   it("moves to a newer weighing when one is actually newer", async () => {
-    await insertWeighing("14.00", new Date("2026-08-12T12:00:00Z"));
+    newestWeighingId = await insertWeighing("14.00", new Date("2026-08-12T12:00:00Z"));
     await repo.updateWeightProjection(petId);
 
     expect(await cachedWeight()).toBe("14.00");
+  });
+
+  // A08-G1. The amendment path writes the corrected weight into the cache;
+  // the NEXT ordinary weighing re-derived from the raw stream and put the
+  // pre-correction value back — silently, with no event and no audit row. A
+  // back-dated weighing is the sharpest form: it changes nothing about which
+  // weighing is latest, so the only thing that can move the cache is the bug.
+  it("A08-G1: a back-dated weighing after an amendment keeps the CORRECTED weight", async () => {
+    await insertAmendment(newestWeighingId, [{ field: "kg", old: "14.00", new: "13.00" }]);
+    await insertWeighing("5.00", new Date("2026-01-01T12:00:00Z"));
+    await repo.updateWeightProjection(petId);
+
+    expect(await cachedWeight()).toBe("13.00");
   });
 
   it("agrees with replayPetWeight over the same events — cache never contradicts the spine", async () => {
@@ -263,9 +299,59 @@ describe("updateWeightProjection", () => {
       .where(eq(petEvents.petId, petId))
       .orderBy(petEvents.occurredAt, petEvents.recordedAt, petEvents.id);
 
-    const projected = replayPetWeight(events as ProjectionEvent[]).estimatedWeightKg;
+    const projected = replayPetWeight(
+      overlayAmendments(events as ProjectionEvent[]),
+    ).estimatedWeightKg;
 
     expect(Number(await cachedWeight())).toBe(Number(projected));
+  });
+});
+
+// A08-G2 — the pregnancy twin of A08-G1. rederivePregnancyStatus runs on
+// every pregnancy write; replaying the raw clinical_info_logged rows reverted
+// an amended outcome to the one the vet had corrected away.
+describe("rederivePregnancyStatus", () => {
+  it("A08-G2: re-derives from the AMENDED outcome, not the raw one", async () => {
+    const [ended] = await db
+      .insert(petEvents)
+      .values([
+        {
+          petId,
+          eventType: "clinical_info_logged",
+          occurredAt: new Date("2026-03-01T12:00:00Z"),
+          recordedAt: new Date(),
+          payload: { payload_version: 1, sub_kind: "pregnancy", pregnancy_phase: "started" },
+          authorRole: "owner",
+          recordedByUserId: null,
+        },
+        {
+          petId,
+          eventType: "clinical_info_logged",
+          occurredAt: new Date("2026-05-01T12:00:00Z"),
+          recordedAt: new Date(),
+          payload: {
+            payload_version: 1,
+            sub_kind: "pregnancy",
+            pregnancy_phase: "ended",
+            outcome: "live_birth",
+          },
+          authorRole: "owner",
+          recordedByUserId: null,
+        },
+      ])
+      .returning({ id: petEvents.id, payload: petEvents.payload })
+      .then((rows) =>
+        rows.filter((r) => (r.payload as { pregnancy_phase?: string }).pregnancy_phase === "ended"),
+      );
+    await insertAmendment(ended.id, [{ field: "outcome", old: "live_birth", new: "stillbirth" }]);
+
+    await db.transaction((tx) => rederivePregnancyStatus(tx, petId));
+
+    const [row] = await db
+      .select({ pregnancyStatus: pets.pregnancyStatus })
+      .from(pets)
+      .where(eq(pets.id, petId));
+    expect(row.pregnancyStatus).toBe("completed_stillbirth");
   });
 });
 

@@ -15,13 +15,13 @@
 //
 // Pure function. Caller orders events ascending by (occurredAt, recordedAt, id).
 
-import type { ProjectionEvent } from "./types";
+import type { AmendmentOverlaid, ProjectionEvent } from "./types";
 
 export type PetPregnancyProjection = {
   pregnancyStatus: string | null;
 };
 
-export function replayPetPregnancy(events: ProjectionEvent[]): PetPregnancyProjection {
+export function replayPetPregnancy(events: AmendmentOverlaid<ProjectionEvent>): PetPregnancyProjection {
   // Iterate from the end so the first pregnancy-relevant match is the latest.
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];

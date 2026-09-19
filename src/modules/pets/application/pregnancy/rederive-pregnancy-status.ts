@@ -16,9 +16,10 @@
 // Mirrors EventsRepository.updateWeightProjection, which was fixed the same way
 // in the same commit.
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { type db, petEvents, pets } from "@/db";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetPregnancy } from "@/lib/projections/pet-pregnancy";
 import type { ProjectionEvent } from "@/lib/projections/types";
 
@@ -26,7 +27,10 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export async function rederivePregnancyStatus(tx: Tx, petId: string): Promise<void> {
   // Only clinical_info_logged carries pregnancy phases (replayPetPregnancy skips
-  // everything else), so narrowing the read keeps the result identical.
+  // everything else), so narrowing the read keeps the result identical — PLUS
+  // `event_amended`, which the overlay needs to fold a corrected outcome
+  // (A08-G2). Replaying the raw rows here reverted an amended pregnancy result
+  // on the next pregnancy write, exactly as refreshPregnancy had just fixed it.
   const events = await tx
     .select({
       id: petEvents.id,
@@ -36,10 +40,15 @@ export async function rederivePregnancyStatus(tx: Tx, petId: string): Promise<vo
       payload: petEvents.payload,
     })
     .from(petEvents)
-    .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "clinical_info_logged")))
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        inArray(petEvents.eventType, ["clinical_info_logged", "event_amended"]),
+      ),
+    )
     .orderBy(asc(petEvents.occurredAt), asc(petEvents.recordedAt), asc(petEvents.id));
 
-  const { pregnancyStatus } = replayPetPregnancy(events as ProjectionEvent[]);
+  const { pregnancyStatus } = replayPetPregnancy(overlayAmendments(events as ProjectionEvent[]));
 
   await tx.update(pets).set({ pregnancyStatus }).where(eq(pets.id, petId));
 }

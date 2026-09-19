@@ -1,5 +1,6 @@
 // Unit tests for the three projection modules. Pure functions — no DB.
 
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { describe, expect, it } from "vitest";
 
 import { replayPetMicrochip } from "@/lib/projections/pet-microchip";
@@ -83,41 +84,45 @@ describe("replayPetStatus", () => {
 
 describe("replayPetWeight", () => {
   it("returns null for an empty event list", () => {
-    expect(replayPetWeight([])).toEqual({ estimatedWeightKg: null });
+    expect(replayPetWeight(overlayAmendments([]))).toEqual({ estimatedWeightKg: null });
   });
 
   it("returns null when no weight_recorded event exists", () => {
-    expect(replayPetWeight([ev(1, "vaccination_administered")])).toEqual({
+    expect(replayPetWeight(overlayAmendments([ev(1, "vaccination_administered")]))).toEqual({
       estimatedWeightKg: null,
     });
   });
 
   it("returns the weight for a single event", () => {
-    expect(replayPetWeight([ev(1, "weight_recorded", { kg: "7.5" })])).toEqual({
+    expect(replayPetWeight(overlayAmendments([ev(1, "weight_recorded", { kg: "7.5" })]))).toEqual({
       estimatedWeightKg: "7.5",
     });
   });
 
   it("returns the latest weight when multiple events exist", () => {
-    const result = replayPetWeight([
-      ev(1, "weight_recorded", { kg: "5.0" }),
-      ev(2, "weight_recorded", { kg: "7.5" }),
-      ev(3, "weight_recorded", { kg: "8.2" }),
-    ]);
+    const result = replayPetWeight(
+      overlayAmendments([
+        ev(1, "weight_recorded", { kg: "5.0" }),
+        ev(2, "weight_recorded", { kg: "7.5" }),
+        ev(3, "weight_recorded", { kg: "8.2" }),
+      ]),
+    );
     expect(result.estimatedWeightKg).toBe("8.2");
   });
 
   it("accepts numeric payload values and stringifies", () => {
-    const result = replayPetWeight([ev(1, "weight_recorded", { kg: 9.1 })]);
+    const result = replayPetWeight(overlayAmendments([ev(1, "weight_recorded", { kg: 9.1 })]));
     expect(result.estimatedWeightKg).toBe("9.1");
   });
 
   it("ignores weight events from before another type — latest weight_recorded wins", () => {
-    const result = replayPetWeight([
-      ev(1, "weight_recorded", { kg: "5.0" }),
-      ev(2, "vaccination_administered"),
-      ev(3, "weight_recorded", { kg: "7.5" }),
-    ]);
+    const result = replayPetWeight(
+      overlayAmendments([
+        ev(1, "weight_recorded", { kg: "5.0" }),
+        ev(2, "vaccination_administered"),
+        ev(3, "weight_recorded", { kg: "7.5" }),
+      ]),
+    );
     expect(result.estimatedWeightKg).toBe("7.5");
   });
 });

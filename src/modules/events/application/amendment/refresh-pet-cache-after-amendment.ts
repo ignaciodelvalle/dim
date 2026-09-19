@@ -35,6 +35,7 @@ import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetPregnancy } from "@/lib/projections/pet-pregnancy";
 import { replayPetWeight } from "@/lib/projections/pet-weight";
+import type { AmendmentOverlaid } from "@/lib/projections/types";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -50,6 +51,7 @@ type StreamEvent = {
 };
 
 type OverlaidEvent = StreamEvent & { amendedAt: Date | string | null };
+type OverlaidStream = AmendmentOverlaid<OverlaidEvent>;
 
 /** Canonical uuid shape — see `refreshJurisdiction`'s `to_locality_id` guard. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,7 +59,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Refresher = (
   tx: Tx,
   petId: string,
-  overlaid: OverlaidEvent[],
+  overlaid: OverlaidStream,
   amendedEventId: string,
 ) => Promise<void>;
 
@@ -102,7 +104,7 @@ export async function refreshPetCacheAfterAmendment(
   if (!refresh) return;
 
   // Project the amended payload onto its target event, then derive off that.
-  const overlaid = overlayAmendments(stream) as OverlaidEvent[];
+  const overlaid = overlayAmendments(stream);
   await refresh(tx, petId, overlaid, amendedEventId);
 }
 
@@ -110,12 +112,12 @@ export async function refreshPetCacheAfterAmendment(
 // Per-column refreshers
 // ---------------------------------------------------------------------------
 
-async function refreshWeight(tx: Tx, petId: string, overlaid: OverlaidEvent[]): Promise<void> {
+async function refreshWeight(tx: Tx, petId: string, overlaid: OverlaidStream): Promise<void> {
   const { estimatedWeightKg } = replayPetWeight(overlaid);
   await tx.update(pets).set({ estimatedWeightKg }).where(eq(pets.id, petId));
 }
 
-async function refreshPregnancy(tx: Tx, petId: string, overlaid: OverlaidEvent[]): Promise<void> {
+async function refreshPregnancy(tx: Tx, petId: string, overlaid: OverlaidStream): Promise<void> {
   const { pregnancyStatus } = replayPetPregnancy(overlaid);
   await tx.update(pets).set({ pregnancyStatus }).where(eq(pets.id, petId));
 }
@@ -137,7 +139,7 @@ async function refreshPregnancy(tx: Tx, petId: string, overlaid: OverlaidEvent[]
 async function refreshVaccinationReminder(
   tx: Tx,
   petId: string,
-  overlaid: OverlaidEvent[],
+  overlaid: OverlaidStream,
   amendedEventId: string,
 ): Promise<void> {
   const root = overlaid.find((e) => e.id === amendedEventId);
@@ -202,7 +204,7 @@ async function refreshVaccinationReminder(
 async function refreshJurisdiction(
   tx: Tx,
   petId: string,
-  overlaid: OverlaidEvent[],
+  overlaid: OverlaidStream,
 ): Promise<void> {
   let latest: Record<string, unknown> | null = null;
   for (let i = overlaid.length - 1; i >= 0; i--) {

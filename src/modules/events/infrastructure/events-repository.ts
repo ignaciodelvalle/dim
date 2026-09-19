@@ -37,6 +37,7 @@ import type { NewAuditLogRow, NewPetEvent, NewPetIdentification, PetEvent } from
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { enqueueOutboxForEvent } from "@/lib/events/event-outbox-enqueue";
 import { validatedEventValues } from "@/lib/events/validated-event-values";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetWeight } from "@/lib/projections/pet-weight";
 import type { ProjectionEvent } from "@/lib/projections/types";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -385,12 +386,21 @@ export class EventsRepository {
         payload: petEvents.payload,
       })
       .from(petEvents)
-      .where(and(eq(petEvents.petId, petId), inArray(petEvents.eventType, WEIGHT_BEARING_TYPES)))
+      // `event_amended` rides along so the overlay below can fold a corrected
+      // weight (A08-G1). Without it, recording ANY weight after a weight was
+      // amended re-derived the cache from the pre-correction value and silently
+      // reverted the correction — no new event, no audit row.
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          inArray(petEvents.eventType, [...WEIGHT_BEARING_TYPES, "event_amended"]),
+        ),
+      )
       // Same ordering as rederivePetCache — occurredAt first, then recordedAt
       // and id to break ties deterministically.
       .orderBy(asc(petEvents.occurredAt), asc(petEvents.recordedAt), asc(petEvents.id));
 
-    const { estimatedWeightKg } = replayPetWeight(events as ProjectionEvent[]);
+    const { estimatedWeightKg } = replayPetWeight(overlayAmendments(events as ProjectionEvent[]));
 
     await executor
       .update(pets)

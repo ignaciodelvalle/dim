@@ -32,6 +32,7 @@
 import { asc, eq, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetStatus } from "@/lib/projections/pet-status";
 
 type Args = { apply: boolean; concurrency: number };
@@ -126,7 +127,10 @@ async function checkOne(
         .where(eq(petEvents.petId, petId))
         .orderBy(asc(petEvents.occurredAt), asc(petEvents.recordedAt), asc(petEvents.id));
 
-      const expected = replayPetStatus(events);
+      // Overlaid exactly as rebuild-projections.ts and rederivePetCache do, so
+      // "the SAME canonical per-pet check" above is literally true (A08-G4): a
+      // repair tool may not derive from a stream its detector does not use.
+      const expected = replayPetStatus(overlayAmendments(events));
       const statusDrift = pet.status !== expected.status;
       const deceasedDrift =
         (pet.deceasedAt?.getTime() ?? null) !== (expected.deceasedAt?.getTime() ?? null);

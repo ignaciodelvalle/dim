@@ -9,6 +9,7 @@
 //
 // Test style mirrors __tests__/projections.test.ts.
 
+import { overlayAmendments } from "@/lib/infra/amendment";
 import { describe, expect, it } from "vitest";
 
 import { replayPetAdoptionEligibility } from "@/lib/projections/pet-adoption-eligibility";
@@ -141,23 +142,25 @@ describe("replayPetAdoptionEligibility", () => {
 
 describe("replayPetPregnancy", () => {
   it("returns null for an empty event list", () => {
-    expect(replayPetPregnancy([])).toEqual({ pregnancyStatus: null });
+    expect(replayPetPregnancy(overlayAmendments([]))).toEqual({ pregnancyStatus: null });
   });
 
   it("returns null when no clinical_info_logged pregnancy event exists", () => {
     expect(
-      replayPetPregnancy([ev(1, "weight_recorded"), ev(2, "vaccination_administered")]),
+      replayPetPregnancy(
+        overlayAmendments([ev(1, "weight_recorded"), ev(2, "vaccination_administered")]),
+      ),
     ).toEqual({ pregnancyStatus: null });
   });
 
   it("returns null when clinical_info_logged exists but sub_kind is not pregnancy", () => {
     const e = ev(1, "clinical_info_logged", { sub_kind: "medication", note: "antibiotics" });
-    expect(replayPetPregnancy([e])).toEqual({ pregnancyStatus: null });
+    expect(replayPetPregnancy(overlayAmendments([e]))).toEqual({ pregnancyStatus: null });
   });
 
   it("returns in_progress for a pregnancy started event", () => {
     const e = ev(1, "clinical_info_logged", { sub_kind: "pregnancy", pregnancy_phase: "started" });
-    expect(replayPetPregnancy([e])).toEqual({ pregnancyStatus: "in_progress" });
+    expect(replayPetPregnancy(overlayAmendments([e]))).toEqual({ pregnancyStatus: "in_progress" });
   });
 
   it("returns completed_live_birth for outcome live_birth", () => {
@@ -166,7 +169,9 @@ describe("replayPetPregnancy", () => {
       pregnancy_phase: "ended",
       outcome: "live_birth",
     });
-    expect(replayPetPregnancy([e])).toEqual({ pregnancyStatus: "completed_live_birth" });
+    expect(replayPetPregnancy(overlayAmendments([e]))).toEqual({
+      pregnancyStatus: "completed_live_birth",
+    });
   });
 
   it("returns completed_stillbirth for outcome stillbirth", () => {
@@ -175,7 +180,9 @@ describe("replayPetPregnancy", () => {
       pregnancy_phase: "ended",
       outcome: "stillbirth",
     });
-    expect(replayPetPregnancy([e])).toEqual({ pregnancyStatus: "completed_stillbirth" });
+    expect(replayPetPregnancy(overlayAmendments([e]))).toEqual({
+      pregnancyStatus: "completed_stillbirth",
+    });
   });
 
   it("returns completed_miscarriage for outcome miscarriage", () => {
@@ -184,7 +191,9 @@ describe("replayPetPregnancy", () => {
       pregnancy_phase: "ended",
       outcome: "miscarriage",
     });
-    expect(replayPetPregnancy([e])).toEqual({ pregnancyStatus: "completed_miscarriage" });
+    expect(replayPetPregnancy(overlayAmendments([e]))).toEqual({
+      pregnancyStatus: "completed_miscarriage",
+    });
   });
 
   it("returns completed_termination for outcome termination", () => {
@@ -193,7 +202,9 @@ describe("replayPetPregnancy", () => {
       pregnancy_phase: "ended",
       outcome: "termination",
     });
-    expect(replayPetPregnancy([e])).toEqual({ pregnancyStatus: "completed_termination" });
+    expect(replayPetPregnancy(overlayAmendments([e]))).toEqual({
+      pregnancyStatus: "completed_termination",
+    });
   });
 
   it("latest pregnancy event wins: started then ended yields completed", () => {
@@ -206,7 +217,7 @@ describe("replayPetPregnancy", () => {
       pregnancy_phase: "ended",
       outcome: "live_birth",
     });
-    expect(replayPetPregnancy([started, ended])).toEqual({
+    expect(replayPetPregnancy(overlayAmendments([started, ended]))).toEqual({
       pregnancyStatus: "completed_live_birth",
     });
   });
@@ -221,7 +232,7 @@ describe("replayPetPregnancy", () => {
       sub_kind: "pregnancy",
       pregnancy_phase: "started",
     });
-    expect(replayPetPregnancy([firstEnded, secondStarted])).toEqual({
+    expect(replayPetPregnancy(overlayAmendments([firstEnded, secondStarted]))).toEqual({
       pregnancyStatus: "in_progress",
     });
   });
@@ -235,7 +246,7 @@ describe("replayPetPregnancy", () => {
       sub_kind: "pregnancy",
       pregnancy_phase: "ended",
     });
-    expect(replayPetPregnancy([started, malformedEnded])).toEqual({
+    expect(replayPetPregnancy(overlayAmendments([started, malformedEnded]))).toEqual({
       pregnancyStatus: "in_progress",
     });
   });
@@ -249,7 +260,9 @@ describe("replayPetPregnancy", () => {
       sub_kind: "pregnancy",
       pregnancy_phase: "unknown_phase",
     });
-    expect(replayPetPregnancy([started, unknown])).toEqual({ pregnancyStatus: "in_progress" });
+    expect(replayPetPregnancy(overlayAmendments([started, unknown]))).toEqual({
+      pregnancyStatus: "in_progress",
+    });
   });
 });
 

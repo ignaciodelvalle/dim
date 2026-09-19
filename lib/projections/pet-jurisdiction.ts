@@ -28,7 +28,7 @@
 //
 // Pure function. Caller orders events ascending by (occurredAt, recordedAt, id).
 
-import type { ProjectionEvent } from "./types";
+import type { AmendmentOverlaid, ProjectionEvent } from "./types";
 
 export type PetJurisdictionProjection = {
   jurisdictionCountry: string | null;
@@ -36,7 +36,7 @@ export type PetJurisdictionProjection = {
   jurisdictionLocality: string | null;
 };
 
-export function replayPetJurisdiction(events: ProjectionEvent[]): PetJurisdictionProjection | null {
+export function replayPetJurisdiction(events: AmendmentOverlaid<ProjectionEvent>): PetJurisdictionProjection | null {
   // Iterate from the end: the latest jurisdiction-bearing event wins.
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];

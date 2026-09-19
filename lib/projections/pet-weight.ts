@@ -23,7 +23,7 @@
 // The value is returned as a string (or null); the rebuild script + drift
 // harness compare numerically, so "8.5" vs "8.50" is not a mismatch.
 
-import type { ProjectionEvent } from "./types";
+import type { AmendmentOverlaid, ProjectionEvent } from "./types";
 
 export type PetWeightProjection = {
   estimatedWeightKg: string | null;
@@ -34,7 +34,7 @@ export type PetWeightProjection = {
 // cleared estimate), which WINS as null and stops the scan.
 const NOT_WEIGHT_BEARING = Symbol("not-weight-bearing");
 
-export function replayPetWeight(events: ProjectionEvent[]): PetWeightProjection {
+export function replayPetWeight(events: AmendmentOverlaid<ProjectionEvent>): PetWeightProjection {
   // Iterate from the end: the latest weight-bearing event wins.
   for (let i = events.length - 1; i >= 0; i--) {
     const w = weightFromEvent(events[i]);

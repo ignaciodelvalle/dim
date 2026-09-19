@@ -13,6 +13,7 @@
 
 import type { EventType } from "@/db/schema";
 import { upcastPayload } from "@/lib/events/event-upcasters";
+import type { AmendmentOverlaidBrand } from "@/lib/projections/types";
 
 // ---------------------------------------------------------------------------
 // D4 — Allowlist of amendable event types
@@ -190,7 +191,7 @@ function amendmentIsLater(
  */
 export function overlayAmendments<T extends OverlayableEvent>(
   events: T[],
-): Array<T & { amendedAt: Date | string | null }> {
+): Array<T & { amendedAt: Date | string | null }> & AmendmentOverlaidBrand {
   // Latest amendment per target — a single pass over the stream. "Latest" uses
   // the (occurred_at, recorded_at, id) tiebreak that matches the SQL twin (EL-F3).
   const latestByTarget = new Map<
@@ -214,6 +215,8 @@ export function overlayAmendments<T extends OverlayableEvent>(
     }
   }
 
+  // The brand is a compile-time marker only (A05-7): this is the one place
+  // allowed to assert it.
   return events.map((e) => {
     // The correction itself is an append-only timeline entry — never upcast or
     // projected. (event_amended has no schema upcaster anyway.)
@@ -230,7 +233,7 @@ export function overlayAmendments<T extends OverlayableEvent>(
       projected[change.field] = change.new;
     }
     return { ...e, payload: projected, amendedAt: amendment.occurredAt };
-  });
+  }) as Array<T & { amendedAt: Date | string | null }> & AmendmentOverlaidBrand;
 }
 
 // ---------------------------------------------------------------------------
