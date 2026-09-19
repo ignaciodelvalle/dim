@@ -1179,6 +1179,8 @@ export async function atenderRecordDeathInObservationAction(
       severity: "urgent",
       title: `Fallecimiento durante la observación — ${pet.name}`,
       body: `Un veterinario matriculado de ${organizationName} registró el fallecimiento de ${pet.name} durante su observación antirrábica. La observación quedó cerrada y se avisó a la autoridad sanitaria, que puede necesitar tomar una muestra. Si no reconocés esta atención, avisá a la autoridad sanitaria de tu localidad.`,
+      ctaLabel: `Ver a ${pet.name}`,
+      ctaUrl: `/mis-mascotas/${pet.publicToken}`,
       relatedCaseId: biteCase?.id ?? null,
     },
   });

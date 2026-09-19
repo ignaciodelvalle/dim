@@ -74,6 +74,14 @@ export type ClinicalEventOwnerNotice = {
   title: string;
   body: string;
   relatedCaseId: string | null;
+  /**
+   * Where the notice sends the owner. Omitted: the event's own page, the
+   * default every clinical notice uses. A caller whose event is terminal (a
+   * death) points at the pet instead, and states it at the call site so the
+   * CTA-fitness fence can see an urgent notice's destination.
+   */
+  ctaLabel?: string;
+  ctaUrl?: string;
 };
 
 export type ClinicalEventNotifyDeps = {
@@ -134,8 +142,9 @@ export async function notifyOwnersOfClinicalEvent(
           severity: input.notice.severity,
           title: input.notice.title,
           body: input.notice.body,
-          ctaLabel: "Ver el registro",
-          ctaUrl: `/mis-mascotas/${input.petPublicToken}/eventos/${input.eventId}`,
+          ctaLabel: input.notice.ctaLabel ?? "Ver el registro",
+          ctaUrl:
+            input.notice.ctaUrl ?? `/mis-mascotas/${input.petPublicToken}/eventos/${input.eventId}`,
           relatedPetId: input.petId,
           relatedEventId: input.eventId,
           relatedCaseId: input.notice.relatedCaseId,
