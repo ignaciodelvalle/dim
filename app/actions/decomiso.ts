@@ -18,6 +18,7 @@ import {
   type EndedCaretakerGrant,
   notifyCaretakersOfHandoff,
 } from "@/lib/infra/end-pet-ownerships";
+import { MAX_DECOMISO_EVIDENCE_TOTAL_BYTES } from "@/lib/media/limits";
 import {
   type DecomisoEvidenceMime,
   MAX_DECOMISO_EVIDENCE_BYTES,
@@ -175,6 +176,14 @@ export async function executeDecomisoAction(
     buffer: Buffer;
     mimeType: DecomisoEvidenceMime;
   }> = [];
+  // The TOTAL ceiling, mirrored from the form: the browser pre-check is a
+  // courtesy, this is the rule (security review 2026-09-18, LOW).
+  const totalBytes = input.attachmentFiles.reduce((sum, f) => sum + f.size, 0);
+  if (totalBytes > MAX_DECOMISO_EVIDENCE_TOTAL_BYTES) {
+    return {
+      error: `Los archivos juntos superan los ${MAX_DECOMISO_EVIDENCE_TOTAL_BYTES / (1024 * 1024)} MB.`,
+    };
+  }
   for (const file of input.attachmentFiles) {
     const buffer = Buffer.from(await file.arrayBuffer());
     if (buffer.byteLength > MAX_DECOMISO_EVIDENCE_BYTES) {

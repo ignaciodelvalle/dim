@@ -672,6 +672,23 @@ describe("executeDecomisoAction — attachment types come from the bytes (A07-4)
     expect(storageUpload).not.toHaveBeenCalled();
   });
 
+  it("refuses a set over the 45 MiB TOTAL on the server too, before ANY upload", async () => {
+    storageUpload.mockClear();
+
+    // Five files each under the per-file ceiling, together over the total.
+    const nearCeiling = new Uint8Array(Math.floor(9.5 * 1024 * 1024));
+    nearCeiling.set(PDF_BYTES);
+    const files = Array.from(
+      { length: 5 },
+      (_, i) => new File([nearCeiling], `acta-${i}.pdf`, { type: "application/pdf" }),
+    );
+
+    const result = await run(files);
+
+    expect(result).toEqual({ error: "Los archivos juntos superan los 45 MB." });
+    expect(storageUpload).not.toHaveBeenCalled();
+  });
+
   it("accepts a file of exactly 10 MiB", async () => {
     storageUpload.mockClear();
 
@@ -807,6 +824,22 @@ describe("withholdUnreadableDecomisoEvidence — D7 read rule", () => {
       "decomiso-evidence/dir/acta.pdf",
       "pet/vacuna.jpg",
     ]);
+  });
+
+  it("the pet's later titular (an adopter) does NOT read the seizure evidence", async () => {
+    // Security review 2026-09-18 (MEDIUM D7): canReadCase admits the CURRENT
+    // titular, and after rehoming that is the adopter — whose view of the raw
+    // evidence would carry the seizure place's GPS. The evidence rule has no
+    // titular branch at all.
+    const adopter = await stubProfile({ receiverMember: false });
+    await db.insert(ownerships).values({
+      petId: createdPetId,
+      ownerUserId: adopter,
+      role: "owner",
+      startedAt: new Date(),
+    });
+    const visible = await withholdUnreadableDecomisoEvidence(rows(), adopter);
+    expect(visible.map((r) => r.storagePath)).toEqual(["pet/vacuna.jpg"]);
   });
 
   it("anyone else — or no viewer — keeps the ordinary attachment and loses the evidence", async () => {

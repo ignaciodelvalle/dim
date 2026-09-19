@@ -13,12 +13,11 @@
 // custodial org that was never party to the seizure. Those readers now drop
 // decomiso evidence unless the viewer can read THE DECOMISO itself:
 //
-//   · canReadCase(case, viewer) — the rule /casos/<code> already enforces:
-//     govt in jurisdiction, admin/national, and the current titular
-//     (role 'owner') of the subject pet; or
+//   · admin / national, or govt whose jurisdiction contains the case — the
+//     authority side of the rule /casos/<code> enforces; or
 //   · an active member of the case's receiver organization — the refugio the
-//     decomiso was handed to reads it in its transfer inbox, which does not go
-//     through canReadCase.
+//     decomiso was handed to reads it in its transfer inbox.
+//   The pet's titular is deliberately NOT here (see viewerReadsDecomiso).
 //
 // Everything else fails closed: an evidence row whose event has no case, or
 // whose case cannot be loaded, is withheld. The rule only ever NARROWS what the
@@ -28,8 +27,12 @@
 import { eq, inArray } from "drizzle-orm";
 
 import { cases, db, petEvents } from "@/db";
+import {
+  hasNationalReadScope,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 import { isDecomisoEvidencePath } from "@/lib/infra/attachment-location";
-import { canReadCase, isActiveOrgMember } from "@/lib/infra/case-access";
+import { type canReadCase, isActiveOrgMember } from "@/lib/infra/case-access";
 import { getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 
@@ -99,13 +102,32 @@ async function readableEvidenceEventIds(
   return readable;
 }
 
+/**
+ * NOT canReadCase. canReadCase admits the CURRENT titular of the subject pet,
+ * and after a decomiso the animal is handed to a refugio and later adopted: the
+ * adopter becomes the current titular and would read the raw evidence, whose
+ * GPS (kept by D7) points at the place of the seizure — usually the previous
+ * owner's home (security review 2026-09-18, MEDIUM D7). The evidence is for the
+ * authority and the receiver, so only these read it:
+ *   · admin / national (universal read scope);
+ *   · govt whose jurisdiction contains the case;
+ *   · an active member of the receiver organization.
+ * No titular branch at all — current or former.
+ */
 async function viewerReadsDecomiso(
   publicCode: string,
   viewer: Parameters<typeof canReadCase>[1] & object,
 ): Promise<boolean> {
   const detail = await getCaseDetailByPublicCode(publicCode);
   if (!detail) return false;
-  if (await canReadCase(detail, viewer)) return true;
+  if (hasNationalReadScope(viewer.role)) return true;
+  if (viewer.role === "govt") {
+    return jurisdictionScopeContains(
+      viewer.jurisdictions,
+      detail.jurisdictionProvince,
+      detail.jurisdictionLocality,
+    );
+  }
   return detail.receiverOrganization
     ? isActiveOrgMember(detail.receiverOrganization.id, viewer.userId)
     : false;
