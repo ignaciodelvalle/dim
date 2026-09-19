@@ -51,9 +51,10 @@ Out of scope:
 
 ## What not to do
 
-- **Do not test against production, staging or pilot deployments.** They hold
-  real people's and real animals' data. Everything in this repository runs
-  locally (Supabase CLI + Docker); reproduce there.
+- **Do not test against any deployed environment** (production, staging or a
+  pilot). They are operated for real users, and some may hold personal data.
+  Everything in this repository runs locally (Supabase CLI + Docker);
+  reproduce there.
 - Do not access, modify, download or delete data that is not yours, and do not
   keep any personal data you come across by accident — stop and report.
 - Do not publish or share the details of a vulnerability until it has been fixed
