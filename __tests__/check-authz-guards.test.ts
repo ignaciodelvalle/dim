@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  ACTION_SOURCE_GLOBS,
   AUTH_GUARDS,
   DELETION_AWARE_GUARDS,
   GUARD_HOMES,
@@ -59,8 +60,23 @@ describe("callsAuthGuard", () => {
     ).toBe(true);
   });
 
-  it("matches the inline auth.getUser() pattern (literal dot only)", () => {
-    expect(callsAuthGuard("const { data } = await supabase.auth.getUser();")).toBe(true);
+  it("does NOT accept a bare auth.getUser() as a guard (A01-3)", () => {
+    // getUser() proves a JWT, not a live account: an erased or deactivated
+    // subject still passes it. It was the last AUTH_GUARDS entry until
+    // 2026-09-18; putting it back re-opens Rule 1.2 to any non-pet write.
+    expect(AUTH_GUARDS as readonly string[]).not.toContain("auth.getUser");
+    expect(callsAuthGuard("const { data } = await supabase.auth.getUser();")).toBe(false);
+  });
+
+  it("flags an export whose only identity check is a bare auth.getUser()", () => {
+    const src = [
+      "export async function snoozeReminderAction(id: string) {",
+      "  const { data: { user } } = await supabase.auth.getUser();",
+      "  if (!user) throw new Error('no session');",
+      "  await db.update(reminders).set({ snoozedUntil: new Date() });",
+      "}",
+    ].join("\n");
+    expect(findOffenders("app/actions/reminders.ts", src)).toHaveLength(1);
   });
 
   it("does NOT match a guard-like identifier without a call", () => {
@@ -599,18 +615,25 @@ describe("findDeletionUnawareMutations", () => {
     expect(findDeletionUnawareMutations("app/actions/x.ts", src)).toHaveLength(0);
   });
 
-  it("does NOT flag a bare-getUser write to a non-pet table", () => {
-    // Reminders / notifications writes are lower-stakes and out of the pet-write
-    // scope this rule targets.
-    const src = [
-      "export async function snoozeReminderAction(id: string) {",
-      "  const { data: { user } } = await supabase.auth.getUser();",
-      "  if (!user) throw new Error('no session');",
-      "  await db.update(reminders).set({ snoozedUntil: new Date() });",
-      "  return { ok: true };",
-      "}",
-    ].join("\n");
-    expect(findDeletionUnawareMutations("app/actions/reminders.ts", src)).toHaveLength(0);
+  it("flags a bare-getUser write to a NON-pet table too (A01-3, 2026-09-18)", () => {
+    // The rule was pet-only until 2026-09-18: an erased account could keep
+    // writing appointments, ownerships, notifications or reminders on its
+    // still-valid JWT. The hazard is the account, not the table.
+    for (const write of [
+      "await db.update(reminders).set({ snoozedUntil: new Date() });",
+      "await db.insert(appointments).values({ userId: user.id });",
+      "await db.delete(notifications).where(eq(notifications.userId, user.id));",
+    ]) {
+      const src = [
+        "export async function snoozeReminderAction(id: string) {",
+        "  const { data: { user } } = await supabase.auth.getUser();",
+        "  if (!user) throw new Error('no session');",
+        `  ${write}`,
+        "  return { ok: true };",
+        "}",
+      ].join("\n");
+      expect(findDeletionUnawareMutations("app/actions/reminders.ts", src)).toHaveLength(1);
+    }
   });
 
   it("does NOT flag a bare-getUser pet READ (no insert/update/delete)", () => {
@@ -762,6 +785,16 @@ describe("listActionFiles", () => {
 
   it("scans a non-empty surface", () => {
     expect(files.length).toBeGreaterThan(0);
+  });
+
+  it("discovers by content under app/, src/ AND lib/ (A01-7)", () => {
+    // lib/ was outside the globs until 2026-09-18: the first "use server"
+    // module placed there would have been scanned by no rule and by none of
+    // the four fences that share this list.
+    for (const root of ["app", "src", "lib"]) {
+      expect(ACTION_SOURCE_GLOBS).toContain(`${root}/**/*.ts`);
+      expect(ACTION_SOURCE_GLOBS).toContain(`${root}/**/*.tsx`);
+    }
   });
 
   it("still covers everything the pre-2026-08-05 filename globs covered", () => {
@@ -1215,7 +1248,6 @@ describe("findShadowedGuardDefinitions", () => {
     // home entry would be invisible to the shadowing rule — the exact gap that
     // let the dead `requireUser` entry be borrowed.
     const recognised = new Set<string>([...AUTH_GUARDS, ...ROUTE_HANDLER_GUARDS]);
-    recognised.delete("auth.getUser"); // a member expression, not a name anyone defines
     expect([...recognised].sort()).toEqual(Object.keys(GUARD_HOMES).sort());
   });
 

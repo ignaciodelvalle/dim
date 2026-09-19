@@ -11,7 +11,7 @@
 //      visible and justified, never silent.
 //
 // Scope — discovered by CONTENT, not by filename (see listActionFiles below):
-// every module under app/ or src/ whose FIRST statement is the "use server"
+// every module under app/, src/ or lib/ whose FIRST statement is the "use server"
 // directive. The old filename globs (app/actions/*.ts + src/modules/**/actions.ts)
 // are kept as a union floor so discovery can only ever widen.
 //
@@ -46,7 +46,17 @@ import { stripComments } from "./lib/strip-comments.mjs";
 // Recognized auth-gate calls. A function whose body contains a call to any of
 // these is considered guarded. Mixes named helpers (lib/auth-guards.ts,
 // lib/pet-access.ts), org/capability guards, file-local admin guards, and the
-// inline `supabase.auth.getUser()` + `if (!user)` pattern used by legacy flows.
+// `requireLiveUser` family.
+//
+// BARE `auth.getUser` WAS THE LAST ENTRY UNTIL 2026-09-18 (A01-3), and it was
+// removed on purpose. getUser() proves a JWT is valid and nothing else: it never
+// reads profiles.deleted_at, the deactivation flag or the maintenance window. As
+// a recognised guard it let a new "use server" export that wrote to ANY non-pet
+// table pass Rule 1.2 on a session an erased account still holds. No live
+// action relied on it (every caller also called a real guard), so removing it
+// narrowed nothing today and closes the door for the next one. The legacy
+// "getUser + if (!user)" shape now has to go through requireLiveUser /
+// resolveOptionalLiveUser, or carry a written @no-auth-required reason.
 export const AUTH_GUARDS = [
   "requireUserOrRedirect",
   // The ONE result-shaped liveness guard (T1.2, lib/infra/live-user.ts).
@@ -102,7 +112,6 @@ export const AUTH_GUARDS = [
   // that reached NONE of the liveness checks (see atender-access.ts's header).
   "resolveAtenderPet",
   "resolveAtenderContext",
-  "auth.getUser",
 ] as const;
 
 // WS-AUTHZ 1.3 — operator-route ↔ guard rule.
@@ -174,9 +183,10 @@ export const PERSONAL_TIER_GUARDS = [
 // A valid Supabase JWT is necessary but NOT sufficient to MUTATE a pet. A self-
 // erased account (profiles.deleted_at set by erase_subject_data) keeps a live
 // token until it naturally expires; `supabase.auth.getUser()` returns that user
-// and never consults deleted_at. So an action that authorizes a PET WRITE on a
-// bare getUser() lets an erased account keep writing pets/events — invisible to
-// Rule 1.2, which counts bare `auth.getUser` as an equivalent guard.
+// and never consults deleted_at. So an action that authorizes a WRITE on a bare
+// getUser() lets an erased account keep writing. (Rule 1.2 counted bare
+// `auth.getUser` as a guard until 2026-09-18; it no longer does, so this rule is
+// now the second of two nets, not the only one.)
 //
 // Only these guards resolve the acting user AND reject an erased profile — they
 // all funnel through requireUserOrRedirect (which checks deleted_at, Wave D2) or
@@ -223,17 +233,20 @@ export const DELETION_AWARE_GUARDS = [
   "resolveAtenderContext",
 ] as const;
 
-// Pet-write signal (inline): a drizzle insert/update/delete whose body also
-// names a pet-scoped table — petEvents (the append-only event spine) or pets
-// (the credential row). This catches the monolithic "getUser then write a pet
-// event in the same function" pattern; shims that delegate the write to an
-// application use-case are covered by that use-case routing through a guard.
-const PET_TABLE_RE = /\b(petEvents|pets)\b/;
+// Write signal (inline): an insert/update/delete call on ANY table.
+//
+// Until 2026-09-18 (A01-3) the rule also required the body to name a pet table
+// (`petEvents` or `pets`), so a bare-getUser write to appointments, ownerships,
+// notifications or welfare_reports passed it. The erased-account hazard is not
+// specific to pets (Ley 25.326 art. 16 covers every row the subject can still
+// author), so the table filter was dropped. Shims that delegate the write to an
+// application use-case are still covered by that use-case routing through a
+// guard.
 const DB_MUTATION_RE = /\.(insert|update|delete)\s*\(/;
 const BARE_GET_USER_RE = /\.auth\.getUser\s*\(/;
 
 // Documented safe exports: `"<relPath>#<name>"` → reason. Use ONLY when the
-// action resolves identity through a bare getUser() and touches a pet table but
+// action resolves identity through a bare getUser() and writes a table but
 // the erased-account write is provably impossible (e.g. a deletion-aware check
 // happens in a delegated use-case). Empty is the goal.
 export const DELETION_AWARE_ALLOWLIST: Record<string, string> = {};
@@ -242,8 +255,8 @@ function callsAnyGuard(body: string, guards: readonly string[]): boolean {
   return guards.some((g) => new RegExp(`\\b${g.replace(/\./g, "\\.")}\\s*\\(`).test(body));
 }
 
-// Returns one offender line per exported action that authorizes an inline pet
-// write on a bare auth.getUser() with no deletion-aware guard. Empty = clean.
+// Returns one offender line per exported action that authorizes an inline write
+// (any table) on a bare auth.getUser() with no deletion-aware guard. Empty = clean.
 export function findDeletionUnawareMutations(relPath: string, src: string): string[] {
   const offenders: string[] = [];
   for (const fn of extractExportedAsyncFunctions(src)) {
@@ -255,10 +268,10 @@ export function findDeletionUnawareMutations(relPath: string, src: string): stri
     if (isInnerWriter(fn.name)) continue;
     if (!BARE_GET_USER_RE.test(body)) continue;
     if (callsAnyGuard(body, DELETION_AWARE_GUARDS)) continue;
-    if (!(PET_TABLE_RE.test(body) && DB_MUTATION_RE.test(body))) continue;
+    if (!DB_MUTATION_RE.test(body)) continue;
     if (DELETION_AWARE_ALLOWLIST[`${relPath}#${fn.name}`] !== undefined) continue;
     offenders.push(
-      `${relPath}:${fn.startLine} export async function ${fn.name} — authorizes a pet write on a bare auth.getUser() with no deletion-aware guard (one of ${DELETION_AWARE_GUARDS.join("/")}). An erased account (profiles.deleted_at) keeps a valid JWT and could still mutate pets/events. Route the write through requirePetAccess/requireAlivePetAccess, or add the deleted_at check (see lib/infra/pet-access.ts).`,
+      `${relPath}:${fn.startLine} export async function ${fn.name} — authorizes a write on a bare auth.getUser() with no deletion-aware guard (one of ${DELETION_AWARE_GUARDS.join("/")}). An erased account (profiles.deleted_at) keeps a valid JWT and could still write. Route the write through requirePetAccess/requireAlivePetAccess, or add the deleted_at check (see lib/infra/pet-access.ts).`,
     );
   }
   return offenders;
@@ -978,7 +991,19 @@ export function listOperatorRouteFiles(): string[] {
 // function, so the `export async function` analysis every rule here performs has
 // nothing to bind to. Covering inline actions needs a different rule shape, not
 // a wider glob.
-const ACTION_SOURCE_GLOBS = ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx"];
+//
+// `lib/**` JOINED ON 2026-09-18 (A01-7). No "use server" module lives there
+// today, but discovery is by content, so the directory being outside the globs
+// meant the first one placed there would have been scanned by no rule at all —
+// and by none of the four fences that share this list either.
+export const ACTION_SOURCE_GLOBS = [
+  "app/**/*.ts",
+  "app/**/*.tsx",
+  "src/**/*.ts",
+  "src/**/*.tsx",
+  "lib/**/*.ts",
+  "lib/**/*.tsx",
+];
 
 // The pre-2026-08-05 filename globs, kept as a UNION FLOOR. The content scan is
 // a strict superset of them today except for one types-only file, and a union
@@ -1187,7 +1212,7 @@ function runScan(): void {
   ).length;
 
   console.log(
-    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser pet writes; operator routes institutionally gated across ${operatorFiles.length} files (${operatorApiFiles.length} of them under app/api); ${handlerFiles.length} route handlers authorized (${optedOutHandlers} intentionally public, each with a written ${NO_AUTH_COMMENT} reason); no guard name defined outside its home across ${shadowScanFiles.length} files.`,
+    `✓ authz coverage clean — ${actionFiles.length} action files guarded, no impersonation-class exports, no bare-getUser writes; operator routes institutionally gated across ${operatorFiles.length} files (${operatorApiFiles.length} of them under app/api); ${handlerFiles.length} route handlers authorized (${optedOutHandlers} intentionally public, each with a written ${NO_AUTH_COMMENT} reason); no guard name defined outside its home across ${shadowScanFiles.length} files.`,
   );
 }
 

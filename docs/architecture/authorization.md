@@ -338,10 +338,10 @@ coverage rule: every exported `async function` in a `"use server"` module, and
 every exported route handler, must either call a recognised guard, be an inner
 writer, or carry a written `// @no-auth-required: <reason>`.
 
-Discovery is by CONTENT, not filename: any module under `app/` or `src/` whose
-first statement is `"use server"` (`ACTION_SOURCE_GLOBS`,
-`scripts/check-authz-guards.ts:974`; the old filename globs survive as a union
-floor at `:979`). Route handlers are discovered separately on purpose — four
+Discovery is by CONTENT, not filename: any module under `app/`, `src/` or
+`lib/` whose first statement is `"use server"` (`ACTION_SOURCE_GLOBS` in
+`scripts/check-authz-guards.ts`; the old filename globs survive as a union
+floor, `LEGACY_ACTION_GLOBS`). `lib/` joined on 2026-09-18 (A01-7). Route handlers are discovered separately on purpose — four
 other fences import `listActionFiles`, and a fence must not move another fence's
 boundary as a side effect.
 
@@ -353,23 +353,18 @@ The recognised lists:
 | `INSTITUTIONAL_GUARDS` | `:113` | admin/govt authority, for `app/admin` and `app/gob` |
 | `SYSTEM_GUARDS` | `:149` | `authorizeCronRequest` / `checkCronSecret` |
 | `PERSONAL_TIER_GUARDS` | `:155` | Personal-tier only — an operator route gated by these alone is an offender |
-| `DELETION_AWARE_GUARDS` | `:187` | Guards that read `deleted_at`; excludes bare `auth.getUser` |
+| `DELETION_AWARE_GUARDS` | `:187` | Guards that read `deleted_at`; a bare `auth.getUser` plus a write to ANY table without one of these is an offender |
 | `ROUTE_HANDLER_GUARDS` | `:631` | The union of the three above |
 
 **What it accepts that it arguably should not** — stated because a fence's
 tolerances are part of its contract:
 
-1. `"auth.getUser"` is the last entry of `AUTH_GUARDS`
-   (`scripts/check-authz-guards.ts:105`). A new `"use server"` export that only
-   calls `supabase.auth.getUser()` and writes to any non-pet table satisfies the
-   coverage rule, and the deletion-aware backstop
-   (`findDeletionUnawareMutations`) only fires on `PET_TABLE_RE` (`:225`), which
-   is `pets` and `petEvents` alone. No live offender exists today. Filed as
-   `A01-3` (MED).
-2. `lib/**` is outside `ACTION_SOURCE_GLOBS` (`:974`), so a `"use server"`
-   module placed there would be scanned by no rule. None exists today. Filed as
-   `A01-7` (LOW).
-3. The route-handler rule reads the HANDLER BODY only and does not follow calls,
+Closed on 2026-09-18: bare `"auth.getUser"` is no longer an `AUTH_GUARDS`
+entry, and `findDeletionUnawareMutations` fires on a write to any table, not
+only `pets`/`petEvents` (A01-3); `lib/**` is scanned (A01-7). Neither had a live
+offender.
+
+1. The route-handler rule reads the HANDLER BODY only and does not follow calls,
    so a guard factored into a module-level helper reads as absent. That is
    deliberate and the error message says so.
 
@@ -446,12 +441,12 @@ live in the lens.
 |---|---|---|---|
 | `A01-1` | HIGH | `lib/infra/live-user.ts:324` | A self-deactivated PERSONAL account is never locked out at any boundary |
 | `A02-1` | HIGH | `db/migrations/0190_titular_only_rls.sql` | `pet_events` PostgREST INSERT admits forged `author_role` / `author_verified` |
-| `A01-3` | MED | `scripts/check-authz-guards.ts:105` | The fence accepts a bare `auth.getUser()` as a guard |
 | `A01-4` | MED | `app/actions/localities.ts` | Test-only rate-limit resets are exported from `"use server"` modules |
 | `A10-2` | MED | `src/modules/organizations/application/admin-proposals/propose-vet-upgrade.ts` | A govt proposal writes a client-supplied jurisdiction with no assignment check |
 | `A01-5` | LOW | `lib/analytics/owner-dashboard.ts` | PII readers take a bare subject id; the caller is the only fence |
-| `A01-7` | LOW | `scripts/check-authz-guards.ts:974` | `lib/**` is outside the fence's action globs |
 | `A01-8` | LOW | `scripts/check-authz-scoping.ts` | A report-only ratchet with no burn-down owner |
+
+`A01-3` (MED) and `A01-7` (LOW) left this table on 2026-09-18 — see Layer 5.
 
 `A01-2` (MED, `fetchQueueHealthScoped([])` returning national approval-queue
 counts for a govt narrowed out of its mandate) left this table on 2026-09-09:
