@@ -92,9 +92,14 @@ const DEFAULT_LIST_LIMIT = 50;
 //   - govt: scoped to users who own at least one pet in the viewer's jurisdiction
 //     (see module-level comment for the rationale). Govt with zero assignments
 //     returns an empty list immediately.
+//
+// `scope` is REQUIRED (A01-6, 2026-09-18). It used to default to
+// `{ role: "admin" }`, so a future caller that forgot the argument got the
+// universal PII search: the default failed open. Every caller already passed
+// one; now the compiler makes the next one say which viewer it is.
 export async function searchUsers(
   query: string,
-  scope: UserSearchScope = { role: "admin" },
+  scope: UserSearchScope,
   roleFilter: UserRoleFilter = "all",
 ): Promise<UserSearchResult[]> {
   // Govt with no assignments must see nothing (prefer showing LESS).

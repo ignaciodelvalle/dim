@@ -6,12 +6,16 @@
 //   T3 — returns empty array when pet has no weight events.
 //   T4 — normalises payload.kg from both string and number forms.
 
+//   T5 — both readers refuse, IN THE QUERY, a viewer who does not hold the pet.
+
+import { randomUUID } from "node:crypto";
+
 import { createClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets } from "@/db";
-import { fetchPetWeightHistory } from "@/lib/analytics/owner-dashboard";
+import { fetchPetEventsForProfileV2, fetchPetWeightHistory } from "@/lib/analytics/owner-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { createFreshTestUser } from "./_helpers/fresh-test-user";
 
@@ -121,19 +125,19 @@ describe("fetchPetWeightHistory — returns recent events ascending", () => {
   afterAll(() => cleanupUser(userId));
 
   it("returns all three events", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     expect(result).toHaveLength(3);
   });
 
   it("events are ordered ascending by date", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     for (let i = 1; i < result.length; i++) {
       expect(result[i].date.getTime()).toBeGreaterThanOrEqual(result[i - 1].date.getTime());
     }
   });
 
   it("kg values are numbers", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     for (const s of result) {
       expect(typeof s.kg).toBe("number");
       expect(Number.isFinite(s.kg)).toBe(true);
@@ -141,9 +145,25 @@ describe("fetchPetWeightHistory — returns recent events ascending", () => {
   });
 
   it("most recent sample has kg=4.5", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     const last = result[result.length - 1];
     expect(last.kg).toBeCloseTo(4.5);
+  });
+
+  // A01-5 (2026-09-18): the viewer is an in-query predicate, so a caller that
+  // skipped requirePetAccess gets nothing back for a pet the viewer does not
+  // hold. The positive controls are the tests above and below (same pet, holder).
+  it("returns nothing to a viewer who does not hold the pet", async () => {
+    const stranger = randomUUID();
+    expect(await fetchPetWeightHistory(stranger, petId)).toEqual([]);
+    const v2 = await fetchPetEventsForProfileV2(stranger, petId);
+    expect(v2.typedEvents).toEqual([]);
+    expect(v2.recentFive).toEqual([]);
+  });
+
+  it("the profile-v2 reader answers the holder (positive control)", async () => {
+    const v2 = await fetchPetEventsForProfileV2(userId, petId);
+    expect(v2.recentFive.length).toBeGreaterThan(0);
   });
 });
 
@@ -175,7 +195,7 @@ describe("fetchPetWeightHistory — excludes events older than 12 months", () =>
   afterAll(() => cleanupUser(userId));
 
   it("returns only the event within 12 months", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     expect(result).toHaveLength(1);
     expect(result[0].kg).toBeCloseTo(4.2);
   });
@@ -201,7 +221,7 @@ describe("fetchPetWeightHistory — empty when no weight events", () => {
   afterAll(() => cleanupUser(userId));
 
   it("returns an empty array", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     expect(result).toEqual([]);
   });
 });
@@ -234,7 +254,7 @@ describe("fetchPetWeightHistory — normalises kg from string and number payload
   afterAll(() => cleanupUser(userId));
 
   it("both events are returned as finite numbers", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     expect(result).toHaveLength(2);
     for (const s of result) {
       expect(typeof s.kg).toBe("number");
@@ -243,12 +263,12 @@ describe("fetchPetWeightHistory — normalises kg from string and number payload
   });
 
   it("string form normalises to 12.5", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     expect(result[0].kg).toBeCloseTo(12.5);
   });
 
   it("number form normalises to 13", async () => {
-    const result = await fetchPetWeightHistory(petId);
+    const result = await fetchPetWeightHistory(userId, petId);
     expect(result[1].kg).toBeCloseTo(13);
   });
 });

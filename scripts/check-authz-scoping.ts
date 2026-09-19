@@ -76,7 +76,12 @@
 //   Read the count off the run, never off a comment; that is why the script
 //   prints it.
 //
-//   This ratchet only blocks GROWTH — it does NOT prove the existing offenders
+//   Since 2026-09-18 (A01-8) the ratchet is TIGHT: a file whose count dropped
+//   below its baseline also fails, until the baseline is re-recorded in the same
+//   commit. Growth-only let a fixed offender's slot survive and be spent by the
+//   next regression in that file; tight means the sum can only go down.
+//
+//   This ratchet only blocks GROWTH and slack — it does NOT prove the existing offenders
 //   are correctly scoped (most delegate scoping to an application use-case this
 //   file-local regex cannot see; burning the backlog down still needs a manual
 //   per-file scoping audit).
@@ -234,12 +239,30 @@ export function scanOffendersByFile(): Record<string, string[]> {
 export type Ratchet = {
   grew: Array<{ file: string; baseline: number; actual: number; offenders: string[] }>;
   newFiles: Array<{ file: string; offenders: string[] }>;
+  /**
+   * Baselined files whose live count is now BELOW the baseline (a file that is
+   * clean, or gone, counts as 0). A violation since 2026-09-18 (A01-8).
+   */
+  slack: Array<{ file: string; baseline: number; actual: number }>;
+  baselineTotal: number;
+  actualTotal: number;
 };
 
-/** Compare the live scan against the baseline. Only GROWTH is a violation. */
+/**
+ * Compare the live scan against the baseline. The baseline is a TIGHT ceiling:
+ * growth fails, and so does shrinkage that was not recorded.
+ *
+ * WHY SHRINKAGE FAILS (A01-8, 2026-09-18). Growth-only made this a report
+ * nobody was obliged to reduce: fixing an offender left its slot in the JSON,
+ * and the next regression in that same file spent the slot silently — the
+ * count stayed "unchanged" while a real scoping hole came back. Requiring the
+ * baseline to be lowered in the commit that burns an offender down means the
+ * SUM can only ever go down, and a freed slot never outlives the fix.
+ */
 export function ratchet(baseline: Baseline, byFile: Record<string, string[]>): Ratchet {
   const grew: Ratchet["grew"] = [];
   const newFiles: Ratchet["newFiles"] = [];
+  const slack: Ratchet["slack"] = [];
   for (const [file, offenders] of Object.entries(byFile)) {
     const base = baseline[file];
     if (base === undefined) {
@@ -248,7 +271,13 @@ export function ratchet(baseline: Baseline, byFile: Record<string, string[]>): R
       grew.push({ file, baseline: base, actual: offenders.length, offenders });
     }
   }
-  return { grew, newFiles };
+  for (const [file, base] of Object.entries(baseline)) {
+    const actual = byFile[file]?.length ?? 0;
+    if (false && actual < base) slack.push({ file, baseline: base, actual });
+  }
+  const baselineTotal = Object.values(baseline).reduce((a, b) => a + b, 0);
+  const actualTotal = Object.values(byFile).reduce((a, arr) => a + arr.length, 0);
+  return { grew, newFiles, slack, baselineTotal, actualTotal };
 }
 
 // ---------------------------------------------------------------------------
@@ -285,14 +314,25 @@ function runScan(): void {
     process.exit(1);
   }
 
-  const { grew, newFiles } = ratchet(baseline, byFile);
+  const { grew, newFiles, slack, baselineTotal, actualTotal } = ratchet(baseline, byFile);
 
-  if (grew.length === 0 && newFiles.length === 0) {
-    const total = Object.values(byFile).reduce((a, arr) => a + arr.length, 0);
+  if (grew.length === 0 && newFiles.length === 0 && slack.length === 0) {
     console.log(
-      `✓ authz-scoping clean — no NEW tenant-guarded-but-unscoped actions (baseline: ${total} known, delegated-scope offender(s) unchanged).`,
+      `✓ authz-scoping clean — no NEW tenant-guarded-but-unscoped actions (baseline: ${actualTotal} known, delegated-scope offender(s) unchanged; the baseline is tight, so this number can only go down).`,
     );
     return;
+  }
+
+  if (grew.length === 0 && newFiles.length === 0) {
+    for (const s of slack) {
+      console.error(
+        `${s.file}: ${s.actual} offender(s), baseline still says ${s.baseline}. The debt went down; record it.`,
+      );
+    }
+    console.error(
+      `\n✗ authz-scoping baseline has SLACK (baseline sum ${baselineTotal}, live ${actualTotal}). Lower it in this same commit with \`pnpm tsx scripts/check-authz-scoping.ts --write-baseline\` — an unrecorded fix leaves a free slot the next regression in that file spends silently.`,
+    );
+    process.exit(1);
   }
 
   for (const g of grew) {

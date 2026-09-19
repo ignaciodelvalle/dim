@@ -149,6 +149,7 @@ describe("whitelist drift guard — catalog event types", () => {
 
 describe("fetchPetEventsForProfileV2", () => {
   const PET_ID = "pet-1";
+  const VIEWER_ID = "viewer-1";
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -166,7 +167,7 @@ describe("fetchPetEventsForProfileV2", () => {
       .mockReturnValueOnce(chainReturning([whitelistedEvent]))
       .mockReturnValueOnce(chainReturning([recentEvent]));
 
-    const result: PetProfileV2Events = await fetchPetEventsForProfileV2(PET_ID);
+    const result: PetProfileV2Events = await fetchPetEventsForProfileV2(VIEWER_ID, PET_ID);
 
     expect(result).toHaveProperty("typedEvents");
     expect(result).toHaveProperty("recentFive");
@@ -177,7 +178,7 @@ describe("fetchPetEventsForProfileV2", () => {
 
     mockSelect.mockReturnValueOnce(chainReturning([good])).mockReturnValueOnce(chainReturning([]));
 
-    const result = await fetchPetEventsForProfileV2(PET_ID);
+    const result = await fetchPetEventsForProfileV2(VIEWER_ID, PET_ID);
     expect(result.typedEvents.length).toBe(1);
     expect(result.typedEvents[0].eventType).toBe(PROFILE_V2_TYPED_EVENT_TYPES[0]);
   });
@@ -189,7 +190,7 @@ describe("fetchPetEventsForProfileV2", () => {
 
     mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning(events));
 
-    const result = await fetchPetEventsForProfileV2(PET_ID);
+    const result = await fetchPetEventsForProfileV2(VIEWER_ID, PET_ID);
     expect(result.recentFive.length).toBeLessThanOrEqual(5);
     expect(result.recentFive.length).toBe(3);
   });
@@ -199,7 +200,7 @@ describe("fetchPetEventsForProfileV2", () => {
 
     mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning([event]));
 
-    const result = await fetchPetEventsForProfileV2(PET_ID);
+    const result = await fetchPetEventsForProfileV2(VIEWER_ID, PET_ID);
     const meta: PetEventMetadata = result.recentFive[0];
     expect(meta).toHaveProperty("id");
     expect(meta).toHaveProperty("eventType");
@@ -211,7 +212,7 @@ describe("fetchPetEventsForProfileV2", () => {
   it("does NOT call any URL-signing function — mockSelect called exactly twice (AC-A3)", async () => {
     mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning([]));
 
-    await fetchPetEventsForProfileV2(PET_ID);
+    await fetchPetEventsForProfileV2(VIEWER_ID, PET_ID);
 
     // Two select calls: one for typedEvents, one for recentFive.
     // If signing were called it would require a supabase client import
@@ -222,7 +223,7 @@ describe("fetchPetEventsForProfileV2", () => {
   it("runs both queries in a single invocation (Promise.all pattern)", async () => {
     mockSelect.mockReturnValueOnce(chainReturning([])).mockReturnValueOnce(chainReturning([]));
 
-    await fetchPetEventsForProfileV2(PET_ID);
+    await fetchPetEventsForProfileV2(VIEWER_ID, PET_ID);
     expect(mockSelect).toHaveBeenCalledTimes(2);
   });
 });

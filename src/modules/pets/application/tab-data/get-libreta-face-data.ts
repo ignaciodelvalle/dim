@@ -220,7 +220,7 @@ export async function getLibretaFaceData(
       )
       .orderBy(asc(timeSlots.startsAt))
       .limit(10),
-    fetchPetWeightHistory(pet.id),
+    fetchPetWeightHistory(user.id, pet.id),
     fetchActiveIdentifications(pet.id),
     accessPath === "owner"
       ? db

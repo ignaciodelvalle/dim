@@ -62,6 +62,17 @@ describe("searchUsers — jurisdiction scope guard", () => {
     mockSelect.mockClear();
   });
 
+  it("has no default scope: omitting it is a compile error (A01-6)", () => {
+    // The default used to be `{ role: "admin" }`: universal PII search for any
+    // caller that forgot the argument. Never invoked; `pnpm typecheck` is the
+    // assertion, and it fails the moment a default comes back (the directive
+    // below would then be unused).
+    const compileOnly = () =>
+      // @ts-expect-error scope is required
+      searchUsers("juan");
+    expect(typeof compileOnly).toBe("function");
+  });
+
   it("returns empty array immediately for a govt viewer with zero assignments — WITHOUT querying", async () => {
     const result = await searchUsers("juan", { role: "govt", jurisdictions: [] });
     expect(result).toEqual([]);

@@ -67,6 +67,7 @@ import {
   excludeResolvedLostEpisodeSql,
   excludeStaleWelcomeSql,
 } from "@/lib/infra/notification-reconcile";
+import { viewerHoldsPetClause } from "@/lib/infra/pet-holder-clause";
 import { batchFetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import {
   type ComplianceEvent,
@@ -1560,80 +1561,6 @@ export async function fetchVaccinationSummariesForPets(
 }
 
 // ---------------------------------------------------------------------------
-// Vaccination history
-// ---------------------------------------------------------------------------
-
-export type VaccinationHistoryRow = {
-  eventId: string;
-  recordedAt: Date;
-  vaccineName: string;
-  brand?: string | null;
-  batch?: string | null;
-  administeredBy?: string | null;
-  nextDueAt?: Date | null;
-  attachmentId?: string | null;
-  // Provenance for confidence tier display in the dashboard widget (plan §A.6, 2026-05-22).
-  authorRole: string;
-  authorVerified: boolean;
-  authorOrganizationId: string | null;
-};
-
-/**
- * Historical vaccination events for a pet, newest first.
- * Returns ALL vacunaciones recorded across the pet's lifetime (no time window).
- * Event type: 'vaccination_administered'.
- * Payload fields: vaccine_name, brand, batch, administered_by, next_due_at.
- */
-export async function fetchVaccinationHistory(petId: string): Promise<VaccinationHistoryRow[]> {
-  const rows = await db.execute<{
-    event_id: string;
-    recorded_at: string;
-    vaccine_name: string;
-    brand: string | null;
-    batch: string | null;
-    administered_by: string | null;
-    next_due_at: string | null;
-    attachment_id: string | null;
-    author_role: string;
-    author_verified: boolean;
-    author_organization_id: string | null;
-  }>(sql`
-    SELECT
-      e.id::text           AS event_id,
-      e.recorded_at::text  AS recorded_at,
-      e.payload->>'vaccine_name'     AS vaccine_name,
-      e.payload->>'brand'            AS brand,
-      e.payload->>'batch'            AS batch,
-      e.payload->>'administered_by'  AS administered_by,
-      e.payload->>'next_due_at'      AS next_due_at,
-      a.id::text           AS attachment_id,
-      e.author_role        AS author_role,
-      e.author_verified    AS author_verified,
-      e.author_organization_id::text AS author_organization_id
-    FROM pet_events e
-    LEFT JOIN attachments a ON a.event_id = e.id
-    WHERE e.pet_id = ${petId}
-      AND e.event_type = 'vaccination_administered'
-    ORDER BY e.recorded_at DESC
-    LIMIT 50
-  `);
-
-  return rows.map((r) => ({
-    eventId: r.event_id,
-    recordedAt: new Date(r.recorded_at),
-    vaccineName: r.vaccine_name ?? "Vacuna",
-    brand: r.brand,
-    batch: r.batch,
-    administeredBy: r.administered_by,
-    nextDueAt: r.next_due_at ? new Date(r.next_due_at) : null,
-    attachmentId: r.attachment_id,
-    authorRole: r.author_role ?? "owner",
-    authorVerified: r.author_verified ?? false,
-    authorOrganizationId: r.author_organization_id,
-  }));
-}
-
-// ---------------------------------------------------------------------------
 // Notifications by category (for /notificaciones tab filtering — C4)
 // ---------------------------------------------------------------------------
 
@@ -1741,8 +1668,15 @@ export type PetWeightSample = {
  *
  * Returns an empty array (never throws) when there are no qualifying events
  * or the pet has no weight history.
+ *
+ * `viewerId` is the ACCESS PREDICATE, not a label (A01-5, 2026-09-18): the
+ * query only returns rows for a pet the viewer holds (viewerHoldsPetClause), so
+ * a caller that skipped requirePetAccess gets an empty history, not the pet's.
  */
-export async function fetchPetWeightHistory(petId: string): Promise<PetWeightSample[]> {
+export async function fetchPetWeightHistory(
+  viewerId: string,
+  petId: string,
+): Promise<PetWeightSample[]> {
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
 
@@ -1761,6 +1695,7 @@ export async function fetchPetWeightHistory(petId: string): Promise<PetWeightSam
     .where(
       and(
         eq(petEvents.petId, petId),
+        viewerHoldsPetClause(viewerId, petEvents.petId),
         or(
           and(
             eq(petEvents.eventType, "weight_recorded"),
@@ -1913,8 +1848,15 @@ function deriveEventSummary(eventType: string, payload: Record<string, unknown>)
  *
  * This replaces the legacy "fetch everything + sign all attachments" pattern
  * and reduces profile load from O(N) to O(1) queries.
+ *
+ * Both queries carry viewerHoldsPetClause (A01-5, 2026-09-18): a viewer who
+ * does not hold the pet gets an empty history even if the caller forgot the
+ * access check. The caller's requirePetAccess stays the gate; this is the floor.
  */
-export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProfileV2Events> {
+export async function fetchPetEventsForProfileV2(
+  viewerId: string,
+  petId: string,
+): Promise<PetProfileV2Events> {
   const [typedRows, recentRows] = await Promise.all([
     // Query A — whitelisted events for state computation, oldest first.
     // INTENTIONALLY UNCAPPED: typedEvents is consumed by achievement replay
@@ -1931,6 +1873,7 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
       .where(
         and(
           eq(petEvents.petId, petId),
+          viewerHoldsPetClause(viewerId, petEvents.petId),
           inArray(petEvents.eventType, [...PROFILE_V2_TYPED_EVENT_TYPES]),
         ),
       )
@@ -1949,7 +1892,14 @@ export async function fetchPetEventsForProfileV2(petId: string): Promise<PetProf
       // renders `payload.text` for `note_added`, so a reported lost-feed message
       // was previewable in the owner's "últimos movimientos" strip. Found by the
       // coverage fence.
-      .where(and(eq(petEvents.petId, petId), excludeAuthorityOnlyClause(), notReportedClause()))
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          viewerHoldsPetClause(viewerId, petEvents.petId),
+          excludeAuthorityOnlyClause(),
+          notReportedClause(),
+        ),
+      )
       .orderBy(desc(petEvents.occurredAt))
       .limit(5),
   ]);

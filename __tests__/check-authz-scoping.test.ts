@@ -187,9 +187,31 @@ describe("ratchet", () => {
     expect(r.newFiles[0].file).toBe("new.ts");
   });
 
-  it("passes when a baselined file SHRINKS (debt burned down)", () => {
+  it("flags SLACK when a baselined file shrinks and the baseline was not lowered (A01-8)", () => {
+    // Growth-only let a fixed offender's slot survive for the next regression
+    // in that file to spend. The baseline is a tight ceiling now.
     const r = ratchet({ "a.ts": 3 }, { "a.ts": ["a.ts:1 x"] });
     expect(r.grew).toEqual([]);
     expect(r.newFiles).toEqual([]);
+    expect(r.slack).toEqual([{ file: "a.ts", baseline: 3, actual: 1 }]);
+    expect(r.baselineTotal).toBe(3);
+    expect(r.actualTotal).toBe(1);
+  });
+
+  it("flags SLACK for a baselined file that is now fully clean (absent from the scan)", () => {
+    const r = ratchet({ "a.ts": 2, "b.ts": 1 }, { "b.ts": ["b.ts:1 z"] });
+    expect(r.slack).toEqual([{ file: "a.ts", baseline: 2, actual: 0 }]);
+  });
+
+  it("an offender MOVED between files is caught even though the sum is unchanged", () => {
+    const r = ratchet({ "a.ts": 1, "b.ts": 1 }, { "b.ts": ["b.ts:1 x", "b.ts:2 y"] });
+    expect(r.grew).toHaveLength(1);
+    expect(r.slack).toHaveLength(1);
+    expect(r.baselineTotal).toBe(r.actualTotal);
+  });
+
+  it("no slack when the baseline matches exactly", () => {
+    const r = ratchet({ "a.ts": 2 }, { "a.ts": ["a.ts:1 x", "a.ts:2 y"] });
+    expect(r.slack).toEqual([]);
   });
 });

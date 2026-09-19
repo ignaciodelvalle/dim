@@ -636,7 +636,7 @@ export async function loadOwnerPetDetail<
     rehomeState,
   ] = await Promise.all([
     ...resolveJurisdictionRules(pet, deps),
-    deps.loadEvents(pet.id),
+    deps.loadEvents(user.id, pet.id),
     deps.readLostData(pet.id, pet.status),
     isOwner ? deps.loadReminders(user.id, pet.id) : Promise.resolve([]),
     deps.loadIdentifications(pet.id),
