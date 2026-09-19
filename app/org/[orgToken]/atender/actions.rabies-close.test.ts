@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
   closeCase: vi.fn(),
   findAuthoritiesForJurisdiction: vi.fn(),
   revalidatePath: vi.fn(),
+  clinicMayRecordObservationDeath: vi.fn(),
   repo: {
     findPetByToken: vi.fn(),
     findLatestObservationStarted: vi.fn(),
@@ -86,6 +87,10 @@ vi.mock("@/src/modules/events/infrastructure/events-repository", () => ({
 vi.mock("@/lib/infra/rehome-death-cascade", () => ({
   lockPetForDeathRecord: deathMocks.lockPetForDeathRecord,
   endSponsorshipForDeceasedPet: deathMocks.endSponsorshipForDeceasedPet,
+}));
+
+vi.mock("@/lib/infra/vet-observation-reach", () => ({
+  clinicMayRecordObservationDeath: mocks.clinicMayRecordObservationDeath,
 }));
 
 vi.mock("./atender-access", () => ({
@@ -451,6 +456,7 @@ describe("atenderRecordDeathInObservationAction — PO D8", () => {
     deathMocks.lockPetForDeathRecord.mockResolvedValue(undefined);
     deathMocks.endSponsorshipForDeceasedPet.mockResolvedValue(null);
     deathMocks.flushNotifications.mockResolvedValue(undefined);
+    mocks.clinicMayRecordObservationDeath.mockResolvedValue(true);
   });
 
   function expectNoDeathWritten() {
@@ -492,6 +498,17 @@ describe("atenderRecordDeathInObservationAction — PO D8", () => {
       "Confirmá que el fallecimiento es definitivo: queda asentado y no se puede deshacer.",
     );
     expectNoDeathWritten();
+  });
+
+  it("REFUSES a clinic outside the animal's province that never signed this observation (walk-in trust is not enough for a death)", async () => {
+    mocks.clinicMayRecordObservationDeath.mockResolvedValueOnce(false);
+    const result = await recordDeath();
+    expect(result.error).toContain("Solo puede registrar el fallecimiento una veterinaria");
+    expectNoDeathWritten();
+    // The reach check is asked about THIS clinic and THIS animal's province.
+    expect(mocks.clinicMayRecordObservationDeath).toHaveBeenCalledWith(
+      expect.objectContaining({ petProvince: expect.anything() }),
+    );
   });
 
   it("writes the canonical death, closes the observation as THIS vet, audits it, alerts the authority and every owner", async () => {

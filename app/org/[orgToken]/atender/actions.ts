@@ -50,6 +50,7 @@ import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { closeCase, findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { activeHumanInstitutionalAdminIds } from "@/lib/infra/notification-recipients";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
+import { clinicMayRecordObservationDeath } from "@/lib/infra/vet-observation-reach";
 import { professionalCloseObservation } from "@/src/modules/surveillance/application/professional-close-observation";
 import type { RabiesObservationOutcome } from "@/src/modules/surveillance/domain/rabies-observation";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
@@ -1062,6 +1063,21 @@ export async function atenderRecordDeathInObservationAction(
     findOpenCaseForPetAndKind(pet.id, "custody_episode"),
   ]);
   if (!located || located.id !== pet.id) return { error: "Mascota no encontrada." };
+
+  // A death is terminal: walk-in trust needs a second anchor (see
+  // lib/infra/vet-observation-reach.ts — security review 2026-09-18, D8).
+  const observationStarted = await surveillance.findLatestObservationStarted(pet.id);
+  const reach = await clinicMayRecordObservationDeath({
+    organizationId,
+    petId: pet.id,
+    petProvince: located.jurisdictionProvince ?? null,
+    observationStartedAt: observationStarted?.occurredAt ?? null,
+  });
+  if (!reach) {
+    return {
+      error: `Solo puede registrar el fallecimiento una veterinaria de la misma provincia que ${pet.name} o la que ya viene atendiendo su observación. Avisá a la autoridad sanitaria de su jurisdicción.`,
+    };
+  }
 
   // Loaded here, not at module top: the death writer pulls the rehome cascade
   // (and its schema enums) into every walk-in writer's import graph otherwise.
